@@ -17,7 +17,13 @@ from sqlalchemy import delete, func, select
 from flexmeasures import Source
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.automations import AutomationIdField
+from flexmeasures.data.services.automations import (
+    delete_automation as remove_automation,
+    get_automations_involving_sensor,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -29,10 +35,12 @@ from flexmeasures.data.schemas import (
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     abort,
     done,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    MsgStyle,
 )
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.secrets_utils import delete_secret, get_secret_paths
@@ -68,7 +76,7 @@ def _count_affected_secrets(
     )
 
 
-@click.group("delete")
+@click.group("delete", cls=LoggedClickExceptionGroup)
 def fm_delete_data():
     """FlexMeasures: Delete data."""
 
@@ -271,6 +279,31 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
         click.confirm(prompt, abort=True)
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     db.session.commit()
+
+
+@fm_delete_data.command("automation")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=True,
+    type=AutomationIdField(),
+    help="ID of the automation to delete.",
+)
+@click.option("--force/--no-force", default=False, help="Skip confirmation prompt.")
+def delete_automation(automation: Automation, force: bool):
+    """
+    Delete an automation.
+    """
+    if not force:
+        prompt = f"Delete automation '{automation.name}' (ID: {automation.id}) of asset '{automation.asset.name}'?"
+        click.confirm(prompt, abort=True)
+    remove_automation(automation, origin="CLI")
+    db.session.commit()
+    click.secho(
+        f"Successfully deleted automation '{automation.name}' (ID: {automation.id}).",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_delete_data.command("structure")
@@ -663,6 +696,22 @@ def delete_sensor(
         .select_from(TimedBelief)
         .where(TimedBelief.sensor_id.in_([sensor.id for sensor in sensors]))
     ).scalar_one()
+    # An automation refers to its sensors by ID in its parameters, which no foreign key protects,
+    # so deleting one here would leave the automation to fail on its next run. Say so up front.
+    for sensor in sensors:
+        involved_automations = get_automations_involving_sensor(sensor)
+        if involved_automations:
+            click.secho(
+                f"Sensor {sensor.id} is used by "
+                + join_words_into_a_list(
+                    [
+                        f"automation '{automation.name}' ({automation.id})"
+                        for automation in involved_automations
+                    ]
+                )
+                + ", which will fail on the next run after this deletion.",
+                **MsgStyle.WARN,
+            )
     click.confirm(
         f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n_beliefs} beliefs?",
         abort=True,

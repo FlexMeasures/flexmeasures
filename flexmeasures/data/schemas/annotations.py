@@ -52,7 +52,7 @@ class AnnotationSchema(Schema):
         required=True,
         format="iso",
         metadata={
-            "description": "End time in ISO 8601 format.",
+            "description": "End time in ISO 8601 format. An end equal to the start makes an instantaneous annotation.",
             "example": "2026-02-11T19:00:00+01:00",
         },
     )
@@ -75,10 +75,13 @@ class AnnotationSchema(Schema):
 
     @validates_schema
     def validate_time_range(self, data, **kwargs):
-        """Validate that end is after start."""
+        """Validate that end is not before start.
+
+        An end equal to the start makes an instantaneous annotation.
+        """
         if "start" in data and "end" in data:
-            if data["end"] <= data["start"]:
-                raise ValidationError("end must be after start")
+            if data["end"] < data["start"]:
+                raise ValidationError("end must not be before start")
 
     @post_load
     def to_annotation(self, data: dict, *args, **kwargs) -> Annotation:

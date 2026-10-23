@@ -1,71 +1,277 @@
 export const apiBasePath = window.location.origin;
 
-// Fetch Account Details
-export async function getAccount(accountId) {
-  const cacheKey = `account_${accountId}`;
-  const cachedData = localStorage.getItem(cacheKey);
+/**
+ * Escape text for use in HTML, as element content or as a quoted attribute value.
+ *
+ * Names, units and descriptions are whatever a user typed,
+ * so they must be escaped wherever they are built into markup rather than set as textContent.
+ *
+ * @param {*} value - The text to escape; null and undefined become the empty string.
+ * @returns {string} - The escaped text.
+ */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * Markup for a sensor unit, explaining the empty unit of a dimensionless sensor.
+ *
+ * @param {string} unit - The sensor's unit.
+ * @returns {string} - HTML.
+ */
+export function unitHtml(unit) {
+  return unit === ""
+    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+    : escapeHtml(unit);
+}
+
+/**
+ * Look up one resource in the API, remembering it in localStorage.
+ *
+ * A configuration can still refer to a sensor or an asset which is gone,
+ * for instance one deleted directly in the database, where our cleanup on deletion never ran.
+ * A lookup the API does not answer with a resource therefore yields no resource, rather than raising,
+ * and says whether that is because the resource is gone:
+ * only a 404 means it is, while a server error or a network failure only means we could not tell just now.
+ * A resource which is gone is forgotten, so that a copy remembered earlier does not stand in for it.
+ *
+ * @param {string} path - The resource's path within the API.
+ * @param {string} cacheKey - Where to remember the resource in localStorage.
+ * @param {boolean} [useCache=true] - Whether a remembered resource may be handed out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - The resource (or null), and whether the API says it does not exist.
+ */
+async function lookUpResource(path, cacheKey, useCache = true) {
+  const cachedData = useCache ? localStorage.getItem(cacheKey) : null;
 
   if (cachedData) {
-    return JSON.parse(cachedData);
+    const cached = JSON.parse(cachedData);
+    // Earlier versions remembered whatever the API answered,
+    // which for a resource that is gone is an error payload rather than a resource.
+    if (cached !== null && cached.id !== undefined) {
+      return { resource: cached, gone: false };
+    }
+    localStorage.removeItem(cacheKey);
   }
 
-  const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
-  const response = await fetch(apiUrl);
-  const account = await response.json();
+  let response;
+  try {
+    response = await fetch(apiBasePath + path);
+  } catch (error) {
+    // A network failure says nothing about whether the resource is there.
+    return { resource: null, gone: false };
+  }
+  if (response.status === 404) {
+    localStorage.removeItem(cacheKey);
+    return { resource: null, gone: true };
+  }
+  if (!response.ok) {
+    return { resource: null, gone: false };
+  }
 
-  localStorage.setItem(cacheKey, JSON.stringify(account));
+  let resource;
+  try {
+    resource = await response.json();
+  } catch (error) {
+    return { resource: null, gone: false };
+  }
 
-  return account;
+  localStorage.setItem(cacheKey, JSON.stringify(resource));
+
+  return { resource, gone: false };
+}
+
+// Fetch Account Details
+export async function getAccount(accountId) {
+  const { resource } = await lookUpResource(
+    "/api/v3_0/accounts/" + accountId,
+    `account_${accountId}`,
+  );
+  return resource;
+}
+
+/**
+ * Look up an asset, saying whether one we could not hand out is gone.
+ *
+ * @param {number|string} assetId - The asset's id.
+ * @param {boolean} [useCache=true] - Whether a remembered asset may be handed out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - See lookUpResource.
+ */
+export async function lookUpAsset(assetId, useCache = true) {
+  return lookUpResource(
+    "/api/v3_0/assets/" + assetId,
+    `asset_${assetId}`,
+    useCache,
+  );
 }
 
 // Fetch Asset Details
 export async function getAsset(assetId, useCache = true) {
-  const cacheKey = `asset_${assetId}`;
-  const cachedData = localStorage.getItem(cacheKey);
+  return (await lookUpAsset(assetId, useCache)).resource;
+}
 
-  if (cachedData && useCache) {
-    return JSON.parse(cachedData);
-  }
-
-  const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
-  const response = await fetch(apiUrl);
-  const asset = await response.json();
-
-  localStorage.setItem(cacheKey, JSON.stringify(asset));
-
-  return asset;
+/**
+ * Look up a sensor, saying whether one we could not hand out is gone.
+ *
+ * @param {number|string} sensorId - The sensor's id.
+ * @param {boolean} [useCache=true] - Whether a remembered sensor may be handed out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - See lookUpResource.
+ */
+export async function lookUpSensor(sensorId, useCache = true) {
+  return lookUpResource(
+    "/api/v3_0/sensors/" + sensorId,
+    `sensor_${sensorId}`,
+    useCache,
+  );
 }
 
 // Fetch Sensor Details
-export async function getSensor(id) {
-  const cacheKey = `sensor_${id}`;
-  const cachedData = localStorage.getItem(cacheKey);
+export async function getSensor(id, useCache = true) {
+  return (await lookUpSensor(id, useCache)).resource;
+}
 
-  if (cachedData) {
-    return JSON.parse(cachedData);
+/**
+ * The account an asset belongs to, for an asset which may not be there.
+ *
+ * Every place that names a sensor also names the account its asset belongs to,
+ * and an asset we could not look up, or a public asset, has no account to name.
+ *
+ * @param {Object|null} asset - The asset, or null if it could not be looked up.
+ * @returns {Promise<Object|null>} - The account, or null if there is none to name.
+ */
+export async function getAccountOfAsset(asset) {
+  if (asset === null || asset.account_id === null || asset.account_id === undefined) {
+    return null;
   }
+  return getAccount(asset.account_id);
+}
 
-  const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
-  const response = await fetch(apiUrl);
-  const sensor = await response.json();
+/**
+ * How many of the given sensors the API says are gone.
+ *
+ * A sensor which merely failed to load is not counted,
+ * as it may well still be there.
+ *
+ * @param {Array<number>} sensorIds - The sensors to look up, each one once.
+ * @returns {Promise<number>} - How many of them the API says do not exist.
+ */
+export async function countSensorsGone(sensorIds) {
+  const lookups = await Promise.all(sensorIds.map((id) => lookUpSensor(id)));
+  return lookups.filter((lookup) => lookup.gone).length;
+}
 
-  localStorage.setItem(cacheKey, JSON.stringify(sensor));
+/**
+ * The warning a dialogue shows above its configuration when some of its references point at something gone.
+ *
+ * Each dangling reference is also named where it sits,
+ * but that can be out of sight, such as on another commodity's tab,
+ * so the dialogue as a whole says how many there are, in the same words in each dialogue.
+ *
+ * @param {number} count - How many references point at something gone.
+ * @param {string} [thing="asset or sensor"] - What one reference points at.
+ * @param {string} [things="assets or sensors"] - What several references point at.
+ * @returns {HTMLElement|null} - The warning, or null if there is nothing to warn about.
+ */
+export function unavailableReferencesWarning(
+  count,
+  thing = "asset or sensor",
+  things = "assets or sensors",
+) {
+  if (count === 0) {
+    return null;
+  }
+  const warning = document.createElement("div");
+  warning.className = "alert alert-warning mt-2";
+  warning.setAttribute("role", "alert");
+  warning.textContent =
+    count === 1
+      ? `1 saved reference is not available anymore, as the ${thing} it points at has been deleted. You can remove or update it.`
+      : `${count} saved references are not available anymore, as the ${things} they point at have been deleted. You can remove or update them.`;
+  return warning;
+}
 
-  return sensor;
+/**
+ * How both dialogues word a reference to a sensor we could not look up.
+ *
+ * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
+ * so the flex-config and graph dialogues have to name such a reference rather than fail on it.
+ * Only a sensor the API says does not exist is called gone;
+ * a lookup which failed for another reason, such as a server error, says no more than that.
+ *
+ * @param {number|string} sensorId - The id the configuration still refers to.
+ * @param {boolean} gone - Whether the API says the sensor does not exist.
+ * @returns {string} - The text to show, for the caller to escape if it builds markup from it.
+ */
+export function missingSensorLabel(sensorId, gone) {
+  return gone
+    ? `Sensor ${sensorId} is not available anymore (it may have been deleted).`
+    : `Sensor ${sensorId} could not be loaded just now.`;
+}
+
+/**
+ * Convert the Python representation of a dict (as Jinja renders one) to JSON.
+ *
+ * Only what `repr` writes for JSON-like data is handled:
+ * strings in either quote style, with Python's escapes, and the constants None, True and False.
+ * Those constants are only replaced outside strings, so a value such as "Nonetheless" survives.
+ *
+ * @param {string} text - The Python representation.
+ * @returns {string} - The same data as JSON.
+ */
+export function pythonReprToJSON(text) {
+  const constants = { None: "null", True: "true", False: "false" };
+  const escapes = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", 0: "\0" };
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      let value = "";
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) {
+        if (text[j] === "\\") {
+          const next = text[j + 1];
+          const hexLength = { x: 2, u: 4, U: 8 }[next];
+          if (hexLength) {
+            value += String.fromCodePoint(parseInt(text.slice(j + 2, j + 2 + hexLength), 16));
+            j += 2 + hexLength;
+          } else {
+            value += next in escapes ? escapes[next] : next;
+            j += 2;
+          }
+          continue;
+        }
+        value += text[j];
+        j++;
+      }
+      out += JSON.stringify(value);
+      i = j + 1;
+      continue;
+    }
+    const word = /^[A-Za-z_]\w*/.exec(text.slice(i));
+    if (word) {
+      out += constants[word[0]] ?? word[0];
+      i += word[0].length;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
   /*
-    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema. 
+    rawJSON - the resource's fields, either as an object or as the Python representation of a dict.
+    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema.
     If false, those fields will be ignored.
   */
-  let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null, True to true and False to false
-  processedJSON = processedJSON.replaceAll("None", "null");
-  processedJSON = processedJSON.replaceAll("True", "true");
-  processedJSON = processedJSON.replaceAll("False", "false");
-  // update the assetFlexModel fields
-  processedJSON = JSON.parse(processedJSON);
+  const processedJSON =
+    typeof rawJSON === "string" ? JSON.parse(pythonReprToJSON(rawJSON)) : rawJSON;
   const extraFields = {};
 
   for (const [key, value] of Object.entries(processedJSON)) {
@@ -110,9 +316,12 @@ export async function renderSensor(sensorId) {
     return `<div class="text-info">No sensor data available</div>`;
   }
 
-  const sensorData = await getSensor(sensorId);
+  const { resource: sensorData, gone } = await lookUpSensor(sensorId);
+  if (sensorData === null) {
+    return `<div class="text-warning">${escapeHtml(missingSensorLabel(sensorId, gone))}</div>`;
+  }
   const Asset = await getAsset(sensorData.generic_asset_id);
-  const Account = await getAccount(Asset.account_id);
+  const Account = await getAccountOfAsset(Asset);
 
   return `
         <div class="d-flex justify-content-between">
@@ -120,15 +329,11 @@ export async function renderSensor(sensorId) {
                 <b>Sensor:</b> <a href="${apiBasePath}/sensors/${
                   sensorData.id
                 }">${sensorData.id}</a>,
-                <b>Unit:</b> ${
-                  sensorData.unit === ""
-                    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                    : sensorData.unit
-                },
-                <b>Name:</b> ${sensorData.name},
+                <b>Unit:</b> ${unitHtml(sensorData.unit)},
+                <b>Name:</b> ${escapeHtml(sensorData.name)},
                 <div style="padding-top: 1px;"></div>
-                <b>Asset:</b> ${Asset.name},
-                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
+                <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
             </div>
         </div>
     `;
@@ -197,7 +402,7 @@ export function renderSensorSearchResults(
 
   sensors.forEach(async (sensor) => {
     const Asset = await getAsset(sensor.generic_asset_id);
-    const Account = await getAccount(Asset.account_id);
+    const Account = await getAccountOfAsset(Asset);
 
     const col = document.createElement("div");
     col.classList.add("col-12", "mb-1");
@@ -205,19 +410,15 @@ export function renderSensorSearchResults(
     col.innerHTML = `
                 <div class="card m-0">
                     <div class="card-body p-0 result-sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
+                        <h5 class="card-title">${escapeHtml(sensor.name)}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${
                               sensor.id
                             }">${sensor.id}</a>,
-                            <b>Unit:</b> ${
-                              sensor.unit === ""
-                                ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                                : sensor.unit
-                            },
-                            <b>Asset:</b> ${Asset.name},
+                            <b>Unit:</b> ${unitHtml(sensor.unit)},
+                            <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
                             <b>Account:</b> ${
-                              Account?.name ? Account.name : "PUBLIC"
+                              Account?.name ? escapeHtml(Account.name) : "PUBLIC"
                             }
                         </p>
                     </div>
@@ -249,50 +450,73 @@ export function convertHtmlToElement(htmlString) {
   return tempDiv.firstChild;
 }
 
-// Set default asset view
+/**
+ * Remember this asset view as the one to open per default, or stop doing so.
+ *
+ * The click has already moved the checkbox, so a refusal puts it back:
+ * a box left ticked claims a preference the server never stored.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @param {string} view_name - The name of the view currently shown.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultAssetView(checkbox, view_name) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/default_asset_view", {
+  return fetch(apiBasePath + "/api/ui/session/default-asset-view", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      default_asset_view: view_name,
-      use_as_default: isChecked,
+      "default-asset-view": view_name,
+      "use-as-default": isChecked,
     }),
   })
-    .then((response) => response.json())
+    .then(rejectIfNotOk)
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast("Could not save your default view: " + error.message, "error");
     });
 }
 
+/**
+ * Remember whether graph legends belong below their graph, and reload to apply it.
+ *
+ * The reload happens only once the preference was stored,
+ * since reloading after a refusal redraws the old setting and reads as the toggle bouncing back.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultLegendPosition(checkbox) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/keep_legends_below_graphs", {
+  return fetch(apiBasePath + "/api/ui/session/keep-legends-below-graphs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      keep_legends_below_graphs: isChecked,
+      "keep-legends-below-graphs": isChecked,
     }),
   })
-    .then((response) => {
-      response.json();
+    .then(rejectIfNotOk)
+    .then(() => {
       location.reload();
     })
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast(
+        "Could not save your legend placement: " + error.message,
+        "error",
+      );
     });
 }
 
@@ -384,6 +608,28 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 }
 
 /**
+ * Turn an error response into a rejection that carries the server's own message.
+ *
+ * `fetch` rejects only on a network-level failure, so a 4xx or 5xx arrives as a resolved response;
+ * a caller that does not check `response.ok` reads a refusal as a success and drops it silently.
+ * A JSON body is read through `extractApiErrorMessage`, so that a validation error reaches the user as the fields it named, rather than as the status text.
+ *
+ * @param {Response} response - The response to inspect.
+ * @returns {Response} The same response, when it was a success.
+ */
+function rejectIfNotOk(response) {
+  if (response.ok) return response;
+  const fallback = response.statusText || "Request failed";
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json().then((err) => {
+      throw new Error(extractApiErrorMessage(err, fallback));
+    });
+  }
+  throw new Error(fallback);
+}
+
+/**
  * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
@@ -401,20 +647,43 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
   if (confirmMessage && !confirm(confirmMessage)) return;
   fetch(url, options)
-    .then((response) => {
-      if (response.ok) return response;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return response.json().then((err) => {
-          throw new Error(
-            err.message || response.statusText || "Request failed",
-          );
-        });
-      }
-      throw new Error(response.statusText || "Request failed");
-    })
+    .then(rejectIfNotOk)
     .then(onSuccess)
     .catch((err) => showToast(errorPrefix + ": " + err.message, "error"));
+}
+
+/**
+ * Report the automations that an asset copy left out, as returned by the copy endpoint.
+ *
+ * Copying an asset copies its automations too, but an automation that cannot be copied safely is skipped,
+ * so say which ones those were and why, rather than let the user find out when a forecast never arrives.
+ *
+ * An automation's name is whatever a user typed, and `showToast` renders the message as HTML,
+ * so the parts that come from the response are escaped here.
+ *
+ * @param {object} data - The copy endpoint's response body.
+ * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
+ */
+export const SKIPPED_AUTOMATIONS_TOAST_DELAY = 8000;
+
+export function reportSkippedAutomations(data) {
+  const skipped = (data && data["skipped-automations"]) || [];
+  if (skipped.length === 0) return false;
+  const details = skipped
+    .map(
+      (automation) =>
+        '"' +
+        escapeHtml(automation.name) +
+        '" — ' +
+        escapeHtml(automation.reason),
+    )
+    .join(" ");
+  showToast(
+    skipped.length + " automation(s) could not be copied: " + details,
+    "info",
+    { delay: SKIPPED_AUTOMATIONS_TOAST_DELAY },
+  );
+  return true;
 }
 
 /**
@@ -451,6 +720,7 @@ export function initCopyAssetButtons() {
         (response) =>
           response.json().then((data) => {
             showToast("Asset copied successfully.", "success");
+            const redirectDelay = reportSkippedAutomations(data) ? SKIPPED_AUTOMATIONS_TOAST_DELAY : 1500;
             setTimeout(() => {
               const dest = "/assets/" + data.asset + "/properties";
               if (openInNewTab) {
@@ -458,7 +728,7 @@ export function initCopyAssetButtons() {
               } else {
                 window.location.href = dest;
               }
-            }, 1500);
+            }, redirectDelay);
           }),
         "Failed to copy asset",
       );
@@ -537,16 +807,35 @@ export function pollJobStatus(jobUuid, options = {}) {
         signal.addEventListener("abort", stop, { once: true });
     }
 
-    async function poll() {
-        if (stopped) return;
+    // Polls are not sent while one is still waiting for its answer,
+    // or a slow endpoint would answer several of them with the same final status, each reported again.
+    let inFlight = false;
 
+    async function poll() {
+        if (stopped || inFlight) return;
+        inFlight = true;
+        try {
+            await pollOnce();
+        } finally {
+            inFlight = false;
+        }
+    }
+
+    async function pollOnce() {
         let data;
         try {
             const response = await fetch(url, { credentials: "same-origin" });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            try {
+                data = await response.json();
+            } catch {
+                data = null;
             }
-            data = await response.json();
+            // A failed job is answered with 422 and its status in the body, so that is the one error response to read as the job's status.
+            // Other error responses carry a status too (ERROR for a job that is gone, UNAUTHORIZED after logging out), but not a job's.
+            if (!response.ok && !(response.status === 422 && data && data.status)) {
+                const reason = data && data.message ? ` (${data.message})` : "";
+                throw new Error(`HTTP ${response.status}: ${response.statusText}${reason}`);
+            }
         } catch (err) {
             stop();
             showToast("Could not reach job status endpoint: " + err.message, "error");

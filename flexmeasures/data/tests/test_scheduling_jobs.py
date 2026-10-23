@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.tests.utils import exception_reporter
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
+    get_data_source_for_job,
     create_scheduling_job,
     load_custom_scheduler,
     handle_scheduling_exception,
@@ -37,6 +38,7 @@ def test_scheduling_a_battery(
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
+    - the commitment costs reached the job meta stored in Redis — regression for #2418
     - success is logged once (not before compute) — regression for #2049
     """
 
@@ -47,7 +49,7 @@ def test_scheduling_a_battery(
         if s.name == "power"
     )
     tz = pytz.timezone("Europe/Amsterdam")
-    # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
+    # the flex-model sets no soc-at-start, so soc at start will be 0
     # TODO: stop using attributes in conftest
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -76,12 +78,16 @@ def test_scheduling_a_battery(
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = fresh_db.session.execute(
-        select(DataSource).filter_by(name="Seita", type="scheduler")
-    ).scalar_one_or_none()
+    # Ask the job which source it wrote with, rather than looking one up by name:
+    # a scheduler's source also records the flex config it computed under,
+    # so several sources can share the scheduler's name, model and version.
+    scheduler_source = get_data_source_for_job(
+        Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    )
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
+    assert scheduler_source.name == "Seita" and scheduler_source.type == "scheduler"
 
     power_values = fresh_db.session.scalars(
         select(TimedBelief)
@@ -93,6 +99,21 @@ def test_scheduling_a_battery(
     assert (
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
+
+    # Regression #2418: the commitment costs used to be written to the job meta after the
+    # job's last save_meta() call, and RQ persists a finishing job with include_meta=False,
+    # so they were computed and then silently lost. Fetch a fresh Job to see only what
+    # actually reached Redis, rather than the worker's in-memory job object.
+    finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    assert finished_job.is_finished
+    commitment_costs = finished_job.meta["scheduler_info"]["commitment_costs"]
+    assert (
+        commitment_costs
+    ), "the scheduler reported commitment costs, so the persisted job meta must carry them"
+    assert all(
+        isinstance(cost, float) and np.isfinite(cost)
+        for cost in commitment_costs.values()
+    )
 
     # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
     # Count only this job's message — the RQ worker may also process other queued jobs.
@@ -283,7 +304,7 @@ def test_fallback_chain(
         job.refresh()
         assert job.kwargs["scheduler_specs"]["class"] == scheduler_class
         assert job.is_failed
-        assert isinstance(job.meta["exception"], InfeasibleProblemException)
+        assert job.meta["exception"]["type"] == InfeasibleProblemException.__name__
 
     success_job = app.queues["scheduling"].jobs[0]
     # check that success

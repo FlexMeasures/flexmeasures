@@ -7,7 +7,10 @@
 {% block divs %}
 
     {% block breadcrumbs %} {{ super() }} {% endblock %}
-    
+
+      <!-- Page data read by flexmeasures.js -->
+      <div id="sensorPageData" class="d-none" data-preselected-source-id="{{ preselected_source_id if preselected_source_id else '' }}"></div>
+
       <div class="sensor-data charts text-center container-fluid px-0">
           <div class="row on-top-md gx-0">
               <div class="col-md-2 col-action-left">
@@ -102,29 +105,37 @@ For the data, note the following:
                                             />
                                         </div>
                                         
-                                        <!-- Checkbox for setting the record as measured instantly -->
+                                        <!-- Belief time: when the uploaded data was recorded -->
                                         <div class="mb-3">
                                             <label class="form-label fw-bold">
-                                                Measurement Time
+                                                Belief time
                                                 <i
                                                     class="fa fa-info-circle ms-1"
-                                                    title="If checked, each data point will be recorded as if it had been measured immediately after the event. Otherwise, FlexMeasures will assume the data was not known prior to the time of upload."
+                                                    title="When was this data recorded?
+- Measured instantly: each data point is recorded right when its event ends.
+- Time of upload: all data points are recorded at the time of upload.
+- Custom: all data points are recorded at the time you pick here, for example their original recording time when moving historical data from another system."
                                                     style="color: white; cursor: pointer;"
                                                 >
                                                 </i>
                                             </label>
                                             <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="checkbox" 
-                                                    id="belief-time-measured-instantly" 
-                                                    name="belief-time-measured-instantly" 
-                                                    {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}
-                                                >
-                                                <label class="form-check-label" for="belief-time-measured-instantly">
-                                                    Measured instantly
-                                                    
-                                                </label>
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-instantly" value="instantly"
+                                                    {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
+                                                <label class="form-check-label" for="belief-time-mode-instantly">Measured instantly</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-upload" value="upload"
+                                                    {% if not FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
+                                                <label class="form-check-label" for="belief-time-mode-upload">Time of upload</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-custom" value="custom">
+                                                <label class="form-check-label" for="belief-time-mode-custom">Custom</label>
+                                            </div>
+                                            <div id="beliefTimeCustomContainer" class="mt-2 d-none">
+                                                <input type="datetime-local" class="form-control" id="beliefTimeCustom" step="60" />
+                                                <small id="beliefTimeCustomHint"></small>
                                             </div>
                                         </div>
 
@@ -155,6 +166,8 @@ For the data, note the following:
                                 </fieldset>
                             </div>
                         </div>
+                  {% endif %}
+                  {% if user_can_trigger_forecasts %}
                           <div class="sidepanel-container">
                               <div class="sidepanel-label">Forecast</div>
                           <div class="sidepanel-content" style="text-align: left;">
@@ -203,14 +216,43 @@ For the data, note the following:
                               </fieldset>
                           </div>
                       </div>
+                      <div class="sidepanel-container">
+                          <div class="sidepanel-label">Annotate</div>
+                          <div class="sidepanel-content" style="text-align: left;">
+                              <form id="annotateForm">
+                                  <label for="annotationLabel" class="form-label fw-bold">Label</label>
+                                  <input id="annotationLabel" class="form-control" type="text" maxlength="1024" required aria-describedby="annotationHelp" />
+                                  <div id="annotationHelp" class="form-text text-white">
+                                      To annotate some events, pick the select tool above the chart and drag across them, or click to annotate an instant. You can also edit the times below.
+                                  </div>
+                                  <label for="annotationStart" class="form-label fw-bold mt-3">From</label>
+                                  <input id="annotationStart" class="form-control" type="datetime-local" required />
+                                  <label for="annotationEnd" class="form-label fw-bold mt-3">Until</label>
+                                  <input id="annotationEnd" class="form-control" type="datetime-local" required />
+                                  <div class="form-text text-white">
+                                      <span id="annotationRangeInfo">The range shown in the chart.</span>
+                                      <a href="#" id="annotationClearSelection" class="d-none">Clear selection</a>
+                                  </div>
+                                  <button id="annotateButton" class="btn btn-sm btn-responsive btn-success create-button mt-3" type="submit"
+                                      style="border: 1px solid var(--light-gray);">Annotate</button>
+                              </form>
+                          </div>
+                      </div>
                   {% endif %}
 
-                  {% if user_can_delete_sensor %}
+                  {% if user_can_delete_sensor_data %}
                   <div class="sidepanel-container">
                       <div class="sidepanel-label">Delete data</div>
                       <div class="sidepanel-content" style="text-align: left;">
                           <fieldset>
                               <div class="mb-3">
+                                  <label for="deleteDataKind" class="form-label fw-bold">What</label>
+                                  <select class="form-select" id="deleteDataKind">
+                                      <option value="data" selected>Sensor data</option>
+                                      <option value="annotations">Annotations</option>
+                                  </select>
+                              </div>
+                              <div class="mb-3" id="deleteDataSourceRow">
                                   <label for="deleteDataSource" class="form-label fw-bold">Source</label>
                                   <select class="form-select" id="deleteDataSource">
                                       <option value="">All sources</option>
@@ -285,7 +327,7 @@ For the data, note the following:
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor._ui_unit | safe }}</td>
+                                  <td>{% if sensor.unit == "" %}<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>{% else %}{{ sensor.unit }}{% endif %}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
@@ -312,6 +354,26 @@ For the data, note the following:
                                   {% endfor %}
                               </table>
                           {% endif %}
+                          {% if feeding_automations %}
+                              <h5 style="margin-top: 20px;">
+                                  Automations
+                                  <span class="fa fa-info-circle" title="Automations that write data to this sensor. Inactive ones do not run until they are activated again."></span>
+                              </h5>
+
+                              <table class="table table-striped">
+                                  {% for automation in feeding_automations %}
+                                  <tr>
+                                      <th>
+                                          <a href="/assets/{{ automation.asset_id }}/automations" title="Show this automation on the automations page of its asset">{{ automation.name }}</a>
+                                      </th>
+                                      <td>
+                                          {{ automation.recurrence_description }}
+                                          {% if not automation.active %}<span title="Inactive">⚪</span>{% endif %}
+                                      </td>
+                                  </tr>
+                                  {% endfor %}
+                              </table>
+                          {% endif %}
                       </div>
                       <div class="card col-lg-5" id="statsContainer" style="align-items: center;">
                         <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
@@ -323,11 +385,30 @@ For the data, note the following:
                         <!-- Dropdown for sourceKey -->
                         <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
                             <small class="text-muted">Select source for statistics</small>
-                            <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                Select Source
-                            </button>
-                            <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
-                            </ul>
+                            <div class="d-flex align-items-center">
+                                <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Select Source
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
+                                </ul>
+                                <button class="btn btn-link ms-1 p-0 d-none" type="button" id="sourceDetailsButton"
+                                        title="Show all details of the selected data source"
+                                        data-bs-target="#SourceDetailsModal" data-bs-toggle="modal">
+                                    <span class="fa fa-info-circle"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Modal showing the full record of the selected data source -->
+                        <div class="modal fade" id="SourceDetailsModal" tabindex="-1" role="dialog">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="SourceDetailsTitle">Data source</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body" id="SourceDetailsBody">Loading ...</div>
+                                </div>
+                            </div>
                         </div>
                         <!-- Checkbox to show stats for all time or selected time range -->
                         <div class="form-check form-switch" id="toggleStatsCheckboxContainer">
@@ -356,6 +437,12 @@ For the data, note the following:
                       title="Render the data with a faster, canvas-based chart. Zoom with the mouse wheel, drag to pan.">
                       <input class="form-check-input" type="checkbox" role="switch" id="fastChartToggle">
                       <label class="form-check-label" for="fastChartToggle">Fast chart <span class="badge bg-secondary">beta</span></label>
+                  </div>
+                  <div id="fullBeliefInfoToggleContainer"
+                      class="form-check form-switch d-flex d-none justify-content-center align-items-center gap-2 fast-chart-toggle"
+                      title="Add belief horizon and data source details to the chart tooltip.">
+                      <input class="form-check-input" type="checkbox" role="switch" id="fullBeliefInfoToggle">
+                      <label class="form-check-label" for="fullBeliefInfoToggle">Full belief info</label>
                   </div>
                   <div class="replay-container">
                       <div
@@ -434,19 +521,20 @@ For the data, note the following:
           <hr>
       </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    {% import "includes/vendor.html" as vendor %}
+    {{ vendor.litepicker() }}
 
 {% include 'includes/graphs.html' %}
 
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
-    let availableUnitsRawJSON = "{{ available_units | safe }}";
-    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-    const availableUnits = JSON.parse(availableUnitsRawJSON);
+
+    // Show the full record of the selected data source
+    document.getElementById('sourceDetailsButton')?.addEventListener('click', function () {
+        showSourceDetails(this.dataset.sourceId);
+    });
+    const availableUnits = {{ available_units | tojson }};
     
     const flexUnitsSelect = document.getElementById('flexUnitsSelect');
     
@@ -554,7 +642,7 @@ For the data, note the following:
         }
     });
 
-    {% if user_can_create_children_sensor %}
+    {% if user_can_trigger_forecasts %}
     let firstAvailableEventStartForForecastTraining = null;
 
     async function triggerForecast() {
@@ -664,10 +752,12 @@ For the data, note the following:
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
     {% endif %}
 
-    {% if user_can_delete_sensor %}
+    {% if user_can_delete_sensor_data %}
     const button = document.getElementById('deleteDataButton');
     const spinner = document.getElementById('spinner-delete-data');
 
+    const kindSelect = document.getElementById('deleteDataKind');
+    const sourceRow = document.getElementById('deleteDataSourceRow');
     const sourceSelect = document.getElementById('deleteDataSource');
     const startInputEl = document.getElementById('deleteDataStart');
     const untilInputEl = document.getElementById('deleteDataUntil');
@@ -707,11 +797,56 @@ For the data, note the following:
     const selectAllDataLink = document.getElementById('selectAllDataLink');
     let allDataStart = null;
     let allDataEnd   = null;
+    let allDataRangeAvailable = false;
     document.addEventListener('sensorDataRangeAvailable', function(e) {
         allDataStart = e.detail.firstEventStart;
         allDataEnd   = e.detail.lastEventEnd;
-        selectAllDataLink.classList.remove('d-none');
+        allDataRangeAvailable = true;
+        selectAllDataLink.classList.toggle('d-none', kindSelect.value !== 'data');
     });
+
+    // Annotations are deleted from all their sources, within the From/Until times (all of them, if left empty).
+    kindSelect.addEventListener('change', function () {
+        const deletingData = kindSelect.value === 'data';
+        sourceRow.classList.toggle('d-none', !deletingData);
+        selectAllDataLink.classList.toggle('d-none', !deletingData || !allDataRangeAvailable);
+    });
+
+    async function deleteAnnotations(startValue, untilValue) {
+        const params = {};
+        if (startValue) {
+            params.start = new Date(startValue).toISOString();
+        }
+        if (untilValue) {
+            params.until = new Date(untilValue).toISOString();
+        }
+
+        button.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/annotations", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(params),
+            });
+            const responseData = await response.json().catch(() => ({}));
+            if (response.ok) {
+                showToast(responseData.message || "Annotations deleted.", "success");
+                document.dispatchEvent(new CustomEvent('annotationsDeleted'));
+            } else {
+                const errorMessage = responseData?.message || responseData?.error || response.statusText;
+                showToast("Error deleting annotations: " + (typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)), "error");
+            }
+        } catch (error) {
+            showToast("Error: " + error.message, "error");
+        } finally {
+            button.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
     if (selectAllDataLink) {
         selectAllDataLink.addEventListener('click', function(e) {
             e.preventDefault();
@@ -761,6 +896,22 @@ For the data, note the following:
     }
 
     document.getElementById('deleteDataButton').addEventListener('click', function () {
+        if (kindSelect.value === 'annotations') {
+            const startValue = startInputEl.value;
+            const untilValue = untilInputEl.value;
+            let confirmMessage = "Are you sure you want to delete the annotations on this sensor";
+            if (startValue) {
+                confirmMessage += " starting from " + startValue;
+            }
+            if (untilValue) {
+                confirmMessage += " until " + untilValue;
+            }
+            confirmMessage += "? Annotations of its asset are not affected, and an annotation that is also registered elsewhere is only removed from this sensor.";
+            if (confirm(confirmMessage)) {
+                deleteAnnotations(startValue, untilValue);
+            }
+            return;
+        }
         const sourceValue = sourceSelect.value;
         const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
         const startValue = startInputEl.value;

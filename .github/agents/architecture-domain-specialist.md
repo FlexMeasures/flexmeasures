@@ -7,9 +7,9 @@ description: Guards domain model, invariants, and architecture to maintain model
 
 ## Role
 
-Guard FlexMeasures' domain model, invariants, and long-term architecture.
-Ensure PR changes respect domain boundaries, maintain model clarity, and prevent erosion of core architectural principles.
-This agent owns the integrity of models (e.g. assets, sensors, data sources, schedulers, forecasters, reporters) and their relationships.
+Guard FlexMeasures' domain model, invariants, and long-term architecture. Ensure PR changes respect domain boundaries, maintain model clarity,
+and prevent erosion of core architectural principles. This agent owns the integrity of models (e.g. assets, sensors, data sources, schedulers,
+forecasters, reporters) and their relationships.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -50,13 +50,13 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Non-null flex-context**: Check that required flex-context fields are populated
 - [ ] **Flex-model validation**: Ensure flex-model conforms to `FlexModelSchema`
 - [ ] **Scheduler contracts**: Validate scheduler inputs (start, end, resolution, belief_time)
-- [ ] **VariableQuantityField guards**: When a flex-model field can be either a raw value or a `Sensor` object, add `isinstance(value, Sensor)` guards (see pattern below)
+- [ ] **VariableQuantityField guards**: When a flex-model field can be either a raw value or a `Sensor` object, add `isinstance(value,
+  Sensor)` guards (see pattern below)
 
 #### Pattern: Defensive isinstance() Guards for flex-model Fields
 
-Some flex-model fields use `VariableQuantityField`, which can deserialize to either a plain
-value (e.g. `float`) or a `Sensor` object. Whenever production code branches on such a field,
-it must guard with `isinstance(field_value, Sensor)`:
+Some flex-model fields use `VariableQuantityField`, which can deserialize to either a plain value (e.g. `float`) or a `Sensor` object.
+Whenever production code branches on such a field, it must guard with `isinstance(field_value, Sensor)`:
 
 ```python
 # ❌ Wrong: assumes soc_max is always a number
@@ -72,14 +72,13 @@ elif soc_max > 0:
     ...
 ```
 
-Missing guards raise `TypeError` when plugins or future PRs pass `Sensor` objects for fields
-that currently only see plain values (e.g. `soc-max` in `StorageScheduler`).
+Missing guards raise `TypeError` when plugins or future PRs pass `Sensor` objects for fields that currently only see plain values (e.g.
+`soc-max` in `StorageScheduler`).
 
 #### Pattern: @staticmethod for methods without instance state
 
-Any private method in a Scheduler or DataGenerator subclass that does not reference `self` or
-`cls` should be decorated `@staticmethod` — signals it's a pure function, prevents accidental
-use of stale instance state, and is easier to unit-test in isolation.
+Any private method in a Scheduler or DataGenerator subclass that does not reference `self` or `cls` should be decorated `@staticmethod` — signals it's a pure function,
+prevents accidental use of stale instance state, and is easier to unit-test in isolation.
 
 ### Domain Boundaries
 
@@ -100,7 +99,8 @@ use of stale instance state, and is easier to unit-test in isolation.
 
 ### Schema-Code Consistency
 
-Marshmallow schemas define the canonical format for parameter dictionaries. All code manipulating these dictionaries must respect the schema's output format (using `data_key` values, not Python attribute names).
+Marshmallow schemas define the canonical format for parameter dictionaries.
+All code manipulating these dictionaries must respect the schema's output format (using `data_key` values, not Python attribute names).
 
 **Domain Invariant**: "Schema as Source of Truth for Parameter Format"
 
@@ -111,15 +111,15 @@ Marshmallow schemas define the canonical format for parameter dictionaries. All 
 - [ ] **Dictionary access**: Verify code uses dict keys from `data_key`, not Python attributes
 - [ ] **Parameter modification**: Check `pop()`, `del`, assignment operations use correct keys
 - [ ] **Storage consistency**: Ensure DataSource.attributes, job.meta use schema format
-- [ ] **Schema parity**: When adding a filter/parameter to `Sensor.search_beliefs`, verify it is added to BOTH `Input` (io.py) AND `BeliefsSearchConfigSchema` (reporting/__init__.py). These two schemas serve overlapping purposes but are distinct classes — omitting one creates a silent gap where documented features silently fail at schema validation time.
+- [ ] **Schema parity**: When adding a filter/parameter to `Sensor.search_beliefs`,
+  verify it is added to BOTH `Input` (io.py) AND `BeliefsSearchConfigSchema` (reporting/__init__.py).
+  These two schemas serve overlapping purposes but are distinct classes — omitting one creates a silent gap where documented features silently fail at schema validation time.
 
-When a schema migrates its `data_key` format (e.g. snake_case → kebab-case), every code path
-reading the resulting dict must be updated to match — parameter cleaning (e.g.
-`_clean_parameters` in `flexmeasures/data/models/forecasting/__init__.py`), parameter access,
-DataSource attribute storage, and RQ `job.meta`. Verify by locating the schema, listing its
-`data_key` mappings, and auditing every `.get()`/`.pop()`/`del`/assignment against those
-dictionaries — a mismatch silently produces two data sources with logically-equal but
-differently-cleaned parameters instead of raising an error.
+When a schema migrates its `data_key` format (e.g. snake_case → kebab-case),
+every code path reading the resulting dict must be updated to match — parameter cleaning (e.g.
+`_clean_parameters` in `flexmeasures/data/models/forecasting/__init__.py`), parameter access, DataSource attribute storage, and RQ `job.meta`.
+Verify by locating the schema, listing its `data_key` mappings,
+and auditing every `.get()`/`.pop()`/`del`/assignment against those dictionaries — a mismatch silently produces two data sources with logically-equal but differently-cleaned parameters instead of raising an error.
 
 ## Domain Knowledge
 
@@ -129,13 +129,13 @@ differently-cleaned parameters instead of raising an error.
 - **Location**: `flexmeasures/data/models/generic_assets.py`
 - **Purpose**: Represents economic value (tangible/intangible)
 - **Key fields**: `id`, `name`, `account_id`, `parent_asset_id`, `attributes`, `flex_context`, `flex_model`, `sensors_to_show`
-- **Relationships**: 
+- **Relationships**:
   - `owner` → Account (via account_id)
   - `parent_asset` → GenericAsset (via parent_asset_id)
   - `child_assets` ← GenericAsset (reverse of parent)
   - `sensors` ← Sensor (one-to-many)
 - **Invariant**: `db.CheckConstraint("parent_asset_id != id", name="generic_asset_self_reference_ck")`
-- **Methods**: 
+- **Methods**:
   - `get_flex_context()` - Walks parent tree to reconstitute full context
   - `great_circle_distance()` - Geographic distance calculations
 - **Path representation**: Account > Asset > ... > Asset
@@ -159,7 +159,7 @@ differently-cleaned parameters instead of raising an error.
 #### Scheduler
 - **Location**: `flexmeasures/data/models/planning/__init__.py`
 - **Purpose**: Base class for other schedulers (incl. from plugins)
-- **Inputs**: 
+- **Inputs**:
   - Asset (more modern way) or Sensor (older approach)
   - Time window: start, end, resolution, belief_time
   - flex_model + flex_context
@@ -178,7 +178,8 @@ differently-cleaned parameters instead of raising an error.
 
 #### DataGenerator
 - **Location**: `/flexmeasures/data/models/data_sources.py`
-- **Purpose**: Forecasters and reporters subclass `DataGenerator` to couple configured instances to unique data sources (schedulers are not yet subclassing `DataGenerator`)
+- **Purpose**:
+  Forecasters and reporters subclass `DataGenerator` to couple configured instances to unique data sources (schedulers are not yet subclassing `DataGenerator`)
 
 #### Annotation
 - **Location**: `flexmeasures/data/models/annotations.py`
@@ -231,23 +232,20 @@ differently-cleaned parameters instead of raising an error.
 
 6. **DataSource lineage preservation**: `data_source.user_id` and `data_source.account_id` have
    no DB-level FK constraint on purpose, so historical lineage survives user/account deletion.
-   The ORM uses `passive_deletes="all"` (on the relationship and its backref) to prevent
-   auto-nullification. When reviewing schema changes that drop a FK for this reason, verify
-   `passive_deletes="all"` is set both ways, and that tests assert orphaned values are *not*
-   nullified after parent deletion.
+   The ORM uses `passive_deletes="all"` (on the relationship and its backref) to prevent auto-nullification.
+   When reviewing schema changes that drop a FK for this reason, verify `passive_deletes="all"` is set both ways,
+   and that tests assert orphaned values are *not* nullified after parent deletion.
 
 7. **Non-user DataSource account_id is always None**: reporters, schedulers, and forecasters
-   never get an `account_id`, so any `account_id` filter (e.g. on `search_beliefs`) only ever
-   matches user-type sources. Flag this limitation wherever such filtering is documented.
+   never get an `account_id`, so any `account_id` filter (e.g. on `search_beliefs`) only ever matches user-type sources.
+   Flag this limitation wherever such filtering is documented.
 
 8. **Asset ID is the authoritative key for per-asset results** (not sensor ID or device index).
-   A storage scheduler may have far fewer assets than sensors, so constraint-analysis/scheduling
-   results are grouped by `asset_id`. When code changes result keying between layers (e.g.
-   sensor-keyed → asset-keyed), document the key type explicitly in docstrings/type hints and
-   add an integration test that asserts on key semantics (e.g.
-   `assert all(isinstance(k, int) for k in result.keys())`) — a misleading function name at a
-   layer boundary (e.g. `_sensor_keyed_to_asset_keyed` actually handling asset-keyed data) can
-   silently corrupt results with no exception raised.
+   A storage scheduler may have far fewer assets than sensors, so constraint-analysis/scheduling results are grouped by `asset_id`.
+   When code changes result keying between layers (e.g. sensor-keyed → asset-keyed),
+   document the key type explicitly in docstrings/type hints and add an integration test that asserts on key semantics (e.g. `assert all(isinstance(k,
+   int) for k in result.keys())`) — a misleading function name at a layer boundary (e.g.
+   `_sensor_keyed_to_asset_keyed` actually handling asset-keyed data) can silently corrupt results with no exception raised.
 
 ### Architectural Layers
 
@@ -268,7 +266,9 @@ differently-cleaned parameters instead of raising an error.
 - **Key modules**:
   - `generic_assets.py` - Asset CRUD operations
   - `scheduling.py` - Schedule computation, job enqueueing
-  - `forecasting.py` - Old way of computing forecasts incl. job enqueueing (new way is moved to `flexmeasures/data/forecasting/pipelines/train_predict.py`, but job handling should at some point move back to `flexmeasures/data/services/forecasting.py`)
+  - `forecasting.py` - Old way of computing forecasts incl.
+    job enqueueing (new way is moved to `flexmeasures/data/forecasting/pipelines/train_predict.py`,
+    but job handling should at some point move back to `flexmeasures/data/services/forecasting.py`)
   - `sensors.py` - Sensor queries and serialization
 - **Pattern**: Services are called by both API and CLI
 
@@ -320,9 +320,9 @@ class AnnotationAPI(FlaskView):
 
 ### Alembic migration checklist
 
-When reviewing a migration doing a bulk backfill or column/FK change: prefer a correlated
-subquery for bulk backfill, use SQLAlchemy Core stubs (no ORM model imports) inside the
-migration, use `batch_alter_table` for all ALTER operations, and match constraint names exactly.
+When reviewing a migration doing a bulk backfill or column/FK change: prefer a correlated subquery for bulk backfill,
+use SQLAlchemy Core stubs (no ORM model imports) inside the migration, use `batch_alter_table` for all ALTER operations,
+and match constraint names exactly.
 
 ### Related Files
 
@@ -340,8 +340,7 @@ migration, use `batch_alter_table` for all ALTER operations, and match constrain
 - **Test Specialist**: Collaborate on testing domain invariants
 - **Performance Specialist**: Balance architectural purity with performance needs
 - **Data & Time Specialist**: Defer timezone/unit specifics, enforce awareness
-- **API Specialist**: Ensure API changes respect domain boundaries; flag when a domain model
-  change affects endpoint behavior or response shape
+- **API Specialist**: Ensure API changes respect domain boundaries; flag when a domain model change affects endpoint behavior or response shape
 - **Coordinator**: Escalate when domain model changes affect multiple agents
 
 ### When to Escalate to Coordinator
@@ -360,8 +359,7 @@ migration, use `batch_alter_table` for all ALTER operations, and match constrain
 
 ## Self-Improvement Notes
 
-Update this file when: a new domain entity is added, a domain invariant changes or is
-discovered, an architectural pattern evolves, or a recurring PR issue reveals a blind spot in
-this checklist. Edit the relevant section in place — don't append a dated narrative. Before
-claiming a fix works, reproduce the original bug scenario (exact CLI/API call) and confirm it
-now passes, in addition to running `uv run poe test`.
+Update this file when: a new domain entity is added, a domain invariant changes or is discovered, an architectural pattern evolves,
+or a recurring PR issue reveals a blind spot in this checklist. Edit the relevant section in place — don't append a dated narrative.
+Before claiming a fix works, reproduce the original bug scenario (exact CLI/API call) and confirm it now passes,
+in addition to running `uv run poe test`.

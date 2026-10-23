@@ -40,49 +40,6 @@ This is used to turn on certain extra behaviours, see :ref:`modes-dev` for detai
 Default: ``""``
 
 
-.. _overwrite-config:
-
-FLEXMEASURES_ALLOW_DATA_OVERWRITE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Whether to allow overwriting existing data when saving data to the database.
-
-Default: ``False``
-
-
-.. _solver-config:
-
-FLEXMEASURES_LP_SOLVER
-^^^^^^^^^^^^^^^^^^^^^^
-
-The scheduling solver backend.
-
-The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
-This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
-
-Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
-Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
-
-Default: ``"highspy"``
-
-
-FLEXMEASURES_LP_SOLVER_OPTIONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
-
-    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
-
-When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
-
-.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
-
-Default: ``{}``
-
-
-
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -102,8 +59,12 @@ This can be a Python list (e.g. ``["plugin1", "plugin2"]``) or a comma-separated
 
 Two types of entries are possible here:
 
-* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
-* Names of installed Python modules. 
+* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined.
+* Names of installed Python modules.
+
+An entry that is not spelled out as a path (i.e. a bare name like ``my_plugin``) is imported the way Python imports any module, i.e. resolved along ``sys.path``, rather than loaded from the folder of that name in the working directory ― which is easily the case when you start FlexMeasures from your plugin's own repository.
+So an installed plugin is used even when such a folder is present, unless the working directory itself comes first on ``sys.path``, in which case normal import resolution applies and that copy is imported (as a module, not a second time by path).
+To load a folder on purpose, spell out its path, e.g. ``./my_plugin``.
 
 Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
 
@@ -111,44 +72,30 @@ Default: ``[]``
 
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
-
-
-FLEXMEASURES_PROFILE_REQUESTS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If True, the processing time of requests are profiled.
-
-The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
-
-The profiling results are stored in the ``profile_reports`` folder in the instance directory.
-
-Note: Profile reports for API endpoints are overwritten on repetition of the same request.
-
-Interesting for developers.
-
-Default: ``False``
-
-
-FLEXMEASURES_PROFILER_CONFIG
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
-
-Interesting for developers.
-
-Default:
-
-.. code-block:: python
-
-   dict(
-       async_mode="disabled",
-       interval=0.01,  # 10 ms sampling interval, enables coarse timer
-       use_timing_thread=True,
-   )
-
-
 UI
 --
+
+.. _mapbox_access_token:
+
+MAPBOX_ACCESS_TOKEN
+^^^^^^^^^^^^^^^^^^^
+
+Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
+
+Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
+
+
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
 
 FLEXMEASURES_PLATFORM_NAME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -320,7 +267,38 @@ Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_e
 FLEXMEASURES_JS_VERSIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+Versions of the UI's JavaScript and CSS libraries to load, in place of the versions listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+Only list the libraries you want to differ, as a listed version stays in place when an upgrade of FlexMeasures bumps that library.
+A library's key maps to its version, optionally together with the SHA-256 hashes of its files:
+
+.. code-block:: python
+
+    FLEXMEASURES_JS_VERSIONS = {
+        # A version only: browsers load the library from its CDN without checking it.
+        "vega": "5.33.1",
+        # A version and the hash of the library's one file.
+        "vegaembed": ("6.26.0", "<sha256>"),
+        # A version and the hash of each of the library's files.
+        "leaflet": ("1.9.5", {"dist/leaflet.css": "<sha256>", "dist/leaflet-src.min.js": "<sha256>", ...}),
+    }
+
+With hashes, browsers check each file they load from a CDN, and the library can be served by FlexMeasures itself (see :ref:`install-ui-libraries`).
+FlexMeasures expects another version to have the same files as the listed one.
+This prints the setting for another version, with the hashes of its files:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes vega --version 5.33.1
+
+Default: ``{}``
+
+FLEXMEASURES_FETCH_UI_LIBRARIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures fetches the files of the UI's JavaScript and CSS libraries which it is missing, so that it serves them itself rather than browsers loading them from CDNs.
+The first request that a web server process serves starts the download, in the background (see :ref:`install-ui-libraries`).
+
+Default: ``True``
 
 
 Timing
@@ -346,7 +324,7 @@ Default: ``timedelta(days=1)``
 FLEXMEASURES_DEFAULT_JOB_TIMEOUT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Default timeout for jobs (e.g. forecasting, scheduling, ingestion and reporting), expressed as a fixed ISO 8601 duration.
 Jobs that exceed this timeout are moved to RQ's failed queue.
 
 Default: ``timedelta(seconds=180)`` (``"PT180S"``)
@@ -356,18 +334,11 @@ FLEXMEASURES_JOB_TIMEOUT
 
 Timeouts per queue, expressed as fixed ISO 8601 durations.
 Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
-Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+Supported queue names are ``forecasting``, ``scheduling``, ``ingestion`` and ``reporting``.
 
-Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S", "reporting": "PT10M"}``
 
 Default: ``{}``
-
-FLEXMEASURES_PLANNING_TTL
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
-
-Default: ``timedelta(days=7)``
 
 FLEXMEASURES_JOB_CACHE_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -386,6 +357,20 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+
+Data
+----
+
+.. _overwrite-config:
+
+FLEXMEASURES_ALLOW_DATA_OVERWRITE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to allow overwriting existing data when saving data to the database.
+
+Default: ``False``
+
+
 FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -397,21 +382,54 @@ Default: ``3 * 1024 * 1024``
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The default DataSource of the resulting data from `DataGeneration` classes.
 
 Default: ``"FlexMeasures"``
 
 
-.. _bounding_box_config:
+Scheduling
+----------
 
-FLEXMEASURES_DEFAULT_BOUNDING_BOX
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _solver-config:
 
-The default bounding box of maps if the user has no geolocated assets yet.
+FLEXMEASURES_LP_SOLVER
+^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+The scheduling solver backend.
+
+The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
+This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
+
+Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
+Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
+
+Default: ``"highspy"``
+
+
+FLEXMEASURES_LP_SOLVER_OPTIONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
+
+    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
+
+.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
+
+Default: ``{}``
+
+
+FLEXMEASURES_PLANNING_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
+
+Default: ``timedelta(days=7)``
 
 
 .. _planning_horizon_config:
@@ -436,28 +454,21 @@ Set to ``None`` to forgo this limitation altoghether.
 Default: ``2520`` (e.g. 7 days for a 4-minute resolution sensor, 105 days for a 1-hour resolution sensor)
 
 
-Access Tokens
----------------
+.. _fallback-redirect-config:
 
-.. _mapbox_access_token:
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-MAPBOX_ACCESS_TOKEN
-^^^^^^^^^^^^^^^^^^^
+Control how the API handles a failed scheduling job when a custom scheduler has computed a fallback schedule.
 
-Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
+FlexMeasures' built-in storage scheduler no longer computes fallback schedules, but custom schedulers may still define fallback schedulers.
 
-Default: ``None``
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
 
-.. note:: This setting is also recognized as environment variable.
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
 
-.. _sentry_access_token:
-
-SENTRY_SDN
-^^^^^^^^^^^^
-
-Deprecated misspelling of ``SENTRY_DSN`` (see below). Only the environment variable is still accepted as a fallback for backward compatibility; config files should use ``SENTRY_DSN``.
-
-Default: ``None``
+Default: ``False``
 
 
 SQLAlchemy
@@ -543,6 +554,7 @@ SECURITY_TWO_FACTOR_ENABLED_METHODS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Which 2FA methods are enabled. FlexMeasures currently supports ``email``; authenticator-app support may be added later.
+Enabling ``authenticator`` anyway requires installing ``qrcode``.
 
 Default: ``["email"]``
 
@@ -558,7 +570,7 @@ SECURITY_TWO_FACTOR_LOGIN_VALIDITY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How long a successful 2FA validation remains valid when ``SECURITY_TWO_FACTOR_ALWAYS_VALIDATE`` is ``False``.
-Uses a human-readable duration string (as understood by Flask-Security).
+A duration such as ``"1 week"`` or ``"7 days"``, or an ISO 8601 duration such as ``"P1W"`` (in units of a fixed length, so no months or years).
 
 Default: ``"1 week"``
 
@@ -819,6 +831,25 @@ so without this filter, 404 errors can inflate Sentry error budgets unnecessaril
 Default: ``True``
 
 
+FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set a positive integer to limit the number of error events sent to Sentry per
+UTC calendar day. The event count is shared between FlexMeasures processes
+through Redis. If Redis is unavailable, events are sent without rate limiting.
+
+.. note::
+   This limit is applied before Sentry's error sampling. If ``sample_rate`` or
+   ``error_sampler`` is configured through ``FLEXMEASURES_SENTRY_CONFIG``,
+   events that are later sampled out still count towards the limit. The number
+   of events actually sent to Sentry may therefore be lower than the configured
+   limit.
+
+Default: ``None`` (no rate limit)
+
+.. note:: This setting is also recognized as environment variable.
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -836,10 +867,6 @@ FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
 E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
-
-.. deprecated:: 0.33
-
-    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
 
 
 .. _redis-config:
@@ -898,37 +925,38 @@ Default: ``True``
 FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
-if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+How often a client may call the API. This is one budget for the whole API, counted per account (or per IP address,
+if unauthenticated), so that all users and integrations of an account share it. A consultant counts against their own
+account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
+itself out.
+The calls which the UI makes with a user's session do not spend this budget, but ``FLEXMEASURES_UI_RATE_LIMIT``.
 
 Default: ``"500 per minute"``
+
+FLEXMEASURES_UI_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often the UI may call the API on behalf of a user who is logged in.
+The UI's pages fetch the data they show from the API, using the user's session rather than an API token,
+and those requests count against this budget, one per user, rather than against the account's ``FLEXMEASURES_API_DEFAULT_RATE_LIMIT``.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Plans do not change this budget (see :ref:`rate-limiting-plans`).
+
+The setting holds one limit, like ``"100 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
+or with one which holds several limits (Flask-Limiter's notation for that, separated by semicolons, is not supported).
+
+Default: ``"100 per minute"``
 
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
-than the default one. The trigger endpoints share this budget, so triggering a forecast and triggering a schedule
-draw on the same one.
+How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
+than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
+It is counted per account, so all users and assets of an account share it, too.
+Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
-
-FLEXMEASURES_API_RATE_LIMIT_KEY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
-schedule is a business decision, so you decide what shares a budget:
-
-- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
-  usually works, so it is the default.
-- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
-  that this multiplies the limit by the number of assets an account has.
-- ``"user"``: each user gets their own budget.
-
-An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
-to ``"account"`` rather than raising an error.
-
-Default: ``"account"``
-
 
 Demonstrations
 --------------
@@ -963,8 +991,46 @@ Default: ``True``
 
 .. _sunset-config:
 
-Sunset
-------
+API Deprecation and Sunset
+--------------------------
+
+FLEXMEASURES_DEPRECATION_AND_SUNSET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Allow hosts to override the built-in deprecation and sunset metadata for API
+versions.
+
+Use one entry per API version. The supported keys are ``deprecation-date``, ``deprecation-link``, ``sunset-date`` and ``sunset-link``.
+Dates may be strings of a format like ``"2026-08-01"``.
+
+.. code-block:: python
+
+    FLEXMEASURES_DEPRECATION_AND_SUNSET = {
+        "api-v2.0": {
+            "deprecation-date": "2026-08-01",
+            "deprecation-link": "https://example.com/api/v2-deprecation",
+            "sunset-date": "2026-11-01",
+            "sunset-link": "https://example.com/api/v2-sunset",
+        },
+    }
+
+The currently known API-version keys are:
+
+* ``api-v1.0``
+* ``api-v1.1``
+* ``api-v1.2``
+* ``api-v1.3``
+* ``api-v2.0``
+
+Default: ``{}`` (built-in metadata is used)
+
+The built-in API-version deprecation metadata is defined in
+``flexmeasures/api/sunset/__init__.py`` as ``SUNSET_INFO``. Hosts can use those
+entries as the starting point for their own ``FLEXMEASURES_DEPRECATION_AND_SUNSET``
+overrides.
+
+.. note:: Deprecated fields are documented as legacy aliases and keep working silently until they can be removed in a future API version.
+
 
 FLEXMEASURES_API_SUNSET_ACTIVE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -975,35 +1041,54 @@ If False, these endpoints will either return ``HTTP status 410 (Gone) status cod
 
 Default: ``False``
 
-FLEXMEASURES_API_SUNSET_DATE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Allow to override the default sunset date for your clients.
+.. _legacy-job-client-config:
 
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"2023-05-01"`` for v2.0)
+FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-FLEXMEASURES_API_SUNSET_LINK
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Backwards-compatibility switch for job-related endpoints in API v3.
 
-Allow to override the default sunset link for your clients.
+Mapping of version-valued asset attribute names to the maximum incompatible client version.
+For each configured attribute, FlexMeasures checks the relevant asset itself, its parent asset, and its grandparent asset.
+When empty, ingestion uses a connected ingestion worker when available, accepted trigger requests return ``202 Accepted``, and unfinished schedule requests return ``202 Accepted``.
+As a compatibility exception, if an attribute contains its configured maximum version or a lower version, the client receives synchronous sensor-data ingestion, ``HTTP status 200 (OK)`` from accepted scheduling and forecasting triggers, and ``HTTP status 400`` while polling an unfinished schedule, with a message about the scheduling job "waiting to be processed".
 
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+For example:
 
-.. _fallback-redirect-config:
+.. code-block:: python
 
-FLEXMEASURES_FALLBACK_REDIRECT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {
+        "v2g-liberty-version": "0.9.1",
+    }
 
-Control how the API handles a failed scheduling job when a custom scheduler has computed a fallback schedule.
+Default: ``{}``
 
-FlexMeasures' built-in storage scheduler no longer computes fallback schedules, but custom schedulers may still define fallback schedulers.
 
-If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
-Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
+FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
+QA-only override that makes job-related endpoints use the legacy behaviour for
+an assumed client version. This setting has the same mapping format as
+``FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION``: keys are
+asset attribute names and values are client versions. FlexMeasures only compares
+an assumed version with a maximum incompatible version under the same key. An
+actual version found on the relevant asset hierarchy takes precedence over the
+assumed version.
 
-Default: ``False``
+This is intended for automated backward-compatibility testing when the test
+client creates its assets itself; production deployments should use the
+asset-based setting above instead. For example, to test client version 0.8.1
+against the maximum version from the example above:
+
+.. code-block:: python
+
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {
+        "v2g-liberty-version": "0.8.1",
+    }
+
+Default: ``{}``
+
 
 .. _reporters-config:
 
@@ -1022,3 +1107,105 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
 Default: ``["get_attribute"]``
+
+
+Development
+-----------
+
+FLEXMEASURES_PROFILE_REQUESTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If True, the processing time of requests are profiled.
+
+The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
+
+The profiling results are stored in the ``profile_reports`` folder in the instance directory.
+
+Note: Profile reports for API endpoints are overwritten on repetition of the same request.
+
+Interesting for developers.
+
+Default: ``False``
+
+
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
+
+
+Old settings
+------------
+
+These settings are still accepted as fallbacks for backward compatibility, but
+new host configuration should use the replacement settings mentioned below.
+
+.. _sentry_access_token:
+
+SENTRY_SDN
+^^^^^^^^^^
+
+Deprecated misspelling of ``SENTRY_DSN``. Only the environment variable is still
+accepted as a fallback; config files should use ``SENTRY_DSN``.
+
+Default: ``None``
+
+FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 0.33
+
+    Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
+
+Default: ``[]``
+
+FLEXMEASURES_API_SUNSET_DATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.0.0
+
+    Use ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` instead.
+
+Overrides the default sunset date across all sunset API versions if
+``FLEXMEASURES_DEPRECATION_AND_SUNSET`` does not define a ``sunset-date`` for the
+API version.
+
+Default: ``None``
+
+FLEXMEASURES_API_SUNSET_LINK
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.0.0
+
+    Use ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` instead.
+
+Overrides the default sunset link across all sunset API versions if
+``FLEXMEASURES_DEPRECATION_AND_SUNSET`` does not define a ``sunset-link`` for the
+API version.
+
+Default: ``None``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.1.0
+
+    Triggers are always counted per account now, so this setting is ignored.
+    FlexMeasures logs a warning at startup if it is set to anything other than ``"account"``.
+    To give accounts more room, raise ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, or the trigger rate limit of their plan.
+
+It used to choose what ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` was counted against: ``"account"``, ``"account+asset"`` or ``"user"``.
+
+Default: ``"account"``

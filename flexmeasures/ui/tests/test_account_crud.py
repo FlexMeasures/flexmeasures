@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from flask import url_for
@@ -10,7 +12,11 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.utils.time_utils import server_now
 
-from flexmeasures.ui.tests.utils import login, logout
+from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
+    login,
+    logout,
+)
 
 account_api_path = "http://localhost//api/v3_0/accounts"
 
@@ -32,6 +38,16 @@ def test_account_page(db, client, as_prosumer_user1):
     assert str(f"Account: {current_user.account.name}") in str(account_page.data)
     assert b"All users" in account_page.data
     assert str(current_user.username) in str(account_page.data)
+
+
+def test_account_page_asset_filter_checkboxes(db, client, as_prosumer_user1):
+    """The account's asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=current_user.account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    assert_asset_listing_filter_row(account_page.data)
 
 
 def test_account_page_breadcrumb(db, client, as_prosumer_user1):
@@ -81,6 +97,32 @@ def test_account_page_lets_admin_change_the_plan(
     assert b"Enterprise" in account_page.data
     # A plan we no longer hand out is not on offer
     assert b"Retired plan" not in account_page.data
+
+
+@pytest.mark.parametrize("mode, note_visible", [("play", True), ("development", False)])
+def test_account_plan_tooltip_explains_play_mode(
+    app,
+    client,
+    setup_accounts,
+    setup_roles_users,
+    as_admin,
+    monkeypatch,
+    mode,
+    note_visible,
+):
+    """Admins see when the configured API and trigger limits are not enforced."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_MODE", mode)
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=setup_accounts["Prosumer"].id)
+    )
+
+    assert account_page.status_code == 200
+    assert b"Default API rate limit:" in account_page.data
+    assert b"Trigger rate limit:" in account_page.data
+    assert (
+        b"Neither limit is enforced in play mode" in account_page.data
+    ) is note_visible
 
 
 def _set_consultant_account_role(db, enable: bool):
@@ -331,6 +373,36 @@ def test_account_audit_log_shows_acting_user_name_and_id(db, client, as_admin):
     assert audit_log_page.status_code == 200
     assert b"Acting User" in audit_log_page.data
     assert f"{user.username} (Id: {user.id})".encode() in audit_log_page.data
+    assert (
+        f'data-event-datetime="{audit_log.event_datetime.isoformat()}"'.encode()
+        in audit_log_page.data
+    )
+    assert re.search(
+        rb'<span class="audit-log-datetime"[^>]*>[^<\s][^<]*</span>',
+        audit_log_page.data,
+    )
+
+
+def test_account_audit_log_shows_system_for_unattributed_event(db, client, as_admin):
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    db.session.add(
+        AuditLog(
+            event_datetime=server_now(),
+            event="API rate limit breached",
+            affected_account_id=account.id,
+        )
+    )
+    db.session.commit()
+
+    audit_log_page = client.get(
+        url_for("AccountCrudUI:auditlog", account_id=account.id),
+        follow_redirects=True,
+    )
+
+    assert audit_log_page.status_code == 200
+    assert b"API rate limit breached" in audit_log_page.data
+    assert b"System" in audit_log_page.data
+    assert b"None (Id: None)" not in audit_log_page.data
 
 
 def test_account_page_forbidden_for_different_account_user(

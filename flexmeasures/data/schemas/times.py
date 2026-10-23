@@ -80,6 +80,39 @@ class DurationField(MarshmallowClickMixin, fields.Str):
         return duration
 
 
+class ResolutionField(DurationField):
+    """Field that deserializes to an ISO8601 Duration to be used as a resolution.
+
+    On top of what DurationField accepts, a resolution must span a positive amount of time.
+    A zero resolution describes no event frequency at all,
+    and a negative resolution describes events going back in time,
+    neither of which can be turned into a series of events.
+    """
+
+    def _deserialize(self, value, attr, data, **kwargs) -> timedelta | isodate.Duration:
+        duration_value = super()._deserialize(value, attr, data, **kwargs)
+        if not _spans_positive_time(duration_value):
+            raise DurationValidationError(
+                f"FlexMeasures only supports a positive resolution, got: {value}."
+            )
+        return duration_value
+
+
+def _spans_positive_time(duration: timedelta | isodate.Duration) -> bool:
+    """Whether the given duration spans a positive amount of time.
+
+    Nominal durations (such as "P1M") are not grounded to an actual time span here,
+    because their sign does not depend on the time span they are grounded to.
+    Only years and months sit outside an isodate.Duration's tdelta;
+    its days and seconds are held by that tdelta, so checking it covers them both.
+    """
+    if isinstance(duration, isodate.Duration):
+        return (
+            duration.years > 0 or duration.months > 0 or duration.tdelta > timedelta(0)
+        )
+    return duration > timedelta(0)
+
+
 class PlanningDurationField(DurationField):
     @classmethod
     def load_default(cls):
@@ -100,6 +133,20 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         """
         value = value.replace(" ", "+")
         return super()._deserialize(value, attr, data, **kwargs)
+
+
+def validate_storable_belief_time(value: datetime):
+    """Refuse a belief time that pandas cannot represent, so saving it would crash.
+
+    Pandas timestamps span 1677-09-21 to 2262-04-11.
+    Filtering on a later time is fine, so only use this where belief times are stored.
+    """
+    earliest = pd.Timestamp.min.tz_localize("UTC")
+    latest = pd.Timestamp.max.tz_localize("UTC")
+    if not earliest <= value <= latest:
+        raise ValidationError(
+            f"{value.isoformat()} lies outside the range of belief times that can be stored, from {earliest.date()} to {latest.date()}."
+        )
 
 
 class AwareDateTimeOrDateField(AwareDateTimeField):

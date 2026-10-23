@@ -17,6 +17,12 @@ We added an infrastructure that allows us to define computation pipelines and CL
 - ``flexmeasures show reporters``
 - ``flexmeasures add report``
 
+Reports can be queued for asynchronous processing with ``flexmeasures add report --as-job``.
+Run ``flexmeasures jobs run-worker --queue reporting`` to process these jobs. A one-off report
+can also be queued through ``POST /api/v3_0/assets/<id>/reports/trigger``. The caller needs read
+access to every input and configuration sensor and permission to record data on each output;
+outputs are limited to the asset in the URL and its descendants.
+
 The reporter classes we are designing are using pandas under the hood and can be sub-classed, allowing us to build new reporters from stable simpler ones, and even pipelines. Remember: re-use is developer power!
 
 We believe this infrastructure will become very powerful and enable FlexMeasures hosts and plugin developers to implement exciting new features.
@@ -78,6 +84,142 @@ This parameterizes the computation (from which sensors does data come from, whic
 
     These correspond to the same filters available on ``Sensor.search_beliefs``.
 
+.. note::
+    An input entry can also clean the readings it asks for, before the report is computed, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster's regressors and a flex-config sensor reference take (see :ref:`cleaning_referenced_data`).
+    This helps where a sensor records the occasional implausible value — a spike, or an error sentinel such as ``-9999`` — that would otherwise end up in the report:
+
+    .. code-block:: json
+
+        {
+            "input": [{"sensor": 1, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.1 kW"]}}]
+        }
+
+    Snapping runs before clipping. Bounds without a unit are read in the unit of the sensor the input names, and bounds with a unit must be convertible to it, which is checked when the report is set up rather than when its data is read.
+
+
+Example: the measured aggregate of a device group
+---------------------------------------------------
+
+A site that is scheduled has already described its topology in its flex-config:
+which devices sit behind which piece of shared equipment (their ``group``), which sensor records each of them,
+which sign means consumption or production, and which sensor a group's aggregate belongs on.
+The ``AggregatorReporter`` can report the *measured* aggregate of such a group, so the report needs no topology of its own
+and cannot drift from the one the scheduler uses.
+
+Take a farm whose PV sits on two installations:
+
+.. code-block:: text
+
+    Farm (site, asset 1)
+    └── PV (asset 2)                  sensor 21 "PV production", MW, 15 min   <- the aggregate
+        ├── Roof PV (asset 3)         sensor 31 "power", kW, 15 min
+        └── Carport PV (asset 4)      sensor 41 "power", MW, 1 hour
+
+The flex-models stored on those assets are all the topology there is:
+
+.. code-block:: json
+
+    {"inflexible-production" : {"sensor" : 31}, "group" : {"asset" : 2}}
+
+.. code-block:: json
+
+    {"inflexible-production" : {"sensor" : 41}, "group" : {"asset" : 2}}
+
+.. code-block:: json
+
+    {"production" : {"sensor" : 21}}
+
+The report's configuration then names only the group:
+
+.. code-block:: json
+
+    {
+        "group" : {"asset" : 2}
+    }
+
+And its parameters only the period, with a belief horizon of zero to ask for realized values rather than forecasts:
+
+.. code-block:: json
+
+    {
+        "start" : "2026-06-01T00:00:00+02:00",
+        "end" : "2026-06-02T00:00:00+02:00",
+        "belief_horizon" : "PT0H"
+    }
+
+With the roof measuring 400 kW and the carport 0.15 MW, sensor 21 receives 0.55 MW for every quarter-hour:
+the roof's kilowatts are converted to megawatts, and the carport's hourly values are carried across each quarter of their hour.
+Adding a third installation means adding one flex-model entry with ``"group": {"asset": 2}``;
+the scheduler and this report both pick it up, with nothing to keep in sync.
+
+**Groups of groups.** A group's entry may itself join another group, which makes the groups a tree.
+A report over an outer group reaches the devices behind it, not the inner groups' own aggregate sensors:
+
+.. code-block:: text
+
+    Street (a group)                  sensor 11 "street PV", MW
+    └── House (a group of the street) sensor 21 "house total", MW
+        ├── House PV                  sensor 31 "power", kW
+        └── House heat pump           sensor 41 "power", kW
+
+.. code-block:: json
+
+    {"group" : {"asset" : <house>}}
+
+.. code-block:: json
+
+    {"group" : {"asset" : <street>}, "consumption" : {"sensor" : 21}}
+
+.. code-block:: json
+
+    {"inflexible-production" : {"sensor" : 31}, "group" : {"asset" : <house>}}
+
+.. code-block:: json
+
+    {"inflexible-consumption" : {"sensor" : 41}, "group" : {"asset" : <house>}}
+
+Reporting the street aggregates sensors 31 and 41, with the heat pump's consumption subtracted from the
+PV's production because the street records its aggregate under ``production``.
+Sensor 21 is the house's aggregate rather than a device, so it is not read, and no value is counted twice.
+
+**Narrowing a group.** A group is a piece of equipment, so it holds everything behind it.
+To report a category instead, filter its members:
+
+.. code-block:: json
+
+    {
+        "group" : {"asset" : <street>},
+        "members" : {"asset-type" : "solar"}
+    }
+
+That reports all the PV on the street, reaching into each house.
+The asset type says what a device *is*, which does not change when the way it is modelled changes,
+so a PV installation that later becomes curtailable stays in the aggregate.
+
+**Where members may sit.** A device joins a group through its flex-model entry, not through where it sits in the tree,
+so a group's members are looked for anywhere below the site, exactly as a scheduler of that site counts them.
+A PV installation hanging directly off the site, with ``"group": {"asset": <street>}``, is part of the street's aggregate.
+
+**Units and resolutions.** Values are converted to the unit of the output sensor at each sensor's *own* resolution,
+before being resampled to the output's resolution.
+That order matters for a conversion between a stock and a flow: a sensor recording 1 kWh every quarter of an hour is recording 4 kW,
+and treating its data as though it were hourly would report a quarter of the real power.
+Resampling then follows the quantity: an energy adds up over a longer event where a power averages over it,
+and a power recorded hourly holds through its hour when the output is finer.
+A sensor whose quantity the output sensor cannot express, such as a temperature onto a power sensor, is reported as an error
+rather than being added up.
+
+**Gaps.** A report over a ``group`` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,
+and it logs which sensors left the gaps.
+A report over sensors named in ``input`` aggregates what reported, which is what such reports have always done.
+``skip-missing`` sets this either way.
+An event that *no* sensor reported is missing in both cases, because an hour nothing was measured in is not an hour in which nothing flowed.
+A gap is also left as a gap when resampling: a coarser sensor is carried only across its own event, never across a missing one.
+
+**A flex-config the report cannot read.** Resolving a group means reading the whole site's flex-config, so an invalid flex-model entry
+anywhere on the site stops the report, even on a device outside the group — a scheduler of that site would fail on it too.
+The error says so, and names the asset whose entry does not validate.
+
 
 Example: Profits & losses
 ---------------------------
@@ -123,3 +265,11 @@ Here, the ``ProfitOrLossReporter`` used as source (with Id 6) is the one we conf
 With the offsets, we control the timing ― we indicate that we want the new report to encompass the day of tomorrow (see Pandas offset strings).
 
 The report sensor will now store all costs which we know will be made tomorrow by the  schedule.
+
+.. _automating_reports:
+
+Automating reports
+--------------------
+
+Instead of computing reports one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues reporting jobs on a cron schedule.
+See :ref:`automations`.

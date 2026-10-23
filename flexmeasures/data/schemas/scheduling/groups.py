@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from marshmallow import validates_schema, ValidationError
 
-from flexmeasures import Sensor
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     SensorIdField,

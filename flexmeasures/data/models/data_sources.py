@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -22,7 +22,8 @@ import hashlib
 from marshmallow import Schema
 
 if TYPE_CHECKING:
-    from flexmeasures.data.models.user import User
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.models.user import Account, User
 
 
 class DataGenerator:
@@ -31,6 +32,9 @@ class DataGenerator:
 
     _config: dict = None
     _parameters: dict = None
+    _job_trigger: dict | None = None
+    # The organisation this data generator computes for, which its data source belongs to. See `set_source_account`.
+    _source_account: Account | None = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
@@ -97,6 +101,78 @@ class DataGenerator:
             self._config = self._config_schema.load(config)
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
+
+    def set_source_account(self, account: Account | None) -> None:
+        """Say which organisation this data generator computes for, so that its data source belongs to that organisation.
+
+        Two organisations running the same data generator under the same configuration would otherwise record under one source,
+        because a source is looked up by what it is rather than by who it runs for.
+        Call this wherever the organisation is known, which is wherever the asset or the sensor is known.
+        Leaving it unset means the source belongs to no organisation, which is what a generator the host runs for everyone looks like.
+        """
+        self._source_account = account
+
+    def set_job_trigger(
+        self,
+        origin: str,
+        automation_id: int | None = None,
+        automation_run_id: int | None = None,
+    ):
+        """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
+
+        This information is stored on the jobs themselves (as job meta data).
+        """
+        self._job_trigger = {"origin": origin}
+        if automation_id is not None:
+            self._job_trigger["automation_id"] = automation_id
+        if automation_run_id is not None:
+            self._job_trigger["automation_run_id"] = automation_run_id
+
+    @property
+    def input_sensors(self) -> list:
+        """The sensors that this data generator reads data from.
+
+        Overwrite in your data generator, deriving the sensors from its config and
+        parameters. Together with `output_sensors`, this describes the data flowing
+        through the data generator, which is used for linking to the sensors involved
+        (and, in the future, for checking access to them).
+        """
+        return []
+
+    @property
+    def output_sensors(self) -> list:
+        """The sensors that this data generator writes data to. See `input_sensors`."""
+        return []
+
+    @staticmethod
+    def _resolve_sensors(*values) -> list[Sensor]:
+        """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
+
+        A sensor reference contributes the sensor it wraps, as the source filters only narrow down
+        which beliefs are read from that sensor, not which sensor is involved.
+        Sensor IDs that cannot be found, and None values, are skipped.
+        """
+        from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.schemas.sensors import SensorReference
+
+        sensors: dict[int, Sensor] = {}
+        for value in values:
+            if value is None:
+                continue
+            for item in value if isinstance(value, (list, tuple, set)) else [value]:
+                if isinstance(item, SensorReference):
+                    sensor = item.sensor
+                elif isinstance(item, Sensor):
+                    sensor = item
+                elif (isinstance(item, int) and not isinstance(item, bool)) or (
+                    isinstance(item, str) and item.isdigit()
+                ):
+                    sensor = db.session.get(Sensor, int(item))
+                else:
+                    continue
+                if sensor is not None:
+                    sensors[sensor.id] = sensor
+        return list(sensors.values())
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.
@@ -197,23 +273,58 @@ class DataGenerator:
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
 
-            attributes = {"data_generator": {}}
+            data_source_info["attributes"] = self.get_data_source_attributes()
 
-            if self._save_config:
-                attributes["data_generator"]["config"] = self._config_schema.dump(
-                    self._config
-                )
-
-            if self._save_parameters:
-                attributes["data_generator"]["parameters"] = self._clean_parameters(
-                    self._parameters_schema.dump(self._parameters)
-                )
-
-            data_source_info["attributes"] = attributes
-
-            self._data_source = get_or_create_source(**data_source_info)
+            self._data_source = get_or_create_source(
+                **data_source_info, account=self.source_account
+            )
 
         return self._data_source
+
+    @property
+    def source_account(self) -> Account | None:
+        """The organisation this data generator's source belongs to.
+
+        It is whatever `set_source_account` was told, and otherwise the organisation of the sensors this generator writes to.
+        Sensors of several organisations, or none to go by, leave the source belonging to no organisation in particular.
+        """
+        if self._source_account is not None:
+            return self._source_account
+        # A public asset has no organisation, and writing to one does not make a generator the host's,
+        # so public outputs are passed over rather than counted as a second answer.
+        accounts = {
+            sensor.generic_asset.owner
+            for sensor in self.output_sensors
+            if sensor.generic_asset is not None
+            and sensor.generic_asset.owner is not None
+        }
+        if len(accounts) == 1:
+            return accounts.pop()
+        if len(accounts) > 1:
+            # Refusing here would fail a schedule or a report over a question of provenance, so the source is left without an organisation.
+            # It is said out loud because this is the only path on which newly computed data lands on a source belonging to none.
+            # Migration c5e1a7b94d20 applies the same rule to the sources that predate it.
+            current_app.logger.warning(
+                "%s writes to sensors of %d organisations (%s), so its data source belongs to none of them."
+                " Tell it which organisation it computes for, with `set_source_account`, to record under that organisation's own source.",
+                self.__class__.__name__,
+                len(accounts),
+                sorted(account.id for account in accounts),
+            )
+        return None
+
+    def get_data_source_attributes(self) -> dict:
+        """Describe this generator's source without creating a database record."""
+        attributes = {"data_generator": {}}
+        if self._save_config:
+            attributes["data_generator"]["config"] = self._config_schema.dump(
+                self._config
+            )
+        if self._save_parameters:
+            attributes["data_generator"]["parameters"] = self._clean_parameters(
+                self._parameters_schema.dump(self._parameters)
+            )
+        return attributes
 
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the
@@ -267,13 +378,69 @@ DEFAULT_DATASOURCE_TYPES = [
 ]
 
 
+class SensorDataSource(db.Model):
+    """Records that a data source has recorded beliefs for a sensor.
+
+    This is a summary of ``timed_belief``, not an independent fact:
+    the same information could be had with ``SELECT DISTINCT sensor_id, source_id FROM timed_belief``.
+    Keeping it separately matters because that query costs a scan of the beliefs table,
+    which is typically the largest in the database,
+    to produce a relation bounded by the number of sensors times the number of sources.
+    In practice that is a few thousand rows at most.
+
+    .. note:: This is a *superset*.
+       A pair is added when beliefs are saved, and is not removed when those beliefs are deleted,
+       because deciding whether a pair has become stale needs exactly the scan this table exists to avoid.
+       So read a row as "this source has recorded for this sensor at some point",
+       not "this source has beliefs stored for this sensor right now".
+       ``Sensor.search_data_sources`` still consults ``timed_belief`` directly whenever time filters are given,
+       so time-bounded questions stay exact.
+    """
+
+    __tablename__ = "sensor_data_source"
+
+    sensor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    source_id = db.Column(
+        db.Integer,
+        db.ForeignKey("data_source.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
+
+
+# The unique index that refuses identical data sources.
+DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
+# What identifies a data source.
+# A unique constraint on these columns would treat NULLs as distinct, and so never refuse a second identical source without a user or account.
+# PostgreSQL can be told otherwise, with NULLS NOT DISTINCT, but only from version 15, which FlexMeasures does not require.
+# Indexing expressions that replace NULLs needs no such minimum: it makes NULLs count as equal whatever the version,
+# where they also count as equal to an empty string (or to -1, or to an empty hash).
+DATA_SOURCE_IDENTITY_EXPRESSIONS = (
+    "name",
+    "coalesce(type, '')",
+    "coalesce(user_id, -1)",
+    "coalesce(account_id, -1)",
+    "coalesce(model, '')",
+    "coalesce(version, '')",
+    "coalesce(attributes_hash, '\\x'::bytea)",
+)
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        db.Index(
+            DATA_SOURCE_UNIQUE_INDEX,
+            *(text(expression) for expression in DATA_SOURCE_IDENTITY_EXPRESSIONS),
+            unique=True,
         ),
     )
 
@@ -288,7 +455,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "User",
         primaryjoin="DataSource.user_id == User.id",
         foreign_keys="[DataSource.user_id]",
-        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_source", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -299,7 +468,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Account",
         primaryjoin="DataSource.account_id == Account.id",
         foreign_keys="[DataSource.account_id]",
-        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_sources", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -316,22 +487,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def sensors(self) -> list:
-        """Return all Sensor objects that have beliefs recorded by this data source.
+        """Return all Sensor objects that this data source has recorded beliefs for.
 
-        Uses a two-step subquery (distinct sensor IDs → Sensor rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Mirrors the approach of ``Sensor.data_sources``.
+        Reads the ``sensor_data_source`` summary rather than ``timed_belief``.
+        Answering this from the beliefs table would mean scanning it in ``source_id`` order,
+        which no index serves, to produce a handful of rows.
+
+        See :class:`SensorDataSource` for the superset semantics:
+        a sensor stays listed after its beliefs from this source are deleted.
         """
-        from flexmeasures.data.models.time_series import Sensor, TimedBelief
+        from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id_subq = (
-            select(TimedBelief.sensor_id)
-            .where(TimedBelief.source_id == self.id)
-            .distinct()
-            .subquery()
-        )
         return db.session.scalars(
-            select(Sensor).where(Sensor.id.in_(select(sensor_id_subq)))
+            select(Sensor).where(
+                Sensor.id.in_(
+                    select(SensorDataSource.sensor_id).where(
+                        SensorDataSource.source_id == self.id
+                    )
+                )
+            )
         ).all()
 
     _data_generator: ClassVar[DataGenerator | None] = None
@@ -376,23 +550,19 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         data_generator = None
 
-        if self.type not in ["scheduler", "forecaster", "reporter"]:
+        # Say which of the three it is, as only the last of them is answered by installing something.
+        if self.type not in current_app.data_generators:
             raise NotImplementedError(
-                "Only the classes Scheduler, Forecaster and Reporters are DataGenerator's."
+                f"Data source {self.id} is of type '{self.type}', which is not a kind of data generator."
             )
-
         if not self.model:
             raise NotImplementedError(
-                "There's no DataGenerator class defined in this DataSource."
+                f"Data source {self.id} names no data generator to set up."
             )
-
-        types = current_app.data_generators
-
-        if all(
-            [self.model not in current_app.data_generators[_type] for _type in types]
-        ):
+        generator_class = current_app.data_generators[self.type].get(self.model)
+        if generator_class is None:
             raise NotImplementedError(
-                "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
+                f"Data generator '{self.type}/{self.model}' is unavailable. Install or enable its plugin on the server and worker."
             )
 
         # fetch DataGenerator details
@@ -401,9 +571,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         parameters = data_generator_details.get("parameters", {})
 
         # create DataGenerator class and add the parameters
-        data_generator = current_app.data_generators[self.type][self.model](
-            config=config
-        )
+        data_generator = generator_class(config=config)
         data_generator._parameters = parameters
 
         # assign the current DataSource (self) as its source

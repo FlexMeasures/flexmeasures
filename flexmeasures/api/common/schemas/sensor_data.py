@@ -4,7 +4,14 @@ from datetime import timedelta
 
 from flask_login import current_user
 from isodate import datetime_isoformat
-from marshmallow import fields, post_load, pre_load, validates_schema, ValidationError
+from marshmallow import (
+    fields,
+    post_load,
+    pre_load,
+    validates,
+    validates_schema,
+    ValidationError,
+)
 from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
@@ -20,7 +27,13 @@ from flexmeasures.api.common.schemas.sensors import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    ResolutionField,
+    SourceIdField,
+)
+from flexmeasures.data.schemas.times import validate_storable_belief_time
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
@@ -104,7 +117,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
         required=False,
         format="iso",
         metadata=dict(
-            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             example="2026-01-14T20:00+01:00",
         ),
     )
@@ -154,7 +167,7 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
 class GetSensorDataFilterSchemaMixin:
     """Shared filters for GET sensor data request parsing and docs."""
 
-    resolution = DurationField(
+    resolution = ResolutionField(
         required=False,
         metadata=dict(
             description="Resolution of the returned sensor data in ISO 8601 duration format.",
@@ -337,6 +350,11 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     def __init__(self, *args, source_user: User | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.source_user = source_user
+
+    @validates("prior")
+    def validate_prior_is_storable(self, value, **kwargs):
+        """Refuse a prior that cannot be stored as a belief time, which a GET may still filter on."""
+        validate_storable_belief_time(value)
 
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,

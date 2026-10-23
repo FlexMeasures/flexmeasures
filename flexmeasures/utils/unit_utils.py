@@ -11,7 +11,10 @@ Percentages can be converted to units of some physical capacity if a capacity is
 
 from __future__ import annotations
 
+import numbers
+import tokenize
 from datetime import timedelta
+from typing import Any
 
 from moneyed import list_all_currencies, Currency
 import numpy as np
@@ -34,6 +37,38 @@ ur.load_definitions(custom_template)
 ur.formatter.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
 ur.define("permille = 1 / 1000 = ‰")
+
+
+#: What pint's string parser raises for input it cannot turn into a quantity.
+#: Besides pint's own errors, its expression parser surfaces the tokenizer's errors,
+#: and Python's own errors for things like an empty string or a division by zero.
+QUANTITY_PARSE_ERRORS = (
+    pint.PintError,
+    tokenize.TokenError,
+    ValueError,
+    TypeError,
+    ArithmeticError,
+)
+
+
+def is_parseable_quantity(value: Any) -> bool:
+    """Whether a value is a number, or a string pint can read as a quantity.
+
+    Used to reject a badly written bound while a schema is still being loaded,
+    rather than letting it fail much later, when the data it bounds is read.
+    """
+    if isinstance(value, bool):
+        # A bool is a numbers.Real, but true or false is no quantity.
+        return False
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except QUANTITY_PARSE_ERRORS:
+        return False
+    return True
 
 
 PREFERRED_UNITS = [
@@ -424,12 +459,12 @@ def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
     try:
         # ur.Quantity parses the number and unit automatically
         qty = ur.Quantity(value)
-        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
+        magnitude = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
 
         # We return the units formatted with "~P" (short pretty format)
         # to match the registry settings.
-        return value, f"{qty.units:~P}"
-    except Exception:
+        return magnitude, f"{qty.units:~P}"
+    except QUANTITY_PARSE_ERRORS:
         return None, None
 
 
@@ -459,18 +494,20 @@ def _convert_time_units(
 
 
 def convert_units(
-    data: tb.BeliefsSeries | pd.Series | list[int | float] | int | float,
+    data: tb.BeliefsSeries | pd.Series | list[int | float | None] | int | float,
     from_unit: str,
     to_unit: str,
     event_resolution: timedelta | None = None,
     capacity: str | None = None,
-) -> pd.Series | list[int | float] | int | float:
+) -> pd.Series | list[int | float | None] | int | float:
     """Updates data values to reflect the given unit conversion.
 
     Handles units in short scientific notation (e.g. m³/h, kW, and ºC), as well as three special units to convert from:
     - from_unit="datetime"          (with data point such as "2023-05-02", "2023-05-02 05:14:49" or "2023-05-02 05:14:49 +02:00")
     - from_unit="dayfirst datetime" (with data point such as "02-05-2023")
     - from_unit="timedelta"         (with data point such as "0 days 01:18:25")
+
+    During numeric list conversions, ``None`` values become ``NaN`` so gaps are preserved.
     """
     if from_unit in ("datetime", "dayfirst datetime", "timedelta"):
         return _convert_time_units(data, from_unit, to_unit)
@@ -479,7 +516,11 @@ def convert_units(
         from_magnitudes = (
             data.to_numpy()
             if isinstance(data, pd.Series)
-            else np.asarray(data) if isinstance(data, list) else np.array([data])
+            else (
+                np.asarray(data, dtype=float)
+                if isinstance(data, list)
+                else np.array([data])
+            )
         )
         try:
             from_quantities = ur.Quantity(from_magnitudes, from_unit)

@@ -424,14 +424,12 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    {% import "includes/vendor.html" as vendor %}
+    {{ vendor.litepicker() }}
 
 
     <!-- Initialise the map -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+    {{ vendor.leaflet_js() }}
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 
@@ -439,8 +437,10 @@
 
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
+            escapeHtml, countSensorsGone, unavailableReferencesWarning
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+        import { flexConfigSensorIds } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -454,9 +454,7 @@
         }
 
         // Parse available units
-        let availableUnitsRawJSON = "{{ available_units | safe }}";
-        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-        const availableUnits = JSON.parse(availableUnitsRawJSON);
+        const availableUnits = {{ available_units | tojson }};
 
 
         // This variable is used to prevent reRenderForm from running on initial load
@@ -498,7 +496,7 @@
             FlexModelFieldValidTypes[key] = validTypes;
         }
 
-        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
+        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, {{ asset_flexmodel | tojson }}, true);
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -607,14 +605,18 @@
                 const card = activeCard();
                 const name = card.id.replace('-control', '');
                 const flexModel = getFlexModel()
+                const sensorReference = { "sensor": sensorId };
+                const defaultInput = document.getElementById('flexSensorDefaultInput');
+                if (defaultInput && defaultInput.value.trim()) {
+                    sensorReference.default = defaultInput.value.trim();
+                }
                 if (FlexModelFieldValidTypes[name].includes(Array)) {
                     const valueIndex = selectedIndex()
                     const fieldValues = flexModel[name];
-                    fieldValues[valueIndex] = { "sensor": sensorId };
+                    fieldValues[valueIndex] = sensorReference;
                     flexModel[name] = fieldValues;
                 } else {
-                    const value = flexModel[name];
-                    flexModel[name] = { "sensor": sensorId };
+                    flexModel[name] = sensorReference;
                 }
 
                 setFlexModel(flexModel);
@@ -1120,6 +1122,7 @@
                     tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
                 } else if (dataType == Object) { // Object/Senosr Tab =================
                     btn.textContent = 'A sensor';
+                    const supportsSensorDefault = FlexModelFieldValidTypes[name].includes(Object);
 
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
@@ -1150,12 +1153,58 @@
                                 <div class="col-4 ps-0">
                                     <select id="flexUnitsSelect" class="form-select">
                                         <option value="${null}" selected>Units</option>
-                                        ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        ${availableUnits.map(unit => '<option value="' + escapeHtml(unit) + '">' + escapeHtml(unit) + '</option>').join('')}
                                     </select>
                                 </div>
                             </div>
+                            ${supportsSensorDefault ? `
+                                <label for="flexSensorDefaultInput" class="form-label mt-2">
+                                    Default fallback (optional)
+                                    <i class="fa fa-info-circle ps-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="bottom"
+                                        title="Use this quantity when the selected sensor has no value for a time slot."
+                                    ></i>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="flexSensorDefaultInput"
+                                    class="form-control"
+                                    placeholder="For example, 0 kWh"
+                                />
+                            ` : ''}
                         </div>
                     `;
+                    if (supportsSensorDefault) {
+                        const defaultInput = tabContent.querySelector('#flexSensorDefaultInput');
+                        defaultInput.value = value && typeof value === 'object' && value.default
+                            ? value.default
+                            : '';
+
+                        const saveDefaultButton = document.createElement('button');
+                        saveDefaultButton.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                        saveDefaultButton.textContent = 'Use fallback';
+                        saveDefaultButton.onclick = function () {
+                            const currentFlexModel = getFlexModel();
+                            let sensorReference = currentFlexModel[name];
+                            if (Array.isArray(sensorReference)) {
+                                sensorReference = sensorReference[selectedIndex()];
+                            }
+                            if (!sensorReference || typeof sensorReference !== 'object' || !sensorReference.sensor) {
+                                showToast("Select a sensor before setting a fallback", "info");
+                                return;
+                            }
+
+                            const fallback = defaultInput.value.trim();
+                            if (fallback) {
+                                sensorReference.default = fallback;
+                            } else {
+                                delete sensorReference.default;
+                            }
+                            setFlexModel(currentFlexModel);
+                        };
+                        tabContent.querySelector('.flex-input-group').appendChild(saveDefaultButton);
+                    }
                 } else if (dataType == String) { // String Tab =================
                     btn.textContent = 'Fixed value';
 
@@ -1300,10 +1349,23 @@
                         }
                     }
                 }
+
+                const warning = unavailableReferencesWarning(
+                    await countSensorsGone(flexConfigSensorIds(assetFlexModel)), "sensor", "sensors"
+                );
+                if (warning !== null) {
+                    flexmodelContainer.prepend(warning);
+                }
             };
 
 
             flexModelModal.addEventListener('shown.bs.modal', function () {
+                // Forget what we remember about the sensors this flex-model refers to.
+                // A sensor can be deleted while a reference to it is cached,
+                // and the editor has to show such a reference as the dangling one it is.
+                for (const sensorId of flexConfigSensorIds(getFlexModel())) {
+                    localStorage.removeItem(`sensor_${sensorId}`);
+                }
                 // Initial renders
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());

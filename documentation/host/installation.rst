@@ -312,9 +312,10 @@ Below are some additional steps you might consider.
 Add time series data (beliefs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are three ways to add data:
+For a complete walkthrough from a first UI upload to an automated pipeline, see :ref:`tut_posting_data`.
+The main ingestion routes are the FlexMeasures Client and the API; hosts can also import files directly with the CLI.
 
-First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` :ref:`cli`:
+To load data from a CSV or Excel file on the server, use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block:: bash
    
@@ -323,11 +324,11 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they all share the same horizon.
 
-Second, you can use the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ endpoint in the FlexMeasures API to send meter data.
+For automated pipelines running elsewhere, use the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_ or call the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ and file-upload endpoints directly.
 
 You can also use the API to send forecast data. Similar to the ``add beliefs`` commands, you would use here the fields ``prior`` (to denote time of knowledge of data) or ``horizon`` (for rolling forecast data with equal horizon). Consult the documentation at :ref:`posting_sensor_data`.
 
-Finally, you can tell FlexMeasures to compute forecasts based on existing meter data with the ``flexmeasures add forecasts`` command, here is an example:
+After ingesting meter data, you can tell FlexMeasures to compute forecasts with the ``flexmeasures add forecasts`` command, here is an example:
 
 .. code-block:: bash
 
@@ -381,7 +382,7 @@ Then, start workers in a console (or some other method to keep a long-running pr
 
 .. code-block:: bash
 
-   $ flexmeasures jobs run-worker --queue "scheduling|forecasting|ingestion"
+   $ flexmeasures jobs run-worker --queue "scheduling|forecasting|ingestion|reporting"
 
 
 You can go to `http://localhost:5000/tasks/` and see the state of job queues and find individual jobs (and investigate why they failed, for instance).
@@ -448,6 +449,34 @@ This suffices for a quick start. For an actually secure secret, here is a Python
 
 
 Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
+
+
+.. _install-ui-libraries:
+
+Serve the UI's libraries without internet access
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The UI uses third-party JavaScript and CSS libraries, such as Bootstrap and Vega.
+The Docker image comes with them, so FlexMeasures serves them itself.
+A FlexMeasures installed via `pip` does not, so browsers load them from public CDNs, checking each file against its expected hash.
+
+To serve them from FlexMeasures instead, for example for users on a network without internet access, FlexMeasures fetches them itself:
+once it serves its first request, it downloads the files it is missing in the background, while browsers keep loading them from CDNs until it is done.
+That also happens after an upgrade of FlexMeasures bumps a library's version.
+The server needs internet access for this, and write access to FlexMeasures' installation.
+If several web server processes run on one host, only one of them fetches.
+
+You can also fetch them yourself, for example on a server without internet access, before taking its installation offline:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets
+
+Both download each library's files and licence, with any notice file the licence requires, into FlexMeasures' installation, and fail on any file that does not match its expected hash.
+They fetch the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, except for versions set without hashes.
+The command reads that setting from the config file FlexMeasures reads, or from the one passed with ``--config``.
+To stop FlexMeasures from fetching the libraries itself, set :ref:`FLEXMEASURES_FETCH_UI_LIBRARIES <configuration>` to ``False``.
+Then run the command again after each upgrade of FlexMeasures, as an upgrade can bump a library's version.
 
 
 Where to go from here?

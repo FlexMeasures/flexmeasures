@@ -9,6 +9,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
@@ -306,7 +307,7 @@ class AccountIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: Any, attr, data, **kwargs) -> Account:
         """Turn an account id into an Account."""
         account_id: int = super()._deserialize(value, attr, data, **kwargs)
-        account = db.session.get(Account, account_id)
+        account = get_by_id(Account, account_id)
         if account is None:
             raise FMValidationError(f"No account found with id {account_id}.")
         # lazy loading now (account somehow is not in the session after this)

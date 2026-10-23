@@ -79,7 +79,7 @@ A data source can be a FlexMeasures user, but also simply a named source from ou
 In FlexMeasures, data sources have a type. It is just a string which you can freely choose (we do not model them explicitly im the data model like Asset types).
 We do support some types out of the box: "scheduler", "forecaster" "reporter", "demo script" and "user".
 
-.. _beliefs:
+.. _beliefs_in_data_model:
 
 Beliefs
 ---------
@@ -87,10 +87,15 @@ Beliefs
 When we discussed sensors, we hinted at the care we took to model the event data well. We call each data point a "belief", as we not only store measurements ―
 we also store forecasts, schedules and the like, many of which do not have a 100% truth value.
 
-For instance, a horizon of 0 means the data point was known right after it happened. A positive horizon means the data point is a forecast.
+For a physical event, a horizon of 0 means the data point was known when the
+event ended. A positive horizon means the data point was known in advance, and
+a negative horizon means it was recorded after the event.
 
 The `timely-beliefs package <https://github.com/SeitaBV/timely-beliefs>`_ helps us to model many aspects about data points, e.g. who claims to know that value,
 when they said so and how certain they were. 
+
+See :ref:`beliefs` for a detailed explanation of event time, belief time,
+belief horizon, and the filters used to retrieve historical beliefs.
 
 Each belief links to a sensor and a data source. Here are two examples:
 

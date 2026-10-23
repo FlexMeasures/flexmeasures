@@ -9,7 +9,7 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 from flexmeasures.data.schemas.account import AccountIdField
 from sqlalchemy import delete, select
 
@@ -19,10 +19,18 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
+from flexmeasures.data.schemas.automations import (
+    AutomationIdField,
+    CronField,
+    TimezoneField,
+)
+from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
@@ -49,16 +57,77 @@ def _resolve_secret_path(
     return secret
 
 
-@click.group("edit")
+@click.group("edit", cls=LoggedClickExceptionGroup)
 def fm_edit_data():
     """FlexMeasures: Edit data."""
+
+
+@fm_edit_data.command("automation")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=True,
+    type=AutomationIdField(),
+    help="ID of the automation to edit.",
+)
+@click.option(
+    "--name",
+    "name",
+    required=False,
+    type=click.STRING,
+    help="New name of the automation.",
+)
+@click.option(
+    "--cron",
+    "cronstr",
+    required=False,
+    type=CronField(),
+    help="New recurrence as a standard five-field cron expression, interpreted in the automation timezone.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    type=TimezoneField(),
+    help='New IANA timezone in which to interpret the cron recurrence, e.g. "Europe/Amsterdam".',
+)
+@click.option(
+    "--activate/--deactivate",
+    "active",
+    default=None,
+    help="Activate or deactivate the automation.",
+)
+def edit_automation(
+    automation: Automation,
+    name: str | None = None,
+    cronstr: str | None = None,
+    timezone: str | None = None,
+    active: bool | None = None,
+):
+    """Edit the name, recurrence, timezone or activation status of an automation."""
+    changes = update_automation(
+        automation,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        active=active,
+        origin="CLI",
+    )
+    if not changes:
+        click.secho("Nothing to change.", **MsgStyle.WARN)
+        return
+    db.session.commit()
+    click.secho(
+        f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 # Plan fields which may be cleared back to NULL (meaning: server-wide behaviour applies)
 CLEARABLE_PLAN_FIELDS = [
     "default-rate-limit",
     "trigger-rate-limit",
-    "rate-limit-key",
     "max-users",
     "max-assets",
     "max-clients",
@@ -86,11 +155,6 @@ CLEARABLE_PLAN_FIELDS = [
     callback=validate_rate_limit_cli,
     help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
     " Pass 'unlimited' to exempt them.",
-)
-@click.option(
-    "--rate-limit-key",
-    type=click.Choice([key.value for key in RateLimitKey]),
-    help="What the trigger rate limit is counted against.",
 )
 @click.option(
     "--max-users", type=int, help="How many users an account on this plan may have."
@@ -122,7 +186,6 @@ def edit_plan(
     name: str | None,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
-    rate_limit_key: str | None,
     max_users: int | None,
     max_assets: int | None,
     max_clients: int | None,
@@ -150,7 +213,6 @@ def edit_plan(
         "name": name,
         "default_rate_limit": default_rate_limit,
         "trigger_rate_limit": trigger_rate_limit,
-        "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
         "max_users": max_users,
         "max_assets": max_assets,
         "max_clients": max_clients,
@@ -172,6 +234,49 @@ def edit_plan(
         f"Plan '{plan.name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
         **MsgStyle.SUCCESS,
     )
+
+
+@fm_edit_data.command("reset-rate-limit")
+@with_appcontext
+@click.option(
+    "--account",
+    required=True,
+    type=AccountIdField(),
+    help="ID of the account whose rate limits to reset.",
+)
+@click.option(
+    "--limit",
+    "limit_name",
+    type=click.Choice(["trigger", "default"]),
+    help="Reset only this limit: the trigger limit (on schedules and forecasts), or the default limit (on all API requests)."
+    " Both are reset if you leave this out.",
+)
+def reset_rate_limit(account: Account, limit_name: str | None):
+    """
+    Reset an account's rate limits, so that its requests are accepted again straight away.
+
+    Use this when an account ran into a rate limit and its integration has been fixed,
+    so that it does not have to wait out the rest of the window.
+    """
+    from flexmeasures.api.common.rate_limiting import limiter, reset_rate_limits
+
+    if not limiter.enabled:
+        abort(
+            "Rate limiting is turned off on this server, so there is nothing to reset."
+        )
+    limit_names = [limit_name] if limit_name else ["trigger", "default"]
+    reset = reset_rate_limits(account, limit_names)
+    skipped = [name for name in limit_names if name not in reset]
+    if skipped:
+        click.secho(
+            f"Account '{account.name}' (ID: {account.id}) is exempt from the {' and '.join(skipped)} rate {pluralize('limit', len(skipped))}, so there was nothing to reset there.",
+            **MsgStyle.WARN,
+        )
+    if reset:
+        click.secho(
+            f"Reset the {' and '.join(reset)} rate {pluralize('limit', len(reset))} of account '{account.name}' (ID: {account.id}).",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_edit_data.command("attribute")

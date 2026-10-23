@@ -12,14 +12,13 @@ from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures import Sensor, Source
-from flexmeasures.data import db
+from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
     data_to_bdf,
 )
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.schemas.sensors import SensorReference
-from flexmeasures.data.utils import save_to_db
 
 
 class PredictPipeline(BasePipeline):
@@ -27,8 +26,8 @@ class PredictPipeline(BasePipeline):
         self,
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
-        target_sensor: Sensor,
-        model_path: str,
+        target_sensor: Sensor | SensorReference,
+        model_path: str | None,
         output_path: str,
         n_steps_to_predict: int,
         max_forecast_horizon: int,
@@ -46,6 +45,8 @@ class PredictPipeline(BasePipeline):
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
+        dry_run: bool = False,
+        model: BaseModel | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -54,7 +55,7 @@ class PredictPipeline(BasePipeline):
         :param past_regressors: List of sensors or sensor references serving as past regressors.
         :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
-        :param model_path: Path to the model file.
+        :param model_path: Path to a kept model file, read when no model is handed over; None if no file was kept.
         :param output_path: Path where predictions will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
@@ -70,6 +71,8 @@ class PredictPipeline(BasePipeline):
         :param sensor_to_save: Sensor to which the predictions will be attributed.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param post_processing_config: Optional clipping and snapping configuration for forecast values.
+        :param dry_run: If True, compute the forecast but do not save it to the database.
+        :param model: The trained model, handed over in memory, so that no file needs to be read.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -88,6 +91,7 @@ class PredictPipeline(BasePipeline):
             annotation_regressors=annotation_regressors,
         )
         self.model_path = model_path
+        self.model = model
         self.output_path = output_path
         self.probabilistic = probabilistic
         self.quantiles = tuple(quantiles) if quantiles else None
@@ -97,6 +101,7 @@ class PredictPipeline(BasePipeline):
         self.predict_start = predict_start
         self.predict_end = predict_end
         self.post_processing_config = post_processing_config or {}
+        self.dry_run = dry_run
 
         self.sensor_resolution = self.target_sensor.event_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
@@ -107,8 +112,14 @@ class PredictPipeline(BasePipeline):
 
     def load_model(self):
         """
-        Load the model and its metadata from the model_path.
+        Return the model handed over, or else load it and its metadata from the model_path.
         """
+        if self.model is not None:
+            return self.model
+        if self.model_path is None:
+            raise ValueError(
+                "No model to predict with: none was handed over, and no model file was named."
+            )
         logging.debug("Loading model and metadata from %s", self.model_path)
         with open(self.model_path, "rb") as file:
             model = pickle.load(file)
@@ -254,9 +265,16 @@ class PredictPipeline(BasePipeline):
         logging.debug("Successfully saved predictions to %s", self.output_path)
 
     def run(self, delete_model: bool = False) -> BeliefsDataFrame:
+        """Compute and save through the service, retaining legacy behavior.
+
+        Use ``compute`` to obtain predictions without saving them.
         """
-        Execute the prediction pipeline.
-        """
+        from flexmeasures.data.services.forecasting import run_prediction
+
+        return run_prediction(self, delete_model=delete_model)
+
+    def compute(self) -> BeliefsDataFrame:
+        """Return predictions without saving beliefs, sources, or output files."""
         df = self.load_data_all_beliefs()
         (
             past_covariates_list,
@@ -291,20 +309,6 @@ class PredictPipeline(BasePipeline):
             target_sensor=self.target_sensor,
             sensor_to_save=self.sensor_to_save,
             data_source=self.data_source,
+            refresh_source=False,
         )
-        if self.output_path is not None:
-            self.save_results_to_CSV(bdf)
-
-        save_to_db(
-            bdf, save_changed_beliefs_only=False
-        )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
-        db.session.commit()
-        logging.info(
-            f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
-        )
-        if delete_model:
-            os.remove(self.model_path)
-
-        logging.info("Prediction pipeline completed successfully.")
-
         return bdf

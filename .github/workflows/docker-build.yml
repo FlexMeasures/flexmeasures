@@ -27,7 +27,18 @@ jobs:
           - 5432:5432
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Checkout flexmeasures-client
+        uses: actions/checkout@v4
+        with:
+          repository: FlexMeasures/flexmeasures-client
+          ref: main
+          path: flexmeasures-client
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.7"
+          enable-cache: true
       - name: Build Docker Image
         run: docker build -t flexmeasures:latest -f Dockerfile .
       - name: Generate random secret key
@@ -42,12 +53,19 @@ jobs:
           >> .env
       - name: Keep running flexmeasures container in background
         run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
+      - name: Check that the image serves the UI's libraries itself
+        run: docker exec fm-container python -c
+          "from flexmeasures.ui.utils.vendor_assets import missing_files; assert not missing_files(), missing_files()"
       - name: Execute database upgrade
         run: docker exec --env-file .env fm-container flexmeasures
           db upgrade
       - name: Add toy user
         run: docker exec --env-file .env fm-container flexmeasures
           add toy-account --kind battery --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV
+      - name: Run data-ingestion tutorial
+        env:
+          FLEXMEASURES_CLIENT_PROJECT: ${{ github.workspace }}/flexmeasures-client
+        run: ./documentation/tut/scripts/run-data-ingestion-in-docker.sh fm-container
       - name: Generate prices dummy data
         run: ci/generate-dummy-price.sh
       - name: Copy prices dummy data

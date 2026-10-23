@@ -41,7 +41,7 @@ from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
 )
-from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.tests.utils import get_power_sensor, get_test_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
@@ -82,13 +82,16 @@ def test_storage_loss_function(
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
-@pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
+@pytest.mark.parametrize(
+    "battery_name, soc_at_start", [("Test battery", 2.5), ("Test small battery", 0.005)]
+)
 def test_battery_solver_day_1(
     setup_planning_test_data,
     add_battery_assets,
     add_inflexible_device_forecasts,
     use_inflexible_device,
     battery_name,
+    soc_at_start,
     db,
 ):
     epex_da, battery = get_sensors_from_db(
@@ -98,13 +101,12 @@ def test_battery_solver_day_1(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
-        flex_model={"soc-at-start": soc_at_start},
+        flex_model={"soc-at-start": f"{soc_at_start} MWh"},
         flex_context={
             "inflexible-device-sensors": (
                 [s.id for s in add_inflexible_device_forecasts.keys()]
@@ -152,7 +154,7 @@ def test_battery_solver_day_2(
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     soc_min = 0.5
     soc_max = 4.5
     scheduler = StorageScheduler(
@@ -161,7 +163,7 @@ def test_battery_solver_day_2(
         end,
         resolution,
         flex_model={
-            "soc-at-start": soc_at_start,
+            "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": soc_min,
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
@@ -200,12 +202,8 @@ def test_battery_solver_day_2(
         )  # Buy what you can to sell later
     elif storage_efficiency > 0.9:
         # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
-        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
-            "soc_in_mwh"
-        )
-        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
-            "soc_in_mwh"
-        )
+        assert soc_schedule.loc[start + timedelta(hours=8)] == soc_at_start
+        assert soc_schedule.loc[start + timedelta(hours=16)] == soc_at_start
     else:
         # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
@@ -753,7 +751,7 @@ def test_building_solver_day_2(
     assert soc_schedule.iloc[-1] == soc_min_value
 
 
-def test_soc_bounds_timeseries(db, add_battery_assets):
+def test_soc_bounds_timeseries(db, add_battery_assets, add_market_prices):
     """Check that the maxima and minima timeseries alter the result
     of the optimization.
 
@@ -773,7 +771,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # soc parameters
     soc_unit = "MWh"
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     soc_min = 0.5
     soc_max = 4.5
 
@@ -1250,8 +1248,13 @@ def test_validate_constraints(
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
 
 
-def test_infeasible_problem_error(db, add_battery_assets):
-    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+def test_infeasible_problem_error(db, add_battery_assets, add_market_prices):
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0
+
+    Note that this only yields an infeasible problem when constraint relaxation is off;
+    with relaxation on (the default), an unreachable target is breached at a price. See
+    ``test_unreachable_soc_target_is_relaxed_by_default``.
+    """
 
     # get the sensors from the database
     _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
@@ -1269,6 +1272,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1281,13 +1285,13 @@ def test_infeasible_problem_error(db, add_battery_assets):
         return soc_schedule
 
     # soc parameters
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     infeasible_max_soc_targets = [
         {"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}
     ]
 
     flex_model = {
-        "soc-at-start": soc_at_start,
+        "soc-at-start": f"{soc_at_start} MWh",
         "soc-min": 0.5,
         "soc-max": 4.5,
         "soc-targets": infeasible_max_soc_targets,
@@ -1297,6 +1301,46 @@ def test_infeasible_problem_error(db, add_battery_assets):
         ValueError, match="The input data yields an infeasible problem."
     ):
         compute_schedule(flex_model)
+
+
+def test_unreachable_soc_target_is_relaxed_by_default(
+    db, add_battery_assets, add_market_prices
+):
+    """An unreachable soc-target no longer makes the problem infeasible.
+
+    Same setup as ``test_infeasible_problem_error`` (soc-max 4.5, soc-target 8.0), but
+    with the default ``relax-constraints``. The target becomes a stock commitment, so
+    the scheduler charges as far as the (hard) soc-max allows and breaches the target
+    at a price, instead of failing to produce a schedule at all.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    soc_at_start = 2.5  # MWh
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": 0.5,
+            "soc-max": 4.5,
+            "soc-targets": [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}],
+        },
+    )
+    schedule = scheduler.compute()
+    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=3)
+
+    # The hard soc-max still holds, and the scheduler gets as close to the target as it can.
+    assert soc_schedule.max() <= 4.5 + TOLERANCE
+    assert soc_schedule.loc[pd.Timestamp("2015-01-02T16:00:00+01:00")] == pytest.approx(
+        4.5, abs=1e-3
+    )
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
@@ -1350,6 +1394,9 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             ],
             "soc-unit": "MWh",
         },
+        # This test is about numerical error in the hard "equals" constraint, so opt
+        # out of the relaxation that would turn soc-targets into stock commitments.
+        flex_context={"relax-constraints": False},
     )
 
     (
@@ -2189,6 +2236,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
 def test_battery_power_capacity_as_sensor(
     db,
     add_battery_assets,
+    add_market_prices,
     add_inflexible_device_forecasts,
     capacity_sensors,
     battery_name,
@@ -2270,7 +2318,11 @@ def test_battery_power_capacity_as_sensor(
 
 
 def test_battery_bothways_power_capacity_as_sensor(
-    db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
+    db,
+    add_battery_assets,
+    add_market_prices,
+    add_inflexible_device_forecasts,
+    capacity_sensors,
 ):
     """Check that the charging and discharging power capacities are limited by the power capacity."""
     epex_da, battery = get_sensors_from_db(
@@ -2377,7 +2429,7 @@ def test_dis_charging_efficiency_as_sensor(
     ["delta fails", "delta", "delta hourly", "delta 5min", None],
 )
 def test_battery_stock_delta_sensor(
-    add_battery_assets, add_stock_delta, stock_delta_sensor, db
+    add_battery_assets, add_market_prices, add_stock_delta, stock_delta_sensor, db
 ):
     """
     Test the SOC delta feature using sensors.
@@ -2471,7 +2523,7 @@ def test_battery_stock_delta_sensor(
     ],
 )
 def test_battery_stock_delta_quantity(
-    add_battery_assets, gain, usage, expected_delta, db
+    add_battery_assets, add_market_prices, gain, usage, expected_delta, db
 ):
     """
     Test the stock gain field when a constant value is provided.
@@ -2528,7 +2580,7 @@ def test_battery_stock_delta_quantity(
     ],
 )
 def test_battery_efficiency_quantity(
-    add_battery_assets, efficiency, expected_efficiency, db
+    add_battery_assets, add_market_prices, efficiency, expected_efficiency, db
 ):
     """
     Test to ensure correct handling of storage efficiency quantities in the StorageScheduler.
@@ -2582,6 +2634,7 @@ def test_battery_efficiency_quantity(
 )
 def test_battery_storage_efficiency_sensor(
     add_battery_assets,
+    add_market_prices,
     add_storage_efficiency,
     efficiency_sensor_name,
     expected_efficiency,
@@ -2669,6 +2722,7 @@ def test_battery_storage_efficiency_sensor(
 )
 def test_add_storage_constraint_from_sensor(
     add_battery_assets,
+    add_market_prices,
     add_soc_targets,
     sensor_name,
     expected_start,
@@ -2704,7 +2758,14 @@ def test_add_storage_constraint_from_sensor(
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        battery, start, end, resolution, flex_model=flex_model
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        # This test inspects the hard "equals" constraint, so opt out of the
+        # relaxation that would turn soc-targets into stock commitments instead.
+        flex_context={"relax-constraints": False},
     )
 
     scheduler_info = scheduler._prepare()
@@ -2747,7 +2808,9 @@ def test_add_storage_constraint_from_sensor(
     ), "the device constraint values should be 1/4th of the actual SoC values, due to the 15-minute resolution of the battery's power sensor"
 
 
-def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
+def test_soc_maxima_minima_targets(
+    db, add_battery_assets, add_market_prices, soc_sensors
+):
     """
     Check that the SOC maxima, minima and targets can be defined as sensors in the StorageScheduler.
 
@@ -2755,7 +2818,9 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
 
     Moreover, the SOC maxima constraints are defined in MWh to check that the unit conversion works well.
     """
-    power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
+    power = get_power_sensor(
+        add_battery_assets["Test battery with dynamic power capacity"]
+    )
     epex_da = get_test_sensor(db)
 
     soc_maxima, soc_minima, soc_targets, expected_soc_schedule = soc_sensors
@@ -2822,6 +2887,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
 @pytest.mark.parametrize("power_sensor_name", ["power", "power (kW)"])
 def test_battery_storage_different_units(
     add_battery_assets,
+    add_market_prices,
     db,
     power_sensor_name,
     soc_unit,
@@ -2950,6 +3016,7 @@ def test_battery_storage_different_units(
 )
 def test_battery_storage_with_time_series_in_flex_model(
     add_battery_assets,
+    add_market_prices,
     db,
     ts_field,
     ts_specs,
@@ -4558,6 +4625,122 @@ def test_multi_device_battery_fails_on_unresolvable_soc_sensor(
         scheduler.compute()
 
 
+def test_asset_scheduler_charges_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """An asset-scheduled battery can meet a soft minimum without ``soc-at-start``.
+
+    Asset scheduling uses the list-based flex-model path even when only one power
+    sensor is scheduled. With no explicit or measured starting SoC, the battery
+    defaults to empty and charges 2 kWh to reach its soft minimum. This exercises
+    the commitment calculation that previously multiplied ``None`` by a float.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc charging test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc charging battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+                "power-capacity": "1 kW",
+                "consumption-capacity": "1 kW",
+                "production-capacity": "0 kW",
+            },
+        ],
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "soc-minima-breach-price": "1 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert schedule.sum() == pytest.approx(2)
+
+
+def test_asset_scheduler_cannot_discharge_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """Hard SoC bounds remain active when an asset-scheduled battery defaults empty.
+
+    Discharging is financially attractive and charging is disabled. The resulting
+    idle schedule demonstrates that the default zero starting SoC is connected to
+    the hard lower bound; without stock constraints, the optimizer would discharge
+    energy that the battery does not hold.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc safety test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc safety battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-min": "0 kWh",
+                "soc-max": "1 kWh",
+                "power-capacity": "1 kW",
+                "consumption-capacity": "0 kW",
+                "production-capacity": "1 kW",
+            }
+        ],
+        flex_context={
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert np.allclose(schedule, 0)
+
+
 def test_battery_solver_respects_operation_mode_bands(db, add_battery_assets):
     """StorageScheduler.compute() must actually wire "operation-modes" from the
     flex-model through to the LP's device power bands.
@@ -4709,7 +4892,7 @@ def test_battery_solver_inflexible_key_equivalence(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
 
     inflexible_sensor_ids = [s.id for s in add_inflexible_device_forecasts.keys()]
     flex_contexts = [
@@ -4731,7 +4914,7 @@ def test_battery_solver_inflexible_key_equivalence(
             start,
             end,
             resolution,
-            flex_model={"soc-at-start": soc_at_start},
+            flex_model={"soc-at-start": f"{soc_at_start} MWh"},
             flex_context=flex_context,
         )
         schedules.append(scheduler.compute())

@@ -90,6 +90,7 @@ def test_trigger_and_get_schedule(
         len(app.queues["scheduling"]) == 1
     )  # only 1 schedule should be made for 1 asset
     job = app.queues["scheduling"].jobs[0]
+    assert job.meta["trigger"] == {"origin": "API"}
     print(job.kwargs)
     assert job.kwargs["asset_or_sensor"]["id"] == sensor.id
     assert job.kwargs["start"] == parse_datetime(message["start"])
@@ -208,9 +209,6 @@ def test_trigger_and_get_schedule(
         == get_schedule_response.json["values"]
     )
 
-    # Check whether the soc-at-start was persisted as an asset attribute
-    assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
-
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
@@ -288,9 +286,6 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
         assert get_soc_schedule_response.json["unit"] == "%"
         soc_values = get_soc_schedule_response.json["values"]
         assert soc_values[0] == 50
-
-    sensor = fresh_db.session.get(Sensor, sensor.id)
-    assert sensor.generic_asset.get_attribute("soc_in_mwh") == pytest.approx(0.02)
 
     # Verify the production output sensor received schedule data.
     # Only the production sensor is defined (no consumption sensor), so the full power profile

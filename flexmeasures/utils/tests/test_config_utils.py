@@ -1,13 +1,20 @@
+from datetime import timedelta
+
 import pytest
 from flask import Flask
 from werkzeug.sansio.utils import host_is_trusted
 
+from flexmeasures.utils import config_utils
 from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
+    check_rate_limit_settings,
     get_config_warnings,
+    normalize_security_durations,
     normalize_trusted_hosts,
+    parse_duration_setting,
     parse_bool_env,
+    pin_database_driver,
     read_env_vars,
 )
 
@@ -77,6 +84,15 @@ def test_read_env_vars_sentry_sdn_fallback(monkeypatch):
     assert app.config["SENTRY_DSN"] == "https://proper@sentry.example/2"
 
 
+def test_read_env_vars_parses_sentry_daily_rate_limit(monkeypatch):
+    monkeypatch.setenv("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", "100")
+    app = Flask(__name__)
+
+    read_env_vars(app)
+
+    assert app.config["FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT"] == 100
+
+
 def test_read_env_vars_reads_trusted_hosts(monkeypatch):
     monkeypatch.setenv("TRUSTED_HOSTS", "flexmeasures.example.com")
     app = Flask(__name__)
@@ -109,6 +125,103 @@ def test_normalize_trusted_hosts(value, expected):
     app.config["TRUSTED_HOSTS"] = value
     normalize_trusted_hosts(app)
     assert app.config["TRUSTED_HOSTS"] == expected
+
+
+@pytest.mark.parametrize(
+    "uri, expected",
+    [
+        # Which driver SQLAlchemy picks for a plain URI depends on its version, so we name psycopg 3.
+        ("postgresql://fm:pw@localhost/fm", "postgresql+psycopg://fm:pw@localhost/fm"),
+        # An explicitly chosen driver is left alone.
+        (
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+        ),
+        (
+            "postgresql+psycopg://fm:pw@localhost/fm",
+            "postgresql+psycopg://fm:pw@localhost/fm",
+        ),
+        (None, None),
+    ],
+)
+def test_pin_database_driver(uri, expected):
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = uri
+    pin_database_driver(app)
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("1 week", timedelta(weeks=1)),
+        ("2 weeks", timedelta(weeks=2)),
+        ("1 Week", timedelta(weeks=1)),
+        ("7 days", timedelta(days=7)),
+        ("30 minutes", timedelta(minutes=30)),
+        ("P1W", timedelta(weeks=1)),
+        ("PT30M", timedelta(minutes=30)),
+        ("P1DT12H", timedelta(days=1, hours=12)),
+        (timedelta(hours=2), timedelta(hours=2)),
+    ],
+)
+def test_parse_duration_setting(value, expected):
+    assert (
+        parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value) == expected
+    )
+
+
+@pytest.mark.parametrize("value", ["1 month", "P1M", "P1Y", "soon", "1.5 days"])
+def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
+    """Months and years have no fixed length, so we ask for a duration that does."""
+    with pytest.raises(ValueError, match="SECURITY_TWO_FACTOR_LOGIN_VALIDITY"):
+        parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
+
+
+@pytest.mark.parametrize(
+    "flask_security_version, expected",
+    [
+        # 5.9 prefers a timedelta.
+        ("5.9.0", timedelta(weeks=1)),
+        # 5.8 only reads "<amount> <unit>", with the unit as a timedelta keyword.
+        ("5.8.1", "604800 seconds"),
+    ],
+)
+def test_normalize_security_durations(monkeypatch, flask_security_version, expected):
+    monkeypatch.setattr(
+        config_utils.metadata, "version", lambda package: flask_security_version
+    )
+    app = Flask(__name__)
+    app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
+    app.config["SECURITY_LOGIN_WITHIN"] = (
+        None  # unset settings are left to Flask-Security
+    )
+    normalize_security_durations(app)
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
+    assert app.config["SECURITY_LOGIN_WITHIN"] is None
+
+
+@pytest.mark.parametrize(
+    "value, error",
+    [
+        ("10 per minute; 100 per hour", "holds 2 rate limits"),
+        ("10 per fortnight", "not a valid rate limit"),
+    ],
+)
+def test_check_rate_limit_settings_refuses_what_is_not_one_limit(value, error):
+    """A server-wide rate limit is refused at startup, naming the setting, unless it is one limit."""
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"] = "500 per minute"
+    app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"] = value
+    with pytest.raises(ValueError, match=error) as exc_info:
+        check_rate_limit_settings(app)
+    assert "FLEXMEASURES_API_TRIGGER_RATE_LIMIT" in str(exc_info.value)
+
+
+def test_check_rate_limit_settings_accepts_the_defaults():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    check_rate_limit_settings(app)
 
 
 def test_config_warnings_flag_unset_trusted_hosts():

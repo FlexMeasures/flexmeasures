@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import isodate
 from datetime import datetime, timedelta
 
@@ -16,7 +18,7 @@ from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete, select, or_
+from sqlalchemy import delete, exists, select, or_
 
 from flexmeasures.api.common.responses import (
     request_accepted_for_processing,
@@ -42,6 +44,7 @@ from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.utils.api_utils import process_sensor_data_ingestion
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.data.services.utils import job_status_description
 from flexmeasures.api.common.utils.deprecation_utils import (
     _add_headers as add_deprecation_header,
@@ -50,7 +53,13 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.annotations import (
+    AccountAnnotationRelationship,
+    Annotation,
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+    get_or_create_annotation,
+)
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -66,8 +75,8 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
-    DurationField,
     PlanningDurationField,
+    ResolutionField,
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
@@ -78,11 +87,12 @@ from flexmeasures.data.schemas.scheduling import (
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
+from flexmeasures.data.services.sensors import sensor_contains_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
@@ -187,6 +197,37 @@ forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerS
 )
 
 
+class DeleteSensorAnnotationsSchema(Schema):
+    """Schema for the request body of the DELETE /sensors/<id>/annotations endpoint."""
+
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="ID of the data source whose annotations to delete. If not provided, annotations from all sources are deleted.",
+        ),
+    )
+    start = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete annotations starting at or after this datetime (ISO 8601).",
+        ),
+    )
+    until = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete annotations ending at or before this datetime (ISO 8601).",
+        ),
+    )
+
+    @validates_schema
+    def validate_time_window(self, data, **kwargs):
+        """Validate that ``until`` is not before ``start``."""
+        start = data.get("start")
+        until = data.get("until")
+        if start is not None and until is not None and until < start:
+            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+
+
 class DeleteSensorDataSchema(Schema):
     """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
 
@@ -285,7 +326,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             example="PT24H",
         ),
     )
-    resolution = DurationField(
+    resolution = ResolutionField(
         metadata=dict(
             description="The resolution of the requested schedule in ISO 8601 duration format. "
             "This governs how often setpoints are allowed to change. "
@@ -297,7 +338,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
         format="iso",
         data_key="prior",
         metadata=dict(
-            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
             "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             example="2026-01-15T10:00+01:00",
         ),
@@ -546,7 +587,7 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context(
-        "create-children",
+        "post-data",
         ctx_arg_name="sensor",
     )
     def upload_data(
@@ -556,6 +597,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -567,6 +609,10 @@ class SensorAPI(FlaskView):
             The file should have columns for a timestamp (event_start) and a value (event_value).
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
+
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -671,6 +717,9 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        if not belief_time_measured_instantly:
+            # Fix the belief time now, so data processed by a queued job is not believed later than its upload
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -678,6 +727,7 @@ class SensorAPI(FlaskView):
             user_id=current_user.id,
             uploaded_files=files_for_job,
             upload_data=upload_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -688,7 +738,7 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context(
-        "create-children",
+        "post-data",
         ctx_arg_name="sensor",
     )
     def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
@@ -752,6 +802,7 @@ class SensorAPI(FlaskView):
             sensor_id=sensor.id,
             user_id=current_user.id,
             sensor_data=sensor_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -773,8 +824,8 @@ class SensorAPI(FlaskView):
 
             Optional parameters:
 
-            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
-            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
+            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))
+            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))
             - "prior" (the belief timing docs also apply here)
             - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
             - "source-account" (filter by the account ID linked to data sources)
@@ -824,7 +875,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     @use_kwargs(TriggerScheduleKwargsSchema, location="json")
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("trigger-schedules", ctx_arg_name="sensor")
     @permission_required_for_context(
         "read",
         ctx_arg_name="flex_model",
@@ -1075,6 +1126,7 @@ class SensorAPI(FlaskView):
                 **scheduler_kwargs,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
@@ -1089,6 +1141,9 @@ class SensorAPI(FlaskView):
             legacy_key="schedule",
             job_results_url=url_for(
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
+            ),
+            status_code=(
+                200 if use_legacy_job_responses(sensor.generic_asset) else 202
             ),
         )
 
@@ -1326,21 +1381,20 @@ class SensorAPI(FlaskView):
         elif job.is_failed:
             return unknown_schedule(job_status_description(job, scheduler_info_msg))
         else:
-            if current_app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE"):
-                job_status = job.get_status()
-                job_status_name = (
-                    job_status.upper()
-                    if isinstance(job_status, str)
-                    else job_status.name
-                )
-                return (
-                    dict(
-                        status=job_status_name,
-                        message=job_status_description(job, scheduler_info_msg),
-                    ),
-                    202,
-                )
-            return unknown_schedule(job_status_description(job, scheduler_info_msg))
+            job_status = job.get_status()
+            job_status_name = (
+                job_status.upper() if isinstance(job_status, str) else job_status.name
+            )
+            response = dict(
+                status=job_status_name,
+                message=job_status_description(job, scheduler_info_msg),
+            )
+            if use_legacy_job_responses(sensor.generic_asset):
+                return response, 400
+            return (
+                response,
+                202,
+            )
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
@@ -1425,7 +1479,14 @@ class SensorAPI(FlaskView):
         )
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor: Sensor):
@@ -1488,6 +1549,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -1499,7 +1562,7 @@ class SensorAPI(FlaskView):
     @route("", methods=["POST"])
     @use_args(sensor_schema)
     @permission_required_for_context(
-        "create-children",
+        "edit-sensors",
         ctx_arg_pos=1,
         ctx_arg_name="generic_asset_id",
         ctx_loader=GenericAsset,
@@ -1571,7 +1634,7 @@ class SensorAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_sensor_schema)
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="sensor")
+    @permission_required_for_context("edit-sensors", ctx_arg_name="sensor")
     @as_json
     def patch(self, sensor_data: dict, id: int, sensor: Sensor):
         """
@@ -1653,7 +1716,6 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete(self, id: int, sensor: Sensor):
         """Delete a sensor given its identifier.
@@ -1684,7 +1746,10 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
+        check_access(sensor.generic_asset, "edit-sensors")
         sensor_name = sensor.name
+        if sensor_contains_data(sensor):
+            check_access(sensor, "delete-data")
         delete_sensor_and_data(sensor)
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
@@ -1692,7 +1757,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @permission_required_for_context("delete-data", ctx_arg_name="sensor")
     @as_json
     def delete_data(
         self,
@@ -1776,6 +1841,131 @@ class SensorAPI(FlaskView):
 
         return {}, 204
 
+    @route("/<id>/annotations", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete_annotations(
+        self,
+        id: int,
+        sensor: Sensor,
+    ):
+        """
+        .. :quickref: Sensors; Delete sensor annotations
+        ---
+        delete:
+          summary: Delete sensor annotations
+          description: >
+            This endpoint deletes the annotations of a sensor.
+            Optionally, filter by source, start time and/or until time.
+            Only annotations that lie entirely between the start and until times are deleted.
+            An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: ID of the sensor to delete annotations for.
+              required: true
+              schema: SensorId
+          requestBody:
+            required: false
+            content:
+              application/json:
+                schema: DeleteSensorAnnotationsSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      deleted:
+                        type: integer
+                        description: The number of annotations removed from the sensor.
+                  example:
+                    message: Deleted 2 annotations.
+                    deleted: 2
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Sensors
+            - Annotations
+        """
+        try:
+            body = DeleteSensorAnnotationsSchema().load(
+                request.get_json(silent=True) or {}
+            )
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
+        source = body.get("source")
+        start = body.get("start")
+        until = body.get("until")
+
+        query = select(Annotation.id).join(
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        query = query.where(SensorAnnotationRelationship.sensor_id == sensor.id)
+        if source is not None:
+            query = query.where(Annotation.source_id == source.id)
+        if start is not None:
+            query = query.where(Annotation.start >= start)
+        if until is not None:
+            query = query.where(Annotation.end <= until)
+        annotation_ids = db.session.scalars(query).all()
+
+        if annotation_ids:
+            # Unlink the annotations from this sensor, then delete those no longer registered anywhere.
+            db.session.execute(
+                delete(SensorAnnotationRelationship).where(
+                    SensorAnnotationRelationship.sensor_id == sensor.id,
+                    SensorAnnotationRelationship.annotation_id.in_(annotation_ids),
+                )
+            )
+            db.session.execute(
+                delete(Annotation).where(
+                    Annotation.id.in_(annotation_ids),
+                    ~exists().where(
+                        SensorAnnotationRelationship.annotation_id == Annotation.id
+                    ),
+                    ~exists().where(
+                        GenericAssetAnnotationRelationship.annotation_id
+                        == Annotation.id
+                    ),
+                    ~exists().where(
+                        AccountAnnotationRelationship.annotation_id == Annotation.id
+                    ),
+                )
+            )
+            db.session.expire(sensor, ["annotations"])
+
+            audit_message = f"Deleted {len(annotation_ids)} annotation(s) for sensor '{sensor.name}': {sensor.id}"
+            if source is not None:
+                audit_message += f", source: {source.id}"
+            if start is not None:
+                audit_message += f", from: {start}"
+            if until is not None:
+                audit_message += f", until: {until}"
+            AssetAuditLog.add_record(sensor.generic_asset, audit_message)
+        db.session.commit()
+
+        n = len(annotation_ids)
+        return {
+            "message": f"Deleted {n} annotation{'' if n == 1 else 's'}.",
+            "deleted": n,
+        }, 200
+
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
@@ -1803,7 +1993,10 @@ class SensorAPI(FlaskView):
         ---
         get:
           summary: Get sensor stats
-          description: This endpoint fetches sensor stats for all the historical data.
+          description: |
+            This endpoint fetches sensor stats for all the historical data.
+            Stats are reported per data source that recorded data for this sensor.
+            When more than one source recorded data, an extra "All sources" entry summarises them together.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1843,6 +2036,15 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor stats
                       value:
+                        "All sources":
+                          "First event start": "2015-06-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 0.0
+                          "Max value": 120.0
+                          "Mean value": 55.0
+                          "Sum over values": 1100.0
+                          "Number of values": 20
                         "some data source":
                           "First event start": "2015-06-02T10:00:00+00:00"
                           "Last event end": "2015-10-02T10:00:00+00:00"
@@ -1851,6 +2053,15 @@ class SensorAPI(FlaskView):
                           "Max value": 100.0
                           "Mean value": 50.0
                           "Sum over values": 500.0
+                          "Number of values": 10
+                        "some other data source":
+                          "First event start": "2015-07-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 10.0
+                          "Max value": 120.0
+                          "Mean value": 60.0
+                          "Sum over values": 600.0
                           "Number of values": 10
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1876,9 +2087,13 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_status(self, id, sensor):
+    def get_status(self, id, sensor, asset=None):
         """
         .. :quickref: Data; Get status of sensor data
         ---
@@ -1894,6 +2109,16 @@ class SensorAPI(FlaskView):
               name: id
               description: ID of the sensor to fetch status for.
               schema: SensorId
+            - in: query
+              name: asset_id
+              required: false
+              description: |
+                ID of the asset whose status page the sensor is reported on.
+                This asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.
+                It only affects the reported relation between the sensor and the asset.
+                Defaults to the asset that the sensor belongs to.
+              schema:
+                type: integer
           responses:
             200:
               description: PROCESSED
@@ -1912,6 +2137,7 @@ class SensorAPI(FlaskView):
                           id: 64907
                           name: "temperature"
                           resolution: "PT5M"
+                          asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:
@@ -1928,7 +2154,9 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        status_data = serialize_sensor_status_data(sensor=sensor)
+        if asset is not None:
+            check_access(asset, "read")
+        status_data = serialize_sensor_status_data(sensor=sensor, asset=asset)
 
         return {"sensors_data": status_data}, 200
 
@@ -1937,12 +2165,16 @@ class SensorAPI(FlaskView):
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # The API always queues a job, whose results only make sense when they are recorded,
+            # so dry runs are supported on the CLI only.
+            # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["dry_run"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
-    @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    @permission_required_for_context("trigger-forecasts", ctx_arg_name="sensor_to_save")
     @permission_required_for_context(
         "read",
         ctx_arg_name="config",
@@ -2049,6 +2281,8 @@ class SensorAPI(FlaskView):
         except ValidationError as err:
             return unprocessable_entity(err.messages)
 
+        forecaster.set_job_trigger("API")
+
         # Queue forecasting job
         try:
             pipeline_returns = forecaster.compute(parameters=parameters, as_job=True)
@@ -2062,6 +2296,11 @@ class SensorAPI(FlaskView):
             legacy_key="forecast",
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
+            ),
+            status_code=(
+                200
+                if use_legacy_job_responses(params["sensor_to_save"].generic_asset)
+                else 202
             ),
         )
 
@@ -2254,7 +2493,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("annotate", ctx_arg_name="sensor")
     def post_annotation(self, annotation: Annotation, id: int, sensor: Sensor):
         """.. :quickref: Sensors; Add an annotation to a sensor.
         ---

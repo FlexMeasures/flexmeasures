@@ -2,6 +2,7 @@ from datetime import timedelta, datetime
 import json
 import pytest
 import pytz
+from rq.job import JobStatus
 
 from marshmallow import ValidationError
 import pandas as pd
@@ -19,6 +20,7 @@ from flexmeasures.data.services.sensors import (
     get_stalenesses,
     get_statuses,
     build_asset_jobs_data,
+    serialize_sensor_status_data,
     get_asset_sensors_metadata,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
@@ -391,6 +393,79 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     asset.sensors_to_show = []
 
 
+def test_asset_sensors_metadata_skips_fixed_value_sensors(db, add_weather_sensors):
+    """
+    Regression test: the status page listed the fixed-value sensors that stand in for flex-config quantities,
+    and then queried the status endpoint for their negative IDs, which cannot resolve to a sensor.
+    """
+    asset = add_weather_sensors["asset"]
+    wind_sensor = add_weather_sensors["wind"]
+
+    # Flush to ensure the asset and its sensors have database IDs before referring to them.
+    db.session.flush()
+
+    asset.flex_context = {"site-power-capacity": "1 MW"}
+    asset.sensors_to_show = [
+        {"title": "Wind", "sensor": wind_sensor.id},
+        {
+            "title": "Capacity",
+            "plots": [{"asset": asset.id, "flex-context": "site-power-capacity"}],
+        },
+    ]
+    db.session.add(asset)
+
+    status_data = get_asset_sensors_metadata(asset=asset)
+
+    sensor_ids = [s["id"] for s in status_data]
+    assert wind_sensor.id in sensor_ids
+    assert not [sensor_id for sensor_id in sensor_ids if sensor_id < 0]
+
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+    asset.flex_context = {}
+
+
+def test_sensor_status_tolerates_a_flex_context_sensor_that_is_gone(
+    db, mock_get_statuses, add_weather_sensors
+):
+    """A flex-context can refer to a sensor which no longer exists, and the status page still has to load.
+
+    References to a deleted sensor are cleaned up when the sensor is deleted through the code,
+    so a sensor removed directly in the database leaves them behind.
+    """
+    asset = add_weather_sensors["asset"]
+    wind_sensor = add_weather_sensors["wind"]
+
+    # Flush to ensure the asset and its sensors have database IDs before referring to them.
+    db.session.flush()
+
+    sensor_that_is_gone = 10**6  # No sensor has this id.
+    asset.flex_context = {
+        "consumption-price": {"sensor": sensor_that_is_gone},
+        "production-price": {"sensor": wind_sensor.id},
+    }
+    asset.sensors_to_show = [{"title": "Wind", "sensor": wind_sensor.id}]
+    db.session.add(asset)
+
+    status_data = get_asset_sensors_metadata(asset=asset)
+    sensor_ids = [sensor["id"] for sensor in status_data]
+    assert wind_sensor.id in sensor_ids
+    assert sensor_that_is_gone not in sensor_ids
+
+    # The relation of each sensor to the asset names the fields that refer to it,
+    # which is where a field without a sensor used to bring the page down.
+    mock_get_statuses.return_value = [{"staleness": None, "staleness_since": None}]
+    statuses = serialize_sensor_status_data(sensor=wind_sensor, asset=asset)
+    assert statuses, "the sensor reported no status at all"
+    for status in statuses:
+        assert "flex context (production-price)" in status["relation"]
+        assert "consumption-price" not in status["relation"]
+
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+    asset.flex_context = {}
+
+
 def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
@@ -465,7 +540,7 @@ def test_asset_sensors_metadata(
 
 
 def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
-    """Check that we get both types of jobs for a battery asset."""
+    """Check that we get scheduling, forecasting and reporting jobs."""
     battery_asset = add_battery_assets["Test battery"]
     battery = battery_asset.sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
@@ -495,26 +570,118 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
         },
     )
     forecasting_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+    reporting_job = app.queues["reporting"].enqueue(sum, [1, 2])
+    reporting_job.meta["exception"] = "report failed"
+    reporting_job.save_meta()
+    reporting_job.set_status(JobStatus.FAILED)
+    app.job_map.add(
+        battery.id,
+        reporting_job.id,
+        queue="reporting",
+        asset_or_sensor_type="sensor",
+    )
 
     jobs_data = build_asset_jobs_data(battery_asset)
     forecasting_jobs_data = [j for j in jobs_data if j["queue"] == "forecasting"]
     scheduling_jobs_data = [j for j in jobs_data if j["queue"] == "scheduling"]
+    reporting_jobs_data = [j for j in jobs_data if j["queue"] == "reporting"]
     assert len(forecasting_jobs_data) == 1
     assert scheduling_jobs_data
+    assert len(reporting_jobs_data) == 1
+    # A job that failed before every queue stored a summary holds a bare message, which is shown as is.
+    assert reporting_jobs_data[0]["err"] == "Reporting job failed with report failed"
     scheduling_job_ids = set()
     for job_data in jobs_data:
         metadata = json.loads(job_data["metadata"])
         if job_data["queue"] == "forecasting":
             assert metadata["job_id"] == forecasting_job.id
             assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
-        else:
+            assert job_data["status"] == "queued"
+        elif job_data["queue"] == "scheduling":
             scheduling_job_ids.add(metadata["job_id"])
-        assert job_data["status"] == "queued"
+            assert job_data["status"] == "queued"
+        else:
+            assert metadata["job_id"] == reporting_job.id
+            assert job_data["status"] == JobStatus.FAILED
 
     assert scheduling_job.id in scheduling_job_ids
 
     # Clean up queues
     app.queues["scheduling"].empty()
     app.queues["forecasting"].empty()
+    app.queues["reporting"].empty()
     assert app.queues["scheduling"].count == 0
     assert app.queues["forecasting"].count == 0
+    assert app.queues["reporting"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_build_asset_jobs_data_includes_child_assets(
+    db, app, add_battery_assets, clean_redis, requesting_user
+):
+    """A parent asset reports the jobs of its children too, unless asked not to.
+
+    The jobs of the assets below are listed as far as the current user may read those assets, so this runs as the user owning them.
+    """
+    battery_asset = add_battery_assets["Test battery"]
+    building_asset = battery_asset.parent_asset
+    battery = battery_asset.sensors[0]
+    tz = pytz.timezone("Europe/Amsterdam")
+    start, end = tz.localize(datetime(2015, 1, 2)), tz.localize(datetime(2015, 1, 3))
+
+    scheduling_job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+    )
+
+    jobs_data = build_asset_jobs_data(building_asset)
+    assert scheduling_job.id in {
+        json.loads(job_data["metadata"])["job_id"] for job_data in jobs_data
+    }, "the building lists the job triggered on the battery below it"
+    reported_job = [
+        job_data for job_data in jobs_data if job_data["job_id"] == scheduling_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        battery_asset.id,
+        battery_asset.name,
+    ), "a job on a sensor names the asset that sensor belongs to, which its entity does not say"
+
+    own_jobs_data = build_asset_jobs_data(building_asset, include_child_assets=False)
+    assert scheduling_job.id not in {
+        json.loads(job_data["metadata"])["job_id"] for job_data in own_jobs_data
+    }, "the building lists only its own jobs when the child assets are left out"
+
+    # Clean up queues
+    app.queues["scheduling"].empty()
+    assert app.queues["scheduling"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_build_asset_jobs_data_reports_current_status(
+    db, app, add_battery_assets, clean_redis, requesting_user
+):
+    """A job's status change shows on the very next listing, paginated or not."""
+    asset = add_battery_assets["Test battery"]
+    job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_map.add(asset.id, job.id, "scheduling", "asset")
+
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.QUEUED
+    page, total_jobs = build_asset_jobs_data(asset, page=1)
+    assert page[0]["status"] == JobStatus.QUEUED
+    assert total_jobs == 1
+
+    job.set_status(JobStatus.FAILED)
+
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.FAILED
+    page, _ = build_asset_jobs_data(asset, page=1)
+    assert page[0]["job_id"] == job.id
+    assert page[0]["status"] == JobStatus.FAILED
+
+    app.queues["scheduling"].empty()

@@ -8,11 +8,16 @@ from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
+from flexmeasures.data.services.automations import (
+    describe_cronstr,
+    get_automations_feeding_sensor,
+)
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.auth_utils import (
-    user_can_create_children,
+    user_can_access,
     user_can_delete,
+    user_can_read,
     user_can_update,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
@@ -24,6 +29,7 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
+from flexmeasures.auth.policy import check_access
 
 
 class SensorUI(FlaskView):
@@ -43,11 +49,16 @@ class SensorUI(FlaskView):
         The following query parameters are supported (should be used only together):
          - start_time: minimum time of the events to be shown
          - end_time: maximum time of the events to be shown
+
+        In addition, the source query parameter can be used to pre-select a data source
+        in the statistics panel (e.g. when linking here from an automation).
         """
         sensor = db.session.get(Sensor, id)
         if sensor is None:
             raise NotFound
-        can_create_children = user_can_create_children(sensor)
+        check_access(sensor, "read")
+        can_create_children = user_can_access(sensor, "post-data")
+        can_trigger_forecasts = user_can_access(sensor, "trigger-forecasts")
         has_enough_data = False
         planning_horizon: timedelta = current_app.config.get(
             "FLEXMEASURES_PLANNING_HORIZON", timedelta(days=2)
@@ -55,7 +66,7 @@ class SensorUI(FlaskView):
         forecast_default_duration_days = max(
             1, min(7, int(planning_horizon.total_seconds() / 86400))
         )
-        if can_create_children:
+        if can_trigger_forecasts:
             earliest, latest = get_timerange([sensor.id])
             has_enough_data = (latest - earliest) >= timedelta(days=2)
         return render_flexmeasures_template(
@@ -63,7 +74,9 @@ class SensorUI(FlaskView):
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
+            user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
             user_can_create_children_sensor=can_create_children,
+            user_can_trigger_forecasts=can_trigger_forecasts,
             sensor_has_enough_data_for_forecast=has_enough_data,
             forecast_default_duration_days=forecast_default_duration_days,
             available_units=available_units(),
@@ -73,4 +86,16 @@ class SensorUI(FlaskView):
             event_ends_before=request.args.get("end_time"),
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
+            preselected_source_id=request.args.get("source"),
+            feeding_automations=[
+                dict(
+                    id=automation.id,
+                    name=automation.name,
+                    asset_id=automation.asset_id,
+                    active=automation.active,
+                    recurrence_description=describe_cronstr(automation.cronstr),
+                )
+                for automation in get_automations_feeding_sensor(sensor)
+                if user_can_read(automation)
+            ],
         )

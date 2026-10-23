@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import Sequence
-import inflect
 from functools import wraps
 
 from flask import url_for
 
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
-
-p = inflect.engine()
-
+from flexmeasures.data.services.data_ingestion import (
+    BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE,
+)
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
@@ -65,9 +65,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
     )
 
 
-@BaseMessage(
-    "Some of the data represents a replacement: existing values would be changed for the same sensor, source, event timestamp and belief time. This is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, submit the data with a different prior, or check whether the same file was already uploaded with different values."
-)
+@BaseMessage(BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE)
 def invalid_replacement(message: str) -> ResponseTuple:
     return (
         dict(
@@ -188,7 +186,7 @@ def invalid_sender(
     """
     message = message or FORBIDDEN_MSG
     if required_permissions:
-        message += f" It requires {p.join(required_permissions)} permission(s)."
+        message += f" It requires {join_words_into_a_list(required_permissions)} permission(s)."
     return (
         dict(result="Rejected", status="INVALID_SENDER", message=message),
         FORBIDDEN_STATUS_CODE,
@@ -210,7 +208,11 @@ def invalid_unit(
     quantity_str = (
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
     )
-    unit_str = "in %s" % p.join(units, conj="or") if units is not None else "a unit"
+    unit_str = (
+        "in %s" % join_words_into_a_list(units, conj="or")
+        if units is not None
+        else "a unit"
+    )
     return (
         dict(
             result="Rejected",
@@ -387,6 +389,7 @@ def request_accepted_for_processing(
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
     job_results_url: str | None = None,
+    status_code: int = 202,
 ) -> ResponseTuple:
     """
     Standard 202 response when a background job is accepted.
@@ -414,7 +417,7 @@ def request_accepted_for_processing(
         # keep legacy key for backwards compatibility; not (yet) deprecated, see docstring
         resp[legacy_key] = job_id
 
-    return resp, 202
+    return resp, status_code
 
 
 def request_too_large(message: str) -> ResponseTuple:

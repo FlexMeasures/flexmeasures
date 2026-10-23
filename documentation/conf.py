@@ -68,6 +68,10 @@ gen_code_docs = not bool(
 )
 
 mermaid_params = ["-p" "puppeteer-config.json"]
+# Keep Mermaid diagrams light and readable regardless of the browser's colour
+# scheme. The extension's dark theme otherwise renders near-black boxes.
+mermaid_dark_theme = "neutral"
+mermaid_light_theme = "neutral"
 
 # Generate code docs
 if gen_code_docs:

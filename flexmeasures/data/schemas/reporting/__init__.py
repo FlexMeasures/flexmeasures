@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, pre_load, validate
 
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.account import AccountIdOrListField
@@ -29,15 +29,44 @@ class ReporterParametersSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))
+    output = fields.List(
+        fields.Nested(Output()), required=True, validate=validate.Length(min=1)
+    )
 
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)
 
     resolution = DurationField(required=False)
-    belief_time = AwareDateTimeField(required=False)
+    belief_time = AwareDateTimeField(required=False, data_key="prior")
     check_output_resolution = fields.Bool(required=False)
     belief_horizon = DurationField(required=False)
+
+    @pre_load
+    def accept_legacy_belief_time(self, data, **kwargs):
+        """Accept "belief_time", the name report parameters used for "prior" up to v1.0.
+
+        Where both are given, "prior" wins, unlike for other legacy aliases (see `SupportsLegacyFieldAliases`):
+        a data generator merges the parameters of a new run into those it loaded for its previous run,
+        so a stale "belief_time" left over from that load can meet the new run's "prior".
+        """
+        if not hasattr(data, "items") or "belief_time" not in data:
+            return data
+        data = dict(data)
+        legacy_belief_time = data.pop("belief_time")
+        data.setdefault("prior", legacy_belief_time)
+        return data
+
+
+class ReportTriggerSchema(Schema):
+    """Validate the request envelope for a one-off reporting job.
+
+    The selected reporter subsequently validates ``config`` and ``parameters``
+    with its concrete configuration and parameter schemas.
+    """
+
+    reporter = fields.Str(required=True)
+    config = fields.Dict(keys=fields.Str(), load_default=dict)
+    parameters = fields.Dict(keys=fields.Str(), required=True)
 
 
 class BeliefsSearchConfigSchema(Schema):

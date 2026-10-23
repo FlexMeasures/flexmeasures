@@ -211,9 +211,9 @@ First, we define a div tag for the chart and a basic layout (full width). We als
 .. code-block:: html
 
     <script src="https://d3js.org/d3.v6.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.20.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.33.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.5.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script>
     <script>
         vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
             return d3.format(params[0])(datum) + " " + params[1];
@@ -228,7 +228,7 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
     function embedChart(params, authToken, sensorId, divId){
         fetch(
-            flexmeasures_domain + '/api/dev/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
+            flexmeasures_domain + '/api/ui/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -245,10 +245,10 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-id-chart->`_ endpoint.
+From FlexMeasures, we are using the `GET /api/ui/sensor/(id)/chart/ <../api/ui.html#get--api-ui-sensor-(id)-chart>`_ endpoint.
 Browse the endpoint documentation to learn more about it.
 
-.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
+.. note:: This endpoint supports the FlexMeasures UI, and is not part of the official API, so it may change in any FlexMeasures version.
 
 Here are some common parameter choices for our JavaScript function:
 
@@ -264,7 +264,11 @@ Here are some common parameter choices for our JavaScript function:
 
 As FlexMeasures uses `the Vega-Lite Grammar of Interactive Graphics <https://vega.github.io/vega-lite/>`_ internally, we also need to import this library to render the chart (see the ``script`` tags above). It's crucial to note that FlexMeasures is not transferring images across HTTP here, just information needed to render them.
 
-.. note:: It's best to match the visualization library versions you use in your frontend to those used by FlexMeasures. These are set by the FLEXMEASURES_JS_VERSIONS config (see :ref:`configuration`) with defaults kept in ``flexmeasures/utils/config_defaults``.
+.. note:: It's best to match the visualization library versions you use in your frontend to those used by FlexMeasures, which are listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+          A plugin page which extends FlexMeasures' ``base.html`` already loads them, from FlexMeasures itself if they were fetched (see :ref:`install-ui-libraries`), and from CDNs otherwise.
+          A plugin page served by FlexMeasures which does not extend ``base.html`` can load the very same files:
+          ``{% import "includes/vendor.html" as vendor %}{{ vendor.scripts() }}`` loads Vega, Vega-Lite, Vega-Embed and the other chart libraries,
+          and templates can read the versions as ``js_versions``, e.g. ``{{ js_versions.vegalite }}``.
 
 Now let's call this function when the HTML page is opened, to embed our chart:
 

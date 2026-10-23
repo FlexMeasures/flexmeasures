@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 import json
 import re
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
@@ -12,7 +13,6 @@ from flask import current_app
 from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
-from psycopg2.errors import UniqueViolation
 from rq import Queue, Worker
 from rq.job import Job
 from sqlalchemy import select
@@ -22,9 +22,16 @@ from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.data_ingestion import (
+    BeliefReplacementNotAllowed,
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
+    is_belief_replacement,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
+from flexmeasures.data.services.automation_copies import (
+    copy_automations,
+    SkippedAutomation,
+)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
@@ -136,15 +143,21 @@ def process_sensor_data_ingestion(
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
 
     If an ingestion queue with connected workers is available, enqueue a background
-    job and return ``202 Accepted``. Otherwise, process the data synchronously and
-    return the resulting ingestion response.
+    job and return ``202 Accepted``. If no worker is available, process the data
+    synchronously and return the resulting ingestion response. As a compatibility
+    exception, callers can force synchronous processing for compatibility purposes.
     """
     ingestion_queue = current_app.queues.get("ingestion")
-    if ingestion_queue is None:
+    if force_synchronous:
+        current_app.logger.info(
+            "Processing sensor data directly as requested by caller."
+        )
+    elif ingestion_queue is None:
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."
         )
@@ -216,14 +229,17 @@ def catch_timed_belief_replacements(error: IntegrityError):
 
     Return a more informative message.
     """
-    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
-        error.orig
-    ):
+    if is_belief_replacement(error):
         # Some beliefs represented replacements, which was forbidden
         return invalid_replacement()
 
     # Forward to our generic error handler
     return error_handling_router(error)
+
+
+def handle_belief_replacement_not_allowed(error: BeliefReplacementNotAllowed):
+    """Answer a refused replacement with the INVALID_REPLACEMENT response."""
+    return invalid_replacement()
 
 
 def get_accessible_accounts() -> list[Account]:
@@ -475,11 +491,11 @@ def _copy_asset_subtree(
     destination_parent_asset_id: int | None,
     asset_schema: AssetSchema,
     add_copy_suffix: bool,
-) -> tuple[GenericAsset, dict[int, int]]:
+) -> tuple[GenericAsset, dict[int, int], dict[int, int]]:
     """Recursively copy one asset and all descendants.
 
-    Returns a tuple of (copied_asset, sensor_id_map) where sensor_id_map maps
-    every original sensor ID in the entire subtree to the corresponding new ID.
+    Returns a tuple of (copied_asset, sensor_id_map, asset_id_map),
+    where each map takes every original ID in the entire subtree to the corresponding new ID.
     """
     asset_kwargs = asset_schema.dump(source_asset)
 
@@ -504,6 +520,7 @@ def _copy_asset_subtree(
     db.session.flush()
 
     sensor_id_map = _copy_direct_sensors(source_asset, copied_asset)
+    asset_id_map = {source_asset.id: copied_asset.id}
 
     source_children = db.session.scalars(
         select(GenericAsset)
@@ -511,7 +528,7 @@ def _copy_asset_subtree(
         .order_by(GenericAsset.id)
     ).all()
     for source_child in source_children:
-        _, child_sensor_map = _copy_asset_subtree(
+        _, child_sensor_map, child_asset_map = _copy_asset_subtree(
             source_asset=source_child,
             destination_account_id=destination_account_id,
             destination_parent_asset_id=copied_asset.id,
@@ -519,8 +536,9 @@ def _copy_asset_subtree(
             add_copy_suffix=False,
         )
         sensor_id_map.update(child_sensor_map)
+        asset_id_map.update(child_asset_map)
 
-    return copied_asset, sensor_id_map
+    return copied_asset, sensor_id_map, asset_id_map
 
 
 def _determine_copy_name(
@@ -570,28 +588,19 @@ def _determine_copy_name(
     return f"{source_name} (Copy {max_index + 1})"
 
 
-def _asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
-    """Return True if candidate_asset_id is root or a descendant of root_asset_id."""
-    current_asset_id = candidate_asset_id
-    visited: set[int] = set()
+@dataclass(frozen=True)
+class AssetCopy:
+    """The outcome of copying an asset subtree."""
 
-    while current_asset_id is not None and current_asset_id not in visited:
-        if current_asset_id == root_asset_id:
-            return True
-        visited.add(current_asset_id)
-        current_asset = db.session.get(GenericAsset, current_asset_id)
-        if current_asset is None:
-            return False
-        current_asset_id = current_asset.parent_asset_id
-
-    return False
+    asset: GenericAsset
+    skipped_automations: list[SkippedAutomation]
 
 
 def copy_asset(
     asset: GenericAsset,
     account=None,
     parent_asset=None,
-) -> GenericAsset:
+) -> AssetCopy:
     """
     Copy an asset subtree to a target account and/or under a target parent asset.
 
@@ -599,6 +608,7 @@ def copy_asset(
     - the selected asset
     - all descendant child assets (recursively)
     - all sensors directly attached to each copied asset
+    - all automations on each copied asset, left inactive (see `copy_automations`)
 
     Resolution rules:
 
@@ -611,6 +621,9 @@ def copy_asset(
     - If both are given, the copy belongs to the given account and is placed under
       the given parent. This allows creating a copy that belongs to a different
       account than its parent.
+
+    An automation that cannot be copied safely does not fail the copy:
+    it is skipped, and reported in the returned `AssetCopy`.
     """
     try:
         asset_schema = AssetSchema()
@@ -634,7 +647,7 @@ def copy_asset(
             target_account_id = int(account.id)
             target_parent_asset_id = int(parent_asset.id)
 
-        if target_parent_asset_id is not None and _asset_is_in_subtree(
+        if target_parent_asset_id is not None and asset_is_in_subtree(
             root_asset_id=asset.id,
             candidate_asset_id=target_parent_asset_id,
         ):
@@ -642,7 +655,7 @@ def copy_asset(
                 "Invalid copy target parent: cannot copy an asset to itself or any of its descendants."
             )
 
-        copied_root, sensor_id_map = _copy_asset_subtree(
+        copied_root, sensor_id_map, asset_id_map = _copy_asset_subtree(
             source_asset=asset,
             destination_account_id=target_account_id,
             destination_parent_asset_id=target_parent_asset_id,
@@ -652,15 +665,29 @@ def copy_asset(
         if sensor_id_map:
             _update_sensor_refs_in_subtree(copied_root, sensor_id_map)
 
-        AssetAuditLog.add_record(
-            copied_root,
-            (
-                f"Copied asset '{asset.name}': {asset.id} "
-                f"to '{copied_root.name}': {copied_root.id}"
-            ),
+        skipped_automations = copy_automations(
+            asset_id_map=asset_id_map,
+            sensor_id_map=sensor_id_map,
+            destination_account_id=target_account_id,
         )
+
+        audit_message = (
+            f"Copied asset '{asset.name}': {asset.id} "
+            f"to '{copied_root.name}': {copied_root.id}"
+        )
+        if skipped_automations:
+            audit_message += f". Skipped {len(skipped_automations)} automation(s), each recorded on its own."
+        AssetAuditLog.add_record(copied_root, audit_message)
+        # One record per skipped automation, as an audit event is truncated to 500 characters,
+        # and the reasons are the whole point of recording them.
+        for skipped in skipped_automations:
+            AssetAuditLog.add_record(
+                copied_root,
+                f"Did not copy automation '{skipped.name}' ({skipped.automation_id})"
+                f" of asset {skipped.asset_id}: {skipped.reason}",
+            )
         db.session.commit()
-        return copied_root
-    except Exception as e:
+        return AssetCopy(asset=copied_root, skipped_automations=skipped_automations)
+    except Exception:
         db.session.rollback()
-        raise e
+        raise

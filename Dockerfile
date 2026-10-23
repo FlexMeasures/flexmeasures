@@ -1,9 +1,11 @@
-ARG UV_MAJOR_VERSION=0.10
+# Keep in sync with [tool.uv].required-version in pyproject.toml, which makes uv refuse to run on any other version.
+# See documentation/dev/dependency-management.rst.
+ARG UV_VERSION=0.12.7
 ARG PYTHON_VERSION=3.12
 ARG DEBIAN_VERSION=trixie
 
 # Build the virtual environment using UV
-FROM ghcr.io/astral-sh/uv:${UV_MAJOR_VERSION}-python${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS builder
+FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS builder
 
 # Redeclare ARG after FROM to make it available in this stage
 ARG UV_COMPILE_BYTECODE=1
@@ -23,10 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Sync dependencies without installing the project itself (creates .venv)
+# --no-dev excludes the dev dependency-group (mypy, black, flake8, ...).
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-dev
 
 # Ensure subsequent commands use the virtual environment
 ENV VIRTUAL_ENV=/app/.venv \
@@ -38,13 +41,38 @@ COPY flexmeasures ./flexmeasures
 COPY .git ./.git
 COPY .flaskenv wsgi.py ./
 
-# Install FlexMeasures itself in the virtual environment
+# Install FlexMeasures itself in the virtual environment.
+# --no-editable installs it as a regular package, so its source files are bytecode-compiled here, like every other dependency, rather than on every container boot.
+# Released images pass their tag-derived version explicitly, because the partial tracked working tree copied above appears dirty to hatch-vcs.
+# An empty value preserves Git-derived versions for local builds.
+ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
+    uv sync --frozen --reinstall-package flexmeasures --no-dev --no-editable
+
+# Fetch the UI's third-party libraries into the installed package, so the UI also works without internet access.
+# Each file is checked against the hash recorded in flexmeasures/ui/utils/vendor_assets.py, and the build fails on a mismatch.
+# It runs outside /app, because python -m would otherwise import the source copy in /app/flexmeasures, which the runtime image leaves behind.
+RUN cd / && python -m flexmeasures.ui.utils.fetch_vendor_assets
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install gunicorn==25.0.3
+
+# sktime (and its scikit-base dependency) ship docs/ and examples/ as stray top-level directories. See: https://github.com/sktime/sktime/issues/10891
+RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
+           "${VIRTUAL_ENV}"/lib/python*/site-packages/examples
+
+# Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug info that nothing needs at runtime.
+# Stripping them here keeps ~130 MB out of the runtime image, which copies only the result of this stage.
+# --strip-unneeded leaves everything that dynamic linking uses, so the extensions stay loadable.
+# binutils only reaches this stage as a transitive of the gcc install above, so check for strip explicitly:
+# the trailing `|| true` is there for individual files strip cannot handle, and would otherwise hide a missing binutils.
+RUN command -v strip > /dev/null || { \
+        echo "strip not found: the builder stage needs binutils" >&2; exit 1; \
+    }; \
+    find "${VIRTUAL_ENV}" \( -name '*.so' -o -name '*.so.*' \) -type f \
+    -exec strip --strip-unneeded {} + 2>/dev/null || true
 
 # Use a separate runtime image to run the code
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS runtime
@@ -68,9 +96,10 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtual environment from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Copy application code
-COPY --from=builder /app/flexmeasures ./flexmeasures
+# Copy the application's entry point and its configuration.
+# FlexMeasures itself is already installed, non-editable, inside ${VIRTUAL_ENV}, so its source files need no separate copy.
 COPY --from=builder /app/.flaskenv /app/wsgi.py ./
+COPY gunicorn.conf.py ./
 
 # Set environment variables to optimize Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -79,12 +108,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 EXPOSE 5000
 
 # Gunicorn configuration:
-# - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem
+# - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem, see:
 #   http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
 # - Using 2 workers to avoid health check timeouts when another request is taking a long time
+# - preload loads the app once, before forking the workers, instead of once per worker, which cuts boot time;
+#   gunicorn.conf.py's post_fork hook then disposes of the inherited connection pool, so workers don't share live connections (see that file's docstring).
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "--worker-tmp-dir", "/dev/shm", \
      "--workers", "2", \
      "--threads", "4", \
+     "--preload", \
+     "--config", "gunicorn.conf.py", \
      "wsgi:application"]

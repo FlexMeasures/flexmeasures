@@ -85,6 +85,8 @@ class Config(object):
         True  # False if you want to skip validation for testing
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    # Flask-Security's default as of 5.9, set here for 5.8, which Python 3.10 still gets, and which also allows GET.
+    SECURITY_LOGOUT_METHODS = ["POST"]
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
     SECURITY_TWO_FACTOR_RESCUE_MAIL = (
@@ -118,6 +120,7 @@ class Config(object):
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY: bool = True
+    FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT: int | None = None
     FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS: list[str] = (
         []
     )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
@@ -188,27 +191,26 @@ class Config(object):
         True  # Flask-Limiter's own switch, to turn off rate limiting altogether
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
+    FLEXMEASURES_UI_RATE_LIMIT: str = (
+        "100 per minute"  # per user, for the API calls the UI makes with the user's session
+    )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
-    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
-        "account"  # what to count triggers against: "account", "account+asset" or "user"
-    )
-    FLEXMEASURES_JS_VERSIONS: dict = dict(
-        vega="5.22.1",
-        vegaembed="6.21.0",
-        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
-        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
-        currencysymbolmap="5.1.0",
-        jsoneditor="2.15.2",
-        leaflet="1.9.4",
-        leafletmarkercluster="1.5.3",
-        leafletmarkerclusterlayersupport="2.0.1",
-        # todo: expand with other js versions used in FlexMeasures
-    )
+    # Deprecated, and ignored: triggers are always counted per account
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
+    # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
+    FLEXMEASURES_JS_VERSIONS: dict = {}
+    # Fetch the UI's libraries in the background, so FlexMeasures serves them itself rather than browsers loading them from CDNs
+    FLEXMEASURES_FETCH_UI_LIBRARIES: bool = True
     FLEXMEASURES_JSON_COMPACT = False
     OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
+        str, str
+    ] = {}
+    # QA-only override for exercising legacy clients without modifying assets.
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION: dict[str, str] = {}
 
     # Custom sunset switches
     FLEXMEASURES_API_SUNSET_ACTIVE: bool = (
@@ -218,6 +220,7 @@ class Config(object):
     FLEXMEASURES_API_SUNSET_LINK: str | None = (
         None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
     )
+    FLEXMEASURES_DEPRECATION_AND_SUNSET: dict = dict()
 
     # if True, all requests are forced to be via HTTPS.
     FLEXMEASURES_FORCE_HTTPS: bool = False
@@ -288,6 +291,7 @@ class TestingConfig(Config):
     DEBUG: bool = True  # this seems to be important for logging in, not sure why
     LOGGING_LEVEL: int = logging.INFO
     FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = False
+    FLEXMEASURES_FETCH_UI_LIBRARIES: bool = False
     WTF_CSRF_ENABLED: bool = False  # also necessary for logging in during tests
 
     SECRET_KEY: str = "dummy-key-for-testing"
@@ -302,6 +306,13 @@ class TestingConfig(Config):
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
     SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: list[str] = []
+    # Flask-Security's default password hash is argon2, which costs about 50 ms per hash, and tests create many users.
+    # Keep argon2, with the minimum cost parameters (memory_cost must be at least 8 * parallelism).
+    SECURITY_PASSWORD_HASH_PASSLIB_OPTIONS: dict[str, int] = {
+        "argon2__time_cost": 1,
+        "argon2__memory_cost": 8,
+        "argon2__parallelism": 1,
+    }
     FLEXMEASURES_MODE: str = "test"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
@@ -311,6 +322,7 @@ class TestingConfig(Config):
     # but its limits are set so high that only the rate limiting tests, which lower them, will hit them.
     RATELIMIT_STORAGE_URI: str = "memory://"
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA

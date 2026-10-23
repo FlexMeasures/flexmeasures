@@ -21,6 +21,7 @@ from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
 )
@@ -625,7 +626,7 @@ class AssetTypeIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAssetType:
         """Turn a generic asset type id into a GenericAssetType."""
         asset_type_id: int = super()._deserialize(value, attr, data, **kwargs)
-        asset_type = db.session.get(GenericAssetType, asset_type_id)
+        asset_type = get_by_id(GenericAssetType, asset_type_id)
         if asset_type is None:
             raise FMValidationError(
                 f"No generic asset type found with id {asset_type_id}."
@@ -647,9 +648,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset_id: int = super()._deserialize(value, attr, data, **kwargs)
-        generic_asset: GenericAsset = db.session.execute(
-            select(GenericAsset).filter_by(id=generic_asset_id)
-        ).scalar_one_or_none()
+        generic_asset: GenericAsset | None = get_by_id(GenericAsset, generic_asset_id)
         if generic_asset is None:
             message = f"No asset found with ID {value}."
             if self.status_if_not_found == HTTPStatus.NOT_FOUND:

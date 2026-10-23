@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 
 import numpy as np
 import pandas as pd
 from darts import TimeSeries
-from darts.dataprocessing.transformers import MissingValuesFiller
 from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
@@ -32,26 +31,121 @@ def _entity_id(entity_or_id):
     return getattr(entity_or_id, "id", entity_or_id)
 
 
-def _regressor_sensor_and_source_filters(
-    regressor: Sensor | SensorReference,
+def _bound_input_series(
+    series: TimeSeries,
+    sensor_or_reference: Sensor | SensorReference,
+) -> TimeSeries:
+    """Clean a filled input series against the bounds carried by its reference.
+
+    Bounding runs after gap filling, so a value interpolated across a gap is bounded too.
+    A plain sensor, or a reference that asks for no cleaning, leaves the series untouched.
+
+    :param sensor_or_reference: The regressor or target the series was read from.
+    :returns:                   The series, with its values snapped and clipped.
+    """
+    if (
+        not isinstance(sensor_or_reference, SensorReference)
+        or not sensor_or_reference.has_bounds
+    ):
+        return series
+    return series.map(sensor_or_reference.apply_bounds)
+
+
+def _sensor_and_source_filters(
+    sensor_or_reference: Sensor | SensorReference,
 ) -> tuple[Sensor, dict]:
-    """Return the underlying sensor and belief-search filters for a regressor."""
-    if not isinstance(regressor, SensorReference):
-        return regressor, {}
+    """Return the underlying sensor and belief-search filters of a regressor or of the target sensor."""
+    if not isinstance(sensor_or_reference, SensorReference):
+        return sensor_or_reference, {}
 
     source_filters = {
-        "source_types": regressor.source_types,
-        "exclude_source_types": regressor.exclude_source_types,
-        "source": regressor.sources,
+        "source_types": sensor_or_reference.source_types,
+        "exclude_source_types": sensor_or_reference.exclude_source_types,
+        "source": sensor_or_reference.sources,
         "source_account_ids": (
-            [account.id for account in regressor.source_account]
-            if regressor.source_account is not None
+            [account.id for account in sensor_or_reference.source_account]
+            if sensor_or_reference.source_account is not None
             else None
         ),
     }
-    return regressor.sensor, {
+    return sensor_or_reference.sensor, {
         key: value for key, value in source_filters.items() if value is not None
     }
+
+
+def _source_filter_fingerprint(source_filters: dict) -> tuple:
+    """Return a hashable fingerprint of the source filters of a belief search.
+
+    Data sources and accounts are represented by their ID,
+    so that equal filters fingerprint equally even when they hold distinct model instances.
+    Filters holding several values are applied as SQL ``IN`` criteria, which are insensitive to the order of the values,
+    so those are sorted before fingerprinting.
+    The order of an explicit list of sources still decides which of two colliding beliefs wins,
+    but that is settled per regressor in ``_resolve_source_collisions``, after the shared frame has been loaded.
+    """
+    fingerprint = []
+    for filter_name in sorted(source_filters):
+        value = source_filters[filter_name]
+        if isinstance(value, (list, tuple, set, frozenset)):
+            fingerprint.append(
+                (
+                    filter_name,
+                    tuple(
+                        sorted(
+                            (_entity_id(item) for item in value),
+                            key=lambda item: (type(item).__name__, str(item)),
+                        )
+                    ),
+                )
+            )
+        else:
+            fingerprint.append((filter_name, _entity_id(value)))
+    return tuple(fingerprint)
+
+
+def _belief_search_key(search: dict) -> tuple:
+    """Return a hashable key identifying a belief search.
+
+    Two entries with equal keys ask the database exactly the same question,
+    so one query can serve both.
+    """
+    sensor = search["sensor"]
+    return (
+        sensor.id if sensor.id is not None else ("unsaved sensor", id(sensor)),
+        search["event_starts_after"],
+        search["event_ends_before"],
+        search["most_recent_beliefs_only"],
+        search["beliefs_before"],
+        _source_filter_fingerprint(search["source_filters"]),
+    )
+
+
+def _drop_source_types(
+    df: pd.DataFrame, excluded_source_types: list[str]
+) -> pd.DataFrame:
+    """Drop the beliefs recorded by sources of the given types.
+
+    Because beliefs are loaded with ``one_deterministic_belief_per_event_per_source=True``,
+    the frame holds one row per event per source, rather than one row per event.
+    Dropping the rows of the excluded source types therefore yields exactly what the same search with ``exclude_source_types`` returns:
+    no event is lost that another source also recorded a belief about.
+    """
+    if df.empty:
+        return df
+    sources = df.index.get_level_values("source")
+    kept = np.fromiter(
+        (source.type not in excluded_source_types for source in sources),
+        dtype=bool,
+        count=len(sources),
+    )
+    if kept.all():
+        return df
+    return df[kept]
+
+
+def _realized_column(name: str) -> str:
+    """Name of the column that flags which of a regressor's beliefs are realized."""
+    return f"{name}__realized"
 
 
 def _resolve_source_collisions(
@@ -142,7 +236,7 @@ class BasePipeline:
 
     def __init__(
         self,
-        target_sensor: Sensor,
+        target_sensor: Sensor | SensorReference,
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
         n_steps_to_predict: int,
@@ -176,11 +270,11 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
-            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
+            f"{_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
             for idx, regressor in enumerate(self.future)
         ]
         self.past_regressors = [
-            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
+            f"{_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
             for idx, regressor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
@@ -210,6 +304,45 @@ class BasePipeline:
         # Belief time is NaT where the annotation records none, meaning "always known".
         self._annotation_belief_times: dict[str, pd.Series] = {}
         self._annotation_values: dict[str, pd.Series] = {}
+        # Resolution of each regressor column's sensor
+        self._regressor_resolutions = {
+            name: _sensor_and_source_filters(regressor)[0].event_resolution
+            for name, regressor in zip(
+                self.future_regressors + self.past_regressors, self.future + self.past
+            )
+        }
+
+    def _regressor_frame(
+        self,
+        df: pd.DataFrame,
+        regressor_columns: list[str],
+        other_columns: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """Select regressor columns from the loaded data, each with the flags telling which of its beliefs are realized.
+
+        ``load_data_all_beliefs`` flags realized beliefs by their sensor's knowledge horizon.
+        Where a frame lacks these flags, the default knowledge horizon is assumed,
+        under which a belief is realized once its event has ended.
+
+        :param df:                  Frame with "event_start", "belief_time" and the given columns.
+        :param regressor_columns:   Regressor columns to select with their realized flags.
+        :param other_columns:       Further columns to select, without flags (such as annotation regressors).
+        :returns:                   Frame with the selected columns and a boolean realized flag per regressor column.
+        """
+        frame = df[
+            ["event_start", "belief_time"] + regressor_columns + (other_columns or [])
+        ].copy()
+        for column in regressor_columns:
+            flag = _realized_column(column)
+            if flag in df.columns:
+                # Rows holding another sensor's belief have no flag, and no value for this column either
+                frame[flag] = df[flag].eq(True)
+            else:
+                frame[flag] = (
+                    df["belief_time"]
+                    >= df["event_start"] + self._regressor_resolutions[column]
+                )
+        return frame
 
     def _annotation_values_known_at(
         self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
@@ -239,6 +372,98 @@ class BasePipeline:
         visible = values.where(known, 0.0)
         return event_starts.map(visible)
 
+    def _search_beliefs_per_entry(
+        self,
+        sensor_names: list[str],
+        sensors: list[Sensor | SensorReference],
+    ) -> tuple[list[tuple], dict[tuple, pd.DataFrame]]:
+        """Load the beliefs each pipeline entry needs, querying each distinct search only once.
+
+        A sensor is commonly listed more than once, most notably in the autoregressive case, where the target sensor is also one of its own past regressors.
+        Entries that ask the database the same question share a single query,
+        and a target entry can be served by filtering the frame of an otherwise identical search that did not exclude forecasters.
+
+        :param sensor_names:    Column name per entry, in the order the entries are loaded.
+        :param sensors:         Sensor or sensor reference per entry, in the same order.
+        :returns:               The entries as (name, sensor or sensor reference, search key) tuples, and the loaded beliefs per search key.
+        """
+        entries = []
+        searches: dict[tuple, dict] = {}
+        for name, regressor_or_sensor in zip(sensor_names, sensors):
+            sensor, source_filters = _sensor_and_source_filters(regressor_or_sensor)
+
+            sensor_event_ends_before = self.event_ends_before
+            sensor_event_starts_after = self.event_starts_after
+
+            most_recent_beliefs_only = True
+            # Extend time range for future regressors
+            if regressor_or_sensor in self.future:
+                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
+                    hours=self.max_forecast_horizon_in_hours
+                )
+
+                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
+
+            if name == self.target and not source_filters:
+                # Exclude forecasters from the target data to avoid training on forecasts.
+                # A target given as a source-filtered reference says which sources hold the truth,
+                # so its own filters are used as given, and this default is not added on top.
+                source_filters["exclude_source_types"] = ["forecaster"]
+
+            search = dict(
+                sensor=sensor,
+                event_starts_after=sensor_event_starts_after,
+                event_ends_before=sensor_event_ends_before,
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                beliefs_before=self.beliefs_before,
+                source_filters=source_filters,
+            )
+            search_key = _belief_search_key(search)
+            searches.setdefault(search_key, search)
+            entries.append((name, regressor_or_sensor, search_key))
+
+        # A search that excludes source types is derivable from an otherwise identical search that does not, by dropping the rows of the excluded types.
+        derivations: dict[tuple, tuple] = {}
+        for search_key, search in searches.items():
+            excluded_source_types = search["source_filters"].get("exclude_source_types")
+            if not excluded_source_types:
+                continue
+            base_search = dict(
+                search,
+                source_filters={
+                    filter_name: value
+                    for filter_name, value in search["source_filters"].items()
+                    if filter_name != "exclude_source_types"
+                },
+            )
+            base_search_key = _belief_search_key(base_search)
+            if base_search_key in searches:
+                derivations[search_key] = (base_search_key, excluded_source_types)
+
+        beliefs_per_search: dict[tuple, pd.DataFrame] = {}
+        for search_key, search in searches.items():
+            if search_key in derivations:
+                continue
+            beliefs_per_search[search_key] = search["sensor"].search_beliefs(
+                event_starts_after=search["event_starts_after"],
+                event_ends_before=search["event_ends_before"],
+                most_recent_beliefs_only=search["most_recent_beliefs_only"],
+                beliefs_before=search["beliefs_before"],
+                one_deterministic_belief_per_event_per_source=True,
+                **search["source_filters"],
+            )
+        for search_key, (base_search_key, excluded_source_types) in derivations.items():
+            beliefs_per_search[search_key] = _drop_source_types(
+                beliefs_per_search[base_search_key], excluded_source_types
+            )
+
+        logging.debug(
+            "Loaded beliefs for %d pipeline entries with %d queries.",
+            len(entries),
+            len(searches) - len(derivations),
+        )
+        return entries, beliefs_per_search
+
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
         This function fetches data for each sensor.
@@ -259,36 +484,18 @@ class BasePipeline:
         sensor_dfs = []
         sensor_names = self.future_regressors + self.past_regressors + [self.target]
         sensors = self.future + self.past + [self.target_sensor]
-        for name, regressor_or_sensor in zip(sensor_names, sensors):
-            sensor, source_filters = _regressor_sensor_and_source_filters(
-                regressor_or_sensor
-            )
+        entries, beliefs_per_search = self._search_beliefs_per_entry(
+            sensor_names, sensors
+        )
+        for name, regressor_or_sensor, search_key in entries:
+            sensor, _ = _sensor_and_source_filters(regressor_or_sensor)
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
-            sensor_event_ends_before = self.event_ends_before
-            sensor_event_starts_after = self.event_starts_after
-
-            most_recent_beliefs_only = True
-            # Extend time range for future regressors
-            if regressor_or_sensor in self.future:
-                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
-                    hours=self.max_forecast_horizon_in_hours
-                )
-
-                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
-
-            if name == self.target:
-                # Exclude forecasters from the target data to avoid training on forecasts.
-                source_filters["exclude_source_types"] = ["forecaster"]
-
-            df = sensor.search_beliefs(
-                event_starts_after=sensor_event_starts_after,
-                event_ends_before=sensor_event_ends_before,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                beliefs_before=self.beliefs_before,
-                one_deterministic_belief_per_event_per_source=True,
-                **source_filters,
-            )
+            df = beliefs_per_search[search_key]
+            # A belief is realized once its belief horizon is zero or negative,
+            # i.e. once it is recorded at or after the knowledge time that its sensor's knowledge horizon sets, as timely-beliefs defines it.
+            # This is computed before event starts are floored onto the target's slots, which would move the knowledge times.
+            df["is_realized"] = np.asarray(df.belief_horizons <= timedelta(0))
             try:
                 # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
@@ -308,8 +515,13 @@ class BasePipeline:
 
             df = df.reset_index()
             df = _resolve_source_collisions(df, regressor_or_sensor)
-            df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
-            df_filtered.rename(columns={"event_value": name}, inplace=True)
+            df_filtered = df[
+                ["event_start", "belief_time", "event_value", "is_realized"]
+            ].copy()
+            df_filtered.rename(
+                columns={"event_value": name, "is_realized": _realized_column(name)},
+                inplace=True,
+            )
 
             sensor_dfs.append(df_filtered)
 
@@ -710,16 +922,22 @@ class BasePipeline:
                 forecast_belief_time: pd.Timestamp,
                 realized_only: bool = False,
             ) -> pd.DataFrame:
-                """Select latest regressor values known at forecast belief time."""
+                """Select latest regressor values known at forecast belief time.
+
+                With ``realized_only``, only beliefs that are realized (as their sensor's knowledge horizon defines it) are selected.
+                """
                 keep = ["event_start", *regressor_columns]
                 if df_.empty:
                     return df_.iloc[0:0][keep].copy()
 
                 known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
                 if realized_only:
-                    known = known.loc[known["belief_time"] > known["event_start"]]
-                else:
-                    known = known.loc[known["belief_time"] <= known["event_start"]]
+                    for column in regressor_columns:
+                        known[column] = known[column].where(
+                            known[_realized_column(column)]
+                        )
+                    if regressor_columns:
+                        known = known.dropna(subset=regressor_columns, how="all")
                 if known.empty:
                     return df_.iloc[0:0][keep].copy()
 
@@ -834,12 +1052,11 @@ class BasePipeline:
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
                 if X_future_regressors_df is not None:
-                    # Annotation regressors are not split into realized-versus-forecast
-                    # rows. A holiday calendar is never "realized" after the fact, so
-                    # the `belief_time > event_start` test that picks realized sensor
-                    # values would hide it from the training window entirely. Its
-                    # visibility is governed solely by its own belief time, applied
-                    # below once the sensor-based frame has been assembled.
+                    # Annotation regressors are not split into realized-versus-forecast rows.
+                    # A holiday calendar is never "realized" after the fact,
+                    # so the knowledge-horizon test that picks realized sensor values would hide it from the training window entirely.
+                    # Its visibility is governed solely by its own belief time,
+                    # applied below once the sensor-based frame has been assembled.
                     future_regressor_columns = self.future_regressors
                     future_known = _latest_known_per_regressor(
                         X_future_regressors_df,
@@ -851,17 +1068,13 @@ class BasePipeline:
                         future_known, target_start, target_end
                     )
 
-                    # forecasts strictly after target_end up to forecast_end
-                    # and ONLY those *available at the current belief_time*
-                    # (and truly forecasts: belief_time <= event_start)
+                    # beliefs strictly after target_end up to forecast_end,
+                    # and ONLY those *available at the current belief_time*:
+                    # mostly forecasts, but also beliefs already realized by then, such as day-ahead prices
                     fc_window = X_future_regressors_df.loc[
                         (X_future_regressors_df["event_start"] > target_end)
                         & (X_future_regressors_df["event_start"] <= forecast_end)
                         & (X_future_regressors_df["belief_time"] <= belief_time)
-                        & (
-                            X_future_regressors_df["belief_time"]
-                            <= X_future_regressors_df["event_start"]
-                        )
                     ].copy()
 
                     # For each future event_start, pick the latest forecast belief known
@@ -935,16 +1148,14 @@ class BasePipeline:
 
         # With regressors
         X_past_regressors_df = (
-            df[["event_start", "belief_time"] + self.past_regressors]
+            self._regressor_frame(df, self.past_regressors)
             if self.past_regressors
             else None
         )
         X_future_regressors_df = (
-            df[
-                ["event_start", "belief_time"]
-                + self.future_regressors
-                + self.annotation_regressor_names
-            ]
+            self._regressor_frame(
+                df, self.future_regressors, self.annotation_regressor_names
+            )
             if self.future != [] or self.annotation_regressors
             else None
         )
@@ -981,7 +1192,7 @@ class BasePipeline:
         fill: float = 0.0,
     ) -> TimeSeries:
         """
-        Detects and fills missing values in a time series using the Darts `MissingValuesFiller` transformer.
+        Detects and fills missing values in a time series.
 
         This method interpolates missing values in the time series using the `pd.DataFrame.interpolate()` method.
 
@@ -990,9 +1201,7 @@ class BasePipeline:
         - sensors (list[Sensor]): The list of sensors (used for logging).
         - start (datetime): The desired start time of the time series.
         - end (datetime): The desired end time of the time series.
-        - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `MissingValuesFiller`,
-          which internally calls `pd.DataFrame.interpolate()`. For more details, see the
-          `Darts documentation <https://unit8co.github.io/darts/generated_api/darts.utils.missing_values.html#darts.utils.missing_values.fill_missing_values>`_.
+        - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `pd.Series.interpolate()`.
         - fill (float): value used to fill gaps in case there is no data at all.
         Returns:
         - TimeSeries: The time series with missing values filled.
@@ -1017,6 +1226,7 @@ class BasePipeline:
                         f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                     )
 
+            constant_fill = None
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
@@ -1032,83 +1242,26 @@ class BasePipeline:
                 logging.debug(
                     f"Sensor {sensor_name} has no data from {start} to {end}. Filling with {fill}."
                 )
-                transformer = MissingValuesFiller(fill=float(fill))
-            else:
-                transformer = MissingValuesFiller(fill="auto")
+                constant_fill = float(fill)
 
-            data = df.copy()
+            # Keep only this sensor's own column, so each pass contributes exactly one component.
+            # Copying the whole frame would stack every sensor's column once per sensor,
+            # handing the model each regressor several times over.
+            if sensor_name in df.columns:
+                data = df[["event_start", sensor_name]].copy()
+            else:
+                data = df[["event_start"]].copy()
+                data[sensor_name] = np.nan
 
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
             end = end.tz_localize(None)
-            last_event_start = end
 
-            # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
-            # Add start time if missing
-            if data.empty or (
-                data["event_start"].iloc[0] != start
-                and data["event_start"].iloc[0] > start
-            ):
-                new_row_start = pd.DataFrame(
-                    {"event_start": [start], sensor_name: [None]}
-                )
-                data = pd.concat([new_row_start, data], ignore_index=True)
-
-            if data.empty or (
-                data["event_start"].iloc[-1] != last_event_start
-                and data["event_start"].iloc[-1] < last_event_start
-            ):
-                new_row_end = pd.DataFrame(
-                    {"event_start": [last_event_start], sensor_name: [None]}
-                )
-                data = pd.concat([data, new_row_end], ignore_index=True)
-
-            # Drop duplicate event_starts (keep first)
-            if n_extra_points := len(data) - len(data["event_start"].unique()):
-                logging.debug(
-                    f"Data for sensor {sensor_name} contains multiple beliefs about a single event. "
-                    f"Dropping {n_extra_points} beliefs with duplicate event starts."
-                )
-                data = data.drop_duplicates("event_start")
-
-            # Convert to Darts TimeSeries & fill
-            data_darts = TimeSeries.from_dataframe(
-                df=data,
-                time_col="event_start",
-                fill_missing_dates=True,
-                freq=self.target_sensor.event_resolution,
+            data_darts = self._fill_missing_values(
+                data, sensor, sensor_name, start, end, constant_fill, interpolate_kwargs
             )
-            # Identify gaps in the time index (where timestamp rows are missing)
-            data_darts_gaps = data_darts.gaps()
 
-            # Calculate number of missing rows per gap
-            data_darts_gaps["missing_rows"] = (
-                (data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"])
-                / sensor.event_resolution
-            ).astype(int)
-
-            # Total missing rows
-            total_missing = data_darts_gaps["missing_rows"].sum()
-
-            # Total expected rows in full dataset
-            total_expected = int((end - start) / sensor.event_resolution) + 1
-
-            # Fraction of missing rows
-            missing_rows_fraction = total_missing / total_expected
-
-            if missing_rows_fraction > self.missing_threshold:
-                raise NotEnoughDataException(
-                    f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
-                    f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
-                )
-            if not data_darts_gaps.empty:
-                data_darts = transformer.transform(
-                    data_darts, **(interpolate_kwargs or {})
-                )
-                logging.debug(
-                    f"Sensor {sensor_name} has gaps:\n{data_darts_gaps.to_string()}\n"
-                    "These were filled using `pd.DataFrame.interpolate()`."
-                )
+            data_darts = _bound_input_series(data_darts, sensor)
 
             dfs.append(data_darts)
 
@@ -1120,3 +1273,110 @@ class BasePipeline:
                 dfs,
             )
         return data_darts
+
+    def _fill_missing_values(
+        self,
+        data: pd.DataFrame,
+        sensor: Sensor,
+        sensor_name: str,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        constant_fill: float | None,
+        interpolate_kwargs: dict | None,
+    ) -> TimeSeries:
+        """Pad one sensor's column to the expected window, check its share of missing rows and fill its gaps.
+
+        Works in pandas and numpy, and converts to a Darts ``TimeSeries`` only at the end,
+        because converting to Darts and back is most of the cost of preparing the inputs of a forecast step.
+        Fills gaps the way Darts' ``MissingValuesFiller`` does.
+
+        :param data:                Frame with the columns "event_start" (naive UTC) and ``sensor_name``.
+        :param start:               Naive UTC start of the expected window.
+        :param end:                 Naive UTC end of the expected window.
+        :param constant_fill:       Value to fill all gaps with, or None to interpolate.
+        :param interpolate_kwargs:  Keyword arguments for ``pd.Series.interpolate()`` when interpolating.
+        :raises ValueError:             If the "event_start" column contains missing timestamps.
+        :raises NotEnoughDataException: If the fraction of missing rows exceeds the threshold.
+        """
+        if data["event_start"].isna().any():
+            raise ValueError(
+                f"Data for sensor {sensor_name} contains missing event starts (NaT), so its gaps cannot be filled."
+            )
+
+        # Drop duplicate event_starts (keep first)
+        column = data[sensor_name].astype(float)
+        column.index = pd.DatetimeIndex(data["event_start"])
+        if n_extra_points := int(column.index.duplicated().sum()):
+            logging.debug(
+                f"Data for sensor {sensor_name} contains multiple beliefs about a single event. "
+                f"Dropping {n_extra_points} beliefs with duplicate event starts."
+            )
+            column = column[~column.index.duplicated()]
+        column = column.sort_index()
+
+        # The expected window is padded to the data's own range, where that reaches further
+        resolution = self.target_sensor.event_resolution
+        first = min(start, column.index[0]) if len(column) else start
+        last = max(end, column.index[-1]) if len(column) else end
+        index = pd.date_range(first, last, freq=resolution)
+        values = column.reindex(index).to_numpy()
+        is_missing = np.isnan(values)
+
+        # Runs of consecutive missing rows are gaps
+        edges = np.diff(np.concatenate(([0], is_missing.view(np.int8), [0])))
+        gap_starts = np.flatnonzero(edges == 1)
+        gap_ends = np.flatnonzero(edges == -1) - 1
+        # Count, at the target resolution, the window's rows that no reading covers.
+        # A reading covers the rows its sensor's resolution spans, so a complete hourly regressor leaves no 15-minute row uncovered,
+        # and an instantaneous one covers just its own row.
+        rows_per_reading = max(1, sensor.event_resolution // resolution)
+        is_covered = (
+            pd.Series(~is_missing)
+            .rolling(rows_per_reading, min_periods=1)
+            .max()
+            .to_numpy(dtype=bool)
+        )
+        in_window = (index >= start) & (index <= end)
+        total_missing = int((~is_covered & in_window).sum())
+
+        # Total expected rows in full dataset
+        total_expected = int((end - start) / resolution) + 1
+
+        # Fraction of missing rows
+        missing_rows_fraction = total_missing / total_expected
+
+        if missing_rows_fraction > self.missing_threshold:
+            raise NotEnoughDataException(
+                f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
+                f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
+            )
+        if len(gap_starts):
+            if constant_fill is not None:
+                values = np.where(is_missing, constant_fill, values)
+            else:
+                values = (
+                    pd.Series(values, index=index)
+                    .interpolate(
+                        **{"limit_direction": "both", **(interpolate_kwargs or {})}
+                    )
+                    .to_numpy(dtype=float)
+                )
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                gap_table = pd.DataFrame(
+                    {
+                        "gap_start": index[gap_starts],
+                        "gap_end": index[gap_ends],
+                        "gap_size": gap_ends - gap_starts + 1,
+                    }
+                )
+                logging.debug(
+                    f"Sensor {sensor_name} has gaps:\n{gap_table.to_string()}\n"
+                    "These were filled using `pd.DataFrame.interpolate()`."
+                )
+
+        return TimeSeries.from_times_and_values(
+            times=index,
+            values=values.reshape(-1, 1),
+            freq=resolution,
+            columns=[sensor_name],
+        )

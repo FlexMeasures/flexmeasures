@@ -4,7 +4,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 
-from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting import (
+    INPUT_BOUND_KEYS,
+    Reporter,
+    read_input_beliefs,
+)
 from flexmeasures.data.schemas.reporting.profit import (
     ProfitOrLossReporterConfigSchema,
     ProfitOrLossReporterParametersSchema,
@@ -46,6 +50,15 @@ class ProfitOrLossReporter(Reporter):
 
     weights: dict
     method: str
+
+    @property
+    def input_sensors(self) -> list:
+        """Return the flow and price sensors read by this reporter."""
+        return self._resolve_sensors(
+            super().input_sensors,
+            self._config.get("consumption_price_sensor"),
+            self._config.get("production_price_sensor"),
+        )
 
     def _compute_report(
         self,
@@ -105,7 +118,10 @@ class ProfitOrLossReporter(Reporter):
 
         # get power/energy time series
         power_energy_data = simplify_index(
-            input_sensor.search_beliefs(
+            read_input_beliefs(
+                input_sensor,
+                # This reporter reads the rest of the input entry itself, so only the bounds are handed over.
+                {key: input[0][key] for key in INPUT_BOUND_KEYS if key in input[0]},
                 event_starts_after=start,
                 event_ends_before=end,
                 beliefs_before=belief_time,
