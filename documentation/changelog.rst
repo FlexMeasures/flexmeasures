@@ -82,6 +82,7 @@ Infrastructure / Support
 * A forecast that repeats the belief right before it is no longer stored again, like any other data, so a report input that asks only for forecasts made at most some time ahead (``horizons_at_most``) can find fewer of them; plugins that save forecasts through ``save_forecast`` can pass ``save_changed_beliefs_only=False`` to record every belief [see `PR #2688 <https://www.github.com/FlexMeasures/flexmeasures/pull/2688>`_]
 * Every kind of data generator (e.g. a ``Forecaster``, ``Scheduler`` or ``Reporter``) now has its results checked and saved in the same way: all of a run's outputs are saved or none of them, and recording on a sensor the generator was not checked against raises ``GeneratorWritesUncheckedSensor`` [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
 * Stop installing the libraries for passkey, authenticator-app and SMS sign-in, which FlexMeasures does not support, as it ships email-based two-factor authentication only; to enable the ``authenticator`` method anyway, install ``qrcode`` [see `PR #2564 <https://www.github.com/FlexMeasures/flexmeasures/pull/2564>`_]
+* Speed up loading chart data for an asset with many sensors, by skipping two queries that were repeated for each sensor: the look-up of a materialized view that FlexMeasures does not have yet, and the query for the parent asset of each sensor [see `PR #2759 <https://www.github.com/FlexMeasures/flexmeasures/pull/2759>`_]
 
 Bugfixes
 -----------
