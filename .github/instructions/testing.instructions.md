@@ -5,14 +5,17 @@ applyTo: "flexmeasures/**/tests/**/*.py"
 
 ## Run the full test suite
 
-Before finishing a session and requesting a review, run the complete test suite — partial test runs are insufficient because FlexMeasures has interconnected systems where changes in one area affect others:
+Before finishing a session and requesting a review, run the complete test suite:
+partial test runs are insufficient, because FlexMeasures has interconnected systems where changes in one area affect others.
 
 ```bash
 uv sync --group test
 uv run poe test
 ```
 
-Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor). During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration but must not substitute for the full suite at session close.
+Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor).
+During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration,
+but must not substitute for the full suite at session close.
 
 ## Run the full module after changing any test
 
@@ -35,7 +38,9 @@ Using `db` when data is mutated causes `DetachedInstanceError` and flaky cross-t
 
 ### Never mix `fresh_db` and `db` in the same module
 
-`fresh_db` is function-scoped and calls `_db.drop_all()` before and after each test. If a `db` test (module-scoped) is open at the same time, `drop_all()` will block forever waiting for the module-scoped connection to release its locks — **hanging CI indefinitely**.
+`fresh_db` is function-scoped and calls `_db.drop_all()` before and after each test.
+If a `db` test (module-scoped) is open at the same time,
+`drop_all()` will block forever waiting for the module-scoped connection to release its locks — **hanging CI indefinitely**.
 
 **Rule:** every test module must use either `db` OR `fresh_db` — never both.
 
@@ -55,10 +60,10 @@ test_utils.py               ← uses `db` AND `fresh_db`  ← CI will hang
 
 ## Running two suites at once
 
-Two pytest processes need a database *and* a Redis database of their own. Pointing them at
-separate Postgres databases is not enough: `FLEXMEASURES_REDIS_DB_NR` defaults to `0` for
-every run, and the `clean_redis` fixtures call `flushdb()`, so each run erases the other's
-keys and both hang. Set both:
+Two pytest processes need a database *and* a Redis database of their own.
+Pointing them at separate Postgres databases is not enough: `FLEXMEASURES_REDIS_DB_NR` defaults to `0` for every run,
+and the `clean_redis` fixtures call `flushdb()`, so each run erases the other's keys and both hang.
+Set both:
 
 ```python
 # a pytest plugin on PYTHONPATH, run with `pytest -p <plugin>`
@@ -73,18 +78,17 @@ Redis offers databases 0-15 per default, so there are plenty to hand out.
 ### After killing a stalled run
 
 A pytest process that is killed leaves its Postgres backends behind, `idle in transaction`,
-holding the locks that the next run's `drop_all()` waits for. Before terminating anything,
-look at what is actually blocking:
+holding the locks that the next run's `drop_all()` waits for.
+Before terminating anything, look at what is actually blocking:
 
 ```sql
 SELECT pid, state, pg_blocking_pids(pid), backend_start, now() - state_change AS idle_for
 FROM pg_stat_activity WHERE datname LIKE 'fm_test%';
 ```
 
-A blocked pair usually belongs to the *running* suite rather than a dead one, and terminating
-a live backend kills the connection a fixture is using, so a test errors with `server closed
-the connection unexpectedly`. Terminate only where the owning pytest is gone and the session
-has been idle for minutes.
+A blocked pair usually belongs to the *running* suite rather than a dead one,
+and terminating a live backend kills the connection a fixture is using, so a test errors with `server closed the connection unexpectedly`.
+Terminate only where the owning pytest is gone and the session has been idle for minutes.
 
 ## API test isolation
 
@@ -115,14 +119,26 @@ Before calling a new test done, break what it covers — comment out the constra
 
 Watch for assertions that depend on the problem having a unique answer.
 An optimisation test over devices with no incentive to move has the same optimum with or without the constraint, so it passes either way.
-In `test_highspy_equivalence.py`, where two backends are compared, also disable the new code path on one side: a scenario that survives that is comparing two no-ops.
+In `test_highspy_equivalence.py`, where two backends are compared, also disable the new code path on one side:
+a scenario that survives that is comparing two no-ops.
 Both traps have been hit — a balance-group scenario there passed with the constraint it was named after entirely disabled.
 
 Say in the PR description what you broke to prove it — a reviewer cannot tell a binding test from a vacuous one by reading it.
 
+## Tests of a data migration
+
+A migration that moves, merges or rewrites data deserves tests that run its functions against a real database,
+such as `test_duplicate_source_ranking_fresh_db.py` does for migration `7c4e1a9d2b58`.
+
+Keep such tests as long as the migration is unreleased: it is still being changed, and they are what catches a change that breaks it.
+Remove them in the release cycle after the release that ships the migration.
+From then on the migration no longer changes, while the models these tests build their data with keep moving,
+so they would only break for reasons nobody should fix in a migration that has shipped.
+
 ## Module-scoped fixture state
 
-Module-scoped fixtures are shared across tests. When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:
+Module-scoped fixtures are shared across tests.
+When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:
 
 ```python
 # ✅ Reset to column default (empty list)

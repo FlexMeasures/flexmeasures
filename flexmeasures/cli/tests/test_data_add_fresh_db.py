@@ -110,6 +110,24 @@ def test_add_plan_with_invalid_rate_limit(app, fresh_db):
     assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
 
 
+def test_add_plan_with_several_rate_limits(app, fresh_db):
+    """A rate limit is one limit, so a string holding several (which Flask-Limiter would take) is refused."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan,
+        to_flags(
+            {"name": "Layered", "trigger-rate-limit": "10 per minute; 100 per hour"}
+        ),
+    )
+
+    assert result.exit_code != 0
+    assert "holds 2 rate limits" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Layered")).scalar() is None
+
+
 def test_edit_plan(app, fresh_db):
     """A plan can be retired, so that it is no longer handed out."""
     from flexmeasures.cli.data_edit import edit_plan

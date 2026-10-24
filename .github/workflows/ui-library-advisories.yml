@@ -1,0 +1,29 @@
+name: UI library advisories
+
+# Look up the UI's third-party libraries (see flexmeasures/ui/utils/vendor_assets.py) in the OSV database,
+# as Dependabot only reads uv.lock and so does not know about them.
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays, 06:00 UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "flexmeasures/ui/utils/vendor_assets.py"
+      - "ci/check_ui_library_advisories.py"
+      - ".github/workflows/ui-library-advisories.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: ".python-version"
+      - name: Install Flask, which vendor_assets.py imports
+        run: pip install flask
+      - name: Check the UI's libraries for known advisories
+        run: python ci/check_ui_library_advisories.py
