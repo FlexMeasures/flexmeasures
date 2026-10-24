@@ -15,7 +15,7 @@ from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
     simplify_index,
 )
-from flexmeasures.tests.utils import get_power_sensor, get_test_sensor
+from flexmeasures.tests.utils import QueryCounter, get_power_sensor, get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -457,3 +457,37 @@ def test_user_source_ids_criterion(db, setup_markets, setup_roles_users):
     assert user_1 in returned_sources
     assert script in returned_sources, "non-user sources should be unaffected"
     assert user_2 not in returned_sources, "other users' data should be ignored"
+
+
+class StatementRecorder(QueryCounter):
+    """Count SQLAlchemy queries and keep their SQL text, so a test can say which queries ran."""
+
+    def __init__(self, connection):
+        super().__init__(connection)
+        self.statements: list[str] = []
+
+    def callback(self, conn, cursor, statement, *args, **kwargs):
+        self.statements.append(statement)
+        super().callback(conn, cursor, statement, *args, **kwargs)
+
+
+def test_search_does_not_look_up_a_materialized_view(setup_beliefs, db):
+    """FlexMeasures has no view of most recent beliefs, so a search should not ask the database for it once per sensor."""
+    sensors = db.session.scalars(select(Sensor).limit(3)).all()
+    assert len(sensors) > 1
+    with StatementRecorder(db.engine) as recorder:
+        TimedBelief.search(sensors, most_recent_beliefs_only=True)
+    assert recorder.count > 0, "the search should have queried the database"
+    assert not [s for s in recorder.statements if "pg_matviews" in s]
+
+
+def test_sensor_as_dict_does_not_query_the_parent_asset(setup_beliefs, db):
+    """Once the asset of a sensor is loaded, describing the sensor needs no more queries."""
+    sensor = get_test_sensor(db)
+    assert sensor.as_dict["id"] == sensor.id  # loads the asset and its parent
+    del sensor.__dict__[
+        "as_dict"
+    ]  # a cached property: clear it, so the code runs again
+    with StatementRecorder(db.engine) as recorder:
+        assert sensor.as_dict["id"] == sensor.id
+    assert recorder.statements == []
