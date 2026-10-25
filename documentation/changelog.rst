@@ -106,6 +106,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* The big-M bounding commitment deviations now accounts for the committed quantity, so a committed quantity far beyond the devices' flow limits no longer renders the problem infeasible when a non-convex cost curve activates the commitment-sign constraints; the bound is also tighter (covering one time step rather than the whole horizon, for flow commitments), which improves MIP numerics [see `PR #2411 <https://www.github.com/FlexMeasures/flexmeasures/pull/2411>`_]
 * ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
