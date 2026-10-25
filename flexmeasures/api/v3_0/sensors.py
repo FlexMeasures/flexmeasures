@@ -547,6 +547,7 @@ class SensorAPI(FlaskView):
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
+            .order_by(Sensor.id)
         )
 
         if filter is not None:
