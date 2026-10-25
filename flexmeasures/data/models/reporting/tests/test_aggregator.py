@@ -1199,6 +1199,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
 ):
     """A partial aggregate says something about the current state of the group, so its status says which members it leaves out.
 
+    Only an aggregate as old as the sensor's maximum staleness is judged, since a newer one may still be completed by the next run.
     Once the aggregate is recorded complete, the status no longer names them.
     """
     from flexmeasures.data.services.sensors import get_statuses
@@ -1217,7 +1218,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
     db.session.commit()
     status_specs = {
         "staleness_search": {},
-        "max_staleness": "P1D",
+        "max_staleness": "PT2H",
         "max_future_staleness": "-PT12H",
     }
     now = datetime(2026, 7, 2, 2, tzinfo=utc)
@@ -1233,7 +1234,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
         save_to_db(result, save_changed_beliefs_only=False)
         db.session.commit()
 
-    def reporter_status():
+    def reporter_status(now=now):
         statuses = get_statuses(aggregate, now=now, status_specs=status_specs)
         return next(
             status for status in statuses if status["source_type"] == "reporter"
@@ -1243,6 +1244,11 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
     try:
         restore_beliefs(hp_power, last_event)
         report(datetime(2026, 7, 2, tzinfo=utc))
+        # half an hour after the event, the next run may still complete it
+        assert (
+            reporter_status(datetime(2026, 7, 2, 0, 30, tzinfo=utc))["missing_members"]
+            == []
+        )
         status = reporter_status()
         assert status["missing_members"] == [dict(id=hp_power.id, name=hp_power.name)]
         assert f"leaves out 'hp power' ({hp_power.id})" in status["reason"]

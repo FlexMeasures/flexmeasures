@@ -1163,7 +1163,7 @@
     "/api/v3_0/sensors/{id}/status": {
       "get": {
         "summary": "Get sensor status",
-        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\nFor data recorded by a reporter, `missing_members` lists the sensors that the most recent report of a device group had to leave out, because they did not report.\n",
+        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\nFor data recorded by a reporter, `missing_members` lists the sensors that the most recent aggregate of a device group had to leave out, because they did not report, judging only an aggregate old enough to count as stale, since the next run may still complete a newer one.\n",
         "security": [
           {
             "ApiKeyAuth": []

@@ -2102,7 +2102,7 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
-            For data recorded by a reporter, `missing_members` lists the sensors that the most recent report of a device group had to leave out, because they did not report.
+            For data recorded by a reporter, `missing_members` lists the sensors that the most recent aggregate of a device group had to leave out, because they did not report, judging only an aggregate old enough to count as stale, since the next run may still complete a newer one.
           security:
             - ApiKeyAuth: []
           parameters:

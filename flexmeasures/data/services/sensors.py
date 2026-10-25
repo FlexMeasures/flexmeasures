@@ -607,13 +607,16 @@ def get_stalenesses(
 
 
 def get_missing_members(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor, staleness_search: dict, now: datetime, max_staleness: timedelta
 ) -> list[Sensor]:
-    """Return the sensors that the most recent report on the given sensor had to leave out, if any.
+    """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
 
     An `AggregatorReporter` records an event that some members of its group did not report under a data source naming them (see `DataSource.missing_members`).
     Whether the most recent aggregate is such a partial one says something about the current state of the group,
     so it belongs on the status page rather than in a log.
+    Only an aggregate at least `max_staleness` old is judged, which is when the sensor's data would count as stale.
+    A member that reports a little later than the report runs leaves the newest events partial every time, and the next run completes them,
+    so judging the newest event would flag such a group all the time.
     A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
     """
     reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
@@ -625,6 +628,10 @@ def get_missing_members(
         if key not in ("source", "exclude_source_types")
     }
     belief_search["beliefs_before"] = min(now, belief_search.get("beliefs_before", now))
+    settled = now - max_staleness
+    belief_search["event_ends_before"] = min(
+        settled, belief_search.get("event_ends_before", settled)
+    )
     latest = TimedBelief.search(
         sensors=sensor,
         most_recent_only=True,
@@ -682,7 +689,7 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
-    For reporter data, `missing_members` lists the sensors that the most recent report had to leave out (see `get_missing_members`).
+    For reporter data, `missing_members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`).
     """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
@@ -737,12 +744,14 @@ def get_statuses(
 
         missing_members = []
         if source_type == "reporter":
-            missing_members = get_missing_members(sensor, staleness_search, now)
+            missing_members = get_missing_members(
+                sensor, staleness_search, now, max_staleness
+            )
             if missing_members:
                 left_out = ", ".join(
                     f"'{member.name}' ({member.id})" for member in missing_members
                 )
-                reason += f"; the most recent report leaves out {left_out}, which did not report"
+                reason += f"; the most recent aggregate at least {precisedelta(max_staleness)} old leaves out {left_out}, which did not report"
 
         statuses.append(
             dict(
