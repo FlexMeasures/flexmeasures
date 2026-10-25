@@ -1113,6 +1113,87 @@ def test_missing_members_given_in_the_config_are_overwritten(
     assert reporter.data_source.missing_members == []
 
 
+def test_a_complete_aggregate_computed_again_supersedes_a_partial_one_recorded_since(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A complete aggregate that says what the complete source said before is still saved where a partial one was recorded since.
+
+    Otherwise the partial aggregate would remain the most recent belief about the event, which every consumer of one belief per event reads.
+    The other events, whose complete aggregate did not change, are still not saved again.
+    """
+    from flexmeasures.data.services.generator_results import save_generator_results
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street supersede test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    gap = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+
+    def report(belief_time) -> int:
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=belief_time,
+        )
+        saved = save_generator_results(results)
+        db.session.commit()
+        return saved[0]["n_rows"]
+
+    def read_at_gap():
+        bdf = TimedBelief.search(
+            aggregate,
+            event_starts_after=gap,
+            event_ends_before=gap + timedelta(minutes=15),
+            one_deterministic_belief_per_event=True,
+        )
+        return bdf["event_value"].iloc[0], bdf.sources[0]
+
+    back = None
+    try:
+        assert report(datetime(2026, 7, 2, 0, tzinfo=utc)) == 96
+        # the heat pump's reading of one event is gone, so the next run records a partial aggregate of it
+        restore_beliefs(hp_power, gap)
+        assert report(datetime(2026, 7, 2, 1, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.16)
+        assert source.missing_members == [hp_power.id]
+
+        # the reading is uploaded again, and the next run computes the same complete aggregate as the first
+        meter = db.session.execute(
+            db.select(DataSource).filter_by(name="nested meter")
+        ).scalar_one()
+        back = TimedBelief(
+            event_start=gap,
+            belief_time=datetime(2026, 7, 2, 1, 30, tzinfo=utc),
+            event_value=40,
+            sensor=hp_power,
+            source=meter,
+        )
+        db.session.add(back)
+        db.session.commit()
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.12)
+        assert source.missing_members == []
+        # running the same report again saves nothing
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 0
+    finally:
+        if back is not None:
+            db.session.delete(back)
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
 def test_the_status_of_a_partial_aggregate_names_the_missing_members(
     setup_nested_groups, db, restore_beliefs
 ):

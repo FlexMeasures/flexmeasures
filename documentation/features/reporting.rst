@@ -215,6 +215,8 @@ A partial aggregate can therefore always be told apart from a complete one, whos
 and a meter that stops reporting does not take the whole group's aggregate down with it.
 Once the missing data arrives, the next report records the complete aggregate, which then takes precedence:
 it is the more recent belief, and where both carry the same belief time, the complete one still wins.
+It is recorded even if it says just what an earlier complete aggregate of that event said, so that it supersedes the partial one recorded in between.
+The reverse holds as well: a member that stops reporting an event it had reported before leaves a partial aggregate that, being the more recent belief, takes precedence over the older complete one.
 The asset's status page shows a yellow light for an aggregate whose most recent event leaves out members, and names them when you hover it.
 A report over sensors named in ``input`` aggregates what reported under its one data source, which is what such reports have always done.
 Set ``skip-missing`` to ``false`` to report an event only when every sensor reported it, which logs the sensors that left gaps.
