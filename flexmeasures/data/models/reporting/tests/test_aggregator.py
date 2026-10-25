@@ -1250,8 +1250,10 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
             == []
         )
         status = reporter_status()
-        assert status["missing_members"] == [dict(id=hp_power.id, name=hp_power.name)]
-        assert f"leaves out 'hp power' ({hp_power.id})" in status["reason"]
+        assert status["missing_members"] == [
+            dict(id=hp_power.id, name=hp_power.name, asset_name="House heat")
+        ]
+        assert f"leaves out 'House heat' / hp power ({hp_power.id})" in status["reason"]
         assert status["stale"] is False
 
         # the heat pump's data arrives, and a later run records the complete aggregate

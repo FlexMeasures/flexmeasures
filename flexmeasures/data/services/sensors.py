@@ -748,8 +748,10 @@ def get_statuses(
                 sensor, staleness_search, now, max_staleness
             )
             if missing_members:
+                # members are often all called "power", so the asset says which device it is
                 left_out = ", ".join(
-                    f"'{member.name}' ({member.id})" for member in missing_members
+                    f"'{member.generic_asset.name}' / {member.name} ({member.id})"
+                    for member in missing_members
                 )
                 reason += f"; the most recent aggregate at least {precisedelta(max_staleness)} old leaves out {left_out}, which did not report"
 
@@ -761,7 +763,12 @@ def get_statuses(
                 reason=reason,
                 source_type=source_type,
                 missing_members=[
-                    dict(id=member.id, name=member.name) for member in missing_members
+                    dict(
+                        id=member.id,
+                        name=member.name,
+                        asset_name=member.generic_asset.name,
+                    )
+                    for member in missing_members
                 ],
             )
         )
