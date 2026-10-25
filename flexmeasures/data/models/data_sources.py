@@ -679,14 +679,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def source_priorities(sources) -> dict:
-    """Rank sources by version (then by id), with a higher rank meaning a more recent version.
+    """Rank sources by version, then complete over partial, then by id, with a higher rank meaning a more recent version.
 
     Sources without a version are assumed to have version 0.0.0.
+    A source that names no missing members outranks one that does (see `DataSource.missing_members`),
+    so a complete aggregate replaces a partial one recorded with the same belief time, as `_select_latest_version_and_belief_per_event` also has it.
     """
     priority_order = sorted(
         sources,
         key=lambda s: (
             Version(s.version or "0.0.0"),
+            not getattr(s, "missing_members", None),
             s.id if s.id is not None else -1,
         ),
     )
@@ -700,7 +703,7 @@ def keep_latest_version(
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     Sources are grouped by (name, type, model); within each group, only data from
-    the latest version (breaking ties by highest id) is kept, per event or per belief.
+    the latest version (breaking ties in favour of a source naming no missing members, and then by highest id) is kept, per event or per belief.
     Probabilistic beliefs are kept intact.
 
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
