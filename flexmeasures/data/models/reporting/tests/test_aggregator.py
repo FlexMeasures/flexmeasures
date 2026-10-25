@@ -1058,18 +1058,32 @@ def test_a_partial_aggregate_gets_a_source_of_its_own_also_when_the_config_is_no
     }
 
 
-def test_missing_members_given_in_the_config_are_overwritten(setup_nested_groups, db):
-    """Which members were missing is the reporter's finding, so a complete report records none, whatever it was given."""
+@pytest.mark.parametrize("kind", ["group", "input"])
+def test_missing_members_given_in_the_config_are_overwritten(
+    setup_nested_groups, db, kind
+):
+    """Which members were missing is the reporter's finding, so a complete report records none, whatever it was given.
+
+    That holds for a report over sensors named in `input` too, which never records missing members.
+    """
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
     )
-    reporter = AggregatorReporter(
-        config={"group": {"asset": street.id}, "missing-members": [pv_power.id]}
-    )
+    if kind == "group":
+        config = {"group": {"asset": street.id}}
+        parameters = {}
+    else:
+        config = {"method": "sum"}
+        parameters = dict(
+            input=[dict(sensor=pv_power), dict(sensor=hp_power)],
+            output=[dict(sensor=street_total)],
+        )
+    reporter = AggregatorReporter(config={**config, "missing-members": [pv_power.id]})
     result = reporter.compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
         belief_horizon=timedelta(0),
+        **parameters,
     )[0]["data"]
 
     assert set(result.index.get_level_values("source")) == {reporter.data_source}

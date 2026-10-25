@@ -457,9 +457,7 @@ class AggregatorReporter(Reporter):
         Changes to the membership itself are noted in the group asset's audit log when they are made.
         """
         resolved = sorted(member.sensor.id for member in members)
-        # which members were missing is filled in per event, so whatever was given here describes no event yet
-        given_missing = self._config.pop("missing_members", None)
-        if self._config.get("resolved_members") == resolved and given_missing is None:
+        if self._config.get("resolved_members") == resolved:
             return
         self._config["resolved_members"] = resolved
         # the membership is part of the source's identity, so the cached source no longer describes this run
@@ -620,6 +618,10 @@ class AggregatorReporter(Reporter):
 
         if resolution is None:
             resolution = output_sensor.event_resolution
+
+        # which members are missing is this run's finding per event, so a value given in the config describes no event of this run
+        if self._config.pop("missing_members", None) is not None:
+            self._data_source = None
 
         if self._config.get("group"):
             self._record_membership(self._group_members())
