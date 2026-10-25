@@ -1058,6 +1058,29 @@ def test_a_partial_aggregate_gets_a_source_of_its_own_also_when_the_config_is_no
     }
 
 
+def test_a_gap_in_a_sensor_named_besides_the_group_is_no_missing_member(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A sensor named in `input` next to the group is not one of its members, so a gap in it leaves the group's aggregate complete."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+    restore_beliefs(far_power, missing_start)
+
+    reporter = AggregatorReporter(config={"group": {"asset": house.id}})
+    result = reporter.compute(
+        input=[dict(sensor=far_power)],
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    assert set(result.index.get_level_values("source")) == {reporter.data_source}
+    # the house consumes 40 kW and produces 100 kW, and the far PV's 60 kW is what is missing
+    assert _at(result, missing_start)["event_value"].values == pytest.approx(-0.06)
+
+
 @pytest.mark.parametrize("kind", ["group", "input"])
 def test_missing_members_given_in_the_config_are_overwritten(
     setup_nested_groups, db, kind

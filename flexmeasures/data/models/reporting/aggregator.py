@@ -470,20 +470,34 @@ class AggregatorReporter(Reporter):
         column_sensor_ids: dict[str, int],
         sources: pd.Series,
     ) -> pd.Series:
-        """Record each event that some sensors did not report under a source that names them, in its `missing-members`.
+        """Record each event that some members did not report under a source that names them, in its `missing-members`.
 
         The complete aggregate keeps its own source, which says nothing about missing members,
         so a consumer can tell a partial aggregate from a complete one, and an aggregate recorded once its data is complete supersedes the partial one.
-        Which sensors are missing can differ per event, so one report may record under several sources.
+        Only members count: a gap in a sensor named in `input` besides the group is aggregated over, as reports over named sensors always have.
+        Which members are missing can differ per event, so one report may record under several sources.
         A sensor that fails again later is recorded under the source it was recorded under before, as sources with the same attributes are shared.
         """
-        missing = frame.loc[incomplete].isna()
+        # a sensor named in `input` besides the group is not one of its members, so a gap in it leaves the group's aggregate complete
+        members = set(self._config.get("resolved_members") or [])
+        columns = [
+            column for column in frame.columns if column_sensor_ids[column] in members
+        ]
+        sensor_ids = [column_sensor_ids[column] for column in columns]
+        missing = frame.loc[incomplete, columns].isna()
         events_by_missing_set: dict[tuple[int, ...], list] = {}
-        for event_start, row in missing.iterrows():
+        for event_start, *gone in missing.itertuples(name=None):
             missing_ids = tuple(
-                sorted({column_sensor_ids[column] for column in row.index[row]})
+                sorted(
+                    {
+                        sensor_id
+                        for sensor_id, is_gone in zip(sensor_ids, gone)
+                        if is_gone
+                    }
+                )
             )
-            events_by_missing_set.setdefault(missing_ids, []).append(event_start)
+            if missing_ids:
+                events_by_missing_set.setdefault(missing_ids, []).append(event_start)
 
         complete_source = self.data_source
         sources = sources.copy()
