@@ -499,6 +499,25 @@ class AggregatorReporter(Reporter):
             self._data_source = complete_source
         return sources
 
+    def get_data_source_attributes(self) -> dict:
+        """Describe this report's data source, naming the members it resolved to and the ones it is missing, also when the config is not saved.
+
+        Which members an aggregate covers, and which it leaves out, says what its data is, rather than how to compute it again,
+        so it is part of the source even where the rest of the config is not saved, as on the CLI by default.
+        Without it, a changed membership and a partial aggregate would both be recorded under the complete report's source.
+        """
+        attributes = super().get_data_source_attributes()
+        if self._save_config:
+            return attributes
+        recorded = {}
+        if "resolved_members" in self._config:
+            recorded["resolved-members"] = list(self._config["resolved_members"])
+        if self._config.get("missing_members"):
+            recorded["missing-members"] = list(self._config["missing_members"])
+        if recorded:
+            attributes["data_generator"]["config"] = recorded
+        return attributes
+
     # ------------------------------------------------------------------ units
 
     def _to_output_unit(

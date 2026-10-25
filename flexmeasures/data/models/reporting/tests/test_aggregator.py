@@ -1025,6 +1025,39 @@ def test_each_set_of_missing_members_has_a_source_of_its_own(
     assert [source.id for source in again] == [source.id for source in first]
 
 
+def test_a_partial_aggregate_gets_a_source_of_its_own_also_when_the_config_is_not_saved(
+    setup_nested_groups, db, restore_beliefs
+):
+    """Which members an aggregate covers, and which it leaves out, says what its data is, so it is recorded also where the config is not saved, as on the CLI by default."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+    restore_beliefs(hp_power, missing_start)
+
+    reporter = AggregatorReporter(
+        config={"group": {"asset": street.id}}, save_config=False
+    )
+    result = reporter.compute(
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    members = sorted([pv_power.id, hp_power.id, far_power.id])
+    partial_source = _at(result, missing_start).index.get_level_values("source")[0]
+    assert partial_source.missing_members == [hp_power.id]
+    assert partial_source != reporter.data_source
+    assert reporter.data_source.missing_members == []
+    # the rest of the config is still not saved
+    assert reporter.data_source.attributes["data_generator"] == {
+        "config": {"resolved-members": members}
+    }
+    assert partial_source.attributes["data_generator"] == {
+        "config": {"resolved-members": members, "missing-members": [hp_power.id]}
+    }
+
+
 def test_missing_members_given_in_the_config_are_overwritten(setup_nested_groups, db):
     """Which members were missing is the reporter's finding, so a complete report records none, whatever it was given."""
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
