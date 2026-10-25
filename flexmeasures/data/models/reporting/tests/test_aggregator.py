@@ -1273,6 +1273,73 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
         db.session.commit()
 
 
+def test_the_status_goes_by_the_aggregate_a_consumer_picks(setup_nested_groups, db):
+    """Where a partial and a complete aggregate of the latest event share a belief time, the status names no missing members, as every consumer reads the complete one.
+
+    The partial source is the older one here, so that its belief is not merely the last one in any order by source id.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street tie test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    family = dict(
+        name="Seita", type="reporter", model="AggregatorReporter", version="2"
+    )
+    partial = DataSource(
+        **family,
+        attributes={"data_generator": {"config": {"missing-members": [hp_power.id]}}},
+    )
+    db.session.add_all([aggregate, partial])
+    db.session.flush()
+    complete = DataSource(
+        **family, attributes={"data_generator": {"config": {"resolved-members": []}}}
+    )
+    db.session.add(complete)
+    db.session.flush()
+    last_event = datetime(2026, 7, 1, 23, 45, tzinfo=utc)
+    db.session.add_all(
+        [
+            TimedBelief(
+                event_start=last_event,
+                belief_time=datetime(2026, 7, 2, tzinfo=utc),
+                event_value=value,
+                sensor=aggregate,
+                source=source,
+            )
+            for source, value in ((partial, 0.16), (complete, 0.12))
+        ]
+    )
+    db.session.commit()
+    try:
+        statuses = get_statuses(
+            aggregate,
+            now=datetime(2026, 7, 2, 2, tzinfo=utc),
+            status_specs={
+                "staleness_search": {},
+                "max_staleness": "PT2H",
+                "max_future_staleness": "-PT12H",
+            },
+        )
+        status = next(
+            status for status in statuses if status["source_type"] == "reporter"
+        )
+        assert status["missing_members"] == []
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.delete(partial)
+        db.session.delete(complete)
+        db.session.commit()
+
+
 def test_upsampling_does_not_fill_across_a_gap(setup_pv_group, db, restore_beliefs):
     """Carrying an hourly value across its own hour is right; carrying it across a missing hour is not."""
     _, pv_group, aggregate_sensor, _, carport_power, _, _, _ = setup_pv_group

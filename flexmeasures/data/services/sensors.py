@@ -625,15 +625,26 @@ def get_missing_members(
         if key not in ("source", "exclude_source_types")
     }
     belief_search["beliefs_before"] = min(now, belief_search.get("beliefs_before", now))
-    bdf = TimedBelief.search(
+    latest = TimedBelief.search(
         sensors=sensor,
         most_recent_only=True,
         source=reporters,
         **belief_search,
     )
+    if latest.empty:
+        return []
+    # A partial and a complete aggregate of the latest event may share a belief time, which the query above does not choose between,
+    # so that event is read again the way any consumer of one belief per event reads it.
+    event_start = latest.index.get_level_values("event_start")[-1]
+    belief_search.update(
+        event_starts_after=event_start,
+        event_ends_before=event_start + sensor.event_resolution,
+        one_deterministic_belief_per_event=True,
+    )
+    bdf = TimedBelief.search(sensors=sensor, source=reporters, **belief_search)
     if bdf.empty:
         return []
-    source = bdf.index.get_level_values("source")[-1]
+    source = bdf.index.get_level_values("source")[0]
     missing = [
         db.session.get(Sensor, sensor_id) for sensor_id in source.missing_members
     ]
