@@ -405,6 +405,11 @@ def test_upload_csv_file_returns_accepted_job(
             {"prior": "2022-12-15T12:00:00+01:00"},
             "2022-12-15T12:00:00+01:00",
         ),
+        # A prior in the future is accepted, as on POST /sensors/<id>/data
+        (
+            {"prior": "2099-01-01T00:00:00+00:00"},
+            "2099-01-01T00:00:00+00:00",
+        ),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -454,8 +459,10 @@ def test_upload_csv_file_job_carries_prior(
             },
             "cannot be combined",
         ),
-        ({"prior": "2999-01-01T00:00:00+00:00"}, "lies in the future"),
         ({"prior": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
+        # Beyond pandas' Timestamp bounds, so saving it would crash
+        ({"prior": "2999-01-01T00:00:00+00:00"}, "can be stored"),
+        ({"prior": "1600-01-01T00:00:00+00:00"}, "can be stored"),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

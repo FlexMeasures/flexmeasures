@@ -136,6 +136,20 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         return super()._deserialize(value, attr, data, **kwargs)
 
 
+def validate_storable_belief_time(value: datetime):
+    """Refuse a belief time that pandas cannot represent, so saving it would crash.
+
+    Pandas timestamps span 1677-09-21 to 2262-04-11.
+    Filtering on a later time is fine, so only use this where belief times are stored.
+    """
+    earliest = pd.Timestamp.min.tz_localize("UTC")
+    latest = pd.Timestamp.max.tz_localize("UTC")
+    if not earliest <= value <= latest:
+        raise ValidationError(
+            f"{value.isoformat()} lies outside the range of belief times that can be stored, from {earliest.date()} to {latest.date()}."
+        )
+
+
 class AwareDateTimeOrDateField(AwareDateTimeField):
     """Like AwareDateTimeField, but accepts naive dates, which are localized to the FLEXMEASURES_TIMEZONE.
 

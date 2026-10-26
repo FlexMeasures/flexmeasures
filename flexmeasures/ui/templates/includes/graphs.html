@@ -482,17 +482,10 @@
         let beliefTimeCustom = document.querySelector('#beliefTimeCustom');
         // The picker has no timezone, so its value is read in the browser's timezone
         document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
-        function toDatetimeLocalValue(date) {
-            const pad = (n) => String(n).padStart(2, '0');
-            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
-        }
         document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
                 const isCustom = document.querySelector('#belief-time-mode-custom').checked;
                 beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
-                if (isCustom) {
-                    beliefTimeCustom.max = toDatetimeLocalValue(new Date());
-                }
             });
         });
         upload.addEventListener('click', function (e) {
@@ -506,8 +499,12 @@
                     return;
                 }
                 const beliefTime = new Date(beliefTimeCustom.value);
-                if (beliefTime > new Date()) {
-                    showToast("The belief time cannot lie in the future.", "error");
+                // The API takes a future belief time, but in the picker it is more likely a wrong pick,
+                // and until then, later uploads for the same period would not show over these values.
+                if (beliefTime > new Date() && !confirm(
+                    "The belief time you picked, " + beliefTime.toLocaleString() + ", lies in the future. "
+                    + "Until then, data you upload later for the same period will not show over these values. Upload anyway?"
+                )) {
                     return;
                 }
                 formData.set('prior', beliefTime.toISOString());
