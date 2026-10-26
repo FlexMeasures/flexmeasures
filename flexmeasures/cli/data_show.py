@@ -30,11 +30,14 @@ from flexmeasures.data.schemas.generic_assets import (
     SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.automations import AutomationIdField
-from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    TimezoneField,
+)
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     describe_cronstr,
