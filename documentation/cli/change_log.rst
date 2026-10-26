@@ -7,7 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
-* ``flexmeasures add report`` saves the reporter's config on its data source by default. Pass ``--no-save-config`` to leave it out; ``--save-config`` is still accepted.
+* ``flexmeasures add report`` saves the reporter's config on its data source by default. As a report then records under a new source, anything referring to its old source by ID should be pointed at the new one after the first run. Pass ``--no-save-config`` to leave the config out and keep recording under the old source; ``--save-config`` is still accepted.
 * Add ``flexmeasures jobs check-source-references`` to list waiting jobs, including reporting jobs, that refer to a data source which no longer exists, or which the database upgrade to v1.1 will merge into an identical one. Run it before upgrading, so that you can wait for the jobs it lists or cancel them yourself, and again after. It is expected to be dropped again in v1.2, as from v1.1 the database refuses duplicate data sources.
 * ``flexmeasures add forecasts`` no longer keeps every trained model as a file; pass ``--model-save-dir`` to keep them.
 * Add ``flexmeasures edit reset-rate-limit --account <id>`` to reset an account's rate limits, so that its requests are accepted again straight away. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
