@@ -213,5 +213,11 @@ class TimezoneField(MarshmallowClickMixin, fields.Str):
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)
         if value not in all_timezones_set:
+            # A name in the wrong case, such as "utc", is an easy mistake, so we name the right one.
+            exact_names = {name.lower(): name for name in all_timezones_set}
+            if value.lower() in exact_names:
+                raise FMValidationError(
+                    f"Timezone '{value}' does not exist. Did you mean '{exact_names[value.lower()]}'?"
+                )
             raise FMValidationError(f"Timezone '{value}' does not exist.")
         return value
