@@ -979,7 +979,7 @@ def chart(
     cls=DeprecatedOption,
     preferred="--export-timezone",
     deprecated=["--timezone"],
-    help="Timezone of the data, when exported with --to-file. If not set, defaults to the timezone of the first non-empty sensor.",
+    help="Timezone of the data, when exported with --to-file (the terminal plot always shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -1083,9 +1083,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    if timezone is None:
-        timezone = sensors[0].timezone
-    df.index = df.index.tz_convert(timezone)
+    df.index = df.index.tz_convert(get_export_timezone(timezone, filepath, sensors))
 
     # Build title
     if len(sensors) == 1:
@@ -1117,6 +1115,26 @@ def plot_beliefs(
         )
         df.to_csv(filepath)
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
+
+
+def get_export_timezone(
+    timezone: str | None, filepath: str | None, sensors: list[Sensor]
+) -> str:
+    """Find the timezone to export beliefs in, warning when one was given without a file to export to.
+
+    :param timezone:    The timezone given with --export-timezone, if any.
+    :param filepath:    The file given with --to-file, if any.
+    :param sensors:     The sensors with data, the first of which gives the default timezone.
+    :returns:           The given timezone, or else the timezone of the first sensor.
+    """
+    if timezone is not None and filepath is None:
+        click.secho(
+            "--export-timezone only applies to the file written with --to-file, as the plot always shows UTC.",
+            **MsgStyle.WARN,
+        )
+    if timezone is None:
+        return sensors[0].timezone
+    return timezone
 
 
 def find_duplicates(_list: list, attr: str | None = None) -> list:
