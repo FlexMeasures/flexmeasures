@@ -24,7 +24,7 @@ since v1.1.0 | September XX, 2026
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 * Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
-* ``flexmeasures show beliefs`` now calls its CSV export timezone option ``--export-timezone``. The former ``--timezone`` name still works as a deprecated alias.
+* Fix ``flexmeasures show beliefs`` ignoring its ``--timezone`` option, which is now called ``--export-timezone`` (``--timezone`` still works as a deprecated alias). By default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, where it used to have them in UTC without an offset. An unknown timezone name is now refused, and the option warns when it is given without ``--to-file``, as the terminal plot always shows UTC.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures add report`` saves all of a report's outputs or none of them, where each output used to be committed on its own, and says for each output how many beliefs it saved. ``flexmeasures add forecasts`` saves the forecasts of a forecaster that a plugin registers, which used to be dropped while the command reported them as created.
 
