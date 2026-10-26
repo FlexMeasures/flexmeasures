@@ -1101,7 +1101,8 @@ def plot_beliefs(
 
     uniplot.plot(
         ys=[df[col] for col in df.columns],
-        xs=[df.index for _ in df.columns],
+        # uniplot shows UTC whatever the timezone, and warns about a timezone-aware index, so it gets UTC without one.
+        xs=[df.index.tz_convert(None) for _ in df.columns],
         title=title,
         color=True,
         lines=True,
