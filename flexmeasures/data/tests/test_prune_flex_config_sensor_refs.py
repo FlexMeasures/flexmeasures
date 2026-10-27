@@ -1,20 +1,26 @@
 import pytest
 
-from flexmeasures.data.schemas.sensors import SensorReferenceSchema
+from flexmeasures.data.schemas.sensors import sensor_reference_keys
 from flexmeasures.data.services.sensors import _prune_flex_config_sensor_refs
 
 
-def _schema_keys() -> list[str]:
-    return sorted(f.data_key or n for n, f in SensorReferenceSchema().fields.items())
-
-
-@pytest.mark.parametrize("key", [k for k in _schema_keys() if k != "sensor"])
-def test_reference_with_any_schema_key_is_pruned(key):
-    """A reference may carry any key of SensorReferenceSchema (source filters, a default, bounds)."""
+@pytest.mark.parametrize("key", sorted(sensor_reference_keys() - {"sensor"}))
+def test_reference_with_any_schema_key_keeps_it_and_loses_its_sensor(key):
+    """A reference may carry any key of SensorReferenceSchema (source filters, a default, bounds), which is kept for a new sensor."""
     config = {
         "site-power-capacity": {"sensor": 42, key: "placeholder"},
         "other": "1 MW",
     }
+    pruned, changed = _prune_flex_config_sensor_refs(config, sensor_id=42)
+    assert changed is True
+    assert pruned == {
+        "site-power-capacity": {"sensor": None, key: "placeholder"},
+        "other": "1 MW",
+    }
+
+
+def test_reference_with_only_a_sensor_is_removed():
+    config = {"site-power-capacity": {"sensor": 42}, "other": "1 MW"}
     pruned, changed = _prune_flex_config_sensor_refs(config, sensor_id=42)
     assert changed is True
     assert pruned == {"other": "1 MW"}
@@ -26,11 +32,12 @@ def test_reference_with_any_schema_key_is_pruned(key):
         {"sensor": 42},
         {"sensor": 42, "default": "1 MW"},
         {"sensor": 42, "lower": "0 kW", "upper": "10 kW"},
-        {"sensor": 42, "snap": {"0 kW": "0 kW"}},
+        {"sensor": 42, "snap": {"0 kW": ["0 kW", "0.5 kW"]}},
         {"sensor": 42, "source-types": ["user"], "default": "1 MW", "lower": "0 kW"},
     ],
 )
-def test_reference_in_a_list_is_pruned(reference):
+def test_reference_in_a_list_is_removed(reference):
+    """A list entry without a sensor has nothing to read, so it is removed rather than kept without its sensor."""
     config = {"inflexible-consumption": [reference, {"sensor": 7, "default": "1 MW"}]}
     pruned, changed = _prune_flex_config_sensor_refs(config, sensor_id=42)
     assert changed is True

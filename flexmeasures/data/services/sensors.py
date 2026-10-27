@@ -34,7 +34,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
-from flexmeasures.data.schemas.sensors import SensorReferenceSchema
+from flexmeasures.data.schemas.sensors import sensor_reference_keys
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_reason
 
@@ -43,23 +43,28 @@ FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
 
 _REMOVE = object()
 
-#: The keys a stored sensor reference may carry: the source filters, a default and bounds.
-#: Taken from SensorReferenceSchema, so that a key added there is also recognised here.
-#: A dict with the "sensor" key and no keys beyond these is a pure sensor reference.
-_SENSOR_REFERENCE_KEYS = {
-    field.data_key or name for name, field in SensorReferenceSchema().fields.items()
-}
+
+def _is_reference_to(value: Any, sensor_id: int) -> bool:
+    """Whether a value is a sensor reference to the given sensor, possibly with source filters, a default or bounds."""
+    return (
+        isinstance(value, dict)
+        and value.get("sensor") == sensor_id
+        and set(value.keys()) <= sensor_reference_keys()
+    )
 
 
 def _prune_flex_config_sensor_refs(
     value: dict[str, Any] | list[Any] | int | str | None, sensor_id: int
 ) -> tuple[dict[str, Any] | list[Any] | int | str | None | object, bool]:
-    """Recursively remove sensor references from nested flex_model/flex_context JSON structures.
+    """Recursively unset or remove sensor references from nested flex_model/flex_context JSON structures.
 
     This function handles deeply nested JSON objects and lists from flex_model and flex_context
-    JSONB columns. It scans for sensor references in two forms:
-    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filters,
-      a default or bounds (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
+    JSONB columns. It scans for sensor references in three forms:
+    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filters, a default or bounds.
+      Their sensor is unset ({"sensor": None, ...}), so that the rest is still in place when a new sensor is picked.
+      A reference with nothing besides its sensor is removed.
+    - Objects in lists (e.g. entries of "inflexible-consumption"/"inflexible-production" lists):
+      these are removed, as a list entry without a sensor has nothing to read.
     - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
 
     Args:
@@ -69,27 +74,24 @@ def _prune_flex_config_sensor_refs(
 
     Returns:
         A tuple (pruned_value, changed):
-        - pruned_value: The value with sensor references removed. Can be:
+        - pruned_value: The value with sensor references unset or removed. Can be:
             - `_REMOVE` (sentinel object): Remove this entire entry from parent
-            - A pruned dict/list/scalar: The value with refs removed
-        - changed (bool): True if any references were actually removed.
+            - A pruned dict/list/scalar: The value with refs unset or removed
+        - changed (bool): True if any references were actually unset or removed.
 
     Example:
-        >>> value = {"soc-max": {"sensor": 42}, "limit": "10 kW"}
+        >>> value = {"soc-max": {"sensor": 42}, "soc-min": {"sensor": 42, "default": "1 kWh"}, "limit": "10 kW"}
         >>> pruned, did_change = _prune_flex_config_sensor_refs(value, sensor_id=42)
         >>> pruned
-        {'limit': '10 kW'}
+        {'soc-min': {'sensor': None, 'default': '1 kWh'}, 'limit': '10 kW'}
         >>> did_change
         True
     """
     if isinstance(value, dict):
-        # Direct sensor reference object (for example {"sensor": 12}),
-        # optionally with source filter keys (see SensorReferenceSchema)
-        if (
-            value.get("sensor") == sensor_id
-            and set(value.keys()) <= _SENSOR_REFERENCE_KEYS
-        ):
-            return _REMOVE, True
+        if _is_reference_to(value, sensor_id):
+            if set(value.keys()) == {"sensor"}:
+                return _REMOVE, True
+            return {**value, "sensor": None}, True
 
         changed = False
         pruned_dict: dict[str, Any] = {}
@@ -113,6 +115,9 @@ def _prune_flex_config_sensor_refs(
         changed = False
         pruned_list: list[Any] = []
         for item in value:
+            if _is_reference_to(item, sensor_id):
+                changed = True
+                continue
             new_item, was_changed = _prune_flex_config_sensor_refs(item, sensor_id)
             changed = changed or was_changed
             if new_item is _REMOVE:
