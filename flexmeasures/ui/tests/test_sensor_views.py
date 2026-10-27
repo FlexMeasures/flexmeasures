@@ -11,11 +11,14 @@ Forecast and Annotate side panels. These tests verify:
 """
 
 from datetime import datetime, timedelta, timezone
+import json
+import re
 from unittest.mock import patch
 
 import pytest
 from flask import url_for
 
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import login, logout
 
@@ -260,3 +263,80 @@ def test_get_timerange_not_called_without_permission(
 
     assert response.status_code == 403
     mock_get_timerange.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Deleting a sensor that flex-config fields refer to
+# ---------------------------------------------------------------------------
+
+
+def _extract_js_string(page_data: bytes, name: str) -> str:
+    """Parse a string constant the sensor page embeds for its script."""
+    match = re.search(
+        rb"const " + name.encode() + rb' = ("(?:[^"\\]|\\.)*");', page_data
+    )
+    assert match, f"{name} not found on the sensor page"
+    return json.loads(match.group(1))
+
+
+def test_sensor_page_names_fields_its_deletion_leaves_without_sensor(
+    db, client, setup_assets, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """Before deleting a sensor, the user is told which fields will need a new sensor, and afterwards gets links to them."""
+    sensor = _get_prosumer_sensor(db)
+    asset = GenericAsset(
+        name="asset-referring-to-a-sensor-to-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "production-price": {"sensor": sensor.id, "default": "10 EUR/MWh"},
+            "consumption-price": {"sensor": sensor.id},
+        },
+    )
+    db.session.add(asset)
+    db.session.commit()
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    assert response.status_code == 200
+    note = _extract_js_string(response.data, "deletionConfirmNote")
+    toast = _extract_js_string(response.data, "deletionToast")
+
+    assert f"- {asset.name}, flex-context: production-price" in note
+    # A reference holding only the sensor is removed, so it needs no new sensor.
+    assert "consumption-price" not in note
+    assert (
+        url_for(
+            "AssetCrudUI:context", id=asset.id, flex_context_field="production-price"
+        )
+        in toast
+    )
+    assert "consumption-price" not in toast
+
+
+def test_sensor_page_only_counts_fields_on_assets_the_user_cannot_see(
+    db, client, setup_assets, setup_accounts, setup_generic_asset_types
+):
+    """A sensor can be referenced from another organisation's assets, which the user deleting it is told about without naming them."""
+    sensor = _get_prosumer_sensor(db)
+    asset = GenericAsset(
+        name="other-organisation-asset-referring-to-a-sensor-to-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Supplier"],
+        flex_context={
+            "production-price": {"sensor": sensor.id, "default": "10 EUR/MWh"}
+        },
+    )
+    db.session.add(asset)
+    db.session.commit()
+
+    login(client, "test_prosumer_user_2@seita.nl", "testtest")
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    logout(client)
+    assert response.status_code == 200
+    note = _extract_js_string(response.data, "deletionConfirmNote")
+    toast = _extract_js_string(response.data, "deletionToast")
+
+    assert "- fields on 1 asset(s) you cannot see" in note
+    assert asset.name not in note
+    assert asset.name not in toast
+    assert f"/assets/{asset.id}/" not in toast

@@ -3,6 +3,7 @@ from datetime import timedelta
 from flask import current_app, request
 from flask_classful import FlaskView
 from flask_security import login_required
+from markupsafe import Markup
 from werkzeug.exceptions import NotFound
 from webargs.flaskparser import use_kwargs
 
@@ -13,6 +14,7 @@ from flexmeasures.data.services.automations import (
     get_automations_feeding_sensor,
 )
 from flexmeasures.data.services.timerange import get_timerange
+from flexmeasures.data.services.sensors import flex_config_fields_left_without_sensor
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.auth_utils import (
     user_can_access,
@@ -21,6 +23,7 @@ from flexmeasures.ui.utils.auth_utils import (
     user_can_update,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
+from flexmeasures.ui.views.assets.utils import editor_paths_and_url
 from flexmeasures.ui.utils.view_utils import (
     render_flexmeasures_template,
     available_units,
@@ -30,6 +33,52 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
 from flexmeasures.auth.policy import check_access
+
+
+def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
+    """What the sensor page tells the user who deletes this sensor about the flex-config fields it would leave without a sensor.
+
+    Before deleting, the confirmation names them, as plain text.
+    After deleting, a toast links to the editor for each of them, which the page shows once it has moved on to the sensor's asset.
+    A sensor can be referenced from assets the user cannot read, such as when it is public,
+    so those are only counted, not named.
+
+    :returns: The note for the confirmation, and the toast, each empty if deleting the sensor leaves no field without one.
+    """
+    lines = []
+    links = []
+    unreadable_assets = set()
+    for asset, config_name, paths in flex_config_fields_left_without_sensor(sensor.id):
+        if not user_can_read(asset):
+            unreadable_assets.add(asset.id)
+            continue
+        paths, url = editor_paths_and_url(asset, config_name, paths)
+        fields = ", ".join(paths)
+        lines.append(f"- {asset.name}, {config_name}: {fields}")
+        links.append(
+            Markup('<a href="{url}">{asset}</a> ({config}: {fields})').format(
+                url=url, asset=asset.name, config=config_name, fields=fields
+            )
+        )
+    if unreadable_assets:
+        lines.append(f"- fields on {len(unreadable_assets)} asset(s) you cannot see")
+        links.append(
+            Markup("fields on {count} asset(s) you cannot see").format(
+                count=len(unreadable_assets)
+            )
+        )
+    if not lines:
+        return "", Markup("")
+    confirm_note = "\n".join(
+        [
+            "These flex-config fields refer to this sensor. They keep their default, bounds and source filters, but will need a new sensor:",
+            *lines,
+        ]
+    )
+    toast = Markup(
+        "These flex-config fields referred to the deleted sensor, and need a new sensor: {fields}. Until then, scheduling uses the default of such a field as a fixed value, or ignores the field."
+    ).format(fields=Markup("; ").join(links))
+    return confirm_note, toast
 
 
 class SensorUI(FlaskView):
@@ -69,11 +118,19 @@ class SensorUI(FlaskView):
         if can_trigger_forecasts:
             earliest, latest = get_timerange([sensor.id])
             has_enough_data = (latest - earliest) >= timedelta(days=2)
+        can_delete_sensor = user_can_delete(sensor)
+        deletion_confirm_note, deletion_toast = (
+            describe_fields_left_without_sensor(sensor)
+            if can_delete_sensor
+            else ("", Markup(""))
+        )
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
-            user_can_delete_sensor=user_can_delete(sensor),
+            user_can_delete_sensor=can_delete_sensor,
+            deletion_confirm_note=deletion_confirm_note,
+            deletion_toast=deletion_toast,
             user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
             user_can_create_children_sensor=can_create_children,
             user_can_trigger_forecasts=can_trigger_forecasts,

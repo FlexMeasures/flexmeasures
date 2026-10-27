@@ -529,6 +529,9 @@ For the data, note the following:
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
+    // Which flex-config fields deleting this sensor leaves without a sensor, to name before deleting it, and to link to afterwards.
+    const deletionConfirmNote = {{ deletion_confirm_note | default("") | tojson }};
+    const deletionToast = {{ deletion_toast | default("") | tojson }};
 
     // Show the full record of the selected data source
     document.getElementById('sourceDetailsButton')?.addEventListener('click', function () {
@@ -616,6 +619,14 @@ For the data, note the following:
 
         if (response.status === 204) {
             showToast("Sensor deleted successfully.", "success");
+            if (deletionToast) {
+                // Shown by the asset's page, which this page moves on to, as the links in it are for later.
+                try {
+                    sessionStorage.setItem("flexmeasures-toast-after-redirect", deletionToast);
+                } catch (error) {
+                    console.warn("Could not keep the toast about fields left without a sensor:", error);
+                }
+            }
             // delay for one second to show toast message
             await new Promise(resolve => setTimeout(resolve, 1000));
             window.location.href = apiBasePath + "/assets/" + parentAssetId;
@@ -636,7 +647,11 @@ For the data, note the following:
     }
 
     $("#delete-sensor-button").click(function () {
-        let result = confirm("Are you sure you want to delete this sensor and all time series data associated with it?");
+        let confirmMessage = "Are you sure you want to delete this sensor and all time series data associated with it?";
+        if (deletionConfirmNote) {
+            confirmMessage += "\n\n" + deletionConfirmNote;
+        }
+        let result = confirm(confirmMessage);
         if (result) {
             deleteSensor();
         }

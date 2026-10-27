@@ -34,7 +34,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
-from flexmeasures.data.schemas.sensors import sensor_reference_keys
+from flexmeasures.data.schemas.sensors import (
+    sensor_reference_keys,
+    unset_sensor_reference_paths,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_reason
 
@@ -418,6 +421,53 @@ def cleanup_sensor_references_in_assets(
         changed_assets += 1
 
     return changed_assets
+
+
+def flex_config_fields_left_without_sensor(
+    sensor_id: int,
+) -> list[tuple[GenericAsset, str, list[str]]]:
+    """Which flex-config fields deleting a sensor would leave without a sensor, so that the user can be told before and after deleting it.
+
+    These are the references that keep a default, bounds or source filters,
+    and so stay in place with their sensor unset.
+    References that hold only the sensor are removed instead, and need no new sensor.
+    The deletion itself is simulated in memory, so that what is reported is what deleting the sensor does.
+
+    :returns: For each asset and flex-config ("flex-context" or "flex-model") that has such fields, their paths.
+    """
+    vars_json = sa.func.jsonb_build_object("sid", sensor_id)
+    sensor_path = sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH)
+    candidates = db.session.scalars(
+        sa.select(GenericAsset)
+        .where(
+            sa.or_(
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context, sensor_path, vars_json
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_model, sensor_path, vars_json
+                ),
+            )
+        )
+        .order_by(GenericAsset.id)
+    ).all()
+
+    found = []
+    for asset in candidates:
+        for config_name, config in (
+            ("flex-context", asset.flex_context),
+            ("flex-model", asset.flex_model),
+        ):
+            pruned, _ = _prune_flex_config_sensor_refs(config, sensor_id)
+            already_unset = set(unset_sensor_reference_paths(config))
+            paths = [
+                path
+                for path in unset_sensor_reference_paths(pruned)
+                if path not in already_unset
+            ]
+            if paths:
+                found.append((asset, config_name, paths))
+    return found
 
 
 def get_sensors(
