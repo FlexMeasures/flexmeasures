@@ -502,3 +502,57 @@ def test_shift_click_pins_several_annotations(assert_js):
         click(250, false);
         eq("a plain click outside releases all pins", pinnedTexts(), []);
         """)
+
+
+def test_replay_ruler_survives_empty_data(assert_js):
+    """Belief-time filtering must not remove the ruler along with the data series."""
+    assert_js("""
+        import { renderFastChart, setFastChartReplayTime, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "replay-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const start = Date.parse("2026-01-01T00:00:00Z");
+        const row = {
+            event_start: start, event_value: 5, belief_horizon: 0,
+            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: 0},
+            source: {id: 1, name: "Meter"},
+        };
+        const rulers = () => option.series.flatMap(s => s.markLine?.data || [])
+            .filter(mark => mark.lineStyle.color === "#555");
+        for (const chartType of ["line", "bar_chart"]) {
+            const opts = {
+                chartType, isSensorPage: true,
+                groupSpec: [{title: "Power", sensorIds: [1]}],
+                timeWindow: {start, end: start + 86400000},
+            };
+            renderFastChart(container.id, [], opts);
+            for (const [index, data] of [[], [row], [], [row]].entries()) {
+                const time = start + (index + 1) * 3600000;
+                setFastChartReplayTime(container.id, time);
+                renderFastChart(container.id, data, opts);
+                eq(`${chartType}: exactly one ruler even without visible data`, rulers().length, 1);
+                eq("the ruler follows playback", rulers()[0]?.xAxis, time);
+                eq("the carrier opts out of automatic data colors",
+                   option.series[0].itemStyle?.color, "transparent");
+                eq("the requested time window is retained", option.xAxis[0].min, start);
+                check("the ruler is independent of data", option.series.some(
+                    s => s.data.length === 0 && s.markLine?.data.some(m => m.xAxis === time)));
+            }
+            setFastChartReplayTime(container.id, null);
+            renderFastChart(container.id, [], opts);
+            eq("stopping replay clears the ruler", rulers().length, 0);
+        }
+        disposeFastChart(container.id);
+        container.remove();
+        """)
