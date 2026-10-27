@@ -590,3 +590,88 @@ def test_a_source_kept_for_an_organisation_also_keeps_its_id_among_the_duplicate
         assert merged == {other.id: named.id}
     finally:
         savepoint.rollback()
+
+
+def _shared_old_and_new_scheduler(
+    db, accounts, asset_type
+) -> tuple[DataSource, list[Sensor]]:
+    """An older scheduler version shared by several organisations, beside the newer version that replaced it."""
+    old = DataSource(
+        name="Seita", type="scheduler", model="StorageScheduler", version="9"
+    )
+    new = DataSource(
+        name="Seita", type="scheduler", model="StorageScheduler", version="10"
+    )
+    db.session.add_all([old, new])
+    db.session.flush()
+    sensors = []
+    for account in accounts:
+        sensor = _asset_with_sensor(db, account, asset_type, f"{account.name} site")
+        _record(db, sensor, old, datetime(2026, 1, 1, tzinfo=utc))
+        sensors.append(sensor)
+    return old, sensors
+
+
+def test_a_shared_source_of_an_older_generator_version_is_left_to_no_organisation(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """Nothing records under an older version again, so a split would rewrite history for no gain, and the upgrade need not stop for it.
+
+    Versions compare as versions, not as text, which would put 9 after 10.
+    """
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    old, sensors = _shared_old_and_new_scheduler(
+        fresh_db, [prosumer, supplier], setup_generic_asset_types_fresh_db["battery"]
+    )
+    source_id = old.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(), splitting=False
+    )
+    fresh_db.session.expire_all()
+
+    assert fresh_db.session.get(DataSource, source_id).account_id is None
+    assert (
+        len(
+            fresh_db.session.scalars(
+                select(DataSource).filter_by(type="scheduler", version="9")
+            ).all()
+        )
+        == 1
+    ), "and no sources were made for the organisations sharing it"
+    for sensor in sensors:
+        beliefs = fresh_db.session.scalars(
+            select(TimedBelief).filter_by(sensor_id=sensor.id)
+        ).all()
+        assert [belief.source_id for belief in beliefs] == [source_id]
+
+
+def test_naming_an_organisation_splits_a_shared_source_of_an_older_generator_version_anyway(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """A host who refers to an older version's id from outside FlexMeasures can still have it split."""
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    old, (prosumer_sensor, supplier_sensor) = _shared_old_and_new_scheduler(
+        fresh_db, [prosumer, supplier], setup_generic_asset_types_fresh_db["battery"]
+    )
+    source_id = old.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(),
+        splitting=True,
+        keepers={source_id: prosumer.id},
+    )
+    fresh_db.session.expire_all()
+
+    assert fresh_db.session.get(DataSource, source_id).account_id == prosumer.id
+    moved = fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=supplier_sensor.id)
+    ).one()
+    assert moved.source_id != source_id
+    assert fresh_db.session.get(DataSource, moved.source_id).account_id == supplier.id
