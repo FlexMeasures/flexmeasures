@@ -163,10 +163,44 @@ def test_poll_job_status_reports_failure(assert_js):
         eq("the failure is passed on", failed.message, "Bad data in row 3");
         eq("and shown", toasts.at(-1), {message: "Bad data in row 3", type: "error"});
 
+        // The job status endpoint answers a failed job with 422, and the job's status in the body
+        window.fetch = async () => ({ok: false, status: 422, statusText: "UNPROCESSABLE ENTITY", json: async () => ({status: "FAILED", message: "Bad data in row 4"})});
+        const failedWith422 = await new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve}));
+        eq("a failure answered with 422 is passed on", failedWith422 && failedWith422.message, "Bad data in row 4");
+        eq("and shown too", toasts.at(-1), {message: "Bad data in row 4", type: "error"});
+
+        // A job that is gone is answered with 404 and a status that is not a job's, which must end the polling rather than keep it going
+        window.fetch = async () => ({ok: false, status: 404, statusText: "NOT FOUND", json: async () => ({status: "ERROR", message: "Job x not found."})});
+        const gone = await Promise.race([
+            new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve})),
+            new Promise((resolve) => setTimeout(() => resolve("still polling"), 200)),
+        ]);
+        eq("a job that is gone counts as a failure without a job", gone, null);
+        check("and says why", toasts.at(-1).message.includes("HTTP 404") && toasts.at(-1).message.includes("Job x not found."), toasts.at(-1).message);
+
         window.fetch = async () => ({ok: false, status: 502, statusText: "Bad Gateway"});
         const unreachable = await new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve}));
         eq("an unreachable endpoint counts as a failure without a job", unreachable, null);
         check("and says so", toasts.at(-1).message.includes("HTTP 502"), toasts.at(-1).message);
+        """)
+
+
+def test_poll_job_status_reports_once_when_answers_are_slow(assert_js):
+    assert_js(CAPTURE_TOASTS + """
+        import { pollJobStatus } from "/js/ui-utils.js";
+        let requests = 0;
+        // Each answer takes longer than the polling interval
+        window.fetch = async () => {
+            requests++;
+            await new Promise((resolve) => setTimeout(resolve, 40));
+            return {ok: true, json: async () => ({status: "FINISHED"})};
+        };
+        let finishedCalls = 0;
+        pollJobStatus("x", {intervalMs: 5, onFinished: () => finishedCalls++});
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        eq("a slow endpoint is asked once at a time", requests, 1);
+        eq("so the job's end is reported once", finishedCalls, 1);
+        eq("and shown once", toasts.filter((t) => t.type === "success").length, 1);
         """)
 
 

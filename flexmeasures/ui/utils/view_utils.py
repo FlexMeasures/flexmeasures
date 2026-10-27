@@ -101,7 +101,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
     )
-    variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
 
     # Chart options passed to vega-embed
     options = chart_options.copy()
@@ -254,21 +253,22 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
-CHARGER_ICON = "https://api.iconify.design/material-symbols/ev-station-outline.svg"
-FALLBACK_SVG_ICON = "https://api.iconify.design/fa-solid/question-circle.svg"
+# Icons from iconify.design, served from static/icons/ so the UI also works offline (see the README there).
+CHARGER_ICON = "/ui/static/icons/material-symbols/ev-station-outline.svg"
+FALLBACK_SVG_ICON = "/ui/static/icons/fa-solid/question-circle.svg"
 
 SVG_ICON_MAPPING = {
     # site structure
-    "building": "https://api.iconify.design/mdi/home-city.svg",
-    "battery": "https://api.iconify.design/mdi/battery.svg",
-    "simulation": "https://api.iconify.design/mdi/home-city.svg",
-    "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
-    "scenario": "https://api.iconify.design/mdi/binoculars.svg",
-    "pv": "https://api.iconify.design/wi/day-sunny.svg",
-    "solar": "https://api.iconify.design/wi/day-sunny.svg",
-    "wind": "https://api.iconify.design/mdi/wind-turbine.svg",
-    "process": "https://api.iconify.design/mdi/factory.svg",
-    "heat-storage": "https://api.iconify.design/mdi/storage-tank.svg",
+    "building": "/ui/static/icons/mdi/home-city.svg",
+    "battery": "/ui/static/icons/mdi/battery.svg",
+    "simulation": "/ui/static/icons/mdi/home-city.svg",
+    "site": "/ui/static/icons/mdi/map-marker-outline.svg",
+    "scenario": "/ui/static/icons/mdi/binoculars.svg",
+    "pv": "/ui/static/icons/wi/day-sunny.svg",
+    "solar": "/ui/static/icons/wi/day-sunny.svg",
+    "wind": "/ui/static/icons/mdi/wind-turbine.svg",
+    "process": "/ui/static/icons/mdi/factory.svg",
+    "heat-storage": "/ui/static/icons/mdi/storage-tank.svg",
     # EV infrastructure, which projects name in a variety of ways
     "chargepoint": CHARGER_ICON,
     "ev": CHARGER_ICON,
@@ -280,14 +280,14 @@ SVG_ICON_MAPPING = {
     "ev_charger": CHARGER_ICON,
     "charger": CHARGER_ICON,
     # building services equipment, named by their common abbreviations
-    "hvac": "https://api.iconify.design/mdi/hvac.svg",
-    "ahu": "https://api.iconify.design/mdi/air-filter.svg",  # air handling unit
-    "dhw": "https://api.iconify.design/mdi/water-boiler.svg",  # domestic hot water
-    "heatpump": "https://api.iconify.design/mdi/heat-pump.svg",
-    "chiller": "https://api.iconify.design/mdi/snowflake.svg",
-    "lighting": "https://api.iconify.design/mdi/lightbulb.svg",
-    "other-loads": "https://api.iconify.design/mdi/power-plug.svg",
-    "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
+    "hvac": "/ui/static/icons/mdi/hvac.svg",
+    "ahu": "/ui/static/icons/mdi/air-filter.svg",  # air handling unit
+    "dhw": "/ui/static/icons/mdi/water-boiler.svg",  # domestic hot water
+    "heatpump": "/ui/static/icons/mdi/heat-pump.svg",
+    "chiller": "/ui/static/icons/mdi/snowflake.svg",
+    "lighting": "/ui/static/icons/mdi/lightbulb.svg",
+    "other-loads": "/ui/static/icons/mdi/power-plug.svg",
+    "add_asset": "/ui/static/icons/material-symbols/add-rounded-white.svg",  # Plus Icon for Add Asset
 }
 
 
