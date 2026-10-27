@@ -1028,7 +1028,7 @@ def test_each_set_of_missing_members_has_a_source_of_its_own(
 def test_a_partial_aggregate_gets_a_source_of_its_own_also_when_the_config_is_not_saved(
     setup_nested_groups, db, restore_beliefs
 ):
-    """Which members an aggregate covers, and which it leaves out, says what its data is, so it is recorded also where the config is not saved, as on the CLI by default."""
+    """Which members an aggregate covers, and which it leaves out, says what its data is, so it is recorded also where the config is not saved, as with `flexmeasures add report --no-save-config`."""
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
     )

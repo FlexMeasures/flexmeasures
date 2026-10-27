@@ -515,7 +515,7 @@ class AggregatorReporter(Reporter):
         """Describe this report's data source, naming the members it resolved to and the ones it is missing, also when the config is not saved.
 
         Which members an aggregate covers, and which it leaves out, says what its data is, rather than how to compute it again,
-        so it is part of the source even where the rest of the config is not saved, as on the CLI by default.
+        so it is part of the source even where the rest of the config is not saved, as with `flexmeasures add report --no-save-config`.
         Without it, a changed membership and a partial aggregate would both be recorded under the complete report's source.
         """
         attributes = super().get_data_source_attributes()
