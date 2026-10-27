@@ -27,6 +27,9 @@ v1.1.0 | September XX, 2026
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
+.. warning:: If you run ``flexmeasures add report`` (for instance, in a cron job), it now saves the reporter's config on the report's data source by default, so its first run after upgrading records under a new data source.
+             Point anything that refers to the old data source by ID at the new one, or add ``--no-save-config`` to keep recording under the old one [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
+
 New features
 -------------
 * When uploading sensor data, you can now set the time prior to which the data was recorded, such as when moving historical data from another system together with its original recording times [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_ and `PR #2734 <https://www.github.com/FlexMeasures/flexmeasures/pull/2734>`_]
@@ -49,6 +52,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* ``flexmeasures add report`` saves the reporter's config on its data source by default, as the API and automations do, so that reports computed under different configs no longer share one data source; its first run after upgrading saves all of its beliefs once more, under the new data source [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
 * Upgrade certifi and Werkzeug for security reasons; hosts running the Docker image should pull the new image to get certifi's corrected certificate bundle, and hosts listing an IPv6 address in ``TRUSTED_HOSTS`` should know that this version of Werkzeug rejects requests to it (see `Werkzeug issue #3312 <https://github.com/pallets/werkzeug/issues/3312>`_) [see `PR #2750 <https://www.github.com/FlexMeasures/flexmeasures/pull/2750>`_]
 * A forecast hands its trained model to the prediction in memory, instead of writing it to a file and reading it back. A model is kept as a file only when ``model-save-dir`` is given, where each cycle used to leave one behind, often hundreds of MB, under ``flexmeasures/data/models/forecasting/artifacts/models`` relative to the worker's working directory. Hosts can delete that folder after upgrading [see `PR #2701 <https://www.github.com/FlexMeasures/flexmeasures/pull/2701>`_]
 * The UI can work without internet access: the Docker image serves the UI's JavaScript and CSS libraries itself, and a pip-installed FlexMeasures can fetch them once (see :ref:`install-ui-libraries`), while otherwise browsers keep loading them from CDNs; the ``FLEXMEASURES_JS_VERSIONS`` setting now only lists the versions a host wants to differ, optionally with the hashes of their files, so plugins reading it should read the ``js_versions`` template variable instead [see `PR #2711 <https://www.github.com/FlexMeasures/flexmeasures/pull/2711>`_ and `PR #2747 <https://www.github.com/FlexMeasures/flexmeasures/pull/2747>`_]
