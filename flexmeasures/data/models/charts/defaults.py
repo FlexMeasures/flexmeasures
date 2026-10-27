@@ -4,8 +4,6 @@ from functools import wraps
 from numpy import pi
 from typing import Callable
 
-import altair as alt
-
 FONT_SIZE = 16
 STROKE_WIDTH = 2
 ANNOTATION_MARGIN = 16
@@ -468,6 +466,10 @@ def apply_chart_defaults(fn):
     @wraps(fn)
     def decorated_chart_specs(*args, **kwargs) -> dict:
         """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
+        # Deferred, because altair is only needed here,
+        # so we keep it out of FlexMeasures' eager app-boot import chain.
+        import altair as alt
+
         dataset_name = kwargs.pop("dataset_name", None)
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):

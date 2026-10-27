@@ -295,12 +295,16 @@ def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
 
     Naming the organisation that keeps a source's id is something only the host can answer,
     since a source id can be referred to from configurations FlexMeasures cannot interpret for them.
+    A `keep-source` without an organisation is left to migration 7c4e1a9d2b58, which reads it as the duplicate source that keeps its id,
+    because both migrations read the same arguments when a host upgrades past both of them at once.
     """
     keepers: dict[int, int] = {}
     for argument in arguments:
         if not argument.startswith("keep-source="):
             continue
         value = argument.split("=", 1)[1]
+        if ":" not in value:
+            continue
         try:
             source_id, account_id = (int(part) for part in value.split(":", 1))
         except ValueError:
@@ -309,6 +313,16 @@ def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
             )
         keepers[source_id] = account_id
     return keepers
+
+
+def _sources_named_without_organisation(arguments: list[str]) -> set[int]:
+    """Read the source ids that `-x keep-source=<source id>` names, which is how migration 7c4e1a9d2b58 is told which duplicate keeps its id."""
+    return {
+        int(value)
+        for argument in arguments
+        if argument.startswith("keep-source=")
+        and (value := argument.split("=", 1)[1]).isdigit()
+    }
 
 
 def upgrade():
@@ -321,11 +335,15 @@ def upgrade():
         op.get_bind(),
         splitting=splitting,
         keepers=_keepers_from_x_arguments(list(arguments)),
+        named_without_organisation=_sources_named_without_organisation(list(arguments)),
     )
 
 
 def couple_sources_to_organisations(
-    connection, splitting: bool, keepers: dict[int, int] | None = None
+    connection,
+    splitting: bool,
+    keepers: dict[int, int] | None = None,
+    named_without_organisation: set[int] | None = None,
 ) -> None:
     """Couple each data source to the organisation it recorded for, splitting the shared ones only when told to.
 
@@ -391,6 +409,15 @@ def couple_sources_to_organisations(
         )
 
     keepers = keepers or {}
+    # A host who forgot the organisation would otherwise see nothing happen, as migration 7c4e1a9d2b58 only reads it for duplicates.
+    unpaired = sorted(
+        set(named_without_organisation or ()) & set(shared) - set(keepers)
+    )
+    if unpaired:
+        raise RuntimeError(
+            f"Asked to keep data source(s) {unpaired}, which several organisations share, without naming the organisation that keeps them."
+            f" Name one, as in -x keep-source={unpaired[0]}:<organisation id>."
+        )
     unknown = set(keepers) - set(shared)
     if unknown:
         raise RuntimeError(
