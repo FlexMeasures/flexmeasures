@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from flask import url_for
+from markupsafe import Markup
 from werkzeug.exceptions import NotFound
 
 from flexmeasures import Asset
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.sensors import unset_sensor_reference_paths
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -39,6 +41,66 @@ def get_inherited_flex_context(asset: GenericAsset) -> dict[str, dict]:
         }
         for field, entry in asset.parent_asset.get_flex_context_with_provenance().items()
     }
+
+
+def editor_paths_and_url(
+    asset: GenericAsset, config_name: str, paths: list[str]
+) -> tuple[list[str], str]:
+    """Order the paths of fields whose sensor was deleted, and link to the editor for them.
+
+    Top-level fields come first, as these are what the flex-context editor can open directly,
+    so the link opens it on the first of them.
+    The flex-model editor is on the asset's Properties page, which the link goes to.
+
+    :param config_name: "flex-context" or "flex-model".
+    :returns: The ordered paths, and the editor's URL.
+    """
+    paths = sorted(paths, key=lambda path: (path.count(" > "), path))
+    if config_name == "flex-model":
+        return paths, url_for("AssetCrudUI:properties", id=asset.id)
+    if " > " in paths[0]:
+        return paths, url_for("AssetCrudUI:context", id=asset.id)
+    return paths, url_for(
+        "AssetCrudUI:context", id=asset.id, flex_context_field=paths[0]
+    )
+
+
+def deleted_sensor_references_toast(asset: GenericAsset) -> Markup | None:
+    """The toast an asset's pages show while its flex-config has fields whose sensor was deleted.
+
+    Deleting a sensor leaves the rest of each reference to it in place, such as its default and bounds,
+    but the field needs a new sensor, and until it has one, saving its flex-config is refused.
+    So each page of the asset points the user at the editor for it.
+
+    :returns: The toast's message, or None if no field lost its sensor.
+    """
+    editors = (
+        ("flex-context", asset.flex_context, "flex-context editor"),
+        ("flex-model", asset.flex_model, "flex-model editor on the Properties page"),
+    )
+    parts = []
+    for config_name, config, editor in editors:
+        paths = unset_sensor_reference_paths(config)
+        if not paths:
+            continue
+        paths, url = editor_paths_and_url(asset, config_name, paths)
+        parts.append(
+            Markup(
+                'Fields in the {config} of this asset refer to a sensor that has been deleted: {fields}. <a href="{url}">Pick a new sensor in the {editor}</a>.'
+            ).format(
+                config=config_name, fields=", ".join(paths), url=url, editor=editor
+            )
+        )
+    if not parts:
+        return None
+    return Markup(" ").join(
+        parts
+        + [
+            Markup(
+                "Until then, scheduling uses the default of such a field as a fixed value, or ignores the field."
+            )
+        ]
+    )
 
 
 def serialize_asset(asset: Asset, is_head=False) -> dict:

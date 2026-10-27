@@ -160,6 +160,14 @@
     </script>
     {% endif %}
 
+    {% if deleted_sensor_references_toast %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            showToast({{ deleted_sensor_references_toast | tojson }}, "info", { delay: 15000 });
+        });
+    </script>
+    {% endif %}
+
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
     {{ vendor.bootstrap_js() }}
