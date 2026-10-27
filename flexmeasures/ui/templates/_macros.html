@@ -42,13 +42,16 @@
 
       // The layout itself lives in asset-tree.js.
       function updateChart(animate) {
+        // A hidden Structure tab has no drawing area. Let its shown.bs.tab
+        // handler do the first layout once both dimensions are measurable.
+        if (!scrollDom.clientWidth || !scrollDom.clientHeight) { return; }
         var viewportH = scrollDom.clientHeight;
         // Keep the drawing canvas the SAME size as the gray container at
         // every zoom level; zooming happens inside the canvas.
         chartDom.style.height = viewportH + 'px';
         myChart.resize();
         myChart.setOption(buildAssetTreeOption(rootNodes, assetMap, {
-          width: chartDom.clientWidth || 1000,
+          width: chartDom.clientWidth,
           viewportHeight: viewportH,
           zoomFactor: zoomFactor,
           currentAssetId: currentAssetId,

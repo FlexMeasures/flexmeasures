@@ -29,6 +29,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* Run a schedule from an asset's context page, with checks for prices known at job time, temporary price and power-capacity choices, links to add missing power sensors, an option to create a sensor with repeating Dutch October or uniform demo prices, job progress, and an option to save the chosen defaults [see `PR #2713 <https://www.github.com/FlexMeasures/flexmeasures/pull/2713>`_ ]
 * When uploading sensor data, you can now set the time prior to which the data was recorded, such as when moving historical data from another system together with its original recording times [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_ and `PR #2734 <https://www.github.com/FlexMeasures/flexmeasures/pull/2734>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
@@ -106,6 +107,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* The Run schedule dialog clears its missing-price warning after a price sensor is chosen for that run, including a newly created demo sensor
+* Avoid rendering the asset tree while its Structure tab has no measurable size, which could produce invalid SVG transforms in ECharts
 * ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]

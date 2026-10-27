@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import time
 import hashlib
-from datetime import datetime, timedelta
-from typing import Any, Callable
+from datetime import datetime, timedelta, timezone
+from math import isfinite
+from typing import Any, Callable, Literal
+from zoneinfo import ZoneInfo
 from flask import current_app
 from sqlalchemy import delete
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from isodate import duration_isoformat
+from marshmallow import ValidationError
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
@@ -29,6 +32,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.annotations import SensorAnnotationRelationship
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
@@ -51,6 +55,103 @@ _SENSOR_REFERENCE_KEYS = {
     "sources",
     "source-account",
 }
+
+
+# A representative Dutch October day in EUR/MWh, indexed by Europe/Amsterdam hour.
+# Repeating local hours on the autumn clock change use the same example price.
+NL_OCTOBER_DAY_PRICES = (
+    90,
+    80,
+    75,
+    70,
+    65,
+    70,
+    90,
+    120,
+    150,
+    135,
+    110,
+    90,
+    65,
+    45,
+    30,
+    50,
+    100,
+    160,
+    190,
+    180,
+    140,
+    115,
+    100,
+    90,
+)
+
+
+def create_demo_price_sensor(
+    asset: GenericAsset,
+    start_time: datetime,
+    end_time: datetime,
+    *,
+    profile: Literal["nl_october_day", "uniform"] = "nl_october_day",
+    price: float = 100,
+    unit: str = "EUR/MWh",
+) -> Sensor:
+    """Create hourly demo prices covering a planning period.
+
+    The Dutch profile repeats by local clock hour. Beliefs are available at
+    creation time, including for future events. The caller owns the transaction
+    and should obtain permission to edit sensors.
+    """
+    if (
+        start_time.tzinfo is None
+        or end_time.tzinfo is None
+        or not timedelta(0) < end_time - start_time <= timedelta(days=31)
+    ):
+        raise ValidationError(
+            "Choose a period of at most 31 days with timezone-aware times."
+        )
+    if profile not in ("nl_october_day", "uniform"):
+        raise ValidationError("Choose NL October Day or Uniform prices.")
+    if not isfinite(price):
+        raise ValidationError("The uniform price must be finite.")
+    resolution = timedelta(hours=1)
+    start_utc = start_time.astimezone(timezone.utc)
+    first_event = start_utc.replace(minute=0, second=0, microsecond=0)
+    sensor = Sensor(
+        name=f"Demo electricity price ({'NL October Day' if profile == 'nl_october_day' else 'Uniform'})",
+        unit=unit,
+        generic_asset=asset,
+        event_resolution=resolution,
+        attributes={"demo_data": True, "demo_profile": profile},
+    )
+    db.session.add(sensor)
+    source = get_or_create_source(
+        "FlexMeasures demo prices", source_type="demo", account=asset.owner
+    )
+    known_at = server_now()
+    local_timezone = ZoneInfo("Europe/Amsterdam")
+    event_start = first_event
+    while event_start < end_time:
+        event_price = (
+            NL_OCTOBER_DAY_PRICES[event_start.astimezone(local_timezone).hour]
+            if profile == "nl_october_day"
+            else price
+        )
+        db.session.add(
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                event_value=event_price,
+                belief_horizon=event_start + resolution - known_at,
+            )
+        )
+        event_start += resolution
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created demo price sensor '{sensor.name}': {sensor.id}"
+    )
+    return sensor
 
 
 def _prune_flex_config_sensor_refs(
