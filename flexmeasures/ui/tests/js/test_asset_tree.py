@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 # Builds an option for a list of assets, and helpers to find the drawn boxes in it.
 TREE = """
@@ -19,13 +19,18 @@ const leaves = (parent, n) => Array.from({length: n}, (_, i) => ({id: 100 + i, n
 
 
 def test_hidden_structure_tab_waits_for_a_measurable_canvas(assert_js):
-    template = Path(__file__).resolve().parents[2] / "templates/_macros.html"
-    env = Environment(autoescape=True, undefined=StrictUndefined)
+    template_dir = Path(__file__).resolve().parents[2] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=True,
+        undefined=StrictUndefined,
+    )
     env.globals.update(
         url_for=lambda *args, **kwargs: "/js/asset-tree.js",
         flexmeasures_version="test",
+        vendor_attrs=lambda *args, **kwargs: "",
     )
-    markup = env.from_string(template.read_text()).module.show_tree(
+    markup = env.get_template("_macros.html").module.show_tree(
         [{"id": 1, "name": "Site", "parent": None}], 1
     )
     chart_script = markup.split('<script type="module">', 1)[1].split("</script>", 1)[0]
