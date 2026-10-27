@@ -105,16 +105,16 @@ For the data, note the following:
                                             />
                                         </div>
                                         
-                                        <!-- Belief time: when the uploaded data was known -->
+                                        <!-- Belief time: when the uploaded data was recorded -->
                                         <div class="mb-3">
                                             <label class="form-label fw-bold">
                                                 Belief time
                                                 <i
                                                     class="fa fa-info-circle ms-1"
-                                                    title="When was this data known?
-- Measured instantly: each data point is recorded as known right after its event.
-- Time of upload: all data points are recorded as known at the time of upload.
-- Custom: all data points are recorded as known at the time you pick here, for example the closure time of the market that sets the prices."
+                                                    title="When was this data recorded?
+- Measured instantly: each data point is recorded right when its event ends.
+- Time of upload: all data points are recorded at the time of upload.
+- Custom: all data points are recorded at the time you pick here, for example their original recording time when moving historical data from another system."
                                                     style="color: white; cursor: pointer;"
                                                 >
                                                 </i>
@@ -521,10 +521,8 @@ For the data, note the following:
           <hr>
       </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    {% import "includes/vendor.html" as vendor %}
+    {{ vendor.litepicker() }}
 
 {% include 'includes/graphs.html' %}
 

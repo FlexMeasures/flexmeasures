@@ -2314,10 +2314,11 @@ def add_schedule(  # noqa C901
     help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
 )
 @click.option(
-    "--save-config",
+    "--save-config/--no-save-config",
     "save_config",
-    is_flag=True,
-    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+    default=True,
+    show_default=True,
+    help="Whether to save the `config` in the attributes of the DataSource, which tells reports computed under different configs apart, and lets `--source` compute one again.",
 )
 @click.option(
     "--as-job",
@@ -2339,7 +2340,7 @@ def add_report(  # noqa: C901
     dry_run: bool = False,
     edit_config: bool = False,
     edit_parameters: bool = False,
-    save_config: bool = False,
+    save_config: bool = True,
     timezone: str | None = None,
     as_job: bool = False,
 ):
@@ -2356,7 +2357,7 @@ def add_report(  # noqa: C901
         raise click.Abort()
     if as_job and not save_config:
         click.secho(
-            "Saving the reporter config to its data source (required for --as-job).",
+            "Saving the reporter config to its data source after all (required for --as-job).",
             **MsgStyle.WARN,
         )
         save_config = True

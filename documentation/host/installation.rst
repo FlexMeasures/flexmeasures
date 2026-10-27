@@ -451,6 +451,34 @@ This suffices for a quick start. For an actually secure secret, here is a Python
 Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
 
 
+.. _install-ui-libraries:
+
+Serve the UI's libraries without internet access
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The UI uses third-party JavaScript and CSS libraries, such as Bootstrap and Vega.
+The Docker image comes with them, so FlexMeasures serves them itself.
+A FlexMeasures installed via `pip` does not, so browsers load them from public CDNs, checking each file against its expected hash.
+
+To serve them from FlexMeasures instead, for example for users on a network without internet access, FlexMeasures fetches them itself:
+once it serves its first request, it downloads the files it is missing in the background, while browsers keep loading them from CDNs until it is done.
+That also happens after an upgrade of FlexMeasures bumps a library's version.
+The server needs internet access for this, and write access to FlexMeasures' installation.
+If several web server processes run on one host, only one of them fetches.
+
+You can also fetch them yourself, for example on a server without internet access, before taking its installation offline:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets
+
+Both download each library's files and licence, with any notice file the licence requires, into FlexMeasures' installation, and fail on any file that does not match its expected hash.
+They fetch the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, except for versions set without hashes.
+The command reads that setting from the config file FlexMeasures reads, or from the one passed with ``--config``.
+To stop FlexMeasures from fetching the libraries itself, set :ref:`FLEXMEASURES_FETCH_UI_LIBRARIES <configuration>` to ``False``.
+Then run the command again after each upgrade of FlexMeasures, as an upgrade can bump a library's version.
+
+
 Where to go from here?
 ------------------------
 

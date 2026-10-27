@@ -547,6 +547,7 @@ class SensorAPI(FlaskView):
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
+            .order_by(Sensor.id)
         )
 
         if filter is not None:
@@ -597,7 +598,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
-        belief_time: datetime | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -610,9 +611,9 @@ class SensorAPI(FlaskView):
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
 
-            By default, FlexMeasures assumes the data was not known prior to the time of upload.
-            Set belief-time-measured-instantly to record each value as known when its event ended,
-            or set belief-time to record all values as known at that time (e.g. the closure time of the market that set the prices).
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -719,7 +720,7 @@ class SensorAPI(FlaskView):
         }
         if not belief_time_measured_instantly:
             # Fix the belief time now, so data processed by a queued job is not believed later than its upload
-            upload_data["belief-time"] = (belief_time or server_now()).isoformat()
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(

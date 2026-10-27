@@ -5,6 +5,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 from __future__ import annotations
 
 from contextlib import contextmanager
+import functools
 from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,8 @@ import pandas as pd
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
-from rq.job import Job
+from rq import get_current_job
+from rq.job import Job, JobStatus
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -44,6 +46,7 @@ from flexmeasures.data.queries.generic_assets import (
     asset_is_in_subtree,
     descendants_cte,
 )
+from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.services.data_generators import (
     check_sensor_access,
     resolve_data_generator_sensors,
@@ -70,6 +73,13 @@ AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
     "queued",
     "failed",
 )
+
+
+# The automation types whose runs are dispatched again after a failed dispatch.
+# Their jobs carry IDs derived from the run, so a retry recognises the ones an earlier attempt queued.
+# The jobs of other types, such as reports and plugin types, take a fresh ID on every dispatch,
+# so retrying one could queue the same work twice; such a run is recorded and reported, but left where it failed.
+AUTOMATION_RUN_RETRIED_TYPES = ("forecasting", "scheduling")
 
 
 @dataclass(frozen=True)
@@ -314,11 +324,7 @@ def get_dispatchable_automation_runs(
         .join(Automation)
         .where(
             Automation.active.is_(True),
-            # Only a forecast run can be dispatched a second time safely.
-            # Its jobs carry IDs derived from the run, so a retry recognizes the ones it already queued.
-            # A schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules,
-            # which is why such a run is recorded and reported, but left where it failed.
-            AutomationRun.automation_type == "forecasting",
+            AutomationRun.automation_type.in_(AUTOMATION_RUN_RETRIED_TYPES),
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
             # A run which used up its attempts is left as it is, rather than dispatched again every minute.
@@ -335,6 +341,42 @@ def get_dispatchable_automation_runs(
         if claimed is not None:
             claimed_runs.append(claimed)
     return claimed_runs
+
+
+def pin_automation_run_effective_start(
+    run_id: int, start: datetime, prior: datetime | None = None
+) -> None:
+    """Record when a run is working from, and which data it works with, for an automation which left that to the run time.
+
+    An automation need not say when to start: its parameters then carry no start,
+    and each dispatch attempt resolves one from the clock.
+    A run resumed hours later would therefore queue its remaining jobs for a later window than the ones it already queued.
+    Pin the start the first attempt resolved, so that every later attempt of the same run reads it back instead.
+    Only the start is pinned, because the end follows from it and the automation's own duration,
+    and stating both alongside a duration is rejected as contradictory.
+    A run with offsets needs no pinned start, as its offsets apply to the time the run was due, which a retry shares.
+
+    A forecast's prior is resolved from the clock on each attempt, too (see `resolve_automation_window`),
+    so a resumed run would forecast with data recorded after its first attempt, while believed at that attempt's start.
+    Pin it as well, so that every attempt of the run computes what its first attempt would have.
+    """
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    parameters = dict(run.parameters or {})
+    pinned = {}
+    if parameters.get("start") is None and not any(
+        field in parameters for field in ("start-offset", "end-offset")
+    ):
+        pinned["start"] = start
+    if prior is not None and parameters.get("prior") is None:
+        pinned["prior"] = prior
+    if not pinned:
+        return
+    for field, moment in pinned.items():
+        parameters[field] = moment.astimezone(timezone.utc).isoformat()
+    run.parameters = parameters
+    db.session.commit()
 
 
 def ensure_automation_run_job_intents(
@@ -520,7 +562,19 @@ def record_automation_job_failed(
     logical_job_key: str | None,
     error: BaseException,
 ) -> None:
-    """Record that a worker failed an automation-created job.
+    """Record that a worker failed an automation-created job, with the error it failed on."""
+    _record_automation_job_failure(
+        run_id, logical_job_key, error.__class__.__name__, str(error)
+    )
+
+
+def _record_automation_job_failure(
+    run_id: int | None,
+    logical_job_key: str | None,
+    error_type: str | None,
+    error_message: str,
+) -> None:
+    """Record that a worker failed an automation-created job, by the type and message of the error it failed on.
 
     The job may well have failed on the database itself,
     which leaves the session in an aborted transaction where every further statement is refused.
@@ -546,12 +600,12 @@ def record_automation_job_failed(
         return
     intent.status = "failed"
     intent.finished_at = now
-    intent.last_error_type = error.__class__.__name__
-    intent.last_error_message = str(error)
+    intent.last_error_type = error_type
+    intent.last_error_message = error_message
     run = intent.run
     _refresh_run_execution_state(run, now)
-    run.last_error_type = error.__class__.__name__
-    run.last_error_message = str(error)
+    run.last_error_type = error_type
+    run.last_error_message = error_message
     db.session.commit()
 
 
@@ -572,6 +626,116 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
         )
         return True
     return False
+
+
+def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) -> None:
+    """Record the jobs that a report or plugin run queued, so that the run follows what becomes of them.
+
+    A forecast or schedule run records its jobs before queueing them, under IDs it derives from the run (see `ensure_automation_run_job_intents`).
+    A report or plugin run gets its job IDs from RQ, so its jobs are recorded once they are queued.
+    A worker may have finished one of them in the meantime, when there was no record yet to report to,
+    so whatever Redis already knows to be over is taken from there.
+    A run which queued no jobs, such as a report with nothing new to report on, has nothing left to do, so it succeeded.
+
+    :param jobs:    the logical job key, the kind and the RQ job of each job, in the order they were queued.
+    """
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    now = _now_utc()
+    if not jobs:
+        run.execution_state = "succeeded"
+        run.execution_completed_at = now
+        db.session.commit()
+        return
+    run.plan = {
+        **dict(run.plan or {}),
+        "jobs": [
+            {"logical_job_key": key, "kind": kind, "rq_job_id": job.id}
+            for key, kind, job in jobs
+        ],
+    }
+    for key, kind, job in jobs:
+        db.session.add(
+            AutomationRunJob(
+                run=run,
+                logical_job_key=key,
+                rq_job_id=job.id,
+                queue=job.origin,
+                kind=kind,
+                status="queued",
+                enqueued_at=now,
+            )
+        )
+    run.first_enqueued_at = run.first_enqueued_at or now
+    db.session.commit()
+    for key, _, job in jobs:
+        status = job.get_status(refresh=True)
+        if status == JobStatus.FINISHED:
+            record_automation_job_succeeded(run_id, key)
+        elif status == JobStatus.FAILED:
+            _record_automation_job_failure(run_id, key, *_error_of_failed_job(job))
+
+
+def _error_of_failed_job(job: Job) -> tuple[str | None, str]:
+    """Return the type and message of the error a job already failed on, which its queue's exception handler stored (see `store_job_exception`).
+
+    A job that failed without such a summary is described as well as its traceback allows, without a type.
+    """
+    # The job was handed over when it was queued, before the worker stored anything on it.
+    exception = job.get_meta(refresh=True).get("exception")
+    if isinstance(exception, dict) and exception.get("type"):
+        return exception["type"], exception.get("message", "")
+    return None, failed_job_reason(job) or "unknown error"
+
+
+def record_outcome_on_automation_run(job_function):
+    """Record a job's start and outcome on the automation run that queued it, if one did.
+
+    Decorates the function a schedule, report or plugin job runs.
+    The job is looked up by its RQ ID among the jobs its run recorded (see `ensure_automation_run_job_intents` and `record_automation_run_jobs`),
+    so a job queued outside a run, or on behalf of a run that never recorded it (such as a fallback schedule job), is left alone.
+    A forecast job reports on its own, as its run hands it the key it was recorded under.
+    """
+
+    @functools.wraps(job_function)
+    def wrapper(*args, **kwargs):
+        rq_job = get_current_job()
+        run_id = (
+            (rq_job.meta.get("trigger") or {}).get("automation_run_id")
+            if rq_job is not None
+            else None
+        )
+        if run_id is None:
+            return job_function(*args, **kwargs)
+        # A report or plugin run records its jobs once they are queued, so a job which starts right away may not find itself yet,
+        # in which case it looks again once it is done (or the run catches up from Redis, see `record_automation_run_jobs`).
+        logical_job_key = _logical_job_key(run_id, rq_job.id)
+        record_automation_job_started(run_id, logical_job_key)
+        try:
+            result = job_function(*args, **kwargs)
+        except Exception as exc:
+            # The job may have failed on the database itself, so get a usable session before looking anything up.
+            db.session.rollback()
+            record_automation_job_failed(
+                run_id, logical_job_key or _logical_job_key(run_id, rq_job.id), exc
+            )
+            raise
+        record_automation_job_succeeded(
+            run_id, logical_job_key or _logical_job_key(run_id, rq_job.id)
+        )
+        return result
+
+    return wrapper
+
+
+def _logical_job_key(run_id: int, rq_job_id: str) -> str | None:
+    """Return the key under which a run recorded the job with this RQ ID, if it did."""
+    return db.session.scalar(
+        select(AutomationRunJob.logical_job_key).filter_by(
+            run_id=run_id, rq_job_id=rq_job_id
+        )
+    )
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
@@ -985,11 +1149,18 @@ def resolve_automation_window(
 
     The offsets apply to the run's claimed cron occurrence, or to now for a run on demand, on the automation's own clock,
     so a delayed run still covers the window it was due for.
-    Without offsets, the parameters are passed on as they are, so the data generator's defaults apply,
+    Without offsets, the window is passed on as it is, so the data generator's defaults apply,
     such as starting at the run time, which keeps a caught-up run current.
+    A forecast is believed at the time it is computed, with or without offsets,
+    so it gets a prior of now, unless its parameters already carry one, such as the one its run pinned on a first attempt.
     Report automations resolve their window in `prepare_report_parameters`, which also knows where the last report ended.
     """
     message = dict(parameters)
+    if automation_type == "forecasting":
+        # A forecast with an explicit start is believed at that start unless told otherwise,
+        # while an automation's forecast should be believed when it is computed, using only the data recorded by then,
+        # also when its job only runs later, or when a resumed run queues it hours later.
+        message.setdefault("prior", server_now().isoformat())
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
     if start_offset is None and end_offset is None:
@@ -1019,10 +1190,6 @@ def resolve_automation_window(
             message["duration"] = isodate.duration_isoformat(end - start)
         else:
             message["end"] = end.isoformat()
-    if automation_type == "forecasting":
-        # A forecast with an explicit start is believed at that start unless told otherwise,
-        # while an automation's forecast should be believed when it is computed, as it would be without offsets.
-        message["prior"] = server_now().isoformat()
     return message
 
 
@@ -2458,6 +2625,8 @@ def _run_report_automation(
         current_app.logger.info(
             f"Report automation {automation.id} has nothing new to report on, up to {parameters['end']}, so it queues no job."
         )
+        if automation_run is not None:
+            record_automation_run_jobs(automation_run.id, [])
         return {
             "job_id": None,
             "n_jobs": 0,
@@ -2478,7 +2647,13 @@ def _run_report_automation(
         automation_id=automation.id,
         automation_run_id=automation_run.id if automation_run is not None else None,
     )
-    return reporter.compute(as_job=True, parameters=parameters)
+    returns = reporter.compute(as_job=True, parameters=parameters)
+    if automation_run is not None:
+        job = Job.fetch(
+            returns["job_id"], connection=current_app.queues["reporting"].connection
+        )
+        record_automation_run_jobs(automation_run.id, [("report", "report", job)])
+    return returns
 
 
 def _run_schedule_automation(
@@ -2512,6 +2687,10 @@ def _run_schedule_automation(
     )
     trigger_data = AssetTriggerSchema().load(message)
     start = trigger_data["start_of_schedule"]
+    if automation_run is not None:
+        # A schedule which left its start to the run time would resolve a later one on a retry,
+        # so pin what this run schedules from, the first time it is dispatched.
+        pin_automation_run_effective_start(automation_run.id, start=start)
     scheduler_kwargs = dict(
         start=start,
         end=start + trigger_data["duration"],
@@ -2524,16 +2703,111 @@ def _run_schedule_automation(
     trigger = {"origin": "automation", "automation_id": automation.id}
     if automation_run is not None:
         trigger["automation_run_id"] = automation_run.id
-    if trigger_data["sequential"]:
-        f = create_sequential_scheduling_job
-    else:
-        f = create_simultaneous_scheduling_job
-    job = f(
-        asset=trigger_data["asset"],
-        enqueue=True,
-        force_new_job_creation=trigger_data.get("force_new_job_creation", False),
-        trigger=trigger,
-        **scheduler_kwargs,
+    sequential = trigger_data["sequential"]
+    f = (
+        create_sequential_scheduling_job
+        if sequential
+        else create_simultaneous_scheduling_job
     )
-    n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1
+    # A run's jobs are named after it, which is what lets a second attempt recognise the ones the first attempt queued.
+    # A run dispatched outside a durable record, such as by `flexmeasures jobs run-automation`, leaves the naming to RQ.
+    job_naming: dict[str, str] = {}
+    device_sensors: list[Sensor] = []
+    if automation_run is not None:
+        if sequential:
+            job_naming["job_id_prefix"] = f"automation-run-{automation_run.id}"
+            # Which devices a sequential schedule computes for can be left to the asset tree,
+            # so they are resolved here rather than guessed at, and handed on already resolved,
+            # both so that the jobs planned are the jobs created, and so that nothing resolves them twice.
+            from flexmeasures.data.services.scheduling import (
+                find_scheduler_class,
+                resolve_sequential_flex_model,
+            )
+
+            device_sensors = [
+                entry["sensor"]
+                for entry in resolve_sequential_flex_model(
+                    trigger_data["asset"],
+                    scheduler_kwargs,
+                    find_scheduler_class(trigger_data["asset"]),
+                )
+            ]
+        else:
+            job_naming["job_id"] = f"automation-run-{automation_run.id}-schedule"
+        # Say which jobs this run intends to create before any of them exists in Redis,
+        # so that a second attempt can tell the jobs it already queued from the ones it still owes.
+        intents = ensure_automation_run_job_intents(
+            automation_run.id,
+            _plan_schedule_jobs(automation_run.id, device_sensors, sequential),
+        )
+        already_queued = {
+            intent.logical_job_key
+            for intent in intents
+            if reconcile_automation_job_intent(intent)
+        }
+    try:
+        job = f(
+            asset=trigger_data["asset"],
+            enqueue=True,
+            force_new_job_creation=trigger_data.get("force_new_job_creation", False),
+            trigger=trigger,
+            **job_naming,
+            **scheduler_kwargs,
+        )
+    except Exception:
+        if automation_run is not None:
+            _record_jobs_queued_before_failure(automation_run)
+        raise
+    n_jobs = len(job.args[0]) + 1 if sequential else 1
+    if automation_run is not None:
+        # The jobs the creators found already in Redis were left alone (see `create_scheduling_job`),
+        # so this records what this attempt queued, and leaves what an earlier one queued as it was.
+        for intent in intents:
+            if intent.logical_job_key not in already_queued:
+                mark_automation_job_queued(
+                    automation_run.id, intent.logical_job_key, intent.rq_job_id
+                )
     return {"job_id": job.id, "n_jobs": n_jobs}
+
+
+def _record_jobs_queued_before_failure(run: AutomationRun) -> None:
+    """Mark the jobs that a failed attempt at this run did queue, so the run says what is in Redis.
+
+    Otherwise it would report nothing queued until its next attempt finds them.
+    The failure may have come from the database itself, so roll back first to get a usable session.
+    """
+    db.session.rollback()
+    for intent in run.job_intents:
+        reconcile_automation_job_intent(intent)
+
+
+def _plan_schedule_jobs(
+    run_id: int, device_sensors: list[Sensor], sequential: bool
+) -> list[dict[str, Any]]:
+    """Describe every job a schedule run intends to create, before any of them is queued.
+
+    A sequential schedule computes one job per device, in a chain, and one job that wraps up.
+    A simultaneous one computes the whole asset in a single job.
+    The keys name what each job is for rather than where it ended up, so a second attempt plans the same jobs,
+    which is what `ensure_automation_run_job_intents` holds it to.
+    """
+
+    def spec(logical_job_key: str, kind: str, depends_on: list[str]) -> dict[str, Any]:
+        return {
+            "logical_job_key": logical_job_key,
+            "rq_job_id": f"automation-run-{run_id}-{logical_job_key}",
+            "queue": "scheduling",
+            "kind": kind,
+            "depends_on": depends_on,
+            # The jobs are built by the scheduling service from the trigger message, rather than from a payload recorded here.
+            "payload": {},
+        }
+
+    if not sequential:
+        return [spec("schedule", "schedule", [])]
+    device_keys = [f"device-{sensor.id}" for sensor in device_sensors]
+    # Each device is scheduled against the schedules of the devices before it, so its job waits on the previous one.
+    return [
+        spec(key, "schedule-device", device_keys[i - 1 : i])
+        for i, key in enumerate(device_keys)
+    ] + [spec("wrap-up", "schedule-wrap-up", device_keys)]

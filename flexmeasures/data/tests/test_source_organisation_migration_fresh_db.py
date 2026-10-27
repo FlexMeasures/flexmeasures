@@ -6,16 +6,21 @@ rather than only on the way past in an upgrade.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from pytz import utc
-from sqlalchemy import select
+from sqlalchemy import select, text
 from timely_beliefs import BeliefsDataFrame  # noqa: F401
 
-from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_UNIQUE_INDEX,
+    DataSource,
+    SensorDataSource,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
@@ -364,14 +369,49 @@ def test_keeping_a_source_with_an_organisation_that_never_used_it_is_refused(
         )
 
 
+def test_keeping_a_shared_source_without_naming_an_organisation_is_refused(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    unowned_forecaster,
+):
+    """`-x keep-source=<source id>` is how migration 7c4e1a9d2b58 is told which duplicate keeps its id, so it cannot say who keeps a shared source.
+
+    A host who forgot the organisation would otherwise see neither migration act on it.
+    """
+    for account, name in (
+        (setup_accounts_fresh_db["Prosumer"], "prosumer site"),
+        (setup_accounts_fresh_db["Supplier"], "supplier site"),
+    ):
+        sensor = _asset_with_sensor(
+            fresh_db, account, setup_generic_asset_types_fresh_db["battery"], name
+        )
+        _record(fresh_db, sensor, unowned_forecaster, datetime(2026, 10, 1, tzinfo=utc))
+
+    with pytest.raises(RuntimeError, match=f"keep-source={unowned_forecaster.id}:"):
+        _migration().couple_sources_to_organisations(
+            fresh_db.session.connection(),
+            splitting=True,
+            named_without_organisation={unowned_forecaster.id},
+        )
+
+
 def test_the_x_argument_for_keeping_a_source_is_read_as_a_pair():
-    """`-x keep-source=42:3` names a source and the organisation that keeps it, and says so when it does not."""
+    """`-x keep-source=42:3` names a source and the organisation that keeps it, and says so when it does not.
+
+    A `keep-source` without an organisation is migration 7c4e1a9d2b58's to read, since one upgrade hands both migrations the same arguments.
+    """
     migration = _migration()
-    assert migration._keepers_from_x_arguments(
-        ["split-shared-sources=true", "keep-source=42:3", "keep-source=7:1"]
-    ) == {42: 3, 7: 1}
-    with pytest.raises(RuntimeError, match="keep-source"):
-        migration._keepers_from_x_arguments(["keep-source=42"])
+    arguments = [
+        "split-shared-sources=true",
+        "keep-source=42:3",
+        "keep-source=7:1",
+        "keep-source=37",
+    ]
+    assert migration._keepers_from_x_arguments(arguments) == {42: 3, 7: 1}
+    assert migration._sources_named_without_organisation(arguments) == {37}
+    with pytest.raises(RuntimeError, match="keep-source=42:x"):
+        migration._keepers_from_x_arguments(["keep-source=42:x"])
 
 
 def test_recency_is_when_a_belief_was_recorded_not_what_it_is_about(
@@ -496,3 +536,142 @@ def test_a_source_whose_every_claim_is_stale_is_left_alone(
     ).all() == [
         fresh_db.session.get(DataSource, source_id)
     ], "and no sources were made for organisations that would receive nothing"
+
+
+def test_a_source_kept_for_an_organisation_also_keeps_its_id_among_the_duplicates_its_split_leaves(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """`-x keep-source=<source id>:<organisation id>` says that source's ID matters, which migration 7c4e1a9d2b58 must respect, too.
+
+    Splitting a shared source can leave the organisation keeping it with a second, identical source,
+    which merging duplicates would keep instead, had that one recorded more recently.
+    """
+    duplicate_migration = importlib.import_module(
+        "flexmeasures.data.migrations.versions.7c4e1a9d2b58_refuse_duplicate_data_sources"
+    )
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    battery = setup_generic_asset_types_fresh_db["battery"]
+
+    # Both migrations run before this index exists.
+    # Roll back the savepoint to restore the test schema after inserting duplicates that the current schema refuses.
+    savepoint = fresh_db.session.begin_nested()
+    try:
+        fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))
+        named, other = (DataSource(name="Seita", type="forecaster") for _ in range(2))
+        fresh_db.session.add_all([named, other])
+        fresh_db.session.flush()
+        prosumer_sensor = _asset_with_sensor(
+            fresh_db, prosumer, battery, "prosumer site"
+        )
+        supplier_sensor = _asset_with_sensor(
+            fresh_db, supplier, battery, "supplier site"
+        )
+        _record(fresh_db, prosumer_sensor, named, datetime(2026, 10, 1, tzinfo=utc))
+        _record(fresh_db, supplier_sensor, named, datetime(2026, 10, 2, tzinfo=utc))
+        _record(fresh_db, prosumer_sensor, other, datetime(2026, 10, 3, tzinfo=utc))
+
+        arguments = [
+            "split-shared-sources=true",
+            f"keep-source={named.id}:{prosumer.id}",
+        ]
+        connection = fresh_db.session.connection()
+        _migration().couple_sources_to_organisations(
+            connection,
+            splitting=True,
+            keepers=_migration()._keepers_from_x_arguments(arguments),
+        )
+        merged = duplicate_migration.merge_duplicate_sources(
+            connection,
+            keepers=duplicate_migration._keepers_from_x_arguments(arguments),
+        )
+        assert merged == {other.id: named.id}
+    finally:
+        savepoint.rollback()
+
+
+def _shared_old_and_new_scheduler(
+    db, accounts, asset_type
+) -> tuple[DataSource, list[Sensor]]:
+    """An older scheduler version shared by several organisations, beside the newer version that replaced it."""
+    old = DataSource(
+        name="Seita", type="scheduler", model="StorageScheduler", version="9"
+    )
+    new = DataSource(
+        name="Seita", type="scheduler", model="StorageScheduler", version="10"
+    )
+    db.session.add_all([old, new])
+    db.session.flush()
+    sensors = []
+    for account in accounts:
+        sensor = _asset_with_sensor(db, account, asset_type, f"{account.name} site")
+        _record(db, sensor, old, datetime(2026, 1, 1, tzinfo=utc))
+        sensors.append(sensor)
+    return old, sensors
+
+
+def test_a_shared_source_of_an_older_generator_version_is_left_to_no_organisation(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """Nothing records under an older version again, so a split would rewrite history for no gain, and the upgrade need not stop for it.
+
+    Versions compare as versions, not as text, which would put 9 after 10.
+    """
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    old, sensors = _shared_old_and_new_scheduler(
+        fresh_db, [prosumer, supplier], setup_generic_asset_types_fresh_db["battery"]
+    )
+    source_id = old.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(), splitting=False
+    )
+    fresh_db.session.expire_all()
+
+    assert fresh_db.session.get(DataSource, source_id).account_id is None
+    assert (
+        len(
+            fresh_db.session.scalars(
+                select(DataSource).filter_by(type="scheduler", version="9")
+            ).all()
+        )
+        == 1
+    ), "and no sources were made for the organisations sharing it"
+    for sensor in sensors:
+        beliefs = fresh_db.session.scalars(
+            select(TimedBelief).filter_by(sensor_id=sensor.id)
+        ).all()
+        assert [belief.source_id for belief in beliefs] == [source_id]
+
+
+def test_naming_an_organisation_splits_a_shared_source_of_an_older_generator_version_anyway(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """A host who refers to an older version's id from outside FlexMeasures can still have it split."""
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    old, (prosumer_sensor, supplier_sensor) = _shared_old_and_new_scheduler(
+        fresh_db, [prosumer, supplier], setup_generic_asset_types_fresh_db["battery"]
+    )
+    source_id = old.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(),
+        splitting=True,
+        keepers={source_id: prosumer.id},
+    )
+    fresh_db.session.expire_all()
+
+    assert fresh_db.session.get(DataSource, source_id).account_id == prosumer.id
+    moved = fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=supplier_sensor.id)
+    ).one()
+    assert moved.source_id != source_id
+    assert fresh_db.session.get(DataSource, moved.source_id).account_id == supplier.id
