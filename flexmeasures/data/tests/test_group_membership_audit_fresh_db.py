@@ -140,6 +140,17 @@ def test_a_deleted_group_is_noted_on_its_members(fresh_db, streets):
     ]
 
 
+@pytest.mark.parametrize(
+    "group",
+    [{"asset": "abc"}, {"asset": [1, 2]}, {"asset": 10**20}, {"sensor": "abc"}],
+)
+def test_a_malformed_group_does_not_fail_the_flush(fresh_db, streets, group):
+    """The API validates a group, but a script may write anything, and the listener runs on every flush."""
+    add_pv(fresh_db, streets, group)
+
+    assert membership_events_on(fresh_db, streets["north_street"]) == []
+
+
 def test_a_member_moved_to_another_site_is_noted(fresh_db, streets):
     """A scheduler finds members only on the site it schedules, so moving a member to another site takes it out of its group."""
     street = streets["north_street"]

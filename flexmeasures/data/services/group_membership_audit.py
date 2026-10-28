@@ -41,10 +41,14 @@ def _group_key(flex_model: dict | None) -> tuple[str, int] | None:
     from flexmeasures.data.models.planning.devices import resolve_group_key
 
     try:
-        return resolve_group_key(flex_model or {})
+        key = resolve_group_key(flex_model or {})
     except (TypeError, ValueError, AttributeError):
         # a malformed reference names no group we could note anything on
         return None
+    # an ID that is no integer the database can hold names no group either, and looking it up would fail the flush
+    if key is None or type(key[1]) is not int or not 0 < key[1] < 2**31:
+        return None
+    return key
 
 
 def _site_of(asset: GenericAsset | None) -> GenericAsset | None:
