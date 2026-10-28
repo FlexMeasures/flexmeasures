@@ -17,15 +17,18 @@ v1.1.0 | September XX, 2026
              2. Stop your workers, and run the upgrade **before** deploying the new code: a worker still running the previous version records under a source belonging to no organisation.
              3. Run the upgrade. It changes data sources in two ways:
 
-                - Each data source is coupled to the organisation it records for. Where a source recorded for several organisations, the upgrade stops and names those sources rather than picking one; rerun the upgrade with ``-x split-shared-sources=true`` to give each of those organisations its own source.
+                - Each data source is coupled to the organisation it records for. Where a source recorded for several organisations, the upgrade stops and names those sources rather than picking one; rerun the upgrade with ``-x split-shared-sources=true`` to give each of those organisations its own source. A shared source of a generator version that a newer one has replaced is left belonging to no organisation instead, since nothing records under it again.
                 - Identical data sources are merged, as the database now refuses duplicates. Their beliefs, annotations and other references move over, and stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, are pointed at the source they were merged into.
 
              In both cases, the source that recorded most recently keeps its ID. Where something outside FlexMeasures refers to a source by ID, choose yourself with ``-x keep-source``, which you can repeat:
              ``-x keep-source=<source id>:<organisation id>`` names the organisation that keeps a shared source's ID, and ``-x keep-source=<source id>`` names the duplicate that keeps its ID.
-             The upgrade prints what it split and merged, so anyone referring to a source by ID can switch over [see `PR #2634 <https://www.github.com/FlexMeasures/flexmeasures/pull/2634>`_ and `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
+             The upgrade prints what it split and merged, so anyone referring to a source by ID can switch over [see `PR #2634 <https://www.github.com/FlexMeasures/flexmeasures/pull/2634>`_, `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_ and `PR #2758 <https://www.github.com/FlexMeasures/flexmeasures/pull/2758>`_]
 
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
+
+.. warning:: If you run ``flexmeasures add report`` (for instance, in a cron job), it now saves the reporter's config on the report's data source by default, so its first run after upgrading records under a new data source.
+             Point anything that refers to the old data source by ID at the new one, or add ``--no-save-config`` to keep recording under the old one [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
 
 New features
 -------------
@@ -49,6 +52,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* ``flexmeasures add report`` saves the reporter's config on its data source by default, as the API and automations do, so that reports computed under different configs no longer share one data source; its first run after upgrading saves all of its beliefs once more, under the new data source [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
 * Upgrade certifi and Werkzeug for security reasons; hosts running the Docker image should pull the new image to get certifi's corrected certificate bundle, and hosts listing an IPv6 address in ``TRUSTED_HOSTS`` should know that this version of Werkzeug rejects requests to it (see `Werkzeug issue #3312 <https://github.com/pallets/werkzeug/issues/3312>`_) [see `PR #2750 <https://www.github.com/FlexMeasures/flexmeasures/pull/2750>`_]
 * A forecast hands its trained model to the prediction in memory, instead of writing it to a file and reading it back. A model is kept as a file only when ``model-save-dir`` is given, where each cycle used to leave one behind, often hundreds of MB, under ``flexmeasures/data/models/forecasting/artifacts/models`` relative to the worker's working directory. Hosts can delete that folder after upgrading [see `PR #2701 <https://www.github.com/FlexMeasures/flexmeasures/pull/2701>`_]
 * The UI can work without internet access: the Docker image serves the UI's JavaScript and CSS libraries itself, and a pip-installed FlexMeasures can fetch them once (see :ref:`install-ui-libraries`), while otherwise browsers keep loading them from CDNs; the ``FLEXMEASURES_JS_VERSIONS`` setting now only lists the versions a host wants to differ, optionally with the hashes of their files, so plugins reading it should read the ``js_versions`` template variable instead [see `PR #2711 <https://www.github.com/FlexMeasures/flexmeasures/pull/2711>`_ and `PR #2747 <https://www.github.com/FlexMeasures/flexmeasures/pull/2747>`_]
@@ -143,6 +147,7 @@ Bugfixes
 * A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 * Fixed several ways in which the asset status page misreported its sensors: it reported "no data recorded" for a sensor recorded by a source type it did not know about (such as the ``CLI script`` source under which ``flexmeasures add beliefs`` records), it showed a red light for data that is not knowable yet, which is only a reason for concern for sources that are expected to deliver future data such as forecasters and schedulers, it claimed that every sensor it lists belongs to the asset shown, also for sensors of another asset that are only listed because the asset's flex-context or graphs page refers to them, and it no longer explained a traffic light when hovering it [see `PR #2474 <https://www.github.com/FlexMeasures/flexmeasures/pull/2474>`_]
 * Several FlexMeasures processes starting at once right after a database migration, such as the web server's workers and a CLI command, no longer fail to start because each tried to create the same starter templates [see `PR #2600 <https://www.github.com/FlexMeasures/flexmeasures/pull/2600>`_]
+* Deleting a sensor now unsets it in the flex-model and flex-context references to it that carry a default, bounds or source filters, which used to stay behind pointing at the deleted sensor; the rest of such a reference is kept for when a new sensor is picked, and until then, schedules use its default as a fixed value, or, without a default, ignore the field, so that an ancestor asset's value for it applies [see `PR #2726 <https://www.github.com/FlexMeasures/flexmeasures/pull/2726>`_]
 
 
 Automations, in detail

@@ -404,6 +404,21 @@ def sensor_reference_keys() -> frozenset[str]:
     )
 
 
+def is_unset_sensor_reference(value: Any) -> bool:
+    """Whether a value is a sensor reference whose sensor was unset, which deleting the sensor leaves behind.
+
+    Deleting a sensor keeps the rest of each flex-config reference to it, such as its default, bounds and source filters,
+    so that they are still in place when a new sensor is picked for the field.
+    Only sensor deletion writes such a reference: the API refuses one.
+    """
+    return (
+        isinstance(value, dict)
+        and "sensor" in value
+        and value["sensor"] is None
+        and set(value) <= sensor_reference_keys()
+    )
+
+
 def refuse_unknown_sensor_reference_keys(
     value: dict[str, Any], known: frozenset[str] | set[str] | None = None
 ) -> None:
@@ -627,6 +642,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if value["sensor"] is None:
+            raise FMValidationError(
+                'This sensor reference has no sensor (`"sensor": null`), which is how FlexMeasures marks a reference whose sensor was deleted.'
+                " Pick a sensor for it, or replace the reference with a fixed value."
+            )
         refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
