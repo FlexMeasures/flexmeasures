@@ -110,6 +110,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix ``flexmeasures show beliefs`` ignoring its ``--timezone`` option (now ``--export-timezone``); by default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, instead of in UTC without an offset [see `PR #2695 <https://www.github.com/FlexMeasures/flexmeasures/pull/2695>`_]
 * ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
