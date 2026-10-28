@@ -39,7 +39,7 @@ class _Change:
     member: GenericAsset
     group_asset: GenericAsset | None
     group_label: str
-    what: str  # "joined", "left", "moved", "group deleted" or "report"
+    what: str  # "joined", "left", "moved", "group moved", "group deleted" or "report"
     detail: str = ""
 
 
@@ -438,6 +438,33 @@ def _moves(
         if group_asset is not None and group_asset.id in moved_ids:
             continue
         changes.append(_change(session, member, key, "moved", detail))
+    changes.extend(_members_left_behind(session, subtree, moved_ids, detail))
+    return changes
+
+
+def _members_left_behind(
+    session: Session,
+    subtree: list[GenericAsset],
+    moved_ids: set[int],
+    detail: str,
+) -> list[_Change]:
+    """Note the members that a group in a moved subtree leaves behind.
+
+    A scheduler only finds a group's members on the group's site, so moving the group's own asset to another site takes the members it leaves behind out of the group,
+    just as moving a member away does.
+    A group may be named by its asset or by a sensor on it.
+    """
+    sensor_ids = [sensor.id for asset in subtree for sensor in asset.sensors]
+    changes = []
+    for kind, ids in (("asset", sorted(moved_ids)), ("sensor", sensor_ids)):
+        for member in _members_naming(session, kind, ids):
+            key = _group_key(member.flex_model)
+            if member.id in moved_ids or key is None or key[0] != kind:
+                continue
+            stayed = f", while its member Asset {_label_asset(member)} stayed on site {_label_asset(_site_of(member))}"
+            changes.append(
+                _change(session, member, key, "group moved", detail + stayed)
+            )
     return changes
 
 
@@ -478,6 +505,10 @@ def _write(change: _Change) -> None:
         )
     elif change.what == "report":
         AssetAuditLog.add_record(change.group_asset, f"{member}{change.detail}.")
+    elif change.what == "group moved":
+        AssetAuditLog.add_record(
+            change.group_asset, f"Group {group} moved{change.detail}."
+        )
     elif change.what == "moved":
         AssetAuditLog.add_record(
             change.group_asset,
