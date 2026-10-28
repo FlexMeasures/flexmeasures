@@ -8,6 +8,7 @@ from marshmallow import fields, Schema, validates_schema
 from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
+from pytz import all_timezones_set
 import pandas as pd
 
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
@@ -135,6 +136,20 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         return super()._deserialize(value, attr, data, **kwargs)
 
 
+def validate_storable_belief_time(value: datetime):
+    """Refuse a belief time that pandas cannot represent, so saving it would crash.
+
+    Pandas timestamps span 1677-09-21 to 2262-04-11.
+    Filtering on a later time is fine, so only use this where belief times are stored.
+    """
+    earliest = pd.Timestamp.min.tz_localize("UTC")
+    latest = pd.Timestamp.max.tz_localize("UTC")
+    if not earliest <= value <= latest:
+        raise ValidationError(
+            f"{value.isoformat()} lies outside the range of belief times that can be stored, from {earliest.date()} to {latest.date()}."
+        )
+
+
 class AwareDateTimeOrDateField(AwareDateTimeField):
     """Like AwareDateTimeField, but accepts naive dates, which are localized to the FLEXMEASURES_TIMEZONE.
 
@@ -190,3 +205,19 @@ class StartEndTimeSchema(Schema):
             )
         if data["start_time"] >= data["end_time"]:
             raise ValidationError("start_time must be before end_time.")
+
+
+class TimezoneField(MarshmallowClickMixin, fields.Str):
+    """Field that validates an exact IANA timezone name."""
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> str:
+        value = super()._deserialize(value, attr, obj, **kwargs)
+        if value not in all_timezones_set:
+            # A name in the wrong case, such as "utc", is an easy mistake, so we name the right one.
+            exact_names = {name.lower(): name for name in all_timezones_set}
+            if value.lower() in exact_names:
+                raise FMValidationError(
+                    f"Timezone '{value}' does not exist. Did you mean '{exact_names[value.lower()]}'?"
+                )
+            raise FMValidationError(f"Timezone '{value}' does not exist.")
+        return value
