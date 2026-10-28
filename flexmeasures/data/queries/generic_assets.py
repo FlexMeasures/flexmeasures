@@ -202,6 +202,18 @@ def query_assets_by_search_terms(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> Select:
+    """Build an asset query with optional search terms and deterministic ordering.
+
+    Append ascending asset ID as a tie-breaker when sorting by a supported field;
+    order by ascending asset ID if either sorting argument is omitted or ``sort_by`` is unsupported.
+    This gives a total order for stable LIMIT/OFFSET pagination while the result set is unchanged.
+
+    :param search_terms:     Terms matched against asset names, account names, or numeric asset ID prefixes; None disables searching.
+    :param filter_statement: Additional filter applied to the selected assets.
+    :param sort_by:          Sort field: ``id``, ``name``, or ``owner``.
+    :param sort_dir:         Sort direction: ``asc`` or ``desc``.
+    :returns:                A SQLAlchemy ``Select`` statement with deterministic ordering.
+    """
     select_statement = select(GenericAsset)
 
     # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
@@ -280,14 +292,11 @@ def query_assets_by_search_terms(
                         if sort_dir == "asc"
                         else order_by_column.desc()
                     ),
-                    # Tie-breaker so the result set has a total order,
-                    # otherwise paging can show some rows twice and skip others.
                     asset_alias.id,
                 )
+            else:
+                query = query.order_by(asset_alias.id)
         else:
-            # A total order also protects the unsorted case: without any
-            # ORDER BY, Postgres returns rows in whatever order the query plan
-            # happens to produce, which is not stable across LIMIT/OFFSET pages.
             query = query.order_by(asset_alias.id)
 
     else:
@@ -302,14 +311,11 @@ def query_assets_by_search_terms(
                 )
                 query = query.order_by(
                     order_by_clause,
-                    # Tie-breaker so the result set has a total order,
-                    # otherwise paging can show some rows twice and skip others.
                     GenericAsset.id,
                 )
+            else:
+                query = query.order_by(GenericAsset.id)
         else:
-            # A total order also protects the unsorted case: without any
-            # ORDER BY, Postgres returns rows in whatever order the query plan
-            # happens to produce, which is not stable across LIMIT/OFFSET pages.
             query = query.order_by(GenericAsset.id)
     return query
 

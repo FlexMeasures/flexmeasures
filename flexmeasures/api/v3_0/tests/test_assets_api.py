@@ -300,6 +300,45 @@ def test_get_assets_paging_without_sort_sees_all_assets(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_unsupported_sort_by_still_orders_by_id(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """An unsupported sort_by must not silently drop the ordering.
+
+    The public API validates sort_by, but query_assets_by_search_terms is a utility other callers
+    may use; an unsupported field used to leave the query unordered, which reintroduces the unstable
+    paging from #2572. We assert the ordering on the compiled statement rather than on observed row
+    order, since an unordered query may happen to return ascending ids.
+    """
+    from flexmeasures.data.queries.generic_assets import (
+        query_assets_by_search_terms,
+    )
+
+    for search_terms, filter_statement in (
+        (None, True),
+        (["e"], GenericAsset.account_id.isnot(None)),
+    ):
+        for sort_dir in ("asc", "desc"):
+            query = query_assets_by_search_terms(
+                search_terms=search_terms,
+                filter_statement=filter_statement,
+                sort_by="unsupported_field",
+                sort_dir=sort_dir,
+            )
+            compiled = query.compile(compile_kwargs={"literal_binds": False})
+            compiled_str = str(compiled)
+            assert "ORDER BY" in compiled_str, compiled_str[-200:]
+            order_by_clause = compiled_str.split("ORDER BY")[-1]
+            # exactly one ordering expression: the asset id, ascending
+            assert order_by_clause.strip() in (
+                "anon_1.id ASC",
+                "anon_1.id",
+                "generic_asset.id ASC",
+                "generic_asset.id",
+            ), order_by_clause
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
