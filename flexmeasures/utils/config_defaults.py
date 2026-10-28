@@ -191,22 +191,16 @@ class Config(object):
         True  # Flask-Limiter's own switch, to turn off rate limiting altogether
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
+    FLEXMEASURES_UI_RATE_LIMIT: str = (
+        "100 per minute"  # per user, for the API calls the UI makes with the user's session
+    )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
-    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
-        "account"  # what to count triggers against: "account", "account+asset" or "user"
-    )
-    FLEXMEASURES_JS_VERSIONS: dict = dict(
-        vega="5.22.1",
-        vegaembed="6.21.0",
-        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
-        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
-        currencysymbolmap="5.1.0",
-        jsoneditor="2.15.2",
-        leaflet="1.9.4",
-        leafletmarkercluster="1.5.3",
-        leafletmarkerclusterlayersupport="2.0.1",
-        # todo: expand with other js versions used in FlexMeasures
-    )
+    # Deprecated, and ignored: triggers are always counted per account
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
+    # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
+    FLEXMEASURES_JS_VERSIONS: dict = {}
+    # Fetch the UI's libraries in the background, so FlexMeasures serves them itself rather than browsers loading them from CDNs
+    FLEXMEASURES_FETCH_UI_LIBRARIES: bool = True
     FLEXMEASURES_JSON_COMPACT = False
     OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
@@ -297,6 +291,7 @@ class TestingConfig(Config):
     DEBUG: bool = True  # this seems to be important for logging in, not sure why
     LOGGING_LEVEL: int = logging.INFO
     FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = False
+    FLEXMEASURES_FETCH_UI_LIBRARIES: bool = False
     WTF_CSRF_ENABLED: bool = False  # also necessary for logging in during tests
 
     SECRET_KEY: str = "dummy-key-for-testing"
@@ -327,6 +322,7 @@ class TestingConfig(Config):
     # but its limits are set so high that only the rate limiting tests, which lower them, will hit them.
     RATELIMIT_STORAGE_URI: str = "memory://"
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA

@@ -5,6 +5,9 @@ from functools import wraps
 from flask import url_for
 
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
+from flexmeasures.data.services.data_ingestion import (
+    BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE,
+)
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
@@ -62,9 +65,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
     )
 
 
-@BaseMessage(
-    "Some of the data represents a replacement: existing values would be changed for the same sensor, source, event timestamp and belief time. This is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, submit the data with a different prior, or check whether the same file was already uploaded with different values."
-)
+@BaseMessage(BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE)
 def invalid_replacement(message: str) -> ResponseTuple:
     return (
         dict(

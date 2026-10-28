@@ -7,7 +7,13 @@
  * should be defined here to promote reusability and cleaner template files.
  */
 
-import { getAsset, getAccount, getSensor, apiBasePath } from "./ui-utils.js";
+import {
+  getAsset,
+  getAccountOfAsset,
+  lookUpSensor,
+  apiBasePath,
+  missingSensorLabel,
+} from "./ui-utils.js";
 
 /**
  * Helper function to add key-value information to a container.
@@ -35,6 +41,37 @@ const addInfo = (label, value, infoDiv, resource, isLink = false) => {
 };
 
 /**
+ * The icon which takes a sensor out of the graph it is configured in.
+ *
+ * @param {function} removeAssetPlotFromGraph - What to call to take the sensor out; nothing happens without a plot index.
+ * @param {number} graphIndex - The index of the graph in the sensors_to_show array.
+ * @param {number} plotIndex - The index of the sensor's plot within the graph's plots array.
+ * @param {number} sensorIndex - The index of the sensor within the plot's sensors array.
+ * @returns {HTMLElement} The icon element.
+ */
+const removeSensorIcon = (
+  removeAssetPlotFromGraph,
+  graphIndex,
+  plotIndex,
+  sensorIndex,
+) => {
+  const closeIcon = document.createElement("i");
+  closeIcon.className = "fa fa-times";
+  closeIcon.style.cursor = "pointer";
+  closeIcon.setAttribute("data-bs-toggle", "tooltip");
+  closeIcon.title = "Remove Sensor";
+
+  closeIcon.addEventListener("click", (e) => {
+    if (plotIndex !== null) {
+      e.stopPropagation(); // Prevent card selection click
+      removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex);
+    }
+  });
+
+  return closeIcon;
+};
+
+/**
  * Renders a card representing an Asset Plot configuration.
  *
  * Creates a visual element displaying the Asset ID, Name, and its associated
@@ -44,7 +81,7 @@ const addInfo = (label, value, infoDiv, resource, isLink = false) => {
  *                             Expected structure: { asset: <id>, "flex-context"?: <string>, "flex-model"?: <string> }
  * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
  * @param {number} plotIndex - The index of this specific plot within the graph's plots array.
- * @returns {Promise<HTMLElement>} The constructed HTML element representing the card.
+ * @returns {Promise<{element: HTMLElement, missing: boolean}>} The card, and whether the sensor its flex config refers to is gone.
  */
 export async function renderAssetPlotCard(
   assetPlot,
@@ -128,7 +165,7 @@ export async function renderAssetPlotCard(
     flexDiv.appendChild(infoDiv);
     flexDiv.appendChild(closeIcon);
     container.appendChild(flexDiv);
-    return container;
+    return { element: container, missing: false };
   }
   const isSensorReference =
     typeof valueToDisplay === "object" &&
@@ -137,8 +174,12 @@ export async function renderAssetPlotCard(
     Object.prototype.hasOwnProperty.call(valueToDisplay, "sensor") &&
     Number.isInteger(valueToDisplay.sensor);
 
+  let missing = false;
   if (isSensorReference) {
     try {
+      // The asset is looked up afresh on every render, so the sensor its flex config refers to is too:
+      // the editor only forgets the sensors a plot names itself when it opens,
+      // and this one could otherwise still show as the sensor it was when we last looked.
       const sensorReference = await renderSensorCard(
         valueToDisplay.sensor,
         graphIndex,
@@ -146,7 +187,9 @@ export async function renderAssetPlotCard(
         null,
         null,
         true,
+        false,
       );
+      missing = sensorReference.missing;
       const sensorElement = sensorReference.element;
       sensorElement.classList.remove("mb-3");
       infoDiv.appendChild(sensorElement);
@@ -168,7 +211,7 @@ export async function renderAssetPlotCard(
   flexDiv.appendChild(closeIcon);
   container.appendChild(flexDiv);
 
-  return container;
+  return { element: container, missing };
 }
 
 /**
@@ -183,7 +226,8 @@ export async function renderAssetPlotCard(
  * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraph is provided.
  * @param {number} [sensorIndex=null] - The index of this sensor within the plot's sensors array, required if removeAssetPlotFromGraph is provided.
  * @param {boolean} [childRender=false] - Internal flag to indicate if this render is part of a nested call (e.g., rendering a sensor reference within an asset plot card).
- * @returns {Promise<{element: HTMLElement, unit: string}>} An object containing the card element and the sensor's unit.
+ * @param {boolean} [useCache=true] - Whether a remembered copy of the sensor may be shown.
+ * @returns {Promise<{element: HTMLElement, unit: string|null, missing: boolean}>} An object containing the card element, the sensor's unit (null if the sensor could not be looked up), and whether the API says the sensor is gone.
  */
 export async function renderSensorCard(
   sensorId,
@@ -192,10 +236,11 @@ export async function renderSensorCard(
   plotIndex = null,
   sensorIndex = null,
   childRender = false,
+  useCache = true,
 ) {
-  const Sensor = await getSensor(sensorId);
-  const Asset = await getAsset(Sensor.generic_asset_id);
-  const Account = await getAccount(Asset.account_id);
+  const { resource: Sensor, gone } = await lookUpSensor(sensorId, useCache);
+  const Asset = Sensor === null ? null : await getAsset(Sensor.generic_asset_id);
+  const Account = await getAccountOfAsset(Asset);
 
   const container = document.createElement("div");
   container.className = `mb-3 border-secondary ${childRender ? "pt-2 pb-1" : "p-1 border-bottom"}`;
@@ -204,6 +249,30 @@ export async function renderSensorCard(
   flexDiv.className = "d-flex justify-content-between";
 
   const infoDiv = document.createElement("div");
+
+  // A graph can still refer to a sensor which is gone, so name the reference and leave the card removable,
+  // rather than letting the whole dialogue fail to render.
+  // Only a sensor the API says does not exist is called gone; any other failed lookup only says it could not be loaded.
+  // Either card keeps the remove control every sensor card has, as a reference the user cannot read is one they may want gone too.
+  if (Sensor === null) {
+    const missingInfo = document.createElement("div");
+    missingInfo.className = "text-warning";
+    missingInfo.textContent = missingSensorLabel(sensorId, gone);
+    infoDiv.appendChild(missingInfo);
+    flexDiv.appendChild(infoDiv);
+    if (!childRender) {
+      flexDiv.appendChild(
+        removeSensorIcon(
+          removeAssetPlotFromGraph,
+          graphIndex,
+          plotIndex,
+          sensorIndex,
+        ),
+      );
+    }
+    container.appendChild(flexDiv);
+    return { element: container, unit: null, missing: gone };
+  }
 
   addInfo(
     `${childRender ? "Sensor ID" : "ID"}`,
@@ -221,32 +290,35 @@ export async function renderSensorCard(
   spacer.style.paddingTop = "1px";
   infoDiv.appendChild(spacer);
 
-  addInfo("Asset", Asset.name, infoDiv, Asset);
+  addInfo(
+    "Asset",
+    Asset === null ? "unknown" : Asset.name,
+    infoDiv,
+    Asset || {},
+  );
   infoDiv.appendChild(document.createTextNode(", "));
-  addInfo("Account", Account?.name ? Account.name : "PUBLIC", infoDiv, Account);
-
-  const closeIcon = document.createElement("i");
-  closeIcon.className = "fa fa-times";
-  closeIcon.style.cursor = "pointer";
-  closeIcon.setAttribute("data-bs-toggle", "tooltip");
-  closeIcon.title = "Remove Sensor";
-
-  // Attach the actual function here
-  closeIcon.addEventListener("click", (e) => {
-    if (plotIndex !== null) {
-      e.stopPropagation(); // Prevent card selection click
-      removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex);
-    }
-  });
+  addInfo(
+    "Account",
+    Account?.name ? Account.name : "PUBLIC",
+    infoDiv,
+    Account || {},
+  );
 
   flexDiv.appendChild(infoDiv);
   if (!childRender) {
-    flexDiv.appendChild(closeIcon);
+    flexDiv.appendChild(
+      removeSensorIcon(
+        removeAssetPlotFromGraph,
+        graphIndex,
+        plotIndex,
+        sensorIndex,
+      ),
+    );
   }
   container.appendChild(flexDiv);
 
-  // Return both the element and the unit (so we can check for mixed units later)
-  return { element: container, unit: Sensor.unit };
+  // Return the element and the unit (so we can check for mixed units later), and whether the sensor is still there.
+  return { element: container, unit: Sensor.unit, missing: false };
 }
 
 /**
@@ -259,7 +331,7 @@ export async function renderSensorCard(
  * @param {number} graphIndex - The index of the parent graph being rendered.
  * @param {function} [removeAssetPlotFromGraphV2=null] - Optional function to remove the sensor's plot from the graph when the close icon is clicked.
  * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraphV2 is provided.
- * @returns {Promise<{element: HTMLElement, uniqueUnits: string[]}>} An object containing the container element with all sensors and a list of unique units found.
+ * @returns {Promise<{element: HTMLElement, uniqueUnits: string[], missingCount: number}>} An object containing the container element with all sensors, a list of unique units found, and how many of the sensors are gone.
  */
 export async function renderSensorsList(
   sensorIds,
@@ -272,7 +344,7 @@ export async function renderSensorsList(
 
   if (sensorIds.length === 0) {
     listContainer.innerHTML = `<div class="alert alert-warning">No sensors added to this graph.</div>`;
-    return { element: listContainer, uniqueUnits: [] };
+    return { element: listContainer, uniqueUnits: [], missingCount: 0 };
   }
 
   // Using Promise.all to maintain order and wait for all sensors
@@ -290,8 +362,15 @@ export async function renderSensorsList(
 
   results.forEach((res) => {
     listContainer.appendChild(res.element);
-    units.push(res.unit);
+    // A sensor we could not look up has no unit to compare, and so cannot make the units of a graph mixed.
+    if (res.unit !== null) {
+      units.push(res.unit);
+    }
   });
 
-  return { element: listContainer, uniqueUnits: [...new Set(units)] };
+  return {
+    element: listContainer,
+    uniqueUnits: [...new Set(units)],
+    missingCount: results.filter((res) => res.missing).length,
+  };
 }

@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 
 from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
@@ -78,7 +78,6 @@ def test_add_plan(app, fresh_db):
     cli_input = {
         "name": "Pro",
         "trigger-rate-limit": "60 per 5 minutes",
-        "rate-limit-key": "account",
         "max-assets": 200,
     }
     runner = app.test_cli_runner()
@@ -89,7 +88,6 @@ def test_add_plan(app, fresh_db):
 
     plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
     assert plan.trigger_rate_limit == "60 per 5 minutes"
-    assert plan.rate_limit_key == RateLimitKey.ACCOUNT
     assert plan.max_assets == 200
     # Fields we did not set fall back on the server-wide config settings
     assert plan.default_rate_limit is None
@@ -110,6 +108,24 @@ def test_add_plan_with_invalid_rate_limit(app, fresh_db):
     assert result.exit_code != 0
     assert "not a valid rate limit" in result.output
     assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
+
+
+def test_add_plan_with_several_rate_limits(app, fresh_db):
+    """A rate limit is one limit, so a string holding several (which Flask-Limiter would take) is refused."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan,
+        to_flags(
+            {"name": "Layered", "trigger-rate-limit": "10 per minute; 100 per hour"}
+        ),
+    )
+
+    assert result.exit_code != 0
+    assert "holds 2 rate limits" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Layered")).scalar() is None
 
 
 def test_edit_plan(app, fresh_db):
@@ -1225,6 +1241,46 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
         event_ends_before="2023-04-10T10:00:00+00:00",
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+
+@pytest.mark.parametrize(
+    "flags, config_saved",
+    [([], True), (["--save-config"], True), (["--no-save-config"], False)],
+)
+def test_add_report_saves_its_config_unless_told_not_to(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, flags, config_saved
+):
+    """A report's data source holds the config the report was computed under, unless `--no-save-config` is passed.
+
+    That tells reports computed under different configs apart, and lets `--source` compute one again.
+    """
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+    cli_input = _report_cli_input(
+        tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+    )
+
+    check_command_ran_without_error(
+        runner.invoke(add_report, to_flags(cli_input) + flags)
+    )
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after=cli_input["start"], event_ends_before=cli_input["end"]
+    )
+    data_generator = stored_report.sources[0].attributes["data_generator"]
+    if config_saved:
+        reporter_config = yaml.safe_load(
+            (tmp_path / "reporter_config.yaml").read_text()
+        )
+        assert (
+            data_generator["config"]["transformations"]
+            == reporter_config["transformations"]
+        )
+    else:
+        assert "config" not in data_generator
 
 
 def test_add_report_says_when_a_rerun_saves_nothing_new(
