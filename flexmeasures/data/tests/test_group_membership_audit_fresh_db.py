@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -149,6 +150,26 @@ def test_a_malformed_group_does_not_fail_the_flush(fresh_db, streets, group):
     add_pv(fresh_db, streets, group)
 
     assert membership_events_on(fresh_db, streets["north_street"]) == []
+
+
+def test_a_change_from_a_failed_flush_is_not_noted_later(fresh_db, streets):
+    """The flush that would have added the member fails, so its group should not hear of it with the next flush."""
+    street = streets["north_street"]
+    duplicate = GenericAsset(
+        name="House",  # the north site already has a child called House
+        generic_asset_type=streets["type"],
+        parent_asset=streets["north"],
+        flex_model={"group": {"asset": street.id}},
+    )
+    fresh_db.session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        fresh_db.session.flush()
+    fresh_db.session.rollback()
+
+    streets["south"].name = "South side"
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street) == []
 
 
 def test_a_member_moved_to_another_site_is_noted(fresh_db, streets):

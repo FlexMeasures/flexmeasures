@@ -92,6 +92,8 @@ def _members_naming(session: Session, kind: str, ids: list[int]) -> list[Generic
 
 def _find_changes(session: Session, flush_context, instances) -> None:
     """Work out, before the flush, which group memberships it changes."""
+    # changes found before a flush that failed were never made, so they are dropped rather than noted with the next flush
+    session.info.pop(_PENDING_KEY, None)
     new = [obj for obj in session.new if isinstance(obj, GenericAsset)]
     dirty = [
         obj
