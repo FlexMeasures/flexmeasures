@@ -221,6 +221,9 @@
           "403": {
             "description": "INVALID_SENDER"
           },
+          "404": {
+            "description": "NOT_FOUND"
+          },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
           },
@@ -1793,7 +1796,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nBy default, FlexMeasures records the data at the time of upload.\nSet belief-time-measured-instantly to record each value when its event ended,\nor set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -7764,6 +7767,15 @@
               "null"
             ],
             "default": false
+          },
+          "prior": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
+            "example": "2026-10-15T12:00:00+02:00"
           },
           "unit": {
             "type": "string"

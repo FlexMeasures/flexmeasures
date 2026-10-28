@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import pytest
 import time
+from contextlib import contextmanager
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from pytz import UTC
 
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy import text
+from sqlalchemy import false, select, text
+from sqlalchemy.exc import IntegrityError
 
-from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_UNIQUE_INDEX,
+    keep_latest_version,
+    DataSource,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.time_series import Sensor
@@ -338,28 +345,116 @@ def test_get_or_create_source_stable_under_key_order(db, app):
     )
 
 
-def test_get_or_create_source_reuses_oldest_duplicate(db, app):
-    """get_or_create_source must tolerate duplicate sources, and consistently reuse the oldest one.
+SCHEDULER_SOURCE_FIELDS = dict(
+    type="scheduler",
+    model="StorageScheduler",
+    version="1",
+    attributes={"data_generator": {"config": {}}},
+)
 
-    Two concurrent calls can each insert the same source, because the unique constraint on data sources treats NULL user and account IDs as distinct.
-    Every later call then found two matching rows, and failed with MultipleResultsFound (#2611).
+
+def test_duplicate_sources_without_user_or_account_are_refused(db, app):
+    """The database must refuse a second identical source, also when the source has no user or account.
+
+    The unique constraint on data sources used to treat those NULL IDs as distinct,
+    so concurrent calls to get_or_create_source could each insert the same source,
+    after which every lookup failed with MultipleResultsFound (#2611).
+    """
+    identity = dict(name="test-refused-duplicate-source", **SCHEDULER_SOURCE_FIELDS)
+    db.session.add(DataSource(**identity))
+    db.session.flush()
+
+    with pytest.raises(IntegrityError, match="data_source_identity_idx"):
+        with db.session.begin_nested():
+            db.session.add(DataSource(**identity))
+
+
+def test_a_lookup_leaving_out_the_version_takes_the_oldest_matching_source(db, app):
+    """A lookup that leaves out a source's model, version or attributes matches any of them, so it may find several distinct sources.
+
+    The unique index only rules out two sources that agree on all of them,
+    so such a lookup takes the oldest match rather than fail, as `flexmeasures add beliefs --source <name>` does.
     """
     from flexmeasures.data.services.data_sources import get_or_create_source
 
-    identity = dict(
-        name="test-duplicate-source",
-        type="scheduler",
-        model="StorageScheduler",
-        version="1",
-        attributes={"data_generator": {"config": {}}},
+    oldest = DataSource(name="test-versioned-script", type="CLI script", version="1")
+    db.session.add(oldest)
+    db.session.flush()
+    db.session.add(
+        DataSource(name="test-versioned-script", type="CLI script", version="2")
     )
-    older, newer = DataSource(**identity), DataSource(**identity)
-    db.session.add(older)
     db.session.flush()
-    db.session.add(newer)
-    db.session.flush()
-    assert older.id < newer.id
 
+    source = get_or_create_source("test-versioned-script", source_type="CLI script")
+
+    assert source.id == oldest.id
+
+
+def test_get_data_source_finds_a_source_with_an_empty_model_and_version(db, app):
+    """A script's source with an empty model and version is the one it asks for when it names neither.
+
+    The unique index counts an empty model or version as equal to none,
+    so the migration merging duplicates may keep a source with empty ones, which a lookup for none has to find,
+    rather than insert a source the index refuses.
+    """
+    from flexmeasures.data.utils import get_data_source
+
+    existing = DataSource(
+        name="test-script-source", type="script", model="", version=""
+    )
+    db.session.add(existing)
+    db.session.flush()
+
+    assert get_data_source("test-script-source").id == existing.id
+
+
+def test_get_or_create_source_finds_a_source_without_a_model_and_version_when_asked_for_empty_ones(
+    db, app
+):
+    """The unique index counts an empty model or version as equal to none, so a lookup for empty ones has to find a source with none.
+
+    Otherwise the source would go unfound, and inserting another would be refused by the index.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    existing = DataSource(name="test-script-source-without-model", type="script")
+    db.session.add(existing)
+    db.session.flush()
+    assert existing.model is None and existing.version is None
+
+    assert (
+        get_or_create_source(
+            "test-script-source-without-model",
+            source_type="script",
+            model="",
+            version="",
+        ).id
+        == existing.id
+    )
+
+
+def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch):
+    """get_or_create_source must use the source another transaction inserted since it looked one up, rather than fail.
+
+    The first lookup is made to miss an existing source, as it would when another transaction inserts it concurrently.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    identity = dict(name="test-racing-source", **SCHEDULER_SOURCE_FIELDS)
+    existing = DataSource(**identity)
+    db.session.add(existing)
+    db.session.flush()
+
+    execute = db.session.execute
+    lookups = []
+
+    def miss_first_lookup(statement, *args, **kwargs):
+        if not lookups:
+            lookups.append(statement)
+            return execute(select(DataSource).where(false()))
+        return execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db.session, "execute", miss_first_lookup)
     source = get_or_create_source(
         identity["name"],
         source_type=identity["type"],
@@ -368,7 +463,98 @@ def test_get_or_create_source_reuses_oldest_duplicate(db, app):
         attributes=identity["attributes"],
     )
 
-    assert source.id == older.id
+    assert lookups, "the lookup was not made to miss"
+    assert source.id == existing.id
+
+
+def test_add_and_flush_source_reraises_other_integrity_errors(db, app, monkeypatch):
+    """Only a lost race to insert the same source is recovered from, so that other integrity errors surface as they are."""
+    from flexmeasures.data.services.data_sources import add_and_flush_source
+
+    class OtherConstraintViolation(Exception):
+        diag = SimpleNamespace(constraint_name="some_other_key")
+
+    @contextmanager
+    def violate_other_constraint():
+        raise IntegrityError("INSERT ...", {}, OtherConstraintViolation())
+        yield
+
+    monkeypatch.setattr(db.session, "begin_nested", violate_other_constraint)
+    with pytest.raises(IntegrityError, match="OtherConstraintViolation"):
+        add_and_flush_source(
+            DataSource(
+                name="test-source-violating-another-constraint", type="scheduler"
+            ),
+            select(DataSource).where(false()),
+        )
+
+
+def test_add_and_flush_source_reraises_when_no_source_was_inserted(
+    db, app, monkeypatch
+):
+    """A violation of the unique index that the lookup cannot resolve must surface, rather than return nothing.
+
+    That would mean the lookup does not match the index after all.
+    """
+    from flexmeasures.data.services.data_sources import add_and_flush_source
+
+    class IdentityIndexViolation(Exception):
+        diag = SimpleNamespace(constraint_name=DATA_SOURCE_UNIQUE_INDEX)
+
+    @contextmanager
+    def violate_identity_index():
+        raise IntegrityError("INSERT ...", {}, IdentityIndexViolation())
+        yield
+
+    monkeypatch.setattr(db.session, "begin_nested", violate_identity_index)
+    with pytest.raises(IntegrityError, match="IdentityIndexViolation"):
+        add_and_flush_source(
+            DataSource(name="test-unresolvable-source", type="scheduler"),
+            select(DataSource).where(false()),
+        )
+
+
+def test_get_data_source_recovers_from_losing_the_race(db, app, monkeypatch):
+    """get_data_source must use the source another transaction inserted since it looked one up, rather than fail."""
+    from flexmeasures.data.utils import get_data_source
+
+    existing = DataSource(name="test-racing-script", type="script", model="M")
+    db.session.add(existing)
+    db.session.flush()
+
+    execute = db.session.execute
+    lookups = []
+
+    def miss_first_lookup(statement, *args, **kwargs):
+        if not lookups:
+            lookups.append(statement)
+            return execute(select(DataSource).where(false()))
+        return execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db.session, "execute", miss_first_lookup)
+    source = get_data_source("test-racing-script", data_source_model="M")
+
+    assert lookups, "the lookup was not made to miss"
+    assert source.id == existing.id
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ({"consumption-price": {"sensor": 1, "sources": [3, 4]}}, {3, 4}),
+        ([{"sensor": 1, "source": 5}, {"sensor": 2, "user_source_ids": [6]}], {5, 6}),
+        ({"data_source_id": 10, "parameters": {}}, {10}),
+        ({"data_source_id": True}, set()),
+        # a "source" key only holds a source ID next to a "sensor" key
+        ({"source": 7}, set()),
+        ({"sensor": 1, "sources": [True, "8"]}, set()),
+        ({"nested": [{"deeper": {"sensor": 1, "sources": [9]}}]}, {9}),
+    ],
+)
+def test_find_referenced_source_ids(value, expected):
+    from flexmeasures.data.services.data_sources import find_referenced_source_ids
+
+    assert find_referenced_source_ids(value) == expected
 
 
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
@@ -677,3 +863,44 @@ def test_a_detached_source_is_refreshed_into_its_own_organisations_source(
     assert (
         refreshed.id == stored.id
     ), "it finds the organisation's own source, rather than making a second one"
+
+
+def test_get_data_source_finds_the_source_of_the_organisation_it_is_asked_about(
+    db, setup_accounts
+):
+    """A script's source belongs to an organisation like any other, so the lookup has to say which.
+
+    Two organisations running the same script have a source each; without naming one,
+    the lookup used to find both where it expected one, and raised rather than returning either.
+    """
+    from flexmeasures.data.utils import get_data_source
+
+    prosumer, supplier = setup_accounts["Prosumer"], setup_accounts["Supplier"]
+    for account in (prosumer, supplier):
+        db.session.add(
+            DataSource(
+                name="shared script",
+                type="script",
+                model="Importer",
+                version="1",
+                account=account,
+            )
+        )
+    db.session.flush()
+
+    for account in (prosumer, supplier):
+        found = get_data_source(
+            data_source_name="shared script",
+            data_source_model="Importer",
+            data_source_version="1",
+            account=account,
+        )
+        assert found.account_id == account.id
+
+    # Naming no organisation asks for the host's own source, which is created rather than borrowed from an organisation.
+    hosts_own = get_data_source(
+        data_source_name="shared script",
+        data_source_model="Importer",
+        data_source_version="1",
+    )
+    assert hosts_own.account_id is None

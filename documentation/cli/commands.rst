@@ -73,6 +73,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
 ``flexmeasures edit plan``                        Edit a plan's name, rate limits and quotas, or retire it.
+``flexmeasures edit reset-rate-limit``            Reset an account's rate limits, so that its requests are accepted again straight away.
 ``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
@@ -121,6 +122,7 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
+``flexmeasures jobs check-source-references``     List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
 ``flexmeasures jobs run-automations``             Handle due and missed forecast automation runs (invoke once per minute, e.g. via cron).
 ================================================= =======================================
 
