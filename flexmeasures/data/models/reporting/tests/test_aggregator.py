@@ -1274,7 +1274,8 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
         "max_future_staleness": "-PT12H",
     }
     now = datetime(2026, 7, 2, 2, tzinfo=utc)
-    last_event = datetime(2026, 7, 1, 23, 45, tzinfo=utc)
+    # judged once it ended at least two hours ago, and its member had one resolution to report on it
+    partial_event = datetime(2026, 7, 1, 23, 30, tzinfo=utc)
 
     def report(belief_time):
         result = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
@@ -1294,7 +1295,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
 
     late = None
     try:
-        restore_beliefs(hp_power, last_event)
+        restore_beliefs(hp_power, partial_event)
         report(datetime(2026, 7, 2, tzinfo=utc))
         # half an hour after the event, the next run may still complete it
         assert (
@@ -1313,7 +1314,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
             db.select(DataSource).filter_by(name="nested meter")
         ).scalar_one()
         late = TimedBelief(
-            event_start=last_event,
+            event_start=partial_event,
             belief_horizon=-timedelta(minutes=30),
             event_value=40,
             sensor=hp_power,
@@ -1381,7 +1382,7 @@ def test_the_status_goes_by_the_aggregate_a_consumer_picks(setup_nested_groups, 
     try:
         statuses = get_statuses(
             aggregate,
-            now=datetime(2026, 7, 2, 2, tzinfo=utc),
+            now=datetime(2026, 7, 2, 2, 15, tzinfo=utc),
             status_specs={
                 "staleness_search": {},
                 "max_staleness": "PT2H",
@@ -1397,6 +1398,84 @@ def test_the_status_goes_by_the_aggregate_a_consumer_picks(setup_nested_groups, 
         db.session.delete(aggregate)
         db.session.delete(partial)
         db.session.delete(complete)
+        db.session.commit()
+
+
+def test_the_status_waits_for_a_member_of_a_coarser_resolution(setup_nested_groups, db):
+    """A member recording hourly reports on a quarter only once its hour is over, so the status judges a partial aggregate only once that member had the chance to.
+
+    Otherwise, a group with such a member would show a yellow light for about half of every hour, with nothing faulty.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street coarse member test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    hourly_member = Sensor(
+        "hourly member",
+        generic_asset=street,
+        event_resolution=timedelta(hours=1),
+        unit="kW",
+        timezone="UTC",
+    )
+    db.session.add_all([aggregate, hourly_member])
+    db.session.flush()
+    partial = DataSource(
+        name="Seita",
+        type="reporter",
+        model="AggregatorReporter",
+        version="2",
+        attributes={
+            "data_generator": {"config": {"missing-members": [hourly_member.id]}}
+        },
+    )
+    db.session.add(partial)
+    db.session.flush()
+    db.session.add(
+        TimedBelief(
+            event_start=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=datetime(2026, 7, 2, 0, 20, tzinfo=utc),
+            event_value=0.16,
+            sensor=aggregate,
+            source=partial,
+        )
+    )
+    db.session.commit()
+
+    def missing_members(now):
+        statuses = get_statuses(
+            aggregate,
+            now=now,
+            status_specs={
+                "staleness_search": {},
+                "max_staleness": "PT30M",
+                "max_future_staleness": "-PT12H",
+            },
+        )
+        return next(
+            status for status in statuses if status["source_type"] == "reporter"
+        )["missing_members"]
+
+    try:
+        # the quarter ended 45 minutes ago, but the hourly member reports on it only after 1:00
+        assert missing_members(datetime(2026, 7, 2, 1, tzinfo=utc)) == []
+        # by now, the member had its hour and half an hour more to report
+        assert [
+            member["id"]
+            for member in missing_members(datetime(2026, 7, 2, 1, 45, tzinfo=utc))
+        ] == [hourly_member.id]
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.delete(hourly_member)
+        db.session.delete(partial)
         db.session.commit()
 
 
