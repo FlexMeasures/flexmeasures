@@ -2103,8 +2103,7 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
-            For data recorded by a reporter, `missing-members` lists the sensors that the most recent aggregate of a device group had to leave out, because they did not report, judging only an aggregate old enough to count as stale and whose slowest member had the chance to report on it, since the next run may still complete a newer one.
-            The field is left out where no member is missing.
+            Data that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2145,7 +2144,9 @@ class SensorAPI(FlaskView):
                           relation: "sensor belongs to this asset"
                     partial_aggregate:
                       summary: An aggregate leaving out a member
-                      description: The status of a device group's aggregate, whose most recent settled aggregate left out the heat pump's meter
+                      description: |
+                        The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
+                        `missing-members` lists the sensors left out, and is left out itself where no member is missing.
                       value:
                         - staleness: "PT6M"
                           stale: false
