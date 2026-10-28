@@ -2142,7 +2142,7 @@ class SensorAPI(FlaskView):
                           asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
-                    partial_aggregate:
+                    partial-aggregate:
                       summary: An aggregate leaving out a member
                       description: |
                         The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
