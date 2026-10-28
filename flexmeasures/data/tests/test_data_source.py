@@ -264,6 +264,42 @@ def test_keep_last_version():
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1])
 
 
+def test_keep_latest_version_prefers_a_complete_aggregate_of_the_same_belief_time():
+    """A complete aggregate replaces a partial one recorded with the same belief time, also where every belief is kept, as on a sensor's chart.
+
+    The partial source tends to have the higher id, since a report creates its complete source first.
+    """
+    sensor = tb.Sensor("aggregate", event_resolution=timedelta(hours=1))
+    complete = DataSource(
+        name="Seita", model="AggregatorReporter", type="reporter", id=1
+    )
+    partial = DataSource(
+        name="Seita",
+        model="AggregatorReporter",
+        type="reporter",
+        id=2,
+        attributes={"data_generator": {"config": {"missing-members": [3]}}},
+    )
+    bdf = tb.BeliefsDataFrame(
+        [
+            tb.TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start="2026-07-01T10:00+00",
+                belief_horizon="PT0H",
+                event_value=value,
+            )
+            for source, value in ((partial, 0.16), (complete, 0.12))
+        ]
+    )
+    for one_deterministic in (False, True):
+        kept = keep_latest_version(
+            bdf, one_deterministic_belief_per_event=one_deterministic
+        )
+        assert list(kept.sources) == [complete]
+        assert kept["event_value"].values == pytest.approx([0.12])
+
+
 def test_keep_latest_version_preserves_probabilistic_splits():
     sensor = tb.Sensor("X", event_resolution=timedelta(hours=1))
     s1v1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
@@ -683,9 +719,11 @@ def test_keep_latest_version_equivalence():
             incumbent = winners.get(key)
             if incumbent is None or (
                 Version(source.version or "0.0.0"),
+                not source.missing_members,
                 source.id if source.id is not None else -1,
             ) > (
                 Version(incumbent.version or "0.0.0"),
+                not incumbent.missing_members,
                 incumbent.id if incumbent.id is not None else -1,
             ):
                 winners[key] = source
@@ -706,6 +744,18 @@ def test_keep_latest_version_equivalence():
             version=rng.choice([None, "0.1.0", "0.2.0", "1.0.0"]),
         )
         for i in range(6)
+    ]
+    # a partial aggregate of each, which ranks behind it despite its higher id
+    sources += [
+        DataSource(
+            id=source.id + 6 if source.id is not None else None,
+            name=source.name,
+            model=source.model,
+            type=source.type,
+            version=source.version,
+            attributes={"data_generator": {"config": {"missing-members": [3]}}},
+        )
+        for source in sources
     ]
     event_starts = pd.date_range("2025-01-01", periods=5, freq="1h", tz="UTC")
     belief_times = pd.date_range("2024-12-31", periods=3, freq="1h", tz="UTC")

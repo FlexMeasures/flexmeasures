@@ -32,6 +32,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     SourceIdField,
 )
+from flexmeasures.data.services.generic_assets import delete_asset
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
@@ -277,7 +278,7 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
             f"Delete {asset.__repr__()}, including all its sensors, data and children?"
         )
         click.confirm(prompt, abort=True)
-    db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
+    delete_asset(asset)
     db.session.commit()
 
 
