@@ -80,20 +80,36 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         fields.Int(),
         required=False,
         data_key="resolved-members",
+        # not dump-only, since the config saved on a data source, holding this field, is loaded again to run the report again
         metadata=dict(
-            description="Filled in by the reporter with the sensors the group resolved to, so that a report can be traced to the devices it aggregated, and a changed membership is recorded by a different data source. Anything given here is overwritten.",
+            readOnly=True,
+            description="Read-only: filled in by the reporter with the sensors the group resolved to, so that a report can be traced to the devices it aggregated, and a changed membership is recorded by a different data source. Anything given here is overwritten.",
+        ),
+    )
+
+    missing_members = fields.List(
+        fields.Int(),
+        required=False,
+        data_key="missing-members",
+        # not dump-only, for the same reason as `resolved-members`
+        metadata=dict(
+            readOnly=True,
+            description="Read-only: filled in by the reporter, on the data source of an event that some of the group's sensors did not report, with those sensors."
+            " The aggregate of such an event is recorded under a source of its own, so it can be told apart from a complete aggregate, which records no missing members."
+            " Anything given here is overwritten.",
         ),
     )
 
     skip_missing = fields.Bool(
         required=False,
+        # a config saved by a release candidate of v1.1 may hold null, which means the same
         allow_none=True,
-        load_default=None,
+        load_default=True,
         data_key="skip-missing",
         metadata=dict(
             description="Whether to aggregate whatever reported, leaving out the sensors that did not."
-            " Left unset, a report over a `group` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,"
-            " while a report over sensors named in `input` aggregates what reported, which is what such reports have always done.",
+            " A report over a `group` then records an event that some members did not report under a data source naming them in its `missing-members`."
+            " Set to false, an event is reported only when every sensor reported it.",
         ),
     )
 

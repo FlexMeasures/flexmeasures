@@ -7,6 +7,10 @@ The changes are picked up from the session, so they are noted whichever way an a
 through the API, the UI, the CLI or a script.
 An asset deleted with one `delete` statement, as `delete_asset` does, never passes through the session, and neither do its offspring and their sensors,
 so `delete_asset` notes those changes itself, with `note_deletion`.
+
+A report automation over a group may narrow it down to members of one asset type.
+Changing a member's type then moves it in or out of what the report aggregates, which is noted on the group's asset too,
+and creating such an automation notes which members it starts out with.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ class _Change:
     member: GenericAsset
     group_asset: GenericAsset | None
     group_label: str
-    what: str  # "joined", "left", "moved", "group moved" or "group deleted"
+    what: str  # "joined", "left", "moved", "group moved", "group deleted" or "report"
     detail: str = ""
 
 
@@ -67,16 +71,22 @@ def _label_asset(asset: GenericAsset | None) -> str:
 
 
 def _stored_state(session: Session, asset_ids: list[int]) -> dict[int, tuple]:
-    """Return the flex-model and parent of each asset as the database holds them, from before this flush."""
+    """Return the flex-model, parent and type of each asset as the database holds them, from before this flush."""
     if not asset_ids:
         return {}
     with session.no_autoflush:
         rows = session.execute(
             sa.select(
-                GenericAsset.id, GenericAsset.flex_model, GenericAsset.parent_asset_id
+                GenericAsset.id,
+                GenericAsset.flex_model,
+                GenericAsset.parent_asset_id,
+                GenericAsset.generic_asset_type_id,
             ).where(GenericAsset.id.in_(asset_ids))
         ).all()
-    return {row.id: (row.flex_model, row.parent_asset_id) for row in rows}
+    return {
+        row.id: (row.flex_model, row.parent_asset_id, row.generic_asset_type_id)
+        for row in rows
+    }
 
 
 def _members_naming(session: Session, kind: str, ids: list[int]) -> list[GenericAsset]:
@@ -117,7 +127,9 @@ def _find_changes(session: Session, flush_context, instances) -> None:
 
     stored = _stored_state(session, [obj.id for obj in dirty + deleted_assets])
     for asset in dirty:
-        changes.extend(_edits(session, asset, *stored.get(asset.id, (None, None))))
+        changes.extend(
+            _edits(session, asset, *stored.get(asset.id, (None, None, None)))
+        )
     changes.extend(_deletions(session, deleted_assets, deleted_sensors, stored))
 
     changes = _worth_noting(changes, deleted_ids)
@@ -178,8 +190,9 @@ def _edits(
     asset: GenericAsset,
     old_flex_model: dict | None,
     old_parent_id: int | None,
+    old_type_id: int | None,
 ) -> list[_Change]:
-    """Note an edited asset leaving or joining a group, and a member moving to another site."""
+    """Note an edited asset leaving or joining a group, a member moving to another site, and a member changing type."""
     changes = []
     old_key, new_key = _group_key(old_flex_model), _group_key(asset.flex_model)
     if old_key != new_key:
@@ -190,6 +203,10 @@ def _edits(
     new_parent_id = _new_parent_id(asset)
     if old_parent_id != new_parent_id:
         changes.extend(_moves(session, asset, old_parent_id, new_parent_id))
+    new_type_id = _new_type_id(asset)
+    # a device that changes group as well is noted leaving one group and joining the other, and was in no report of its new group before
+    if old_type_id is not None and old_type_id != new_type_id and old_key == new_key:
+        changes.extend(_type_changes(session, asset, old_type_id, new_type_id))
     return changes
 
 
@@ -203,7 +220,7 @@ def _deletions(
     changes = []
     deleted_ids = {obj.id for obj in deleted_assets}
     for asset in deleted_assets:
-        old_flex_model, _ = stored.get(asset.id, (asset.flex_model, None))
+        old_flex_model = stored.get(asset.id, (asset.flex_model,))[0]
         key = _group_key(old_flex_model)
         if key is not None:
             changes.append(
@@ -241,6 +258,151 @@ def _new_parent_id(asset: GenericAsset) -> int | None:
         parent = asset.parent_asset
         return parent.id if parent is not None else None
     return asset.parent_asset_id
+
+
+def _new_type_id(asset: GenericAsset) -> int | None:
+    """Return the ID of the type the asset is about to have, whether its type or its type's ID was set."""
+    state = sa.inspect(asset)
+    if state.attrs.generic_asset_type.history.has_changes():
+        asset_type = asset.generic_asset_type
+        return asset_type.id if asset_type is not None else None
+    return asset.generic_asset_type_id
+
+
+def _type_changes(
+    session: Session,
+    asset: GenericAsset,
+    old_type_id: int,
+    new_type_id: int | None,
+) -> list[_Change]:
+    """Note a member whose new type takes it into, or out of, a report automation that aggregates only one type of its group's members."""
+    from flexmeasures.data.models.generic_assets import GenericAssetType
+
+    if _is_group_entry(session, asset):
+        # a group entry is no member device itself; the type filter applies to the devices behind it
+        return []
+    old_type = session.get(GenericAssetType, old_type_id)
+    new_type = (
+        session.get(GenericAssetType, new_type_id) if new_type_id is not None else None
+    )
+    old_name = old_type.name if old_type is not None else None
+    new_name = new_type.name if new_type is not None else None
+
+    changes = []
+    for automation, key, asset_type in _filtered_group_reports(
+        session, _group_chain(session, asset)
+    ):
+        was_selected, is_selected = old_name == asset_type, new_name == asset_type
+        if was_selected == is_selected:
+            continue
+        verb = "entered" if is_selected else "left"
+        detail = (
+            f" {verb} the members of group {_group_label(session, key)}"
+            f" that report automation '{automation.name}' ({automation.id}) aggregates,"
+            f" filtered to asset type '{asset_type}', as its type changed from '{old_name}' to '{new_name}'"
+        )
+        changes.append(_change(session, asset, key, "report", detail))
+    return changes
+
+
+def _is_group_entry(session: Session, asset: GenericAsset) -> bool:
+    """Tell whether some flex-model names this asset as its group, or the sensor of this asset's own entry."""
+    if _members_naming(session, "asset", [asset.id]):
+        return True
+    own_sensor = (
+        asset.flex_model.get("sensor") if isinstance(asset.flex_model, dict) else None
+    )
+    return type(own_sensor) is int and bool(
+        _members_naming(session, "sensor", [own_sensor])
+    )
+
+
+def _group_chain(session: Session, asset: GenericAsset) -> list[tuple[str, int]]:
+    """Return the groups the asset belongs to: its own group, the group that group belongs to, and so on."""
+    chain: list[tuple[str, int]] = []
+    key = _group_key(asset.flex_model)
+    while key is not None and key not in chain:
+        chain.append(key)
+        entry = _group_entry_asset(session, key)
+        key = _group_key(entry.flex_model) if entry is not None else None
+    return chain
+
+
+def _group_entry_asset(session: Session, key: tuple[str, int]) -> GenericAsset | None:
+    """Return the asset whose flex-model entry defines the group, which says which group it belongs to in turn."""
+    kind, group_id = key
+    if kind == "asset":
+        return session.get(GenericAsset, group_id)
+    with session.no_autoflush:
+        return session.scalars(
+            sa.select(GenericAsset)
+            .where(GenericAsset.flex_model["sensor"].astext == str(group_id))
+            .limit(1)
+        ).first()
+
+
+def _filtered_group_reports(session: Session, chain: list[tuple[str, int]]):
+    """Yield each report automation over one of the given groups that aggregates only one asset type, with its group and that type."""
+    from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.models.planning.devices import resolve_group_reference
+
+    if not chain:
+        return
+    with session.no_autoflush:
+        automations = session.scalars(
+            sa.select(Automation).where(Automation.type == "reporting")
+        ).all()
+    for automation in automations:
+        config = _generator_config(automation)
+        asset_type = _filtered_type(config)
+        key = resolve_group_reference(config.get("group"))
+        if asset_type and key in chain:
+            yield automation, key, asset_type
+
+
+def _generator_config(automation) -> dict:
+    generator = automation.generator
+    attributes = (generator.attributes if generator is not None else None) or {}
+    return (attributes.get("data_generator") or {}).get("config") or {}
+
+
+def _filtered_type(config: dict) -> str | None:
+    """Return the asset type that a report's config narrows its group down to, if any.
+
+    Every report automation is looked at, whichever reporter it runs, so a `members` field of another shape names no type.
+    """
+    members = config.get("members")
+    return members.get("asset-type") if isinstance(members, dict) else None
+
+
+def note_report_selection(automation, reporter) -> None:
+    """Note on a group's asset which of its members a new report automation aggregates, when it aggregates only one asset type.
+
+    The later notes on members entering or leaving the selection then have a starting point.
+    """
+    from flexmeasures.data import db
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+    from flexmeasures.data.models.planning.devices import resolve_group_reference
+
+    config = _generator_config(automation)
+    asset_type = _filtered_type(config)
+    key = resolve_group_reference(config.get("group"))
+    if not asset_type or key is None:
+        return
+    session = db.session
+    group_asset = _group_asset(session, key)
+    if group_asset is None:
+        return
+    members = {
+        sensor.generic_asset.id: sensor.generic_asset
+        for sensor in reporter.input_sensors
+    }
+    listed = ", ".join(_label_asset(members[i]) for i in sorted(members)) or "none"
+    AssetAuditLog.add_record(
+        group_asset,
+        f"Report automation '{automation.name}' ({automation.id}) aggregates the members of group {_group_label(session, key)}"
+        f" of asset type '{asset_type}', starting with: {listed}.",
+    )
 
 
 def _moves(
@@ -341,6 +503,8 @@ def _write(change: _Change) -> None:
             change.member,
             f"Group {group}, named in the flex-model of this asset, was deleted.",
         )
+    elif change.what == "report":
+        AssetAuditLog.add_record(change.group_asset, f"{member}{change.detail}.")
     elif change.what == "group moved":
         AssetAuditLog.add_record(
             change.group_asset, f"Group {group} moved{change.detail}."

@@ -609,6 +609,71 @@ def get_stalenesses(
     return stalenesses
 
 
+def get_missing_members(
+    sensor: Sensor, staleness_search: dict, now: datetime, max_staleness: timedelta
+) -> list[Sensor]:
+    """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
+
+    An `AggregatorReporter` records an event that some members of its group did not report under a data source naming them (see `DataSource.missing_members`).
+    Whether the most recent aggregate is such a partial one says something about the current state of the group,
+    so it belongs on the status page rather than in a log.
+    Only an aggregate at least `max_staleness` old is judged, which is when the sensor's data would count as stale,
+    and only once the member with the coarsest resolution had the chance to report on it.
+    A member that reports a little later than the report runs leaves the newest events partial every time, and the next run completes them,
+    so judging the newest event would flag such a group all the time.
+    A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
+    """
+    reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
+    partial = [source for source in reporters if source.missing_members]
+    if not partial:
+        return []
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+    belief_search["beliefs_before"] = min(now, belief_search.get("beliefs_before", now))
+    # A member recording at a coarser resolution reports on an event only once its own, longer event is over,
+    # so the aggregate is judged only once its slowest member had the chance to report on it, too.
+    # The sensor's own resolution is the least margin, since `event_ends_before` only bounds when events start.
+    members = [
+        db.session.get(Sensor, sensor_id)
+        for sensor_id in {i for source in partial for i in source.missing_members}
+    ]
+    margin = max(
+        [sensor.event_resolution]
+        + [member.event_resolution for member in members if member is not None]
+    )
+    settled = now - max_staleness - margin
+    belief_search["event_ends_before"] = min(
+        settled, belief_search.get("event_ends_before", settled)
+    )
+    latest = TimedBelief.search(
+        sensors=sensor,
+        most_recent_only=True,
+        source=reporters,
+        **belief_search,
+    )
+    if latest.empty:
+        return []
+    # A partial and a complete aggregate of the latest event may share a belief time, which the query above does not choose between,
+    # so that event is read again the way any consumer of one belief per event reads it.
+    event_start = latest.index.get_level_values("event_start")[-1]
+    belief_search.update(
+        event_starts_after=event_start,
+        event_ends_before=event_start + sensor.event_resolution,
+        one_deterministic_belief_per_event=True,
+    )
+    bdf = TimedBelief.search(sensors=sensor, source=reporters, **belief_search)
+    if bdf.empty:
+        return []
+    source = bdf.index.get_level_values("source")[0]
+    missing = [
+        db.session.get(Sensor, sensor_id) for sensor_id in source.missing_members
+    ]
+    return [member for member in missing if member is not None]
+
+
 def get_status_specs(sensor: Sensor) -> dict:
     """Get status specs from a given sensor."""
 
@@ -640,6 +705,8 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
+    For reporter data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
+    and is left out where it left out none, which is the case for most sensors.
     """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
@@ -692,15 +759,36 @@ def get_statuses(
             staleness = staleness if staleness > timedelta(0) else -staleness
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
-        statuses.append(
-            dict(
-                staleness=staleness,
-                stale=stale,
-                staleness_since=staleness_since,
-                reason=reason,
-                source_type=source_type,
+        missing_members = []
+        if source_type == "reporter":
+            missing_members = get_missing_members(
+                sensor, staleness_search, now, max_staleness
             )
+            if missing_members:
+                # members are often all called "power", so the asset says which device it is
+                left_out = ", ".join(
+                    f"'{member.generic_asset.name}' / {member.name} ({member.id})"
+                    for member in missing_members
+                )
+                reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
+
+        status = dict(
+            staleness=staleness,
+            stale=stale,
+            staleness_since=staleness_since,
+            reason=reason,
+            source_type=source_type,
         )
+        if missing_members:
+            status["missing-members"] = [
+                {
+                    "id": member.id,
+                    "name": member.name,
+                    "asset-name": member.generic_asset.name,
+                }
+                for member in missing_members
+            ]
+        statuses.append(status)
 
     return statuses
 
