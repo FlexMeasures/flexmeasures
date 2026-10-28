@@ -354,7 +354,7 @@ def _filtered_group_reports(session: Session, chain: list[tuple[str, int]]):
         ).all()
     for automation in automations:
         config = _generator_config(automation)
-        asset_type = (config.get("members") or {}).get("asset-type")
+        asset_type = _filtered_type(config)
         key = resolve_group_reference(config.get("group"))
         if asset_type and key in chain:
             yield automation, key, asset_type
@@ -364,6 +364,15 @@ def _generator_config(automation) -> dict:
     generator = automation.generator
     attributes = (generator.attributes if generator is not None else None) or {}
     return (attributes.get("data_generator") or {}).get("config") or {}
+
+
+def _filtered_type(config: dict) -> str | None:
+    """Return the asset type that a report's config narrows its group down to, if any.
+
+    Every report automation is looked at, whichever reporter it runs, so a `members` field of another shape names no type.
+    """
+    members = config.get("members")
+    return members.get("asset-type") if isinstance(members, dict) else None
 
 
 def note_report_selection(automation, reporter) -> None:
@@ -376,7 +385,7 @@ def note_report_selection(automation, reporter) -> None:
     from flexmeasures.data.models.planning.devices import resolve_group_reference
 
     config = _generator_config(automation)
-    asset_type = (config.get("members") or {}).get("asset-type")
+    asset_type = _filtered_type(config)
     key = resolve_group_reference(config.get("group"))
     if not asset_type or key is None:
         return

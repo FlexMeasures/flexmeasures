@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.automations import create_automation
@@ -217,6 +218,29 @@ def test_a_group_entry_referenced_by_its_sensor_changing_type_notes_nothing(
     fresh_db.session.commit()
 
     house.generic_asset_type = street["solar"]
+    fresh_db.session.commit()
+
+    assert len(report_events_on(fresh_db, street["street"])) == 1
+
+
+def test_a_report_automation_with_members_of_another_shape_fails_no_flush(
+    fresh_db, street
+):
+    """Every report automation is looked at when a member changes type, whichever reporter it runs, so a plugin reporter may keep `members` in a shape of its own."""
+    automation_id = create_solar_report(street)
+    fresh_db.session.commit()
+    generator = fresh_db.session.get(Automation, automation_id).generator
+    generator.attributes = {
+        "data_generator": {
+            "config": {
+                "group": {"asset": street["street"].id},
+                "members": ["PV one", "PV two"],
+            }
+        }
+    }
+    fresh_db.session.commit()
+
+    street["Heat pump"].generic_asset_type = street["solar"]
     fresh_db.session.commit()
 
     assert len(report_events_on(fresh_db, street["street"])) == 1
