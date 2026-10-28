@@ -343,19 +343,33 @@ def get_max_planning_horizon(resolution: timedelta) -> timedelta | None:
     return max_planning_horizon
 
 
-def _on_wall_clock(dt: pd.Timestamp, operation) -> pd.Timestamp:
-    """Apply an operation to the local wall-clock time of a (possibly tz-aware) timestamp.
+def _add_calendar_days(dt: pd.Timestamp, days: pd.offsets.Day) -> pd.Timestamp:
+    """Add days as calendar days, i.e. to the same local wall-clock time, also across a DST transition.
 
-    Across a DST transition, this makes a day a calendar day rather than 24 hours,
-    and lets day and hour begins be found in the repeated hour, too.
-    A resulting wall-clock time that occurs twice keeps the DST side of the given timestamp,
-    and one that does not exist shifts forward to the first time after the gap.
+    Where that wall-clock time is ambiguous or does not exist, add exactly 24 hours per day instead.
     """
     if dt.tz is None:
-        return operation(dt)
-    wall_clock_time = operation(dt.tz_localize(None))
-    return wall_clock_time.tz_localize(
-        dt.tz, ambiguous=bool(dt.dst()), nonexistent="shift_forward"
+        return dt + days
+    result = (dt.tz_localize(None) + days).tz_localize(
+        dt.tz, ambiguous="NaT", nonexistent="NaT"
+    )
+    if result is pd.NaT:
+        return dt + pd.Timedelta(days=days.n)
+    return result
+
+
+def _floor_on_wall_clock(dt: pd.Timestamp, freq: str) -> pd.Timestamp:
+    """Floor a timestamp on its local wall clock, e.g. to find the begin of its local day or hour.
+
+    Within the hour that occurs twice, the begin of the same occurrence is found,
+    and a day that begins in a DST gap begins when the gap ends.
+    """
+    if dt.tz is None:
+        return dt.floor(freq)
+    return (
+        dt.tz_localize(None)
+        .floor(freq)
+        .tz_localize(dt.tz, ambiguous=bool(dt.dst()), nonexistent="shift_forward")
     )
 
 
@@ -370,6 +384,7 @@ def apply_offset_chain(
 
     Days are calendar days in the timestamp's own timezone,
     so "1D,DB" is the start of the next local day, also across a DST transition.
+    Where the same wall-clock time a day later is ambiguous or does not exist, a day is exactly 24 hours.
 
     Args:
         dt (pd.Timestamp | datetime)
@@ -396,13 +411,13 @@ def apply_offset_chain(
             pandas_offset = to_offset(offset.strip())
         except ValueError:
             if offset.strip().lower() == "db":  # db = day begin
-                _dt = _on_wall_clock(_dt, lambda t: t.floor("D"))
+                _dt = _floor_on_wall_clock(_dt, "D")
             elif offset.strip().lower() == "hb":  # hb = hour begin
-                _dt = _on_wall_clock(_dt, lambda t: t.floor("h"))
+                _dt = _floor_on_wall_clock(_dt, "h")
             continue
         if isinstance(pandas_offset, pd.offsets.Day):
             # Before Pandas 3, a Day offset is a fixed 24 hours
-            _dt = _on_wall_clock(_dt, lambda t: t + pandas_offset)
+            _dt = _add_calendar_days(_dt, pandas_offset)
         else:
             _dt += pandas_offset
 

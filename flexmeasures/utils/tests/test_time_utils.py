@@ -245,13 +245,22 @@ def test_recent_clocktime_window_invalid_window():
             "1D,DB",
             pd.Timestamp("2026-03-29", tz="Europe/Amsterdam"),
         ),
-        # A day later, 02:30 does not exist, so it shifts forward to the end of the gap.
+        # Where the same wall-clock time a day later does not exist or occurs twice, a day is exactly 24 hours.
         (
             pd.Timestamp("2026-03-28T02:30", tz="Europe/Amsterdam"),
             "1D",
-            pd.Timestamp("2026-03-29T03:00", tz="Europe/Amsterdam"),
+            pd.Timestamp("2026-03-29T03:30", tz="Europe/Amsterdam"),
         ),
-        # A day later, 02:30 occurs twice, so it keeps the DST side it started on.
+        (
+            pd.Timestamp("2026-03-30T02:30", tz="Europe/Amsterdam"),
+            "-1D",
+            pd.Timestamp("2026-03-29T01:30", tz="Europe/Amsterdam"),
+        ),
+        (
+            pd.Timestamp("2026-10-26T02:30", tz="Europe/Amsterdam"),
+            "-1D",
+            pd.Timestamp("2026-10-25T01:30", tz="UTC"),
+        ),
         (
             pd.Timestamp("2026-10-24T02:30", tz="Europe/Amsterdam"),
             "1D",
