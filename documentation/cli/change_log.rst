@@ -28,6 +28,7 @@ since v1.1.0 | September XX, 2026
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 * Fix ``flexmeasures show beliefs`` ignoring its ``--timezone`` option, which is now called ``--export-timezone`` (``--timezone`` still works as a deprecated alias). By default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, where it used to have them in UTC without an offset. An unknown timezone name is now refused, and the option warns when it is given without ``--to-file``, as the terminal plot always shows UTC.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
+* ``flexmeasures delete asset`` now records the deletion in the asset's audit log, notes the membership changes it makes in the audit logs of device groups, and removes the asset from the graphs of other assets, as deleting an asset through the API or the UI does.
 
 since v1.0.1 | September 9, 2026
 =================================
