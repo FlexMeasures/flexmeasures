@@ -80,8 +80,10 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         fields.Int(),
         required=False,
         data_key="resolved-members",
+        # not dump-only, since the config saved on a data source, holding this field, is loaded again to run the report again
         metadata=dict(
-            description="Filled in by the reporter with the sensors the group resolved to, so that a report can be traced to the devices it aggregated, and a changed membership is recorded by a different data source. Anything given here is overwritten.",
+            readOnly=True,
+            description="Read-only: filled in by the reporter with the sensors the group resolved to, so that a report can be traced to the devices it aggregated, and a changed membership is recorded by a different data source. Anything given here is overwritten.",
         ),
     )
 
@@ -89,8 +91,10 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         fields.Int(),
         required=False,
         data_key="missing-members",
+        # not dump-only, for the same reason as `resolved-members`
         metadata=dict(
-            description="Filled in by the reporter, on the data source of an event that some of the group's sensors did not report, with those sensors."
+            readOnly=True,
+            description="Read-only: filled in by the reporter, on the data source of an event that some of the group's sensors did not report, with those sensors."
             " The aggregate of such an event is recorded under a source of its own, so it can be told apart from a complete aggregate, which records no missing members."
             " Anything given here is overwritten.",
         ),
