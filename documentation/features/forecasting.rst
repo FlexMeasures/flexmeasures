@@ -118,11 +118,11 @@ the training labels leave out what forecasters recorded, while a regressor colum
 so such an entry adds the sensor's own history including its earlier forecasts.
 
 Each sensor's bounds are read in that sensor's own unit, not the unit of the sensor being forecast, so a regressor recording watts takes its bounds in watts unless you say otherwise.
-Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above.
+Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above. The rules are the same for every data generator: see :ref:`data_cleaning_on_input`.
 
 Bounding runs after missing values are filled, so a value interpolated across a gap is bounded too. [#interpolation]_
 
-These three fields belong to the sensor reference itself, rather than to forecasting, so a flex-model or flex-context reference takes them too, and the scheduler cleans what it reads in the same way: see :ref:`cleaning_referenced_data`.
+These three fields belong to the sensor reference itself, rather than to forecasting, so a flex-model or flex-context reference takes them too, and the scheduler cleans what it reads in the same way: see :ref:`cleaning_referenced_data`. How data is referenced, cleaned and bounded across forecasting, scheduling and reporting is described in :ref:`data_pipelining`.
 
 .. [#interpolation] Filling first also means that an out-of-range reading is used to interpolate its neighbours before it is itself corrected. Given readings of ``10``, ``-9999``, a gap, and ``14`` with ``lower: 0``, the gap interpolates from ``-9999`` and is then clipped to ``0``, rather than filling to roughly ``12``. Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
 
@@ -213,6 +213,7 @@ Choosing which data sources to train on
 Where several data sources record on the same sensor, you can say which of them the forecaster should read.
 Anywhere a sensor ID is accepted in the forecaster's config, you can pass a *sensor reference* instead: a small object naming the sensor plus the source filters to apply to it.
 The sensor being forecast is read as well — it is what the model learns from — so it takes filters too, named as ``"auto"`` because the config does not know which sensor a forecast will name.
+The filter keys are the same for every sensor reference: see :ref:`data_source_filters`.
 
 - ``sources``: only use beliefs from these data source IDs.
 - ``source-types``: only use beliefs from sources of these types, e.g. ``"user"``, ``"script"``, ``"forecaster"`` or ``"scheduler"``.

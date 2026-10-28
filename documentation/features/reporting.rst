@@ -80,12 +80,12 @@ This parameterizes the computation (from which sensors does data come from, whic
 
     - ``source_types``: list of source type names to include (e.g. ``["forecaster", "scheduler"]``)
     - ``exclude_source_types``: list of source type names to exclude
-    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (note: only matches user-type data sources — DataSources created by reporters, schedulers, and forecasters have no account and will not be matched by this filter)
+    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (a data source belongs to the organisation it records for, whether a user or a forecaster, scheduler or reporter recorded the data: see :ref:`data_source_filters`)
 
     These correspond to the same filters available on ``Sensor.search_beliefs``.
 
 .. note::
-    An input entry can also clean the readings it asks for, before the report is computed, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster's regressors and a flex-config sensor reference take (see :ref:`cleaning_referenced_data`).
+    An input entry can also clean the readings it asks for, before the report is computed, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster's regressors and a flex-config sensor reference take (see :ref:`data_cleaning_on_input`).
     This helps where a sensor records the occasional implausible value — a spike, or an error sentinel such as ``-9999`` — that would otherwise end up in the report:
 
     .. code-block:: json

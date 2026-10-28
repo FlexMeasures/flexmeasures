@@ -204,6 +204,9 @@ Here, the ``--as-job`` parameter makes the difference for queueing ― without i
 
 Run ``flexmeasures add schedule --help`` for more information.
 
+In the flex-context above, ``{"sensor": 2}`` is a *sensor reference*.
+A reference can also select the data of one source, name a fallback value, and clean the readings before the scheduler uses them: see :ref:`data_pipelining`.
+
 
 .. _scheduling_resolution:
 
