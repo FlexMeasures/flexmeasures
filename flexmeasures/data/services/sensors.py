@@ -705,7 +705,8 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
-    For reporter data, `missing_members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`).
+    For reporter data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
+    and is left out where it left out none, which is the case for most sensors.
     """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
@@ -771,23 +772,23 @@ def get_statuses(
                 )
                 reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
 
-        statuses.append(
-            dict(
-                staleness=staleness,
-                stale=stale,
-                staleness_since=staleness_since,
-                reason=reason,
-                source_type=source_type,
-                missing_members=[
-                    dict(
-                        id=member.id,
-                        name=member.name,
-                        asset_name=member.generic_asset.name,
-                    )
-                    for member in missing_members
-                ],
-            )
+        status = dict(
+            staleness=staleness,
+            stale=stale,
+            staleness_since=staleness_since,
+            reason=reason,
+            source_type=source_type,
         )
+        if missing_members:
+            status["missing-members"] = [
+                {
+                    "id": member.id,
+                    "name": member.name,
+                    "asset-name": member.generic_asset.name,
+                }
+                for member in missing_members
+            ]
+        statuses.append(status)
 
     return statuses
 

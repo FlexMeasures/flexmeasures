@@ -2103,7 +2103,8 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
-            For data recorded by a reporter, `missing_members` lists the sensors that the most recent aggregate of a device group had to leave out, because they did not report, judging only an aggregate old enough to count as stale and whose slowest member had the chance to report on it, since the next run may still complete a newer one.
+            For data recorded by a reporter, `missing-members` lists the sensors that the most recent aggregate of a device group had to leave out, because they did not report, judging only an aggregate old enough to count as stale and whose slowest member had the chance to report on it, since the next run may still complete a newer one.
+            The field is left out where no member is missing.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2142,7 +2143,6 @@ class SensorAPI(FlaskView):
                           asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
-                          missing_members: []
                     partial_aggregate:
                       summary: An aggregate leaving out a member
                       description: The status of a device group's aggregate, whose most recent settled aggregate left out the heat pump's meter
@@ -2150,7 +2150,7 @@ class SensorAPI(FlaskView):
                         - staleness: "PT6M"
                           stale: false
                           staleness_since: "2024-01-15T14:30:00+00:00"
-                          reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate at least 30 minutes old leaves out 'Heat pump' / power (88754), which did not report"
+                          reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report"
                           source_type: "reporter"
                           id: 88750
                           name: "power"
@@ -2158,10 +2158,10 @@ class SensorAPI(FlaskView):
                           asset_id: 12
                           asset_name: "Street"
                           relation: "sensor belongs to this asset"
-                          missing_members:
+                          missing-members:
                             - id: 88754
                               name: "power"
-                              asset_name: "Heat pump"
+                              asset-name: "Heat pump"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:

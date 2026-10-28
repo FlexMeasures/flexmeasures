@@ -111,7 +111,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     const lastCallTime = Date.now();
     const timeAgo = getTimeAgo(lastCallTime);
     // a fresh aggregate that leaves out some of its group's members is not stale, but not complete either
-    const statusIcon = sensor.stale ? "🔴" : (sensor.missing_members?.length ? "🟡" : "🟢");
+    const statusIcon = sensor.stale ? "🔴" : (sensor["missing-members"]?.length ? "🟡" : "🟢");
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
 
     return {

@@ -1298,13 +1298,12 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
         restore_beliefs(hp_power, partial_event)
         report(datetime(2026, 7, 2, tzinfo=utc))
         # half an hour after the event, the next run may still complete it
-        assert (
-            reporter_status(datetime(2026, 7, 2, 0, 30, tzinfo=utc))["missing_members"]
-            == []
+        assert "missing-members" not in reporter_status(
+            datetime(2026, 7, 2, 0, 30, tzinfo=utc)
         )
         status = reporter_status()
-        assert status["missing_members"] == [
-            dict(id=hp_power.id, name=hp_power.name, asset_name="House heat")
+        assert status["missing-members"] == [
+            {"id": hp_power.id, "name": hp_power.name, "asset-name": "House heat"}
         ]
         assert f"leaves out 'House heat' / hp power ({hp_power.id})" in status["reason"]
         assert status["stale"] is False
@@ -1324,7 +1323,7 @@ def test_the_status_of_a_partial_aggregate_names_the_missing_members(
         db.session.commit()
         report(datetime(2026, 7, 2, 1, tzinfo=utc))
         status = reporter_status()
-        assert status["missing_members"] == []
+        assert "missing-members" not in status
         assert "leaves out" not in status["reason"]
     finally:
         if late is not None:
@@ -1392,7 +1391,7 @@ def test_the_status_goes_by_the_aggregate_a_consumer_picks(setup_nested_groups, 
         status = next(
             status for status in statuses if status["source_type"] == "reporter"
         )
-        assert status["missing_members"] == []
+        assert "missing-members" not in status
     finally:
         db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
         db.session.delete(aggregate)
@@ -1459,13 +1458,14 @@ def test_the_status_waits_for_a_member_of_a_coarser_resolution(setup_nested_grou
                 "max_future_staleness": "-PT12H",
             },
         )
+        # most sensors have no members, so a status names missing members only when there are any
         return next(
             status for status in statuses if status["source_type"] == "reporter"
-        )["missing_members"]
+        ).get("missing-members")
 
     try:
         # the quarter ended 45 minutes ago, but the hourly member reports on it only after 1:00
-        assert missing_members(datetime(2026, 7, 2, 1, tzinfo=utc)) == []
+        assert missing_members(datetime(2026, 7, 2, 1, tzinfo=utc)) is None
         # by now, the member had its hour and half an hour more to report
         assert [
             member["id"]
