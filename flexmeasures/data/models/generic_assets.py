@@ -267,6 +267,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             lazy=True,
             cascade="all, delete-orphan",
             passive_deletes=True,
+            order_by="GenericAsset.id",
         ),
     )
 
@@ -281,13 +282,14 @@ class GenericAsset(db.Model, AuthModelMixin):
     child_assets = db.relationship(
         "GenericAsset",
         cascade="all",
+        order_by="GenericAsset.id",
         backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
     )
 
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
-        backref=db.backref("generic_assets", lazy=True),
+        backref=db.backref("generic_assets", lazy=True, order_by="GenericAsset.id"),
     )
 
     # not a FK, but representation of this asset in an external system (e.g. IoT solution)
@@ -297,7 +299,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
-        backref=db.backref("assets", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("assets", lazy="dynamic", order_by="GenericAsset.id"),
     )
 
     def __init__(self, **kwargs):
@@ -340,56 +343,52 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         All logged-in users can read if the asset is public.
         For non-public assets, we allow reading to whoever can read the account.
-        Both creation of children (beliefs, child assets) as well as editing
-        is allowed for every user in the account or consultants.
-        Deletion is only allowed for account admins, as well as for consultants.
-
-        Asymmetry note: because create-children is open to all account members, a
-        plain (no-role) user can copy an asset indefinitely but cannot delete the
-        resulting copies — deletion requires account-admin. Account admins are
-        responsible for pruning unwanted copies. This is intentional: the design
-        allows members to contribute data freely while admins retain control over
-        structural cleanup.
+        Creating and editing child assets, sensors and data is allowed for every user in the account or consultants.
+        Members may delete an asset only if it holds no data;
+        deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
-        return {
-            "create-children": [
-                f"account:{self.account_id}",
+        operate_access = [
+            f"account:{self.account_id}",
+            (
                 (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "read": (
-                self.owner.__acl__()["read"]
-                if self.account_id is not None
-                else EVERY_LOGGED_IN_USER
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
             ),
-            "update": [
-                f"account:{self.account_id}",
+        ]
+        read_access = (
+            self.owner.__acl__()["read"]
+            if self.account_id is not None
+            else EVERY_LOGGED_IN_USER
+        )
+        delete_data_access = [
+            (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
                 (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
+            ),
+        ]
+        return {
+            "read": read_access,
+            "edit-assets": operate_access,
+            "edit-flex-config": operate_access,
+            # On an asset, members may create sensors and delete sensors without data.
+            "edit-sensors": operate_access,
+            "annotate": operate_access,
+            "manage-automations": operate_access,
+            "trigger-schedules": operate_access,
+            "trigger-reports": operate_access,
+            "delete-data": delete_data_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": operate_access,
+            "update": operate_access,
+            "delete": delete_data_access,
         }
 
     def __repr__(self):
@@ -740,25 +739,32 @@ class GenericAsset(db.Model, AuthModelMixin):
         return attribute in self.attributes
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        """Sets the attribute on the GenericAsset, creating it if it does not exist yet."""
+        self.attributes[attribute] = value
 
     def get_flex_context_with_provenance(self) -> dict[str, dict]:
         """Reconstitutes the asset's serialized flex-context, tracking each field's origin in the asset tree.
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
+        A sensor reference whose sensor was deleted, and which has no default, does not define its field,
+        so the field is taken from a farther ancestor, if any, until a new sensor is picked for it.
 
         :returns: Dictionary mapping each flex-context field name to a dictionary with
                   the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
         """
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+        from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
         from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
+
+        def defines_field(value) -> bool:
+            return not (is_unset_sensor_reference(value) and "default" not in value)
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
         flex_context = {
             field: dict(value=value, asset=self)
             for field, value in (self.flex_context or {}).items()
+            if defines_field(value)
         }
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
@@ -772,7 +778,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             # An ancestor's flex_context may still be None (e.g. a pending asset
             # created without one, before its column default is applied on flush).
             for field, value in (parent_asset.flex_context or {}).items():
-                if field in flex_context:
+                if field in flex_context or not defines_field(value):
                     continue
                 if field in INFLEXIBLE_DEVICE_KEYS and inflexible_family_defined:
                     continue

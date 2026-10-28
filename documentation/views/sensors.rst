@@ -43,3 +43,25 @@ Creating a forecast
 Users with permission to record data on a sensor can create a forecast directly from the sensor page by clicking the **Create forecast** button in the left side panel. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. The button is enabled once the sensor has at least two days of historical data. After clicking, a background job is queued and the page shows progress updates via status messages. When the job finishes, the chart is refreshed to display the new forecast alongside the historical data.
 
 See :ref:`forecasting` for more details on how FlexMeasures generates forecasts.
+
+Annotating sensor data
+----------------------
+
+Users with permission to record data on a sensor can add a label from the **Annotate** panel on its page. Enter a label and click **Annotate**. FlexMeasures records the annotation with the signed-in user as its data source and shows it on the time chart.
+
+The **From** and **Until** fields show the time range the label will cover. They follow the range visible in the chart, until you choose one yourself:
+
+- Pick the select tool (the double arrow above the chart), then drag across the events you want to annotate. You can drag or resize the selection afterwards. Hold Ctrl to pan while the select tool is active.
+- Or, with the select tool, click at a single moment to annotate an instant, shown as a blue rule. An instantaneous annotation has the same **From** and **Until** time.
+- Or type the times into the **From** and **Until** fields.
+
+A click outside the chart's plot area clears the selection, as it releases any pinned annotations.
+
+A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. An instant, and any selection on a sensor that records instantaneous values, is rounded to the nearest minute instead, so a selection within a minute can become an instant. Zoomed in to 10 minutes or less, these are rounded to the nearest second. Times you type are used as they are.
+
+Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
+
+Deleting annotations
+--------------------
+
+Users who may delete a sensor can delete its annotations from the **Delete data** panel, by choosing **Annotations** under **What**. Annotations lying entirely between the **From** and **Until** times are deleted; leave both empty to delete all of the sensor's annotations. Annotations of the sensor's asset are not affected, and an annotation that is also registered elsewhere, such as on another sensor, is only removed from this sensor.

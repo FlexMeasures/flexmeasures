@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import isodate
 import pytest
-from rq.job import Job
+from rq.job import Job, JobStatus
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
@@ -221,6 +223,137 @@ def test_a_durable_run_schedules_what_it_was_planned_with(
     assert job.kwargs["end"] - job.kwargs["start"] == isodate.parse_duration(
         planned_parameters["duration"]
     )
+
+
+def _planned_schedule_run(fresh_db, battery, sequential: bool):
+    """Set up a schedule automation on the battery, and the durable run a runner would have claimed for it."""
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    parameters = {**message, "flex-model": [flex_model], "sequential": sequential}
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=parameters,
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    return automation, run
+
+
+@pytest.mark.parametrize(
+    "sequential, expected_jobs",
+    [(False, ["schedule"]), (True, ["device-{sensor_id}", "wrap-up"])],
+)
+def test_a_schedule_run_records_how_its_jobs_ended(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+    expected_jobs,
+):
+    """A schedule run records each job it queued, and succeeds once the workers finished all of them.
+
+    A sequential schedule's device jobs are named after the sensor they schedule.
+    """
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    automation, run = _planned_schedule_run(fresh_db, battery, sequential)
+    run_id = run.id
+    run_automation(automation, automation_run=run)
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert [intent.logical_job_key for intent in run.job_intents] == sorted(
+        key.format(sensor_id=battery.sensors[0].id) for key in expected_jobs
+    )
+    assert {intent.status for intent in run.job_intents} == {"queued"}
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert {intent.status for intent in run.job_intents} == {"succeeded"}
+    assert run.execution_state == "succeeded"
+    assert run.execution_completed_at is not None
+
+
+@pytest.mark.parametrize("sequential", [False, True])
+def test_a_schedule_run_records_a_failed_job(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    monkeypatch,
+    sequential,
+):
+    """A schedule run whose job fails is failed, with the job's error, and over once nothing of it runs any more.
+
+    A failed device job of a sequential schedule leaves its wrap-up job waiting for good, which must not keep the run going.
+    """
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, run = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential
+    )
+    run_id = run.id
+    run_automation(automation, automation_run=run)
+
+    def refuse_to_save(*args, **kwargs):
+        raise ValueError("The database is read-only today.")
+
+    monkeypatch.setattr(scheduling, "save_generator_results", refuse_to_save)
+    work_on_rq(
+        app.queues["scheduling"], exc_handler=scheduling.handle_scheduling_exception
+    )
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "failed"
+    assert run.last_error_type == "ValueError"
+    assert run.last_error_message == "The database is read-only today."
+    assert run.execution_completed_at is not None
+
+
+def test_a_schedule_job_queued_outside_a_run_is_not_recorded(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """Running an automation on demand has no run to record its job on, and its job runs as it always did."""
+    from flexmeasures.data.models.automations import AutomationRunJob
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, _ = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential=False
+    )
+    returns = run_automation(automation)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+    assert fresh_db.session.scalars(select(AutomationRunJob)).all() == []
 
 
 def test_run_day_ahead_schedule_automation(
@@ -485,8 +618,8 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     job.save_meta()
     queue.enqueue_job(job)
-    app.job_cache.add(root.id, job.id, "scheduling", "asset")
-    app.job_cache.add(child_sensor.id, job.id, "scheduling", "sensor")
+    app.job_map.add(root.id, job.id, "scheduling", "asset")
+    app.job_map.add(child_sensor.id, job.id, "scheduling", "sensor")
 
     child_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -497,7 +630,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     child_job.save_meta()
     queue.enqueue_job(child_job)
-    app.job_cache.add(child_sensor.id, child_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, child_job.id, "scheduling", "sensor")
 
     other_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -508,9 +641,74 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     other_job.save_meta()
     queue.enqueue_job(other_job)
-    app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
     assert get_automation_job_stats(schedule_automation) == {"queued": 2}
+
+
+def test_automation_stats_take_a_fixed_number_of_redis_round_trips(
+    fresh_db, app, automation_with_generator, clean_scheduling_redis
+):
+    """Counting an automation's jobs costs the same few Redis round trips, however many sensors and jobs it covers.
+
+    The automations page asks for these counts every minute, so a round trip per sensor or per job adds up.
+    Commands sent in a pipeline share one round trip, so only direct commands and pipelines are counted.
+    """
+    forecast_automation, _ = automation_with_generator
+    root = forecast_automation.asset
+    child = GenericAsset(
+        name="automation child",
+        generic_asset_type=root.generic_asset_type,
+        parent_asset=root,
+    )
+    child_sensors = [
+        Sensor(
+            name=f"child power {i}",
+            generic_asset=child,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        for i in range(3)
+    ]
+    schedule_automation = build_schedule_automation(
+        root,
+        name="schedules over many sensors",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H"},
+    )
+    fresh_db.session.add_all([*child_sensors, schedule_automation])
+    fresh_db.session.flush()
+
+    queue = app.queues["scheduling"]
+    statuses = [JobStatus.FINISHED] * 4 + [JobStatus.FAILED] * 2 + [None] * 3
+    for i, status in enumerate(statuses):
+        job = Job.create(
+            "flexmeasures.utils.time_utils.server_now", connection=queue.connection
+        )
+        job.meta["trigger"] = {
+            "origin": "automation",
+            "automation_id": schedule_automation.id,
+        }
+        job.save_meta()
+        queue.enqueue_job(job)
+        if status is not None:
+            job.set_status(status)
+        sensor = child_sensors[i % len(child_sensors)]
+        app.job_cache.add(sensor.id, job.id, "scheduling", "sensor")
+
+    connection = app.redis_connection
+    with (
+        patch.object(
+            connection, "execute_command", wraps=connection.execute_command
+        ) as direct_commands,
+        patch.object(connection, "pipeline", wraps=connection.pipeline) as pipelines,
+    ):
+        stats = get_automation_job_stats(schedule_automation)
+
+    assert stats == {"finished": 4, "failed": 2, "queued": 3}
+    # One ping, then one pipeline for the job IDs of all sensors and one for all jobs.
+    assert direct_commands.call_count == 1
+    assert pipelines.call_count == 2
 
 
 def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
@@ -575,10 +773,10 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     import pandas as pd
 
     from flexmeasures.data.models.planning.storage import StorageScheduler
-    from flexmeasures.data.services.scheduling import (
-        ScheduleWritesUncheckedSensor,
-        make_schedule,
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
     )
+    from flexmeasures.data.services.scheduling import make_schedule
 
     battery = add_battery_assets_fresh_db["Test battery"]
     scheduled_sensor = battery.sensors[0]
@@ -619,7 +817,7 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
         ],
     )
 
-    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
         make_schedule(
             asset_or_sensor={"class": "Asset", "id": battery.id},
             start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
@@ -628,6 +826,90 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
             flex_model=[flex_model],
             flex_context={},
         )
+
+
+def test_a_refused_schedule_job_keeps_its_meta(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A schedule job refused for an unchecked sensor keeps its meta readable, and records the refusal in it.
+
+    The scheduling queue's exception handler stores the refusal itself in the job's meta, which RQ pickles.
+    A refusal that cannot be unpickled makes RQ replace the whole meta on the next fetch,
+    losing the trigger, the scheduler info and everything else the API and failure attribution read from it.
+    Calling make_schedule directly, as the test above does, never pickles anything, so this one runs a worker.
+    """
+    import pandas as pd
+    from rq.job import Job
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import (
+        handle_scheduling_exception,
+        make_schedule,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+    queue = app.queues["scheduling"]
+    job = Job.create(
+        make_schedule,
+        kwargs=dict(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        ),
+        connection=queue.connection,
+        meta={"trigger": {"origin": "automation", "automation_id": automation.id}},
+    )
+    queue.enqueue_job(job)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception, job=job)
+
+    fetched = Job.fetch(job.id, connection=queue.connection)
+    assert fetched.is_failed
+    assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
+    assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
+    refusal = fetched.meta["exception"]
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
 
 
 def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):
@@ -685,3 +967,375 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
 
     assert sensors_automation_job_may_record_on(job) == set()
+
+
+def _schedule_run(db, automation, parameters) -> AutomationRun:
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=parameters,
+        plan={},
+    )
+    db.session.add(run)
+    db.session.flush()
+    return run
+
+
+@pytest.mark.parametrize("sequential", (False, True))
+def test_a_schedule_run_names_its_jobs_after_the_run(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+):
+    """A schedule run's jobs carry IDs derived from the run, which is what lets a second attempt recognise them."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    parameters = {"duration": "PT1H", "sequential": sequential}
+    automation = build_schedule_automation(
+        building,
+        name="Stored-flex schedule",
+        cronstr="0 * * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+    run = _schedule_run(fresh_db, automation, parameters)
+
+    returns = run_automation(automation, automation_run=run)
+
+    if sequential:
+        assert returns["job_id"] == f"automation-run-{run.id}-wrap-up"
+        job = Job.fetch(returns["job_id"], connection=app.redis_connection)
+        assert job.args[0] == [f"automation-run-{run.id}-device-{power_sensor.id}"]
+    else:
+        assert returns["job_id"] == f"automation-run-{run.id}-schedule"
+    assert {intent.logical_job_key for intent in run.job_intents} == (
+        {f"device-{power_sensor.id}", "wrap-up"} if sequential else {"schedule"}
+    )
+    assert all(intent.status == "queued" for intent in run.job_intents)
+    assert all(intent.queue == "scheduling" for intent in run.job_intents)
+
+
+def test_a_sequential_schedule_run_records_its_device_chain():
+    """Each device job of a sequential schedule run waits on the one before it, and its intent says so, as the automation's details show."""
+    from types import SimpleNamespace
+
+    from flexmeasures.data.services.automations import _plan_schedule_jobs
+
+    specs = _plan_schedule_jobs(
+        7, [SimpleNamespace(id=sensor_id) for sensor_id in (3, 1, 2)], sequential=True
+    )
+    assert {spec["logical_job_key"]: spec["depends_on"] for spec in specs} == {
+        "device-3": [],
+        "device-1": ["device-3"],
+        "device-2": ["device-1"],
+        "wrap-up": ["device-3", "device-1", "device-2"],
+    }
+
+
+@pytest.mark.parametrize("sequential", (False, True))
+def test_dispatching_a_schedule_run_again_queues_no_second_schedule(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+):
+    """A run dispatched twice leaves the jobs of the first attempt alone, rather than scheduling a device again."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    parameters = {"duration": "PT1H", "sequential": sequential}
+    automation = build_schedule_automation(
+        building,
+        name="Stored-flex schedule",
+        cronstr="0 * * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+    run = _schedule_run(fresh_db, automation, parameters)
+    queue = app.queues["scheduling"]
+
+    first = run_automation(automation, automation_run=run)
+    queued_after_first = set(queue.job_ids) | set(
+        queue.deferred_job_registry.get_job_ids()
+    )
+
+    second = run_automation(automation, automation_run=run)
+    queued_after_second = set(queue.job_ids) | set(
+        queue.deferred_job_registry.get_job_ids()
+    )
+
+    assert second["job_id"] == first["job_id"]
+    assert (
+        queued_after_second == queued_after_first
+    ), "the second attempt queued a job the first one had already queued"
+
+
+def _two_device_schedule_run(
+    db, batteries, parameters: dict, scheduled_at: datetime
+) -> tuple[AutomationRun, list[Sensor]]:
+    """Give the building of the test battery a second battery, and a sequential schedule run over both of them."""
+    battery = batteries["Test battery"]
+    building = battery.parent_asset
+    power_sensors = [
+        next(sensor for sensor in battery.sensors if sensor.name == "power")
+    ]
+    second_battery = GenericAsset(
+        name="Second battery",
+        generic_asset_type=battery.generic_asset_type,
+        parent_asset=building,
+        owner=battery.owner,
+        attributes=dict(battery.attributes),
+        flex_context=dict(battery.flex_context or {}),
+    )
+    db.session.add(second_battery)
+    db.session.flush()
+    power_sensors.append(
+        Sensor(
+            name="power",
+            generic_asset=second_battery,
+            event_resolution=power_sensors[0].event_resolution,
+            unit=power_sensors[0].unit,
+        )
+    )
+    db.session.add(power_sensors[1])
+    db.session.flush()
+    for asset, sensor, soc_at_start in zip(
+        (battery, second_battery), power_sensors, ("2.5 MWh", "1 MWh")
+    ):
+        asset.flex_model = {
+            "consumption": {"sensor": sensor.id},
+            "soc-at-start": soc_at_start,
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "1 MW",
+        }
+    automation = build_schedule_automation(
+        building,
+        name="Two batteries",
+        cronstr="0 * * * *",
+        timezone="UTC",
+        parameters=parameters,
+    )
+    db.session.add(automation)
+    db.session.commit()
+    run = _schedule_run(db, automation, parameters)
+    run.scheduled_at = scheduled_at
+    db.session.commit()
+    return run, power_sensors
+
+
+def _dispatch_dying_after_the_first_device(run: AutomationRun):
+    """Dispatch a run whose runner loses Redis once it has queued the job of the first device."""
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+
+    original = scheduling.create_scheduling_job
+    calls = []
+
+    def dying(*args, **kwargs):
+        calls.append(kwargs.get("job_id"))
+        if len(calls) == 2:
+            raise ConnectionError("Lost Redis between two devices.")
+        return original(*args, **kwargs)
+
+    with patch.object(scheduling, "create_scheduling_job", dying):
+        with pytest.raises(ConnectionError):
+            dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+
+def test_resuming_a_schedule_run_leaves_the_jobs_of_its_first_attempt_as_they_were(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A resumed run queues the devices it still owes, without touching the job a worker already finished.
+
+    Creating that job again would overwrite the meta its worker recorded,
+    after which its schedule can no longer be looked up by its job.
+    """
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+    from flexmeasures.data.services.scheduling import (
+        get_data_source_for_job,
+        handle_scheduling_exception,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"start-offset": "HB", "duration": "PT1H", "sequential": True},
+        datetime(2015, 1, 1, 10, 0, tzinfo=timezone.utc),
+    )
+    queue = app.queues["scheduling"]
+    first_job_id = f"automation-run-{run.id}-device-{power_sensors[0].id}"
+
+    _dispatch_dying_after_the_first_device(run)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception)
+    first_job = Job.fetch(first_job_id, connection=queue.connection)
+    assert first_job.is_finished
+    meta_before = dict(first_job.meta)
+    assert "data_source_info" in meta_before
+
+    dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+    first_job = Job.fetch(first_job_id, connection=queue.connection)
+    assert first_job.meta == meta_before
+    assert get_data_source_for_job(first_job) is not None
+    work_on_rq(queue, exc_handler=handle_scheduling_exception)
+    for intent in run.job_intents:
+        assert Job.fetch(intent.rq_job_id, connection=queue.connection).is_finished
+
+
+def test_a_resumed_schedule_run_schedules_the_window_it_started_on(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    freeze_server_now,
+):
+    """A schedule without offsets starts when it is dispatched, so a resumed run keeps the start of its first attempt.
+
+    Otherwise the devices it still owes would be scheduled for a later window than the devices already queued.
+    """
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+
+    first_attempt = datetime(2015, 1, 1, 10, 0, 30, tzinfo=timezone.utc)
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"duration": "PT1H", "sequential": True},
+        first_attempt.replace(second=0),
+    )
+    connection = app.queues["scheduling"].connection
+
+    freeze_server_now(first_attempt)
+    _dispatch_dying_after_the_first_device(run)
+    freeze_server_now(first_attempt + timedelta(minutes=7))
+    dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+    starts = {
+        Job.fetch(
+            f"automation-run-{run.id}-device-{sensor.id}", connection=connection
+        ).kwargs["start"]
+        for sensor in power_sensors
+    }
+    assert starts == {first_attempt.replace(second=0)}
+
+
+def test_a_failed_schedule_dispatch_records_the_jobs_it_did_queue(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A dispatch that dies halfway says what it queued, rather than nothing until its next attempt."""
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"start-offset": "HB", "duration": "PT1H", "sequential": True},
+        datetime(2015, 1, 1, 10, 0, tzinfo=timezone.utc),
+    )
+
+    _dispatch_dying_after_the_first_device(run)
+
+    fresh_db.session.refresh(run)
+    assert run.dispatch_state == "partially_queued"
+    assert run.queued_job_count == 1
+    assert {intent.logical_job_key: intent.status for intent in run.job_intents} == {
+        f"device-{power_sensors[0].id}": "queued",
+        f"device-{power_sensors[1].id}": "pending",
+        "wrap-up": "pending",
+    }
+
+
+@pytest.mark.parametrize(
+    "target, refused",
+    [
+        ({"sensor": "{id}", "lower": "0 kW"}, True),
+        ({"sensor": "{id}", "sources": [1]}, True),
+        ("{id}", False),
+    ],
+)
+def test_a_forecast_automation_refuses_a_qualified_sensor_to_forecast(
+    setup_fresh_test_forecast_data, fresh_db, target, refused
+):
+    """Qualifiers on the sensor to forecast are refused when the automation is created, not on every run after.
+
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so accepting them here would store an automation that can never run.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import create_automation
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    if isinstance(target, dict):
+        target = {**target, "sensor": sensor.id}
+    else:
+        target = sensor.id
+    parameters = {
+        "sensor": target,
+        "max-forecast-horizon": "PT24H",
+        "forecast-frequency": "PT24H",
+    }
+
+    if not refused:
+        automation, _ = create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts naming their sensor by ID",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+        assert automation.parameters["sensor"] == sensor.id
+        return
+
+    with pytest.raises(ValidationError) as refusal:
+        create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts qualifying their sensor in the parameters",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+    assert '"auto"' in str(refusal.value.messages["parameters"]["sensor"])

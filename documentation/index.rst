@@ -203,6 +203,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     concepts/flexibility
     concepts/data-model
     concepts/time-series-and-beliefs
+    concepts/data-pipelining
     concepts/flexibility-configuration
     concepts/security_auth
     concepts/commitments

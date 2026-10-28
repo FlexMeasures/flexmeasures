@@ -50,6 +50,43 @@ def test_new_asset_page(client, setup_assets, as_admin):
     )
 
 
+def test_asset_pages_tolerate_a_reference_to_a_sensor_that_is_gone(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """An asset's pages still render when its configuration refers to a sensor which no longer exists.
+
+    References to a deleted sensor are cleaned up when the sensor is deleted through the code,
+    so a sensor removed directly in the database leaves them in place.
+    The pages have to show such a reference, rather than fail on it.
+    """
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    sensor_that_is_gone = 10**6  # No sensor has this id.
+    asset.flex_context = {
+        "consumption-price": {"sensor": sensor_that_is_gone},
+        "inflexible-device-sensors": [sensor_that_is_gone],
+    }
+    asset.flex_model = {"state-of-charge": {"sensor": sensor_that_is_gone}}
+    asset.sensors_to_show = [{"title": "Gone", "sensor": sensor_that_is_gone}]
+    asset.sensors_to_show_as_kpis = [
+        {"sensor": sensor_that_is_gone, "function": "sum", "title": "Gone"}
+    ]
+    db.session.add(asset)
+    db.session.commit()
+    asset_id = asset.id
+
+    for view in ("context", "graphs", "properties"):
+        page = client.get(
+            url_for("AssetCrudUI:" + view, id=asset_id), follow_redirects=True
+        )
+        assert page.status_code == 200, f"the {view} page did not render"
+
+    asset = db.session.get(GenericAsset, asset_id)
+    assert (
+        asset.validate_sensors_to_show() == []
+    ), "a graph of a sensor which is gone is not offered to the chart"
+
+
 @pytest.mark.parametrize(
     "view",
     [
@@ -121,8 +158,14 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
             in asset_page.data
         )
         # It is the sending that matters, so pin the payload lines, not just the parsing.
-        assert b'"data-generator": generator || null' in asset_page.data
-        assert b"config: config," in asset_page.data
+        # The payload is assembled before it is sent, because a reused data source replaces both of these.
+        assert (
+            b'automationData["data-generator"] = generator || null;' in asset_page.data
+        )
+        assert b"automationData.config = config;" in asset_page.data
+        assert (
+            b"automationData.source = selectedAutomationSource.id;" in asset_page.data
+        )
         # A schedule automation's generator follows from the asset, so it is not offered one.
         assert (
             b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data

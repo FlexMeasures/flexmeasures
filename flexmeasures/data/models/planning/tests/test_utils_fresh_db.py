@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -472,3 +473,180 @@ def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     assert series(reference, consumption_is_positive=True)[0] == pytest.approx(0.2)
     reference = SensorReference(sensor=sensor, source_types=["scheduler"])
     assert series(reference, consumption_is_positive=False)[0] == pytest.approx(-0.1)
+
+
+def _sensor_with_readings(fresh_db, name: str, start, values, instantaneous=False):
+    """Record readings on a new sensor, one per 15 minutes from ``start``, skipping None.
+
+    The sensor records power in kW, or, if instantaneous, a state of charge in kWh.
+    """
+    source = DataSource(name=f"{name}-source", type="demo script")
+    asset_type = GenericAssetType(name=f"{name}-asset-type")
+    asset = GenericAsset(name=f"{name}-asset", generic_asset_type=asset_type)
+    sensor = Sensor(
+        name=name,
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=0 if instantaneous else 15),
+        unit="kWh" if instantaneous else "kW",
+    )
+    fresh_db.session.add_all([source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                event_start=start + i * timedelta(minutes=15),
+                belief_horizon=timedelta(0),
+                event_value=value,
+                source=source,
+                sensor=sensor,
+            )
+            for i, value in enumerate(values)
+            if value is not None
+        ]
+    )
+    fresh_db.session.commit()
+    return sensor
+
+
+def test_get_series_from_sensor_reference_applies_its_bounds(fresh_db):
+    """Readings are snapped and clipped in the sensor's own unit, and a missing reading is still left to the default."""
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    query_window = (start, start + timedelta(hours=1))
+    sensor = _sensor_with_readings(
+        fresh_db, "test-sensor-bounds", start, [-5.0, 0.05, 99.0, None]
+    )
+
+    def series(reference):
+        return get_series_from_quantity_or_sensor(
+            variable_quantity=reference,
+            query_window=query_window,
+            resolution=sensor.event_resolution,
+            unit="MW",
+            as_instantaneous_events=False,
+        )
+
+    unbounded = series(SensorReference(sensor=sensor, default=ur.Quantity("30 kW")))
+    assert list(unbounded) == pytest.approx([-0.005, 0.00005, 0.099, 0.03])
+
+    bounded = series(
+        SensorReference(
+            sensor=sensor,
+            default=ur.Quantity("30 kW"),
+            lower="0 kW",
+            upper="0.02 MW",
+            snap={"0 kW": ["0 kW", "0.1 kW"]},
+        )
+    )
+    assert list(bounded) == pytest.approx([0.0, 0.0, 0.02, 0.03])
+
+
+def test_get_power_values_applies_reference_bounds(fresh_db):
+    """An inflexible device's readings are cleaned before the sign convention is applied."""
+    from flexmeasures.data.models.planning.utils import get_power_values
+
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    sensor = _sensor_with_readings(
+        fresh_db, "test-sensor-gpv-bounds", start, [-5.0, 99.0]
+    )
+    reference = SensorReference(sensor=sensor, lower="0 kW", upper="20 kW")
+
+    values = get_power_values(
+        query_window=(start, start + timedelta(minutes=30)),
+        resolution=sensor.event_resolution,
+        beliefs_before=None,
+        sensor=reference,
+        consumption_is_positive=True,
+    )
+
+    assert list(values) == pytest.approx([0.0, 0.02])
+
+
+def test_soc_at_start_applies_reference_bounds(fresh_db):
+    """A state-of-charge reading outside the reference's bounds is clipped before it becomes the starting state of charge."""
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    soc_sensor = _sensor_with_readings(
+        fresh_db, "test-soc-bounds", start, [-3.0], instantaneous=True
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=soc_sensor.generic_asset,
+        start=start,
+        end=start + timedelta(hours=1),
+        resolution=timedelta(minutes=15),
+        flex_model=[],
+        flex_context={},
+    )
+
+    unbounded = scheduler._resolve_soc_at_start_from_sensor(soc_sensor, flex_model={})
+    bounded = scheduler._resolve_soc_at_start_from_sensor(
+        SensorReference(sensor=soc_sensor, lower="0 kWh"), flex_model={}
+    )
+
+    assert unbounded == pytest.approx(-0.003)
+    assert bounded == pytest.approx(0.0)
+
+
+def test_collect_flex_config_resolves_references_whose_sensor_was_deleted(fresh_db):
+    """A stored reference whose sensor was deleted stands in for its default, or is ignored without one, while a passed one is refused.
+
+    Ignoring a flex-context field lets an ancestor's value for it apply, as if the asset did not set it.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-unset-reference")
+    fresh_db.session.add(asset_type)
+    site = GenericAsset(
+        name="test-site-unset-reference",
+        generic_asset_type=asset_type,
+        flex_context={"consumption-price": "20 EUR/MWh"},
+    )
+    fresh_db.session.add(site)
+    fresh_db.session.flush()
+    building = GenericAsset(
+        name="test-building-unset-reference",
+        generic_asset_type=asset_type,
+        parent_asset_id=site.id,
+        flex_context={
+            "production-price": {
+                "sensor": None,
+                "default": "10 EUR/MWh",
+                "lower": "0 EUR/MWh",
+            },
+            "consumption-price": {"sensor": None, "upper": "100 EUR/MWh"},
+        },
+        flex_model={
+            "soc-min": {"sensor": None, "default": "1 kWh"},
+            "soc-max": {"sensor": None, "source-types": ["user"]},
+        },
+    )
+    fresh_db.session.add(building)
+    fresh_db.session.commit()
+
+    assert building.get_flex_context_with_provenance()["consumption-price"] == dict(
+        value="20 EUR/MWh", asset=site
+    )
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+    end = start + timedelta(hours=1)
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={},
+        flex_context={},
+    )
+    scheduler.collect_flex_config()
+    assert scheduler.flex_context == {
+        "production-price": "10 EUR/MWh",
+        "consumption-price": "20 EUR/MWh",
+    }
+    assert scheduler.flex_model == [{"asset": building.id, "soc-min": "1 kWh"}]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={},
+        flex_context={"production-price": {"sensor": None, "default": "10 EUR/MWh"}},
+    )
+    with pytest.raises(ValidationError, match="has no sensor"):
+        scheduler.collect_flex_config()

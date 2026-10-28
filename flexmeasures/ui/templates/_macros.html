@@ -17,7 +17,8 @@
     </div>
   </div>
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+{% import "includes/vendor.html" as vendor %}
+{{ vendor.echarts() }}
 <script type="module">
   import { buildAssetHierarchy, buildAssetTreeOption, clampZoom, ZOOM_STEP } from "{{ url_for('flexmeasures_ui.static', filename='js/asset-tree.js') }}?v={{ flexmeasures_version }}";
 

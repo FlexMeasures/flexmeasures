@@ -33,7 +33,11 @@ from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    TimezoneField,
+)
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     describe_cronstr,
@@ -110,7 +114,6 @@ def list_plans():
             plan.name,
             plan.default_rate_limit,
             plan.trigger_rate_limit,
-            plan.rate_limit_key.value if plan.rate_limit_key else None,
             "yes" if plan.legacy else "no",
         )
         for plan in plans
@@ -123,7 +126,6 @@ def list_plans():
                 "Name",
                 "Default rate limit",
                 "Trigger rate limit",
-                "Rate limit key",
                 "Legacy",
             ],
         )
@@ -184,6 +186,32 @@ def show_account(account):
         )
     else:
         click.secho("Account has no roles.", **MsgStyle.WARN)
+    click.echo()
+
+    plan = account.plan
+    plan_name = (
+        f"{plan.name}{' (legacy)' if plan.legacy else ''}"
+        if plan is not None
+        else "No plan (server defaults apply)"
+    )
+    click.echo(f"Plan: {plan_name}")
+    click.echo("------")
+    click.echo(
+        "Default API rate limit: "
+        + (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+    )
+    click.echo(
+        "Trigger rate limit: "
+        + (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+    )
     click.echo()
 
     users = db.session.scalars(
@@ -946,11 +974,15 @@ def chart(
     help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
 )
 @click.option(
+    "--export-timezone",
     "--timezone",
     "timezone",
-    type=str,
+    type=TimezoneField(),
     required=False,
-    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
+    cls=DeprecatedOption,
+    preferred="--export-timezone",
+    deprecated=["--timezone"],
+    help="Timezone of the data, when exported with --to-file (the terminal plot always shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -1054,9 +1086,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    if timezone is not None:
-        timezone = sensors[0].timezone
-    df.index = df.index.tz_convert(timezone)
+    df.index = df.index.tz_convert(get_export_timezone(timezone, filepath, sensors))
 
     # Build title
     if len(sensors) == 1:
@@ -1072,7 +1102,8 @@ def plot_beliefs(
 
     uniplot.plot(
         ys=[df[col] for col in df.columns],
-        xs=[df.index for _ in df.columns],
+        # uniplot shows UTC whatever the timezone, and warns about a timezone-aware index, so it gets UTC without one.
+        xs=[df.index.tz_convert(None) for _ in df.columns],
         title=title,
         color=True,
         lines=True,
@@ -1087,6 +1118,26 @@ def plot_beliefs(
         )
         df.to_csv(filepath)
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
+
+
+def get_export_timezone(
+    timezone: str | None, filepath: str | None, sensors: list[Sensor]
+) -> str:
+    """Find the timezone to export beliefs in, warning when one was given without a file to export to.
+
+    :param timezone:    The timezone given with --export-timezone, if any.
+    :param filepath:    The file given with --to-file, if any.
+    :param sensors:     The sensors with data, the first of which gives the default timezone.
+    :returns:           The given timezone, or else the timezone of the first sensor.
+    """
+    if timezone is not None and filepath is None:
+        click.secho(
+            "--export-timezone only applies to the file written with --to-file, as the plot always shows UTC.",
+            **MsgStyle.WARN,
+        )
+    if timezone is None:
+        return sensors[0].timezone
+    return timezone
 
 
 def find_duplicates(_list: list, attr: str | None = None) -> list:

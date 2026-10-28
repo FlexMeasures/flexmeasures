@@ -8,11 +8,59 @@ from sqlalchemy.dialects.postgresql import JSONPATH
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import (
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from flexmeasures.data.services.group_membership_audit import (
+    note_deletion as note_group_membership_deletion,
+)
 
 """Services for managing assets"""
+
+
+def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
+    """Return whether an asset subtree holds beliefs or annotations."""
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    subtree = (
+        sa.select(GenericAsset.id)
+        .where(GenericAsset.id == asset.id)
+        .cte(recursive=True)
+    )
+    subtree = subtree.union_all(
+        sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
+    )
+    asset_ids = sa.select(subtree.c.id)
+    sensor_ids = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        db.session.scalars(
+            sa.select(GenericAsset.id)
+            .where(GenericAsset.id.in_(asset_ids))
+            .with_for_update()
+        ).all()
+        db.session.scalars(
+            sa.select(Sensor.id).where(Sensor.id.in_(sensor_ids)).with_for_update()
+        ).all()
+    for model, condition in (
+        (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
+        (
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id.in_(asset_ids),
+        ),
+        (
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.sensor_id.in_(sensor_ids),
+        ),
+    ):
+        if db.session.scalar(
+            sa.select(sa.literal(True)).select_from(model).where(condition).limit(1)
+        ):
+            return True
+    return False
 
 
 def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
@@ -630,6 +678,8 @@ def delete_asset(asset: GenericAsset):
     asset_name, asset_id = asset.name, asset.id
     cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
+    # the statement below deletes the asset, its offspring and their sensors without a flush, which is where group changes are noted otherwise
+    note_group_membership_deletion(asset)
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)

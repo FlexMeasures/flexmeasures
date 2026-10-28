@@ -8,6 +8,7 @@ from flexmeasures.utils import config_utils
 from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
+    check_rate_limit_settings,
     get_config_warnings,
     normalize_security_durations,
     normalize_trusted_hosts,
@@ -200,6 +201,29 @@ def test_normalize_security_durations(monkeypatch, flask_security_version, expec
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
 
 
+@pytest.mark.parametrize(
+    "value, error",
+    [
+        ("10 per minute; 100 per hour", "holds 2 rate limits"),
+        ("10 per fortnight", "not a valid rate limit"),
+    ],
+)
+def test_check_rate_limit_settings_refuses_what_is_not_one_limit(value, error):
+    """A server-wide rate limit is refused at startup, naming the setting, unless it is one limit."""
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"] = "500 per minute"
+    app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"] = value
+    with pytest.raises(ValueError, match=error) as exc_info:
+        check_rate_limit_settings(app)
+    assert "FLEXMEASURES_API_TRIGGER_RATE_LIMIT" in str(exc_info.value)
+
+
+def test_check_rate_limit_settings_accepts_the_defaults():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    check_rate_limit_settings(app)
+
+
 def test_config_warnings_flag_unset_trusted_hosts():
     """An unset TRUSTED_HOSTS is reported, since it leaves generated URLs poisonable."""
     app = Flask(__name__)
@@ -230,10 +254,23 @@ def test_development_config_trusts_loopback():
     assert "TRUSTED_HOSTS" not in missing_settings
 
     normalize_trusted_hosts(app)
-    for host in ("localhost:5000", "127.0.0.1", "[::1]:5000", "app.localhost:5000"):
+    for host in ("localhost:5000", "127.0.0.1", "app.localhost:5000"):
         assert host_is_trusted(host, app.config["TRUSTED_HOSTS"]), host
     # Other hosts are still rejected, so development resembles production.
     assert not host_is_trusted("evil.example", app.config["TRUSTED_HOSTS"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Werkzeug 3.1.9 cuts each trusted host at its first colon, so no IPv6 address matches (https://github.com/pallets/werkzeug/issues/3312).",
+)
+def test_development_config_trusts_ipv6_loopback():
+    """A dev server reached over IPv6 loopback is trusted, and other IPv6 hosts are not."""
+    app = Flask(__name__)
+    app.config.from_object(DevelopmentConfig)
+    normalize_trusted_hosts(app)
+    assert host_is_trusted("[::1]:5000", app.config["TRUSTED_HOSTS"])
+    assert not host_is_trusted("[::2]:5000", app.config["TRUSTED_HOSTS"])
 
 
 def test_production_config_does_not_trust_any_host():

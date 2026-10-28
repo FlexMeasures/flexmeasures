@@ -1,5 +1,6 @@
 """Plugin automation validation, persistence, queueing and execution permissions."""
 
+from dataclasses import replace
 from datetime import timedelta
 
 from flask import Flask
@@ -7,6 +8,7 @@ from flask_login import login_user, logout_user
 from marshmallow import ValidationError
 import pytest
 from rq.job import Job
+from sqlalchemy import select
 from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data.automations import (
@@ -177,6 +179,54 @@ def test_plugin_queue_and_worker(
     assert beliefs[0].source_id == automation.generator_id
 
 
+@pytest.mark.parametrize(
+    "queue, ttl_setting",
+    [
+        ("ingestion", "FLEXMEASURES_JOB_TTL"),
+        ("reporting", "FLEXMEASURES_PLANNING_TTL"),
+    ],
+)
+def test_plugin_job_keeps_its_result_by_its_queue(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch, queue, ttl_setting
+):
+    """A plugin job's result is kept as long as results on its own queue are kept."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_JOB_TTL", timedelta(hours=3))
+    monkeypatch.setitem(app.config, "FLEXMEASURES_PLANNING_TTL", timedelta(days=5))
+    monkeypatch.setitem(
+        app.automation_handlers,
+        "mock-ingestion",
+        replace(app.automation_handlers["mock-ingestion"], queue=queue),
+    )
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0])
+    job = Job.fetch(
+        run_automation(automation)["job_id"], connection=app.redis_connection
+    )
+    assert job.origin == queue
+    assert job.result_ttl == app.config[ttl_setting].total_seconds()
+
+
+def test_plugin_job_reports_rows_saved(
+    fresh_db, app, ingestion_plugin, ingestion_assets
+):
+    """A rerun whose beliefs are unchanged reports that it saved nothing."""
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3.0})
+    n_rows = []
+    for _ in range(2):
+        job = Job.fetch(
+            run_automation(automation)["job_id"], connection=app.redis_connection
+        )
+        work_on_rq(app.queues["ingestion"], job=job)
+        job.refresh()
+        assert job.is_finished, job.exc_info
+        n_rows.append(job.return_value())
+    assert n_rows == [
+        [{"sensor_id": sensors[0].id, "n_rows": 1}],
+        [{"sensor_id": sensors[0].id, "n_rows": 0}],
+    ]
+
+
 def test_plugin_rejects_outputs_outside_asset_tree(
     fresh_db, ingestion_plugin, ingestion_assets
 ):
@@ -300,6 +350,11 @@ def test_worker_rejects_undeclared_output(
     work_on_rq(app.queues["ingestion"], job=job)
     job.refresh()
     assert job.is_failed
+    # Refused the same way as any data generator's unchecked output, naming the automation and the sensor.
+    failure = job.latest_result().exc_string
+    assert "GeneratorWritesUncheckedSensor" in failure, failure
+    assert f"automation {automation.id}" in failure
+    assert str(sensors[1].id) in failure
     assert fresh_db.session.query(TimedBelief).count() == 0
 
 
@@ -369,3 +424,171 @@ def test_a_source_of_another_version_is_refused_at_creation(
             automation_type="mock-ingestion",
             source=stale_source,
         )
+
+
+def test_a_source_that_is_not_the_users_to_work_with_is_refused_for_a_plugin_type(
+    app, fresh_db, ingestion_plugin, ingestion_assets, setup_roles_users_fresh_db
+):
+    """An automation of a plugin type takes its own branch, which used to reach no source check at all.
+
+    Naming a source records the automation's results under it, so a plugin's type is held to the same rule as the built-in ones.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+    from flexmeasures.data.models.data_sources import DataSource
+
+    root, sensors = ingestion_assets
+    user = fresh_db.session.get(User, setup_roles_users_fresh_db["Test Prosumer User"])
+    root.owner = user.account
+    sensors[0].generic_asset.owner = user.account
+    someone_else = fresh_db.session.scalars(
+        select(Account).filter(Account.id != user.account_id)
+    ).first()
+    handler = get_automation_handler("mock-ingestion")
+    foreign_source = DataSource(
+        name="Mock ingestion",
+        type=handler.generator_class.__data_generator_base__,
+        model=handler.generator_class.__name__,
+        version=handler.installed_generator_version(),
+        attributes={"data_generator": {"config": {"sensor": sensors[0].id}}},
+        account=someone_else,
+    )
+    fresh_db.session.add(foreign_source)
+    fresh_db.session.commit()
+
+    with app.test_request_context():
+        login_user(user)
+        try:
+            with pytest.raises(Forbidden) as refusal:
+                create_automation(
+                    asset=root,
+                    name="Ingestion under someone else's source",
+                    cronstr="0 * * * *",
+                    automation_type="mock-ingestion",
+                    source=foreign_source,
+                    check_permissions=True,
+                )
+            # The message the API reports sits on `api_message`, as it does for the built-in types.
+            assert "not yours to work with" in refusal.value.api_message
+        finally:
+            logout_user()
+
+
+def _claimed_run(fresh_db, automation):
+    """Return the durable run a runner would have claimed for this automation."""
+    from datetime import datetime, timezone
+
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=dict(automation.parameters),
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    return run
+
+
+def test_a_plugin_run_records_how_its_job_ended(
+    fresh_db, app, ingestion_plugin, ingestion_assets
+):
+    """A plugin run names itself on its job, records the job, and succeeds once a worker finished it."""
+    from flexmeasures.data.models.automations import AutomationRun
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+
+    result = run_automation(automation, automation_run=run)
+    job = Job.fetch(result["job_id"], connection=app.redis_connection)
+    assert job.meta["trigger"]["automation_run_id"] == run_id
+    work_on_rq(app.queues["ingestion"], job=job)
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert [(intent.logical_job_key, intent.status) for intent in run.job_intents] == [
+        ("job", "succeeded")
+    ]
+    assert run.execution_state == "succeeded"
+
+
+def test_a_job_that_ended_before_its_run_recorded_it_is_caught_up_on(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
+):
+    """A worker may finish a job before the run that queued it has recorded it, so the run takes the outcome from Redis."""
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.services import automations as automation_services
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+    record_automation_run_jobs = automation_services.record_automation_run_jobs
+    held_back = []
+    monkeypatch.setattr(
+        automation_services,
+        "record_automation_run_jobs",
+        lambda *args: held_back.append(args),
+    )
+    result = run_automation(automation, automation_run=run)
+    work_on_rq(
+        app.queues["ingestion"],
+        job=Job.fetch(result["job_id"], connection=app.redis_connection),
+    )
+
+    record_automation_run_jobs(*held_back[0])
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "succeeded"
+
+
+def test_a_job_that_failed_before_its_run_recorded_it_is_caught_up_on_with_its_error(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
+):
+    """A worker may fail a job before the run that queued it has recorded it, so the run takes the error from Redis.
+
+    That is the summary the queue's exception handler stored, so the run names the error's own type, rather than a stand-in.
+    """
+    from flexmeasures.cli.jobs import handle_worker_exception
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.services import automations as automation_services
+
+    def fail(self, value):
+        raise ValueError("no readings to ingest")
+
+    monkeypatch.setattr(MockIngestionGenerator, "_compute", fail)
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+    record_automation_run_jobs = automation_services.record_automation_run_jobs
+    held_back = []
+    monkeypatch.setattr(
+        automation_services,
+        "record_automation_run_jobs",
+        lambda *args: held_back.append(args),
+    )
+    result = run_automation(automation, automation_run=run)
+    work_on_rq(
+        app.queues["ingestion"],
+        exc_handler=handle_worker_exception,
+        job=Job.fetch(result["job_id"], connection=app.redis_connection),
+    )
+
+    record_automation_run_jobs(*held_back[0])
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "failed"
+    assert (run.last_error_type, run.last_error_message) == (
+        "ValueError",
+        "no readings to ingest",
+    )
