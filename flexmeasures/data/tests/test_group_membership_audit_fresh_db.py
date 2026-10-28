@@ -12,6 +12,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.generic_assets import delete_asset
 
 
 def events_on(db, asset: GenericAsset) -> list[str]:
@@ -171,6 +172,47 @@ def test_a_change_from_a_failed_flush_is_not_noted_later(fresh_db, streets):
     fresh_db.session.commit()
 
     assert membership_events_on(fresh_db, street) == []
+
+
+def test_a_member_deleted_through_the_service_is_noted_on_its_group(fresh_db, streets):
+    """The API, the UI and the CLI delete an asset in one statement, which no flush gets to see."""
+    street = streets["north_street"]
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+    pv_id = pv.id
+
+    delete_asset(pv)
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street)[-1] == (
+        f"Asset 'PV' ({pv_id}) left group asset 'North street' ({street.id}) (the asset was deleted)."
+    )
+
+
+def test_a_member_deleted_with_its_parent_is_noted_on_its_group(fresh_db, streets):
+    """The database deletes the offspring of a deleted asset, so they never show up in the session either."""
+    street = streets["north_street"]
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+    pv_id = pv.id
+
+    delete_asset(streets["house"])
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street)[-1] == (
+        f"Asset 'PV' ({pv_id}) left group asset 'North street' ({street.id}) (the asset was deleted)."
+    )
+
+
+def test_a_group_deleted_through_the_service_is_noted_on_its_members(fresh_db, streets):
+    street = streets["north_street"]
+    street_id = street.id
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+
+    delete_asset(street)
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, pv) == [
+        f"Group asset 'North street' ({street_id}), named in the flex-model of this asset, was deleted."
+    ]
 
 
 def test_a_group_in_another_organisation_hears_nothing(fresh_db, streets):

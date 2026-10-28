@@ -5,6 +5,8 @@ Without these entries, the history of a group's membership could only be pieced 
 
 The changes are picked up from the session, so they are noted whichever way an asset was created, edited, moved or deleted:
 through the API, the UI, the CLI or a script.
+An asset deleted with one `delete` statement, as `delete_asset` does, never passes through the session, and neither do its offspring and their sensors,
+so `delete_asset` notes those changes itself, with `note_deletion`.
 """
 
 from __future__ import annotations
@@ -153,6 +155,24 @@ def _account_id(asset: GenericAsset) -> int | None:
     return owner.id if owner is not None else asset.account_id
 
 
+def note_deletion(asset: GenericAsset) -> None:
+    """Note the membership changes of deleting the given asset in one statement, which no flush gets to see.
+
+    Deleting an asset that way, as `delete_asset` does, also deletes its offspring and their sensors through the database,
+    so none of them passes through `Session.deleted`.
+    Call this right before that statement, while they can all still be looked up.
+    """
+    from flexmeasures.data import db
+
+    session = db.session
+    assets = [asset, *asset.offspring]
+    sensors = [sensor for each in assets for sensor in each.sensors]
+    stored = _stored_state(session, [each.id for each in assets])
+    changes = _deletions(session, assets, sensors, stored)
+    for change in _worth_noting(changes, {each.id for each in assets}):
+        _write(change)
+
+
 def _edits(
     session: Session,
     asset: GenericAsset,
@@ -278,27 +298,32 @@ def _group_label(session: Session, key: tuple[str, int]) -> str:
 
 def _note_changes(session: Session, flush_context) -> None:
     """Write the audit log entries for the changes found before the flush, now that every asset has an ID."""
-    from flexmeasures.data.models.audit_log import AssetAuditLog
-
     changes: list[_Change] = session.info.pop(_PENDING_KEY, [])
     for change in changes:
-        member = f"Asset {_label_asset(change.member)}"
-        group = change.group_label
-        if change.what == "group deleted":
-            AssetAuditLog.add_record(
-                change.member,
-                f"Group {group}, named in the flex-model of this asset, was deleted.",
-            )
-        elif change.what == "moved":
-            AssetAuditLog.add_record(
-                change.group_asset,
-                f"{member}, a member of group {group}, moved{change.detail}.",
-            )
-        else:
-            AssetAuditLog.add_record(
-                change.group_asset,
-                f"{member} {change.what} group {group}{change.detail}.",
-            )
+        _write(change)
+
+
+def _write(change: _Change) -> None:
+    """Write the audit log entry for one change."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    member = f"Asset {_label_asset(change.member)}"
+    group = change.group_label
+    if change.what == "group deleted":
+        AssetAuditLog.add_record(
+            change.member,
+            f"Group {group}, named in the flex-model of this asset, was deleted.",
+        )
+    elif change.what == "moved":
+        AssetAuditLog.add_record(
+            change.group_asset,
+            f"{member}, a member of group {group}, moved{change.detail}.",
+        )
+    else:
+        AssetAuditLog.add_record(
+            change.group_asset,
+            f"{member} {change.what} group {group}{change.detail}.",
+        )
 
 
 def register(session) -> None:
