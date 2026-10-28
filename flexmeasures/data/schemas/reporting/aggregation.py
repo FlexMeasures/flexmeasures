@@ -98,13 +98,13 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
     skip_missing = fields.Bool(
         required=False,
+        # a config saved by a release candidate of v1.1 may hold null, which means the same
         allow_none=True,
-        load_default=None,
+        load_default=True,
         data_key="skip-missing",
         metadata=dict(
             description="Whether to aggregate whatever reported, leaving out the sensors that did not."
-            " Left unset (or true), a report over a `group` aggregates what reported, and records an event that some members did not report under a data source naming them in its `missing-members`,"
-            " while a report over sensors named in `input` aggregates what reported, which is what such reports have always done."
+            " A report over a `group` then records an event that some members did not report under a data source naming them in its `missing-members`."
             " Set to false, an event is reported only when every sensor reported it.",
         ),
     )
