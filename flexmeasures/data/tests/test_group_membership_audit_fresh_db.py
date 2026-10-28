@@ -6,10 +6,13 @@ from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.generic_assets import delete_asset
 
 
 def events_on(db, asset: GenericAsset) -> list[str]:
@@ -138,6 +141,99 @@ def test_a_deleted_group_is_noted_on_its_members(fresh_db, streets):
     assert membership_events_on(fresh_db, pv) == [
         f"Group asset 'North street' ({street_id}), named in the flex-model of this asset, was deleted."
     ]
+
+
+@pytest.mark.parametrize(
+    "group",
+    [{"asset": "abc"}, {"asset": [1, 2]}, {"asset": 10**20}, {"sensor": "abc"}],
+)
+def test_a_malformed_group_does_not_fail_the_flush(fresh_db, streets, group):
+    """The API validates a group, but a script may write anything, and the listener runs on every flush."""
+    add_pv(fresh_db, streets, group)
+
+    assert membership_events_on(fresh_db, streets["north_street"]) == []
+
+
+def test_a_change_from_a_failed_flush_is_not_noted_later(fresh_db, streets):
+    """The flush that would have added the member fails, so its group should not hear of it with the next flush."""
+    street = streets["north_street"]
+    duplicate = GenericAsset(
+        name="House",  # the north site already has a child called House
+        generic_asset_type=streets["type"],
+        parent_asset=streets["north"],
+        flex_model={"group": {"asset": street.id}},
+    )
+    fresh_db.session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        fresh_db.session.flush()
+    fresh_db.session.rollback()
+
+    streets["south"].name = "South side"
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street) == []
+
+
+def test_a_member_deleted_through_the_service_is_noted_on_its_group(fresh_db, streets):
+    """The API, the UI and the CLI delete an asset in one statement, which no flush gets to see."""
+    street = streets["north_street"]
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+    pv_id = pv.id
+
+    delete_asset(pv)
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street)[-1] == (
+        f"Asset 'PV' ({pv_id}) left group asset 'North street' ({street.id}) (the asset was deleted)."
+    )
+
+
+def test_a_member_deleted_with_its_parent_is_noted_on_its_group(fresh_db, streets):
+    """The database deletes the offspring of a deleted asset, so they never show up in the session either."""
+    street = streets["north_street"]
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+    pv_id = pv.id
+
+    delete_asset(streets["house"])
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street)[-1] == (
+        f"Asset 'PV' ({pv_id}) left group asset 'North street' ({street.id}) (the asset was deleted)."
+    )
+
+
+def test_a_group_deleted_through_the_service_is_noted_on_its_members(fresh_db, streets):
+    street = streets["north_street"]
+    street_id = street.id
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+
+    delete_asset(street)
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, pv) == [
+        f"Group asset 'North street' ({street_id}), named in the flex-model of this asset, was deleted."
+    ]
+
+
+def test_a_group_in_another_organisation_hears_nothing(fresh_db, streets):
+    """A device may name any existing asset as its group, but not write in the audit log of another organisation."""
+    mine, other = Account(name="My organisation"), Account(name="Other organisation")
+    fresh_db.session.add_all([mine, other])
+    fresh_db.session.flush()
+    street = streets["south_street"]
+    street.account_id = other.id
+    fresh_db.session.commit()
+
+    pv = GenericAsset(
+        name="PV",
+        generic_asset_type=streets["type"],
+        owner=mine,
+        flex_model={"group": {"asset": street.id}},
+    )
+    fresh_db.session.add(pv)
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street) == []
 
 
 def test_a_member_moved_to_another_site_is_noted(fresh_db, streets):
