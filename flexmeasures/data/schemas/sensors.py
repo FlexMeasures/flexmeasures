@@ -66,7 +66,11 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 from flexmeasures.data.schemas.attributes import JSON
-from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    AwareDateTimeField,
+    validate_storable_belief_time,
+)
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -400,6 +404,21 @@ def sensor_reference_keys() -> frozenset[str]:
     )
 
 
+def is_unset_sensor_reference(value: Any) -> bool:
+    """Whether a value is a sensor reference whose sensor was unset, which deleting the sensor leaves behind.
+
+    Deleting a sensor keeps the rest of each flex-config reference to it, such as its default, bounds and source filters,
+    so that they are still in place when a new sensor is picked for the field.
+    Only sensor deletion writes such a reference: the API refuses one.
+    """
+    return (
+        isinstance(value, dict)
+        and "sensor" in value
+        and value["sensor"] is None
+        and set(value) <= sensor_reference_keys()
+    )
+
+
 def refuse_unknown_sensor_reference_keys(
     value: dict[str, Any], known: frozenset[str] | set[str] | None = None
 ) -> None:
@@ -623,6 +642,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if value["sensor"] is None:
+            raise FMValidationError(
+                'This sensor reference has no sensor (`"sensor": null`), which is how FlexMeasures marks a reference whose sensor was deleted.'
+                " Pick a sensor for it, or replace the reference with a fixed value."
+            )
         refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
@@ -926,10 +950,29 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    prior = AwareDateTimeField(
+        required=False,
+        allow_none=True,
+        data_key="prior",
+        validate=validate_storable_belief_time,
+        metadata=dict(
+            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
+            example="2026-10-15T12:00:00+02:00",
+        ),
+    )
     unit = fields.String(
         required=False,
         data_key="unit",
     )
+
+    @validates_schema
+    def validate_prior(self, data, **kwargs):
+        """Refuse a prior that conflicts with measured-instantly."""
+        if data.get("prior") is not None and data.get("belief_time_measured_instantly"):
+            raise ValidationError(
+                field_name="prior",
+                message="A prior cannot be combined with belief-time-measured-instantly.",
+            )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -1003,6 +1046,9 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        belief_time = fields.pop("prior", None)
+        if belief_time is None and not belief_time_measured_instantly:
+            belief_time = pd.Timestamp.utcnow()
 
         errors = {}
         for i, file in enumerate(files):
@@ -1011,11 +1057,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     file,
                     sensor,
                     source=get_or_create_source(self.source_user or current_user),
-                    belief_time=(
-                        pd.Timestamp.utcnow()
-                        if not belief_time_measured_instantly
-                        else None
-                    ),
+                    belief_time=belief_time,
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
