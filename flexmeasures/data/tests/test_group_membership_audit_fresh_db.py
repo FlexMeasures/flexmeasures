@@ -285,6 +285,48 @@ def test_a_group_moved_along_with_its_members_notes_nothing(fresh_db, streets):
     assert len(membership_events_on(fresh_db, house)) == 1
 
 
+def test_a_group_moved_away_from_its_member_is_noted(fresh_db, streets):
+    """A scheduler finds members only on the group's site, so moving the group's own asset to another site takes the members it leaves behind out of it."""
+    street = streets["north_street"]
+    pv = add_pv(fresh_db, streets, {"asset": street.id})
+
+    street.parent_asset = streets["south"]
+    fresh_db.session.commit()
+
+    north, south = streets["north"], streets["south"]
+    assert membership_events_on(fresh_db, street)[-1] == (
+        f"Group asset 'North street' ({street.id}) moved from site 'North' ({north.id}) to site 'South' ({south.id}),"
+        f" while its member Asset 'PV' ({pv.id}) stayed on site 'North' ({north.id})."
+    )
+    # the member itself did not move, so its own log says nothing
+    assert membership_events_on(fresh_db, pv) == []
+
+
+def test_a_sensor_referenced_group_moved_away_from_its_member_is_noted(
+    fresh_db, streets
+):
+    """A group named by a sensor moves along with the asset holding that sensor."""
+    street = streets["north_street"]
+    street_power = Sensor(
+        "street power",
+        generic_asset=street,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add(street_power)
+    fresh_db.session.commit()
+    pv = add_pv(fresh_db, streets, {"sensor": street_power.id})
+
+    street.parent_asset = streets["south"]
+    fresh_db.session.commit()
+
+    latest = membership_events_on(fresh_db, street)[-1]
+    assert latest.startswith("Group sensor")
+    assert latest.endswith(
+        f"while its member Asset 'PV' ({pv.id}) stayed on site 'North' ({streets['north'].id})."
+    )
+
+
 def test_a_sensor_referenced_group_is_noted_on_the_sensor_asset(fresh_db, streets):
     street = streets["north_street"]
     street_power = Sensor(
