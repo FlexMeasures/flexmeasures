@@ -213,11 +213,13 @@ rather than being added up.
 whose ``missing-members`` names the sensors it had to leave out.
 A partial aggregate can therefore always be told apart from a complete one, whose source names no missing members,
 and a meter that stops reporting does not take the whole group's aggregate down with it.
-Once the missing data arrives, the next report records the complete aggregate, which then takes precedence:
+Once the missing data arrives, the next report that covers the event records the complete aggregate, which then takes precedence:
 it is the more recent belief, and where both carry the same belief time, the complete one still wins.
 It is recorded even if it says just what an earlier complete aggregate of that event said, so that it supersedes the partial one recorded in between.
-The reverse holds as well: a member that stops reporting an event it had reported before leaves a partial aggregate that, being the more recent belief, takes precedence over the older complete one.
-The asset's status page shows a yellow light for an aggregate that still leaves out members by the time it would count as stale, and names them when you hover it.
+A report that only computes new events leaves an earlier partial aggregate as it is, so let a recurring report reach back further than its slowest member lags behind, for instance with a ``start-offset``.
+The reverse usually holds as well: a member that stops reporting an event it had reported before leaves a partial aggregate that, being the more recent belief, takes precedence over the older complete one.
+The asset's status page shows a yellow light for an aggregate that still leaves out members by the time it would count as stale and its slowest member had the chance to report on it.
+Hovering the light names them.
 A newer partial aggregate is not flagged yet, since the next run may still complete it.
 A report over sensors named in ``input`` aggregates what reported under its one data source, which is what such reports have always done.
 Set ``skip-missing`` to ``false`` to report an event only when every sensor reported it, which logs the sensors that left gaps.
