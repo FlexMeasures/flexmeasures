@@ -1194,6 +1194,58 @@ def test_a_complete_aggregate_computed_again_supersedes_a_partial_one_recorded_s
         db.session.commit()
 
 
+@pytest.mark.parametrize("timing", ["belief_time", "belief_horizon"])
+@pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam"])
+def test_a_group_report_runs_again_after_recording_a_partial_aggregate(
+    setup_nested_groups, db, restore_beliefs, timing, timezone
+):
+    """A report over a group can run again once a partial aggregate is on record, whichever way its belief timing is given.
+
+    A report computed with a belief horizon records its complete and partial aggregates of an event at the same belief time,
+    and an output sensor may be in another timezone than the members.
+    """
+    from flexmeasures.data.services.generator_results import save_generator_results
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        f"street rerun test {timing} {timezone}",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone=timezone,
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+
+    def report(hour: int) -> int:
+        if timing == "belief_time":
+            kwargs = dict(belief_time=datetime(2026, 7, 2, hour, tzinfo=utc))
+        else:
+            kwargs = dict(belief_horizon=timedelta(0))
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            **kwargs,
+        )
+        saved = save_generator_results(results)
+        db.session.commit()
+        return saved[0]["n_rows"]
+
+    try:
+        assert report(0) == 96
+        restore_beliefs(hp_power, datetime(2026, 7, 1, 10, 0, tzinfo=utc))
+        assert report(1) == 1
+        # nothing changed since, so nothing is saved, and in particular the partial aggregate is not saved twice
+        assert report(2) == 0
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
 def test_the_status_of_a_partial_aggregate_names_the_missing_members(
     setup_nested_groups, db, restore_beliefs
 ):

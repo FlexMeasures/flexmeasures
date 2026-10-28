@@ -807,14 +807,20 @@ class AggregatorReporter(Reporter):
         picks = stored.index.to_frame(index=False).set_index("event_start")
         picks = picks[[bool(source.missing_members) for source in picks["source"]]]
 
+        # Compared in UTC and by belief time: the report's events are in its inputs' timezone and the stored ones in the output sensor's,
+        # and a report computed with a belief horizon is indexed by horizon rather than by belief time.
+        picks.index = picks.index.tz_convert("UTC")
         new_belief_times = pd.Series(
-            new.index.get_level_values("belief_time"),
-            index=new.index.get_level_values("event_start"),
+            new.belief_times,
+            index=new.index.get_level_values("event_start").tz_convert("UTC"),
         )
         shared = new_belief_times.index.intersection(picks.index)
         # a partial aggregate believed later than this report would not be superseded by it, so saving this one would change nothing
-        superseded = picks.loc[shared, "belief_time"] <= new_belief_times.loc[shared]
-        return pd.DatetimeIndex(shared[superseded.to_numpy()])
+        superseded = (
+            picks.loc[shared, "belief_time"].to_numpy()
+            <= new_belief_times.loc[shared].to_numpy()
+        )
+        return pd.DatetimeIndex(shared[superseded])
 
     def _assign_sensors_and_source(
         self, results: list[dict[str, Any]]
