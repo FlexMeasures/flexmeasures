@@ -113,6 +113,11 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     // a fresh aggregate that leaves out some of its group's members is not stale, but not complete either
     const statusIcon = sensor.stale ? "🔴" : (sensor["missing-members"]?.length ? "🟡" : "🟢");
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
+    // link each member left out to its own sensor page, where its data shows what it did not report
+    const missingMembers = (sensor["missing-members"] || []).map(
+      (member) => `<a href="/sensors/${member.id}" title="See the data of this member">${escapeHtml(member["asset-name"])} / ${escapeHtml(member.name)}</a>`
+    );
+    const missingInfo = missingMembers.length ? `<br><small>Missing: ${missingMembers.join(", ")}</small>` : "";
 
     return {
       sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
@@ -128,7 +133,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span><br><span class="time-ago" data-timestamp="${lastCallTime}">
+      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span>${missingInfo}<br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
