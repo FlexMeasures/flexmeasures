@@ -343,6 +343,22 @@ def get_max_planning_horizon(resolution: timedelta) -> timedelta | None:
     return max_planning_horizon
 
 
+def _on_wall_clock(dt: pd.Timestamp, operation) -> pd.Timestamp:
+    """Apply an operation to the local wall-clock time of a (possibly tz-aware) timestamp.
+
+    Across a DST transition, this makes a day a calendar day rather than 24 hours,
+    and lets day and hour begins be found in the repeated hour, too.
+    A resulting wall-clock time that occurs twice keeps the DST side of the given timestamp,
+    and one that does not exist shifts forward to the first time after the gap.
+    """
+    if dt.tz is None:
+        return operation(dt)
+    wall_clock_time = operation(dt.tz_localize(None))
+    return wall_clock_time.tz_localize(
+        dt.tz, ambiguous=bool(dt.dst()), nonexistent="shift_forward"
+    )
+
+
 def apply_offset_chain(
     dt: pd.Timestamp | datetime, offset_chain: str
 ) -> pd.Timestamp | datetime:
@@ -351,6 +367,9 @@ def apply_offset_chain(
     An offset chain consist of multiple (pandas) offset strings separated by commas. Moreover,
     this function implements the offset string "DB", which stands for Day Begin, to
     get a date from a datetime, i.e. removing time details finer than a day.
+
+    Days are calendar days in the timestamp's own timezone,
+    so "1D,DB" is the start of the next local day, also across a DST transition.
 
     Args:
         dt (pd.Timestamp | datetime)
@@ -374,12 +393,18 @@ def apply_offset_chain(
     # Apply the offsets
     for offset in offset_chain.split(","):
         try:
-            _dt += to_offset(offset.strip())
+            pandas_offset = to_offset(offset.strip())
         except ValueError:
             if offset.strip().lower() == "db":  # db = day begin
-                _dt = _dt.floor("D")
+                _dt = _on_wall_clock(_dt, lambda t: t.floor("D"))
             elif offset.strip().lower() == "hb":  # hb = hour begin
-                _dt = _dt.floor("h")
+                _dt = _on_wall_clock(_dt, lambda t: t.floor("h"))
+            continue
+        if isinstance(pandas_offset, pd.offsets.Day):
+            # Before Pandas 3, a Day offset is a fixed 24 hours
+            _dt = _on_wall_clock(_dt, lambda t: t + pandas_offset)
+        else:
+            _dt += pandas_offset
 
     # Return output in the same type as the input
     if isinstance(dt, datetime):

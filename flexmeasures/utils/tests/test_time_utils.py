@@ -229,6 +229,51 @@ def test_recent_clocktime_window_invalid_window():
             "DB",
             pd.Timestamp("2023-05-17", tz="Europe/Amsterdam"),
         ),
+        # Days are calendar days across DST transitions (in 2026, clocks go back on October 25th and forward on March 29th in Amsterdam).
+        (
+            pd.Timestamp("2026-10-24T00:12", tz="Europe/Amsterdam"),
+            "2D,DB",
+            pd.Timestamp("2026-10-26", tz="Europe/Amsterdam"),
+        ),
+        (
+            pd.Timestamp("2026-10-24T12:00", tz="Europe/Amsterdam"),
+            "1D",
+            pd.Timestamp("2026-10-25T12:00", tz="Europe/Amsterdam"),
+        ),
+        (
+            pd.Timestamp("2026-03-28T23:30", tz="Europe/Amsterdam"),
+            "1D,DB",
+            pd.Timestamp("2026-03-29", tz="Europe/Amsterdam"),
+        ),
+        # A day later, 02:30 does not exist, so it shifts forward to the end of the gap.
+        (
+            pd.Timestamp("2026-03-28T02:30", tz="Europe/Amsterdam"),
+            "1D",
+            pd.Timestamp("2026-03-29T03:00", tz="Europe/Amsterdam"),
+        ),
+        # A day later, 02:30 occurs twice, so it keeps the DST side it started on.
+        (
+            pd.Timestamp("2026-10-24T02:30", tz="Europe/Amsterdam"),
+            "1D",
+            pd.Timestamp("2026-10-25T00:30", tz="UTC"),
+        ),
+        # The hour begins on both occurrences of the repeated hour.
+        (
+            pd.Timestamp("2026-10-25T00:40", tz="UTC").tz_convert("Europe/Amsterdam"),
+            "HB",
+            pd.Timestamp("2026-10-25T00:00", tz="UTC"),
+        ),
+        (
+            pd.Timestamp("2026-10-25T01:40", tz="UTC").tz_convert("Europe/Amsterdam"),
+            "HB",
+            pd.Timestamp("2026-10-25T01:00", tz="UTC"),
+        ),
+        # In Santiago, clocks go forward at midnight, so that day begins at 01:00.
+        (
+            pd.Timestamp("2026-09-06T12:00", tz="America/Santiago"),
+            "DB",
+            pd.Timestamp("2026-09-06T01:00", tz="America/Santiago"),
+        ),
     ],
 )
 def test_apply_offset_chain(
