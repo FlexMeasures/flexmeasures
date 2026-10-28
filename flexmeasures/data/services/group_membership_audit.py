@@ -204,7 +204,8 @@ def _edits(
     if old_parent_id != new_parent_id:
         changes.extend(_moves(session, asset, old_parent_id, new_parent_id))
     new_type_id = _new_type_id(asset)
-    if old_type_id is not None and old_type_id != new_type_id:
+    # a device that changes group as well is noted leaving one group and joining the other, and was in no report of its new group before
+    if old_type_id is not None and old_type_id != new_type_id and old_key == new_key:
         changes.extend(_type_changes(session, asset, old_type_id, new_type_id))
     return changes
 

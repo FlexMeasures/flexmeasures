@@ -159,3 +159,37 @@ def test_a_group_entry_changing_type_notes_nothing(fresh_db, street):
     fresh_db.session.commit()
 
     assert len(report_events_on(fresh_db, street["street"])) == 1
+
+
+def test_a_device_joining_the_group_as_its_type_changes_is_not_noted_leaving(
+    fresh_db, street
+):
+    """A solar device joins the street and becomes a heat device in one go, so it never was among the members the solar report aggregates."""
+    create_solar_report(street)
+    fresh_db.session.commit()
+    loose = GenericAsset(
+        name="Loose PV",
+        generic_asset_type=street["solar"],
+        parent_asset=street["street"],
+    )
+    fresh_db.session.add(loose)
+    fresh_db.session.flush()
+    sensor = Sensor(
+        "Loose PV power",
+        generic_asset=loose,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+    loose.flex_model = {"inflexible-production": {"sensor": sensor.id}}
+    fresh_db.session.commit()
+
+    loose.flex_model = {
+        "inflexible-production": {"sensor": sensor.id},
+        "group": {"asset": street["street"].id},
+    }
+    loose.generic_asset_type = street["heat"]
+    fresh_db.session.commit()
+
+    assert len(report_events_on(fresh_db, street["street"])) == 1
