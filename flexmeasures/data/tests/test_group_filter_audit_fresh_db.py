@@ -193,3 +193,30 @@ def test_a_device_joining_the_group_as_its_type_changes_is_not_noted_leaving(
     fresh_db.session.commit()
 
     assert len(report_events_on(fresh_db, street["street"])) == 1
+
+
+def test_a_group_entry_referenced_by_its_sensor_changing_type_notes_nothing(
+    fresh_db, street
+):
+    """A group may be named by the sensor of its own flex-model entry, rather than by its asset."""
+    house = street["house"]
+    meter = Sensor(
+        "house meter",
+        generic_asset=house,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add(meter)
+    fresh_db.session.flush()
+    house.flex_model = {"sensor": meter.id, "group": {"asset": street["street"].id}}
+    for name in ("PV one", "PV two"):
+        device = street[name]
+        device.flex_model = {**device.flex_model, "group": {"sensor": meter.id}}
+    fresh_db.session.commit()
+    create_solar_report(street)
+    fresh_db.session.commit()
+
+    house.generic_asset_type = street["solar"]
+    fresh_db.session.commit()
+
+    assert len(report_events_on(fresh_db, street["street"])) == 1

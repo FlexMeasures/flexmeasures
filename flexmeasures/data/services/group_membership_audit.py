@@ -278,7 +278,7 @@ def _type_changes(
     """Note a member whose new type takes it into, or out of, a report automation that aggregates only one type of its group's members."""
     from flexmeasures.data.models.generic_assets import GenericAssetType
 
-    if _members_naming(session, "asset", [asset.id]):
+    if _is_group_entry(session, asset):
         # a group entry is no member device itself; the type filter applies to the devices behind it
         return []
     old_type = session.get(GenericAssetType, old_type_id)
@@ -303,6 +303,18 @@ def _type_changes(
         )
         changes.append(_change(session, asset, key, "report", detail))
     return changes
+
+
+def _is_group_entry(session: Session, asset: GenericAsset) -> bool:
+    """Tell whether some flex-model names this asset as its group, or the sensor of this asset's own entry."""
+    if _members_naming(session, "asset", [asset.id]):
+        return True
+    own_sensor = (
+        asset.flex_model.get("sensor") if isinstance(asset.flex_model, dict) else None
+    )
+    return type(own_sensor) is int and bool(
+        _members_naming(session, "sensor", [own_sensor])
+    )
 
 
 def _group_chain(session: Session, asset: GenericAsset) -> list[tuple[str, int]]:
