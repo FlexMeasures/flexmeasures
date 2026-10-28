@@ -1163,7 +1163,7 @@
     "/api/v3_0/sensors/{id}/status": {
       "get": {
         "summary": "Get sensor status",
-        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\n",
+        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\nData that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1210,6 +1210,32 @@
                         "asset_id": 1,
                         "asset_name": "Building A",
                         "relation": "sensor belongs to this asset"
+                      }
+                    ]
+                  },
+                  "partial-aggregate": {
+                    "summary": "An aggregate leaving out a member",
+                    "description": "The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.\n`missing-members` lists the sensors left out, and is left out itself where no member is missing.\n",
+                    "value": [
+                      {
+                        "staleness": "PT6M",
+                        "stale": false,
+                        "staleness_since": "2024-01-15T14:30:00+00:00",
+                        "reason": "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report",
+                        "source_type": "reporter",
+                        "id": 88750,
+                        "name": "power",
+                        "resolution": "PT15M",
+                        "asset_id": 12,
+                        "asset_name": "Street",
+                        "relation": "sensor belongs to this asset",
+                        "missing-members": [
+                          {
+                            "id": 88754,
+                            "name": "power",
+                            "asset-name": "Heat pump"
+                          }
+                        ]
                       }
                     ]
                   }
