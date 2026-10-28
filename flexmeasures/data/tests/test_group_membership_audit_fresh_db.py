@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
 
 
 def events_on(db, asset: GenericAsset) -> list[str]:
@@ -167,6 +168,27 @@ def test_a_change_from_a_failed_flush_is_not_noted_later(fresh_db, streets):
     fresh_db.session.rollback()
 
     streets["south"].name = "South side"
+    fresh_db.session.commit()
+
+    assert membership_events_on(fresh_db, street) == []
+
+
+def test_a_group_in_another_organisation_hears_nothing(fresh_db, streets):
+    """A device may name any existing asset as its group, but not write in the audit log of another organisation."""
+    mine, other = Account(name="My organisation"), Account(name="Other organisation")
+    fresh_db.session.add_all([mine, other])
+    fresh_db.session.flush()
+    street = streets["south_street"]
+    street.account_id = other.id
+    fresh_db.session.commit()
+
+    pv = GenericAsset(
+        name="PV",
+        generic_asset_type=streets["type"],
+        owner=mine,
+        flex_model={"group": {"asset": street.id}},
+    )
+    fresh_db.session.add(pv)
     fresh_db.session.commit()
 
     assert membership_events_on(fresh_db, street) == []

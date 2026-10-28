@@ -118,15 +118,39 @@ def _find_changes(session: Session, flush_context, instances) -> None:
         changes.extend(_edits(session, asset, *stored.get(asset.id, (None, None))))
     changes.extend(_deletions(session, deleted_assets, deleted_sensors, stored))
 
-    # a group that goes away along with its member needs no note of the member leaving
-    changes = [
-        change
-        for change in changes
-        if change.what == "group deleted"
-        or (change.group_asset is not None and change.group_asset.id not in deleted_ids)
-    ]
+    changes = _worth_noting(changes, deleted_ids)
     if changes:
         session.info.setdefault(_PENDING_KEY, []).extend(changes)
+
+
+def _worth_noting(changes: list[_Change], deleted_ids: set[int]) -> list[_Change]:
+    """Leave out the changes of a group that goes away along with its member, and of a group in another organisation.
+
+    A `group` reference is only checked to exist, so a device may name an asset of another organisation as its group.
+    No scheduler or report finds it there, since a group's members sit on the group's site,
+    and the device's organisation should not get to write in the audit log of the other one.
+    """
+    return [
+        change
+        for change in changes
+        if (
+            change.what == "group deleted"
+            or (
+                change.group_asset is not None
+                and change.group_asset.id not in deleted_ids
+            )
+        )
+        and (
+            change.group_asset is None
+            or _account_id(change.group_asset) == _account_id(change.member)
+        )
+    ]
+
+
+def _account_id(asset: GenericAsset) -> int | None:
+    """Return the ID of the asset's organisation, also when a new asset was given its owner rather than its owner's ID."""
+    owner = asset.owner
+    return owner.id if owner is not None else asset.account_id
 
 
 def _edits(
