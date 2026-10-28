@@ -163,6 +163,27 @@ Values missing from the sensor are left missing, so a ``default`` still fills th
 
 These are the same three fields a forecaster uses to clean the data it trains on, and to shape the forecasts it writes: see :ref:`cleaning_forecaster_inputs`.
 
+.. _deleted_referenced_sensor:
+
+When a referenced sensor is deleted
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Deleting a sensor keeps the rest of each flex-model and flex-context reference to it, and only unsets its sensor:
+
+.. code-block:: json
+
+   {
+       "site-consumption-capacity": {"sensor": null, "default": "15 kW", "lower": "0 kW"}
+   }
+
+That way, the reference's default, cleaning bounds and source filters are still in place when you pick a new sensor for the field.
+Until then, the scheduler uses the default as a fixed value.
+Without a default, the scheduler ignores the field, so that a value one of the asset's ancestors sets for that flex-context field applies instead.
+A reference with nothing besides its sensor is removed, and so is an entry in a list of references, such as ``inflexible-consumption``.
+
+Only deleting a sensor leaves such a reference behind: one sent to the API is refused.
+So a flex-context or flex-model holding one can only be saved again once a sensor is picked for it, or the reference is replaced by a fixed value.
+
 
 .. _flex_context:
 
