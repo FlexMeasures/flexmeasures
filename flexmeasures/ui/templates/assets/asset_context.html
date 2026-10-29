@@ -866,6 +866,13 @@
                 item.classList.add("align-items-center", "pb-2");
                 valueContainer.appendChild(item);
             }
+        } else if (isUnsetSensorReference(fieldValue)) {
+            // Only one with a default is inherited, as one without it defines nothing.
+            card.classList.add("border-warning");
+            const note = document.createElement('div');
+            note.className = 'text-warning-emphasis';
+            note.textContent = unsetSensorReferenceNote(fieldValue);
+            valueContainer.appendChild(note);
         } else if (typeof fieldValue === "object" && fieldValue !== null && fieldValue["sensor"]) {
             valueContainer.appendChild(convertHtmlToElement(await renderSensor(fieldValue["sensor"])));
         } else {
