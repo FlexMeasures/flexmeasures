@@ -36,6 +36,17 @@ If you run distinct filters, such as separate checks per account, account group 
 .. todo:: Adding roles and assigning them to accounts is not supported by the UI yet (user roles can be added in the UI). Account roles can be added with ``flexmeasures add account-role``.
 
 
+Monitoring automations
+-----------------------
+
+The CLI task ``flexmeasures monitor automations`` emails a digest of the automation runs that failed since its last check, with repeated failures collapsed per automation.
+Run it from cron, for instance every hour; see :ref:`monitoring_automations` for what it reports.
+
+.. code-block:: bash
+
+    $ flexmeasures monitor automations --recipient alerts@example.com
+
+
 Monitoring task runs
 ---------------------
 

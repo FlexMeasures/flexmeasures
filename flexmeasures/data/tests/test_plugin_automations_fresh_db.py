@@ -519,6 +519,44 @@ def test_a_plugin_run_records_how_its_job_ended(
     assert run.execution_state == "succeeded"
 
 
+def test_a_failed_plugin_run_is_reported_by_monitoring(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
+):
+    """A plugin run whose job failed on the worker shows up in the host's monitoring digest, with the job's error."""
+    from flexmeasures.cli.monitor import monitor_automations
+    from flexmeasures.data.services.automations import (
+        mark_automation_run_dispatch_queued,
+    )
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+
+    def fail_to_ingest(generator, value):
+        raise ConnectionError("The meter portal is down.")
+
+    monkeypatch.setattr(MockIngestionGenerator, "_compute", fail_to_ingest)
+    result = run_automation(automation, automation_run=run)
+    # Its dispatch went through, as a runner would record, so only its execution can fail.
+    mark_automation_run_dispatch_queued(run.id)
+    work_on_rq(
+        app.queues["ingestion"],
+        job=Job.fetch(result["job_id"], connection=app.redis_connection),
+    )
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_automations, ["--recipient", "ops@example.test"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    body = outbox[0].body
+    assert f"Automation {automation.id} '{automation.name}' ({automation.type})" in body
+    assert "failed once (execution failed: 1)" in body
+    assert "last error: ConnectionError: The meter portal is down." in body
+
+
 def test_a_job_that_ended_before_its_run_recorded_it_is_caught_up_on(
     fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
 ):
