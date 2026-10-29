@@ -256,7 +256,7 @@
                                 </p>
                                 <p class="mb-0">
                                     Sensors can be searched on the right. This will list sensors on the asset or its
-                                    child asset, as well as public assets.
+                                    child assets. Check "Include public assets" to also search public assets.
                                 </p>
                                 <p class="mb-0">
                                     Each graph has a "Y-axis" selector; choose "Fit to the data" to let that
@@ -354,6 +354,10 @@
 
                                 <div class="tab-pane fade " id="search" role="tabpanel" aria-labelledby="search-tab">
 
+                                    <div class="form-check mt-3">
+                                        <input class="form-check-input" type="checkbox" id="graphIncludePublicAssets">
+                                        <label class="form-check-label" for="graphIncludePublicAssets">Include public assets</label>
+                                    </div>
                                     <div class="row my-3">
                                         <div class="col-8">
                                             <input type="text" id="searchInput" class="form-control"
@@ -432,7 +436,7 @@
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
-        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
+        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         let unavailableReferenceCount = 0;
 
         // ==========================================
@@ -538,6 +542,8 @@
         unitsSelect.onchange = function () {
             filterSensors();
         };
+
+        document.getElementById("graphIncludePublicAssets").onchange = filterSensors;
 
         searchInput.oninput = function () {
             filterSensors();
@@ -1211,6 +1217,7 @@
             }
 
             const params = new URLSearchParams();
+            params.set('include_public_assets', document.getElementById('graphIncludePublicAssets').checked);
 
             if (searchValue) {
                 params.append('filter', searchValue);
@@ -1255,6 +1262,7 @@
             senSearchResEle.style.display = 'none';
 
             const params = new URLSearchParams();
+            params.set('include_public_assets', document.getElementById('graphIncludePublicAssets').checked);
 
             if (searchValue) {
                 params.append('filter', searchValue);

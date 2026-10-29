@@ -564,9 +564,7 @@
             params.append('filter', searchValue);
         }
 
-        if (flexCheckBox.checked) {
-            params.append('include_public_assets', true);
-        }
+        params.set('include_public_assets', flexCheckBox.checked);
 
         if (flexUnitsSelectValue != "null") {
             params.append('unit', flexUnitsSelectValue);

@@ -521,7 +521,7 @@
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
                     { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
                 ];
@@ -656,9 +656,7 @@
                     params.append('filter', searchValue);
                 }
 
-                if (flexCheckBox.checked) {
-                    params.append('include_public_assets', true);
-                }
+                params.set('include_public_assets', document.getElementById('flexCheckBox').checked);
 
                 if (flexUnitsSelectValue !== "null") {
                     params.append('unit', flexUnitsSelectValue);
