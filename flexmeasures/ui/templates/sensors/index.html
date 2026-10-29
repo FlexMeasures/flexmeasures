@@ -529,9 +529,6 @@ For the data, note the following:
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
-    // Which flex-config fields deleting this sensor leaves without a sensor, to name before deleting it, and to link to afterwards.
-    const deletionConfirmNote = {{ deletion_confirm_note | default("") | tojson }};
-    const deletionToast = {{ deletion_toast | default("") | tojson }};
 
     // Show the full record of the selected data source
     document.getElementById('sourceDetailsButton')?.addEventListener('click', function () {
@@ -608,7 +605,21 @@ For the data, note the following:
         }
     }
 
-    async function deleteSensor() {
+    // Which flex-config fields deleting this sensor leaves without a sensor, to name before deleting it, and to link to afterwards.
+    async function fetchDeletionNotes() {
+        try {
+            const response = await fetch(apiBasePath + "/sensors/{{ sensor.id }}/deletion-notes");
+            if (response.ok) {
+                return await response.json();
+            }
+            console.warn("Could not look up the fields deleting this sensor leaves without a sensor:", response.status);
+        } catch (error) {
+            console.warn("Could not look up the fields deleting this sensor leaves without a sensor:", error);
+        }
+        return {"confirmation-note": "", "toast": ""};
+    }
+
+    async function deleteSensor(deletionToast) {
         const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
             method: "DELETE",
             headers: {
@@ -646,14 +657,15 @@ For the data, note the following:
         }
     }
 
-    $("#delete-sensor-button").click(function () {
+    $("#delete-sensor-button").click(async function () {
+        const deletionNotes = await fetchDeletionNotes();
         let confirmMessage = "Are you sure you want to delete this sensor and all time series data associated with it?";
-        if (deletionConfirmNote) {
-            confirmMessage += "\n\n" + deletionConfirmNote;
+        if (deletionNotes["confirmation-note"]) {
+            confirmMessage += "\n\n" + deletionNotes["confirmation-note"];
         }
         let result = confirm(confirmMessage);
         if (result) {
-            deleteSensor();
+            deleteSensor(deletionNotes["toast"]);
         }
     });
 

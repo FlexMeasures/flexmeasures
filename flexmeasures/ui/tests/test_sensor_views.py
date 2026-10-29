@@ -11,7 +11,6 @@ Forecast and Annotate side panels. These tests verify:
 """
 
 from datetime import datetime, timedelta, timezone
-import json
 import re
 from unittest.mock import patch
 
@@ -19,6 +18,7 @@ import pytest
 from flask import url_for
 
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import login, logout
 from flexmeasures.ui.views.sensors import MAX_NAMED_FIELD_GROUPS
@@ -271,13 +271,11 @@ def test_get_timerange_not_called_without_permission(
 # ---------------------------------------------------------------------------
 
 
-def _extract_js_string(page_data: bytes, name: str) -> str:
-    """Parse a string constant the sensor page embeds for its script."""
-    match = re.search(
-        rb"const " + name.encode() + rb' = ("(?:[^"\\]|\\.)*");', page_data
-    )
-    assert match, f"{name} not found on the sensor page"
-    return json.loads(match.group(1))
+def _fetch_deletion_notes(client, sensor) -> tuple[str, str]:
+    """Fetch what the sensor page tells the user once they click to delete the sensor."""
+    response = client.get(url_for("SensorUI:deletion_notes", id=sensor.id))
+    assert response.status_code == 200
+    return response.json["confirmation-note"], response.json["toast"]
 
 
 def test_sensor_page_names_fields_its_deletion_leaves_without_sensor(
@@ -297,10 +295,7 @@ def test_sensor_page_names_fields_its_deletion_leaves_without_sensor(
     db.session.add(asset)
     db.session.commit()
 
-    response = client.get(url_for("SensorUI:get", id=sensor.id))
-    assert response.status_code == 200
-    note = _extract_js_string(response.data, "deletionConfirmNote")
-    toast = _extract_js_string(response.data, "deletionToast")
+    note, toast = _fetch_deletion_notes(client, sensor)
 
     assert f"- {asset.name}, flex-context: production-price" in note
     # A reference holding only the sensor is removed, so it needs no new sensor.
@@ -331,11 +326,8 @@ def test_sensor_page_only_counts_fields_on_assets_the_user_cannot_see(
     db.session.commit()
 
     login(client, "test_prosumer_user_2@seita.nl", "testtest")
-    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    note, toast = _fetch_deletion_notes(client, sensor)
     logout(client)
-    assert response.status_code == 200
-    note = _extract_js_string(response.data, "deletionConfirmNote")
-    toast = _extract_js_string(response.data, "deletionToast")
 
     assert "- fields on 1 asset you cannot see" in note
     assert asset.name not in note
@@ -360,9 +352,7 @@ def test_sensor_page_does_not_name_fields_whose_sensor_was_deleted_before(
     db.session.add(asset)
     db.session.commit()
 
-    response = client.get(url_for("SensorUI:get", id=sensor.id))
-    assert response.status_code == 200
-    note = _extract_js_string(response.data, "deletionConfirmNote")
+    note, _ = _fetch_deletion_notes(client, sensor)
     assert f"- {asset.name}, flex-context: production-price\n" in note + "\n"
 
 
@@ -376,12 +366,9 @@ def test_sensor_deletion_toast_leaves_out_the_page_it_moves_on_to(
     own_asset.flex_model = {"soc-min": {"sensor": sensor.id, "default": "1 kWh"}}
     db.session.commit()
 
-    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    note, toast = _fetch_deletion_notes(client, sensor)
     own_asset.flex_model = original_flex_model
     db.session.commit()
-    assert response.status_code == 200
-    note = _extract_js_string(response.data, "deletionConfirmNote")
-    toast = _extract_js_string(response.data, "deletionToast")
     assert f"- {own_asset.name}, flex-model: soc-min" in note
     assert url_for("AssetCrudUI:properties", id=own_asset.id) not in toast
 
@@ -404,10 +391,7 @@ def test_sensor_page_names_only_the_first_few_assets_whose_fields_need_a_new_sen
         )
     db.session.commit()
 
-    response = client.get(url_for("SensorUI:get", id=sensor.id))
-    assert response.status_code == 200
-    note = _extract_js_string(response.data, "deletionConfirmNote")
-    toast = _extract_js_string(response.data, "deletionToast")
+    note, toast = _fetch_deletion_notes(client, sensor)
 
     named_lines = [
         line
@@ -418,3 +402,37 @@ def test_sensor_page_names_only_the_first_few_assets_whose_fields_need_a_new_sen
     assert re.search(r"^- and \d+ more$", note, re.MULTILINE)
     assert toast.count("<a href=") == MAX_NAMED_FIELD_GROUPS
     assert re.search(r"; and \d+ more\.", toast)
+
+
+def test_sensor_page_leaves_the_search_for_fields_to_the_delete_button(
+    db, client, setup_assets, as_admin
+):
+    """Finding the fields that deleting a sensor leaves without one searches every asset, so viewing the sensor page does not."""
+    sensor = _get_prosumer_sensor(db)
+    with patch(
+        "flexmeasures.ui.views.sensors.flex_config_fields_left_without_sensor",
+        return_value=[],
+    ) as search:
+        response = client.get(url_for("SensorUI:get", id=sensor.id))
+        assert response.status_code == 200
+        search.assert_not_called()
+        _fetch_deletion_notes(client, sensor)
+        search.assert_called_once_with(sensor.id)
+
+
+def test_sensor_deletion_notes_are_only_for_users_who_may_delete_the_sensor(
+    db, client, setup_generic_asset_types, as_supplier_user
+):
+    """Who may read a sensor but not delete it, such as one on a public asset, is not told which fields deleting it would affect."""
+    public_asset = GenericAsset(
+        name="public-asset-with-a-sensor-only-an-admin-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=None,
+    )
+    sensor = Sensor(name="public-sensor", generic_asset=public_asset, unit="kW")
+    db.session.add_all([public_asset, sensor])
+    db.session.commit()
+
+    assert client.get(url_for("SensorUI:get", id=sensor.id)).status_code == 200
+    response = client.get(url_for("SensorUI:deletion_notes", id=sensor.id))
+    assert response.status_code == 403

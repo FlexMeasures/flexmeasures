@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from flask import current_app, request
-from flask_classful import FlaskView
+from flask_classful import FlaskView, route
 from flask_security import login_required
 from markupsafe import Markup
 from werkzeug.exceptions import NotFound
@@ -138,19 +138,11 @@ class SensorUI(FlaskView):
         if can_trigger_forecasts:
             earliest, latest = get_timerange([sensor.id])
             has_enough_data = (latest - earliest) >= timedelta(days=2)
-        can_delete_sensor = user_can_delete(sensor)
-        deletion_confirm_note, deletion_toast = (
-            describe_fields_left_without_sensor(sensor)
-            if can_delete_sensor
-            else ("", Markup(""))
-        )
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
-            user_can_delete_sensor=can_delete_sensor,
-            deletion_confirm_note=deletion_confirm_note,
-            deletion_toast=deletion_toast,
+            user_can_delete_sensor=user_can_delete(sensor),
             user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
             user_can_create_children_sensor=can_create_children,
             user_can_trigger_forecasts=can_trigger_forecasts,
@@ -176,3 +168,19 @@ class SensorUI(FlaskView):
                 if user_can_read(automation)
             ],
         )
+
+    @login_required
+    @route("/<id>/deletion-notes")
+    def deletion_notes(self, id: int):
+        """GET from /sensors/<id>/deletion-notes
+
+        What to tell the user about deleting this sensor, fetched once they click to delete it,
+        as finding the flex-config fields it would leave without a sensor means searching every asset.
+        This is for the sensor page only, so its response may change, unlike that of the API.
+        """
+        sensor = db.session.get(Sensor, id)
+        if sensor is None:
+            raise NotFound
+        check_access(sensor, "delete")
+        confirmation_note, toast = describe_fields_left_without_sensor(sensor)
+        return {"confirmation-note": confirmation_note, "toast": str(toast)}
