@@ -340,3 +340,26 @@ def test_sensor_page_only_counts_fields_on_assets_the_user_cannot_see(
     assert asset.name not in note
     assert asset.name not in toast
     assert f"/assets/{asset.id}/" not in toast
+
+
+def test_sensor_page_does_not_name_fields_whose_sensor_was_deleted_before(
+    db, client, setup_assets, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """A field that lost an earlier sensor already needs a new one, and deleting this sensor does not change that."""
+    sensor = _get_prosumer_sensor(db)
+    asset = GenericAsset(
+        name="asset-with-a-field-whose-sensor-was-deleted-before",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "production-price": {"sensor": sensor.id, "default": "10 EUR/MWh"},
+            "consumption-price": {"sensor": None, "default": "20 EUR/MWh"},
+        },
+    )
+    db.session.add(asset)
+    db.session.commit()
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    assert response.status_code == 200
+    note = _extract_js_string(response.data, "deletionConfirmNote")
+    assert f"- {asset.name}, flex-context: production-price\n" in note + "\n"
