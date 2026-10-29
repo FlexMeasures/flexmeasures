@@ -4,7 +4,7 @@ from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_security import login_required
 from markupsafe import Markup
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import Forbidden, NotFound
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
@@ -177,10 +177,12 @@ class SensorUI(FlaskView):
         What to tell the user about deleting this sensor, fetched once they click to delete it,
         as finding the flex-config fields it would leave without a sensor means searching every asset.
         This is for the sensor page only, so its response may change, unlike that of the API.
+        It answers whoever the sensor page shows the delete button to, which is whoever the API lets delete the sensor.
         """
         sensor = db.session.get(Sensor, id)
         if sensor is None:
             raise NotFound
-        check_access(sensor, "delete")
+        if not user_can_delete(sensor):
+            raise Forbidden
         confirmation_note, toast = describe_fields_left_without_sensor(sensor)
         return {"confirmation-note": confirmation_note, "toast": str(toast)}

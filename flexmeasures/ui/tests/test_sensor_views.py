@@ -436,3 +436,32 @@ def test_sensor_deletion_notes_are_only_for_users_who_may_delete_the_sensor(
     assert client.get(url_for("SensorUI:get", id=sensor.id)).status_code == 200
     response = client.get(url_for("SensorUI:deletion_notes", id=sensor.id))
     assert response.status_code == 403
+
+
+def test_sensor_deletion_notes_are_for_whoever_may_delete_the_sensor(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member without a role may delete a sensor that holds no data, so is told which fields deleting it would affect, as an account admin is."""
+    asset = GenericAsset(
+        name="asset-with-a-sensor-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    sensor = Sensor(name="sensor-without-data", generic_asset=asset, unit="EUR/MWh")
+    db.session.add_all([asset, sensor])
+    db.session.flush()
+    site = GenericAsset(
+        name="site-referring-to-a-sensor-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "consumption-price": {"sensor": sensor.id, "default": "20 EUR/MWh"}
+        },
+    )
+    db.session.add(site)
+    db.session.commit()
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    assert b'id="delete-sensor-button"' in response.data
+    note, _ = _fetch_deletion_notes(client, sensor)
+    assert f"- {site.name}, flex-context: consumption-price" in note
