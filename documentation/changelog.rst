@@ -112,6 +112,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
+
 * An ``AggregatorReporter`` input that holds more than one belief about an event, such as one read with ``most-recent-beliefs-only: false``, is now refused with a message naming the sensor and the event, where it used to fail with a ``KeyError`` [see `PR #2741 <https://www.github.com/FlexMeasures/flexmeasures/pull/2741>`_]
 * Fix ``flexmeasures show beliefs`` ignoring its ``--timezone`` option (now ``--export-timezone``); by default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, instead of in UTC without an offset [see `PR #2695 <https://www.github.com/FlexMeasures/flexmeasures/pull/2695>`_]
 * ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
