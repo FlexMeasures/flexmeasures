@@ -96,6 +96,7 @@ def get_unalerted_failed_automation_runs(
     A run failed when its execution failed, when its execution has been running for longer than ``stuck_after``,
     or when its dispatch failed and will not be attempted again.
     This holds for every automation type, although only the types that record their execution can fail on it.
+    Runs of an automation that opted out of monitoring are left out, and stay unreported until it opts back in.
 
     :param stuck_after: How long a run may execute before it counts as stuck.
     :param now:         The moment to judge by, which defaults to the server's current time.
@@ -110,7 +111,9 @@ def get_unalerted_failed_automation_runs(
     )
     runs = db.session.scalars(
         select(AutomationRun)
+        .join(AutomationRun.automation)
         .where(
+            Automation.monitored.is_(True),
             AutomationRun.alerted_at.is_(None),
             or_(execution_failed, stuck, _dispatch_failed_for_good(now)),
         )

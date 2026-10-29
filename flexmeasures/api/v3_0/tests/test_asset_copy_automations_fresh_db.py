@@ -164,6 +164,8 @@ def test_the_output_scoped_automation_types_are_supported():
 
 def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site):
     """Automations on the copied asset and on its descendants are copied, inactive and without run history."""
+    # One original opted out of monitoring, so that the copies show they keep that choice rather than the default.
+    automated_site["meter_automation"].monitored = False
     asset_copy = copy_asset(automated_site["site"])
 
     assert asset_copy.skipped_automations == []
@@ -187,6 +189,7 @@ def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site)
         assert copied.type == original.type
         assert copied.cronstr == original.cronstr
         assert copied.timezone == original.timezone
+        assert copied.monitored == original.monitored
         # A copy waits to be switched on, and starts without the original's run history.
         assert copied.active is False
         assert copied.cursor > OLD_CURSOR

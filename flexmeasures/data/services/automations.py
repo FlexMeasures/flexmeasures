@@ -2024,6 +2024,7 @@ def create_automation(
     source: DataSource | None = None,
     origin: str = "API",
     check_permissions: bool = False,
+    monitored: bool = True,
 ) -> tuple[Automation, list[str]]:
     """Create an automation through its registered handler, without committing."""
     from flask_security import current_user
@@ -2047,6 +2048,8 @@ def create_automation(
         origin=origin,
         check_permissions=check_permissions,
     )
+    # Set here rather than by the handler, so that no handler, a plugin's included, needs to know about monitoring.
+    automation.monitored = monitored
     if check_permissions:
         if current_user.is_anonymous:
             from werkzeug.exceptions import Unauthorized
@@ -2241,9 +2244,10 @@ def update_automation(
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    monitored: bool | None = None,
     origin: str = "API",
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation's name, cron string, timezone, activation status and/or monitoring (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
@@ -2272,6 +2276,11 @@ def update_automation(
         if active:
             reset_cursor = True
         automation.active = active
+    if monitored is not None and monitored != automation.monitored:
+        changes.append(
+            "monitoring switched on" if monitored else "monitoring switched off"
+        )
+        automation.monitored = monitored
     if reset_cursor:
         # A new revision keeps the durable runs of the old and the new schedule apart,
         # even where they fall on the same scheduled UTC time.

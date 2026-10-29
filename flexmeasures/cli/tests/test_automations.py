@@ -2747,7 +2747,7 @@ def automation_row_cell(output: str, name: str, header: str) -> str:
 
     Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
     """
-    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"]
+    headers = ["ID", "Asset", "Name", "Type", "Active", "Monitored", "Cron", "Timezone"]
     lines = output.splitlines()
     header_line = next(line for line in lines if all(h in line for h in headers))
     starts = [header_line.index(h) for h in headers]
@@ -2889,6 +2889,50 @@ def test_show_automations_includes_inactive_ones(app, setup_dummy_data_fresh_db)
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
     assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_add_edit_and_show_an_unmonitored_automation(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """An automation can be created without monitoring and edited to be monitored, and both views say which it is."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Experimental forecasts",
+                "sensor": setup_dummy_data_fresh_db[0],
+            }
+        )
+        + ["--unmonitored"],
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.monitored is False
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert (
+        automation_row_cell(result.output, "Experimental forecasts", "Monitored")
+        == "no"
+    )
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert re.search(r"^Monitored\s+no$", result.output, re.MULTILINE)
+    result = runner.invoke(list_automations, ["--id", automation.id, "--as-json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["monitored"] is False
+
+    result = runner.invoke(edit_automation, ["--id", automation.id, "--monitored"])
+    assert result.exit_code == 0, result.output
+    assert "monitoring switched on" in result.output
+    fresh_db.session.refresh(automation)
+    assert automation.monitored is True
 
 
 def test_show_automations_without_any_automations(app, setup_dummy_data_fresh_db):

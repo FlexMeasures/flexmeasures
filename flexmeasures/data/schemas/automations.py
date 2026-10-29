@@ -92,6 +92,13 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    monitored = fields.Bool(
+        load_default=True,
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -151,7 +158,7 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+    """Request schema for updating an automation's name, recurrence, timezone, activation status and/or monitoring.
 
     The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
     """
@@ -165,6 +172,12 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    monitored = fields.Bool(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
+    )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -211,6 +224,12 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     active = ma.auto_field()
+    monitored = ma.auto_field(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
+    )
 
     @staticmethod
     def _in_automation_timezone(
