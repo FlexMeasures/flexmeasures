@@ -80,12 +80,12 @@ This parameterizes the computation (from which sensors does data come from, whic
 
     - ``source_types``: list of source type names to include (e.g. ``["forecaster", "scheduler"]``)
     - ``exclude_source_types``: list of source type names to exclude
-    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (note: only matches user-type data sources — DataSources created by reporters, schedulers, and forecasters have no account and will not be matched by this filter)
+    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (a data source belongs to the organisation it records for, whether a user or a forecaster, scheduler or reporter recorded the data: see :ref:`data_source_filters`)
 
     These correspond to the same filters available on ``Sensor.search_beliefs``.
 
 .. note::
-    An input entry can also clean the readings it asks for, before the report is computed, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster's regressors and a flex-config sensor reference take (see :ref:`cleaning_referenced_data`).
+    An input entry can also clean the readings it asks for, before the report is computed, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster's regressors and a flex-config sensor reference take (see :ref:`data_cleaning_on_input`).
     This helps where a sensor records the occasional implausible value — a spike, or an error sentinel such as ``-9999`` — that would otherwise end up in the report:
 
     .. code-block:: json
@@ -209,12 +209,15 @@ and a power recorded hourly holds through its hour when the output is finer.
 A sensor whose quantity the output sensor cannot express, such as a temperature onto a power sensor, is reported as an error
 rather than being added up.
 
-**Gaps.** A report over a ``group`` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,
-and it logs which sensors left the gaps.
-A report over sensors named in ``input`` aggregates what reported, which is what such reports have always done.
-``skip-missing`` sets this either way.
-An event that *no* sensor reported is missing in both cases, because an hour nothing was measured in is not an hour in which nothing flowed.
-A gap is also left as a gap when resampling: a coarser sensor is carried only across its own event, never across a missing one.
+**Gaps.** A report aggregates whatever reported, so a meter that stops reporting does not take the whole aggregate down with it.
+In a report over a ``group``, an event that some members did not report is recorded under a data source of its own,
+whose ``missing-members`` names them, so a partial aggregate can always be told apart from a complete one.
+Once the missing data arrives, the next report that covers the event records the complete aggregate, which then takes precedence.
+So let a recurring report reach back further than its slowest member lags behind, for instance with a ``start-offset``.
+The asset's status page shows a yellow light for an aggregate that still leaves out members once it would count as stale, and links to them.
+Set ``skip-missing`` to ``false`` to report an event only when every sensor reported it.
+An event that *no* sensor reported is left out either way, and so is a gap when resampling,
+because an hour in which nothing was measured is not an hour in which nothing flowed.
 
 **A flex-config the report cannot read.** Resolving a group means reading the whole site's flex-config, so an invalid flex-model entry
 anywhere on the site stops the report, even on a device outside the group — a scheduler of that site would fail on it too.

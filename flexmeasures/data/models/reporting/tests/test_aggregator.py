@@ -925,10 +925,20 @@ def test_member_source_filters_are_inherited(
     assert result["event_value"].values == pytest.approx(0.06)
 
 
-def test_a_gap_in_one_member_is_not_counted_as_zero(
+def _at(result, event_start):
+    return result[
+        result.index.get_level_values("event_start") == pd.Timestamp(event_start)
+    ]
+
+
+def test_a_gap_in_one_member_is_recorded_under_a_source_naming_it(
     setup_nested_groups, db, restore_beliefs
 ):
-    """A member with no data for an event leaves the aggregate missing, rather than quietly lowering it."""
+    """A member with no data for an event leaves a partial aggregate, which says which member it is missing.
+
+    The partial aggregate is not counted as complete, and it does not quietly lower a complete one:
+    it is recorded under a source of its own, and the complete events keep the source a complete report always had.
+    """
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
     )
@@ -937,19 +947,34 @@ def test_a_gap_in_one_member_is_not_counted_as_zero(
     missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
     restore_beliefs(hp_power, missing_start)
 
-    # a group report is strict by default: the members were resolved for the caller
-    strict = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+    reporter = AggregatorReporter(config={"group": {"asset": street.id}})
+    result = reporter.compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
         belief_horizon=timedelta(0),
     )[0]["data"]
-    at_gap = strict[
-        strict.index.get_level_values("event_start") == pd.Timestamp(missing_start)
-    ]
-    assert pd.isna(at_gap["event_value"]).all()
 
-    lenient = AggregatorReporter(
-        config={"group": {"asset": street.id}, "skip-missing": True}
+    at_gap = _at(result, missing_start)
+    # without the heat pump's 40 kW, only the PV is left
+    assert at_gap["event_value"].values == pytest.approx(0.16)
+    partial_source = at_gap.index.get_level_values("source")[0]
+    assert partial_source.missing_members == [hp_power.id]
+    assert partial_source.attributes["data_generator"]["config"][
+        "resolved-members"
+    ] == sorted([pv_power.id, hp_power.id, far_power.id])
+
+    complete = result[
+        result.index.get_level_values("event_start") != pd.Timestamp(missing_start)
+    ]
+    assert set(complete.index.get_level_values("source")) == {reporter.data_source}
+    assert "missing-members" not in (
+        reporter.data_source.attributes["data_generator"]["config"]
+    )
+    assert partial_source != reporter.data_source
+
+    # asked to, a group report leaves such an event out instead
+    strict = AggregatorReporter(
+        config={"group": {"asset": street.id}, "skip-missing": False}
     ).compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
@@ -959,11 +984,499 @@ def test_a_gap_in_one_member_is_not_counted_as_zero(
     ][
         "data"
     ]
-    at_gap_lenient = lenient[
-        lenient.index.get_level_values("event_start") == pd.Timestamp(missing_start)
+    assert pd.isna(_at(strict, missing_start)["event_value"]).all()
+
+
+def test_each_set_of_missing_members_has_a_source_of_its_own(
+    setup_nested_groups, db, restore_beliefs
+):
+    """Which members are missing can differ per event, and a set that is missing again is recorded under the same source."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    hp_missing = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+    far_missing = datetime(2026, 7, 1, 11, 0, tzinfo=utc)
+    both_missing = datetime(2026, 7, 1, 12, 0, tzinfo=utc)
+    restore_beliefs(hp_power, hp_missing)
+    restore_beliefs(far_power, far_missing)
+    restore_beliefs(hp_power, both_missing)
+    restore_beliefs(far_power, both_missing)
+
+    def sources_at_the_gaps():
+        result = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_horizon=timedelta(0),
+        )[0]["data"]
+        return [
+            _at(result, event_start).index.get_level_values("source")[0]
+            for event_start in (hp_missing, far_missing, both_missing)
+        ]
+
+    first = sources_at_the_gaps()
+    assert [source.missing_members for source in first] == [
+        [hp_power.id],
+        [far_power.id],
+        sorted([hp_power.id, far_power.id]),
     ]
-    # without the heat pump's 40 kW, only the PV is left
-    assert at_gap_lenient["event_value"].values == pytest.approx(0.16)
+    assert len({source.id for source in first}) == 3
+
+    again = sources_at_the_gaps()
+    assert [source.id for source in again] == [source.id for source in first]
+
+
+def test_a_partial_aggregate_gets_a_source_of_its_own_also_when_the_config_is_not_saved(
+    setup_nested_groups, db, restore_beliefs
+):
+    """Which members an aggregate covers, and which it leaves out, says what its data is, so it is recorded also where the config is not saved, as with `flexmeasures add report --no-save-config`."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+    restore_beliefs(hp_power, missing_start)
+
+    reporter = AggregatorReporter(
+        config={"group": {"asset": street.id}}, save_config=False
+    )
+    result = reporter.compute(
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    members = sorted([pv_power.id, hp_power.id, far_power.id])
+    partial_source = _at(result, missing_start).index.get_level_values("source")[0]
+    assert partial_source.missing_members == [hp_power.id]
+    assert partial_source != reporter.data_source
+    assert reporter.data_source.missing_members == []
+    # the rest of the config is still not saved
+    assert reporter.data_source.attributes["data_generator"] == {
+        "config": {"resolved-members": members}
+    }
+    assert partial_source.attributes["data_generator"] == {
+        "config": {"resolved-members": members, "missing-members": [hp_power.id]}
+    }
+
+
+def test_a_gap_in_a_sensor_named_besides_the_group_is_no_missing_member(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A sensor named in `input` next to the group is not one of its members, so a gap in it leaves the group's aggregate complete."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+    restore_beliefs(far_power, missing_start)
+
+    reporter = AggregatorReporter(config={"group": {"asset": house.id}})
+    result = reporter.compute(
+        input=[dict(sensor=far_power)],
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    assert set(result.index.get_level_values("source")) == {reporter.data_source}
+    # the house consumes 40 kW and produces 100 kW, and the far PV's 60 kW is what is missing
+    assert _at(result, missing_start)["event_value"].values == pytest.approx(-0.06)
+
+
+@pytest.mark.parametrize("kind", ["group", "input"])
+def test_missing_members_given_in_the_config_are_overwritten(
+    setup_nested_groups, db, kind
+):
+    """Which members were missing is the reporter's finding, so a complete report records none, whatever it was given.
+
+    That holds for a report over sensors named in `input` too, which never records missing members.
+    """
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    if kind == "group":
+        config = {"group": {"asset": street.id}}
+        parameters = {}
+    else:
+        config = {"method": "sum"}
+        parameters = dict(
+            input=[dict(sensor=pv_power), dict(sensor=hp_power)],
+            output=[dict(sensor=street_total)],
+        )
+    reporter = AggregatorReporter(config={**config, "missing-members": [pv_power.id]})
+    result = reporter.compute(
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+        **parameters,
+    )[0]["data"]
+
+    assert set(result.index.get_level_values("source")) == {reporter.data_source}
+    assert reporter.data_source.missing_members == []
+
+
+def test_a_complete_aggregate_computed_again_supersedes_a_partial_one_recorded_since(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A complete aggregate that says what the complete source said before is still saved where a partial one was recorded since.
+
+    Otherwise the partial aggregate would remain the most recent belief about the event, which every consumer of one belief per event reads.
+    The other events, whose complete aggregate did not change, are still not saved again.
+    """
+    from flexmeasures.data.services.generator_results import save_generator_results
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street supersede test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    gap = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+
+    def report(belief_time) -> int:
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=belief_time,
+        )
+        saved = save_generator_results(results)
+        db.session.commit()
+        return saved[0]["n_rows"]
+
+    def read_at_gap():
+        bdf = TimedBelief.search(
+            aggregate,
+            event_starts_after=gap,
+            event_ends_before=gap + timedelta(minutes=15),
+            one_deterministic_belief_per_event=True,
+        )
+        return bdf["event_value"].iloc[0], bdf.sources[0]
+
+    back = None
+    try:
+        assert report(datetime(2026, 7, 2, 0, tzinfo=utc)) == 96
+        # the heat pump's reading of one event is gone, so the next run records a partial aggregate of it
+        restore_beliefs(hp_power, gap)
+        assert report(datetime(2026, 7, 2, 1, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.16)
+        assert source.missing_members == [hp_power.id]
+
+        # the reading is uploaded again, and the next run computes the same complete aggregate as the first
+        meter = db.session.execute(
+            db.select(DataSource).filter_by(name="nested meter")
+        ).scalar_one()
+        back = TimedBelief(
+            event_start=gap,
+            belief_time=datetime(2026, 7, 2, 1, 30, tzinfo=utc),
+            event_value=40,
+            sensor=hp_power,
+            source=meter,
+        )
+        db.session.add(back)
+        db.session.commit()
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.12)
+        assert source.missing_members == []
+        # running the same report again saves nothing
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 0
+    finally:
+        if back is not None:
+            db.session.delete(back)
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
+@pytest.mark.parametrize("timing", ["belief_time", "belief_horizon"])
+@pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam"])
+def test_a_group_report_runs_again_after_recording_a_partial_aggregate(
+    setup_nested_groups, db, restore_beliefs, timing, timezone
+):
+    """A report over a group can run again once a partial aggregate is on record, whichever way its belief timing is given.
+
+    A report computed with a belief horizon records its complete and partial aggregates of an event at the same belief time,
+    and an output sensor may be in another timezone than the members.
+    """
+    from flexmeasures.data.services.generator_results import save_generator_results
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        f"street rerun test {timing} {timezone}",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone=timezone,
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+
+    def report(hour: int) -> int:
+        if timing == "belief_time":
+            kwargs = dict(belief_time=datetime(2026, 7, 2, hour, tzinfo=utc))
+        else:
+            kwargs = dict(belief_horizon=timedelta(0))
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            **kwargs,
+        )
+        saved = save_generator_results(results)
+        db.session.commit()
+        return saved[0]["n_rows"]
+
+    try:
+        assert report(0) == 96
+        restore_beliefs(hp_power, datetime(2026, 7, 1, 10, 0, tzinfo=utc))
+        assert report(1) == 1
+        # nothing changed since, so nothing is saved, and in particular the partial aggregate is not saved twice
+        assert report(2) == 0
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
+def test_the_status_of_a_partial_aggregate_names_the_missing_members(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A partial aggregate says something about the current state of the group, so its status says which members it leaves out.
+
+    Only an aggregate as old as the sensor's maximum staleness is judged, since a newer one may still be completed by the next run.
+    Once the aggregate is recorded complete, the status no longer names them.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street status test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    status_specs = {
+        "staleness_search": {},
+        "max_staleness": "PT2H",
+        "max_future_staleness": "-PT12H",
+    }
+    now = datetime(2026, 7, 2, 2, tzinfo=utc)
+    # judged once it ended at least two hours ago, and its member had one resolution to report on it
+    partial_event = datetime(2026, 7, 1, 23, 30, tzinfo=utc)
+
+    def report(belief_time):
+        result = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=belief_time,
+        )[0]["data"]
+        save_to_db(result, save_changed_beliefs_only=False)
+        db.session.commit()
+
+    def reporter_status(now=now):
+        statuses = get_statuses(aggregate, now=now, status_specs=status_specs)
+        return next(
+            status for status in statuses if status["source_type"] == "reporter"
+        )
+
+    late = None
+    try:
+        restore_beliefs(hp_power, partial_event)
+        report(datetime(2026, 7, 2, tzinfo=utc))
+        # half an hour after the event, the next run may still complete it
+        assert "missing-members" not in reporter_status(
+            datetime(2026, 7, 2, 0, 30, tzinfo=utc)
+        )
+        status = reporter_status()
+        assert status["missing-members"] == [
+            {"id": hp_power.id, "name": hp_power.name, "asset-name": "House heat"}
+        ]
+        assert f"leaves out 'House heat' / hp power ({hp_power.id})" in status["reason"]
+        assert status["stale"] is False
+
+        # the heat pump's data arrives, and a later run records the complete aggregate
+        source = db.session.execute(
+            db.select(DataSource).filter_by(name="nested meter")
+        ).scalar_one()
+        late = TimedBelief(
+            event_start=partial_event,
+            belief_horizon=-timedelta(minutes=30),
+            event_value=40,
+            sensor=hp_power,
+            source=source,
+        )
+        db.session.add(late)
+        db.session.commit()
+        report(datetime(2026, 7, 2, 1, tzinfo=utc))
+        status = reporter_status()
+        assert "missing-members" not in status
+        assert "leaves out" not in status["reason"]
+    finally:
+        if late is not None:
+            db.session.delete(late)
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
+def test_the_status_goes_by_the_aggregate_a_consumer_picks(setup_nested_groups, db):
+    """Where a partial and a complete aggregate of the latest event share a belief time, the status names no missing members, as every consumer reads the complete one.
+
+    The partial source is the older one here, so that its belief is not merely the last one in any order by source id.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street tie test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    family = dict(
+        name="Seita", type="reporter", model="AggregatorReporter", version="2"
+    )
+    partial = DataSource(
+        **family,
+        attributes={"data_generator": {"config": {"missing-members": [hp_power.id]}}},
+    )
+    db.session.add_all([aggregate, partial])
+    db.session.flush()
+    complete = DataSource(
+        **family, attributes={"data_generator": {"config": {"resolved-members": []}}}
+    )
+    db.session.add(complete)
+    db.session.flush()
+    last_event = datetime(2026, 7, 1, 23, 45, tzinfo=utc)
+    db.session.add_all(
+        [
+            TimedBelief(
+                event_start=last_event,
+                belief_time=datetime(2026, 7, 2, tzinfo=utc),
+                event_value=value,
+                sensor=aggregate,
+                source=source,
+            )
+            for source, value in ((partial, 0.16), (complete, 0.12))
+        ]
+    )
+    db.session.commit()
+    try:
+        statuses = get_statuses(
+            aggregate,
+            now=datetime(2026, 7, 2, 2, 15, tzinfo=utc),
+            status_specs={
+                "staleness_search": {},
+                "max_staleness": "PT2H",
+                "max_future_staleness": "-PT12H",
+            },
+        )
+        status = next(
+            status for status in statuses if status["source_type"] == "reporter"
+        )
+        assert "missing-members" not in status
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.delete(partial)
+        db.session.delete(complete)
+        db.session.commit()
+
+
+def test_the_status_waits_for_a_member_of_a_coarser_resolution(setup_nested_groups, db):
+    """A member recording hourly reports on a quarter only once its hour is over, so the status judges a partial aggregate only once that member had the chance to.
+
+    Otherwise, a group with such a member would show a yellow light for about half of every hour, with nothing faulty.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street coarse member test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    hourly_member = Sensor(
+        "hourly member",
+        generic_asset=street,
+        event_resolution=timedelta(hours=1),
+        unit="kW",
+        timezone="UTC",
+    )
+    db.session.add_all([aggregate, hourly_member])
+    db.session.flush()
+    partial = DataSource(
+        name="Seita",
+        type="reporter",
+        model="AggregatorReporter",
+        version="2",
+        attributes={
+            "data_generator": {"config": {"missing-members": [hourly_member.id]}}
+        },
+    )
+    db.session.add(partial)
+    db.session.flush()
+    db.session.add(
+        TimedBelief(
+            event_start=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=datetime(2026, 7, 2, 0, 20, tzinfo=utc),
+            event_value=0.16,
+            sensor=aggregate,
+            source=partial,
+        )
+    )
+    db.session.commit()
+
+    def missing_members(now):
+        statuses = get_statuses(
+            aggregate,
+            now=now,
+            status_specs={
+                "staleness_search": {},
+                "max_staleness": "PT30M",
+                "max_future_staleness": "-PT12H",
+            },
+        )
+        # most sensors have no members, so a status names missing members only when there are any
+        return next(
+            status for status in statuses if status["source_type"] == "reporter"
+        ).get("missing-members")
+
+    try:
+        # the quarter ended 45 minutes ago, but the hourly member reports on it only after 1:00
+        assert missing_members(datetime(2026, 7, 2, 1, tzinfo=utc)) is None
+        # by now, the member had its hour and half an hour more to report
+        assert [
+            member["id"]
+            for member in missing_members(datetime(2026, 7, 2, 1, 45, tzinfo=utc))
+        ] == [hourly_member.id]
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.delete(hourly_member)
+        db.session.delete(partial)
+        db.session.commit()
 
 
 def test_upsampling_does_not_fill_across_a_gap(setup_pv_group, db, restore_beliefs):
@@ -1208,10 +1721,10 @@ def test_a_bound_an_input_sensor_cannot_take_is_refused(setup_dummy_data, db):
 def test_an_input_report_still_aggregates_what_reported(
     setup_nested_groups, db, restore_beliefs
 ):
-    """A report over sensors the caller named keeps aggregating what reported, as such reports always have.
+    """A report over sensors the caller named keeps aggregating what reported, under its one source, as such reports always have.
 
-    Only a report whose members were resolved for it is strict by default: there the caller cannot see
-    which sensors went in, so a silently low aggregate is the worse failure.
+    Only a report whose members were resolved for it records a partial aggregate under a source naming the missing members:
+    there the caller cannot see which sensors went in, so a partial aggregate that looks complete is the worse failure.
     """
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
@@ -1220,7 +1733,8 @@ def test_an_input_report_still_aggregates_what_reported(
     missing_start = datetime(2026, 7, 1, 11, 0, tzinfo=utc)
     restore_beliefs(hp_power, missing_start)
 
-    result = AggregatorReporter(config={"method": "sum"}).compute(
+    reporter = AggregatorReporter(config={"method": "sum"})
+    result = reporter.compute(
         input=[dict(sensor=pv_power), dict(sensor=hp_power)],
         output=[dict(sensor=street_total)],
         start=datetime(2026, 7, 1, tzinfo=utc),
@@ -1228,22 +1742,56 @@ def test_an_input_report_still_aggregates_what_reported(
         belief_horizon=timedelta(0),
     )[0]["data"]
 
-    starts = result.index.get_level_values("event_start")
-    at_gap = result[starts == pd.Timestamp(missing_start)]
+    at_gap = _at(result, missing_start)
     # the PV alone, in MW: 100 kW
     assert at_gap["event_value"].values == pytest.approx(0.1)
+    assert set(result.index.get_level_values("source")) == {reporter.data_source}
 
-    # and a group report over the same two sensors blanks it instead
-    strict = AggregatorReporter(config={"group": {"asset": house.id}}).compute(
+    # and a group report over the same two sensors says which one it is missing
+    group_result = AggregatorReporter(config={"group": {"asset": house.id}}).compute(
         output=[dict(sensor=street_total)],
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
         belief_horizon=timedelta(0),
     )[0]["data"]
-    strict_starts = strict.index.get_level_values("event_start")
-    assert pd.isna(
-        strict[strict_starts == pd.Timestamp(missing_start)]["event_value"]
-    ).all()
+    group_at_gap = _at(group_result, missing_start)
+    # the house records its consumption, so its PV counts negatively
+    assert group_at_gap["event_value"].values == pytest.approx(-0.1)
+    assert group_at_gap.index.get_level_values("source")[0].missing_members == [
+        hp_power.id
+    ]
+
+
+def test_more_than_one_belief_about_an_event_is_refused(setup_nested_groups, db):
+    """An input that asks for more than the most recent belief about each event is told which event it holds several beliefs about."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    source = db.session.execute(
+        db.select(DataSource).filter_by(name="nested meter")
+    ).scalar_one()
+    earlier = TimedBelief(
+        event_start=datetime(2026, 7, 1, 10, tzinfo=utc),
+        belief_horizon=timedelta(hours=1),
+        event_value=1,
+        sensor=pv_power,
+        source=source,
+    )
+    db.session.add(earlier)
+    db.session.commit()
+    try:
+        with pytest.raises(ValueError, match="more than one belief about 1 event") as e:
+            AggregatorReporter(config={"method": "sum"}).compute(
+                input=[dict(sensor=pv_power, most_recent_beliefs_only=False)],
+                output=[dict(sensor=street_total)],
+                start=datetime(2026, 7, 1, tzinfo=utc),
+                end=datetime(2026, 7, 2, tzinfo=utc),
+                belief_time=datetime(2026, 7, 3, tzinfo=utc),
+            )
+        assert "2026-07-01 10:00:00+00:00" in str(e.value)
+    finally:
+        db.session.delete(earlier)
+        db.session.commit()
 
 
 def test_an_invalid_flex_model_on_the_site_names_the_asset(

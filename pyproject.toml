@@ -121,7 +121,8 @@ dependencies = [
     # Below: minimum requirements solely here for security reasons
     "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
     "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
-    "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
+    "werkzeug>=3.1.9",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/625 (and 587)
+    "certifi>=2026.10.19",  # https://github.com/advisories/GHSA-6q48-6c7w-9gw2
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
     "setuptools>=83.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/621
 ]

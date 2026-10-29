@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import pickle
 
 import pandas as pd
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.services.data_ingestion import (
     BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE,
     BeliefReplacementNotAllowed,
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
+    is_belief_replacement,
 )
 from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
@@ -32,7 +35,7 @@ def test_ingestion_service_accepts_beliefs_data_frame(setup_beliefs, db):
     assert status == SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
 
 
-def test_ingestion_job_accepts_belief_time_ahead_of_its_clock(
+def test_ingestion_job_accepts_prior_ahead_of_its_clock(
     setup_beliefs_fresh_db, setup_roles_users_fresh_db, fresh_db
 ):
     """A queued upload is saved even if the server that received it ran ahead of the worker's clock."""
@@ -52,7 +55,7 @@ def test_ingestion_job_accepts_belief_time_ahead_of_its_clock(
         ],
         upload_data={
             "belief-time-measured-instantly": "off",
-            "belief-time": belief_time.isoformat(),
+            "prior": belief_time.isoformat(),
         },
     )
 
@@ -83,7 +86,7 @@ def test_ingestion_refuses_replacement_by_name(
             ],
             upload_data={
                 "belief-time-measured-instantly": "off",
-                "belief-time": "2026-01-01T00:00:00+00:00",
+                "prior": "2026-01-01T00:00:00+00:00",
             },
         )
 
@@ -91,6 +94,15 @@ def test_ingestion_refuses_replacement_by_name(
     with pytest.raises(BeliefReplacementNotAllowed) as exc_info:
         upload(11)
     assert str(exc_info.value) == BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE
+
+    # Code catching the database error, as it had to before the error got its name, still catches it
+    assert isinstance(exc_info.value, IntegrityError)
+    assert is_belief_replacement(exc_info.value)
+
+    # It survives pickling, as an IntegrityError does
+    unpickled = pickle.loads(pickle.dumps(exc_info.value))
+    assert type(unpickled) is BeliefReplacementNotAllowed
+    assert str(unpickled) == BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE
 
     # The session was rolled back, so it can still be used, and the first value stands
     bdf = sensor.search_beliefs(

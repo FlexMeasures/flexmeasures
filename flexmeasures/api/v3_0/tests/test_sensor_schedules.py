@@ -122,6 +122,33 @@ def test_trigger_schedule_with_invalid_flexmodel(
             )
 
 
+@pytest.mark.parametrize("config", ["flex-model", "flex-context"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_refuses_sensor_reference_without_sensor(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    config,
+    requesting_user,
+):
+    """Only sensor deletion leaves a reference without a sensor behind, in a stored flex-config, so a trigger message cannot pass one."""
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    message = message_for_trigger_schedule()
+    field = "soc-min" if config == "flex-model" else "production-price"
+    default = "1 kWh" if config == "flex-model" else "10 EUR/MWh"
+    message.setdefault(config, {})[field] = {"sensor": None, "default": default}
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+    print("Server responded with:\n%s" % trigger_schedule_response.json)
+    assert trigger_schedule_response.status_code == 422
+    assert "has no sensor" in str(trigger_schedule_response.json)
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
