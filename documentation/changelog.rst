@@ -32,7 +32,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Hide public assets by default in graph and flex-config sensor searches, with an "Include public assets" checkbox to show them
+* Graph and flex-config sensor searches now wait for a keyword, unit, or an explicit request before loading results, and hide public assets by default unless "Include public assets" is checked
 * When uploading sensor data, you can now set the time prior to which the data was recorded, such as when moving historical data from another system together with its original recording times [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_ and `PR #2734 <https://www.github.com/FlexMeasures/flexmeasures/pull/2734>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]

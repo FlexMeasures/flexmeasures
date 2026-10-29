@@ -375,6 +375,10 @@
                                     </div>
 
                                     <div class="container">
+                                        <p id="graphSensorSearchPrompt" class="text-muted">
+                                            Start searching by keyword or unit. Or
+                                            <a href="#" id="graphSearchNow">search right now</a>.
+                                        </p>
                                         <div id="spinnerElement"
                                             class="d-flex justify-content-center align-items-center mb-2"
                                             style="height: 50vh; display: none !important;">
@@ -434,6 +438,7 @@
         const newFormat = sensorsToShowFormatter(sensorsToShow);
 
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
+        let hasSearchedSensors = false;
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -544,6 +549,10 @@
         };
 
         document.getElementById("graphIncludePublicAssets").onchange = filterSensors;
+        document.getElementById("graphSearchNow").onclick = function (event) {
+            event.preventDefault();
+            filterSensors();
+        };
 
         searchInput.oninput = function () {
             filterSensors();
@@ -1009,7 +1018,9 @@
             card.onclick = () => {
                 setActiveCard(activeCard()?.id === card.id ? null : card);
                 setEditingIndex(editingIndex() === index ? null : index);
-                filterSensors();
+                if (hasSearchedSensors) {
+                    filterSensors();
+                }
                 renderGraphCards();
             };
 
@@ -1205,6 +1216,8 @@
         }
 
         async function filterSensors() {
+            hasSearchedSensors = true;
+            document.getElementById('graphSensorSearchPrompt').classList.add('d-none');
             const searchValue = document.getElementById("searchInput").value.toLowerCase();
             const filterValue = document.getElementById("unitsSelect").value;
             const highlightedCard = document.querySelector('.border-on-click');
@@ -1299,7 +1312,9 @@
             setActiveCard(null);
             setConfigAsset(null);
             setSensorToShow(newSensorsToShow);
-            filterSensors();
+            if (hasSearchedSensors) {
+                filterSensors();
+            }
         }
 
         async function moveGraphUp(index) {
@@ -1561,6 +1576,14 @@
         }
 
         formModal.addEventListener('shown.bs.modal', function () {
+            hasSearchedSensors = false;
+            cachedFilteredSensors = [];
+            searchInput.value = '';
+            unitsSelect.selectedIndex = 0;
+            document.getElementById('graphIncludePublicAssets').checked = false;
+            document.getElementById('graphSensorSearchPrompt').classList.remove('d-none');
+            apiSensorsListElement.replaceChildren();
+            apiSensorsListElement.style.display = 'none';
             // Clear the cache for everything the plots refer to when the modal opens.
             // This ensures we get fresh data for asset plots,
             // and that a sensor or asset which has been deleted since it was cached is shown as the dangling reference it is.
@@ -1581,7 +1604,6 @@
 
             // Initial renders
             renderGraphCards(); // Initial render of graph cards
-            filterSensors(); // Initial render of sensors
             renderRootAssets(); // Initial render of root assets
         });
 
