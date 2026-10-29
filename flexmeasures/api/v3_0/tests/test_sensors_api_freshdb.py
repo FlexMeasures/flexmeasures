@@ -477,3 +477,27 @@ def test_fetch_sensors_can_filter_by_sensor_id_prefix(
 
     assert full_id_response.status_code == 200
     assert [s["id"] for s in full_id_response.json] == [matching_sensor.id]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_sensor_status_field_aliases_without_data(
+    client, setup_api_fresh_test_data, requesting_user
+):
+    """A sensor that reports no data still returns both spellings of every field.
+
+    The fresh database keeps the sensor free of beliefs, so both spellings of the
+    nullable fields are null here.
+    """
+    sensor = setup_api_fresh_test_data["empty temperature sensor"]
+    response = client.get(url_for("SensorAPI:get_status", id=sensor.id))
+    assert response.status_code == 200
+
+    row = response.json["sensors_data"][0]
+    assert row["staleness-since"] is None
+    assert row["staleness_since"] is None
+    assert row["source-type"] is None
+    assert row["source_type"] is None
+    assert row["asset-id"] == sensor.generic_asset_id
+    assert row["asset-name"] == sensor.generic_asset.name
