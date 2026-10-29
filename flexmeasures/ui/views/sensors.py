@@ -170,7 +170,7 @@ class SensorUI(FlaskView):
         )
 
     @login_required
-    @route("/<id>/deletion-notes")
+    @route("/<int:id>/deletion-notes")
     def deletion_notes(self, id: int):
         """GET from /sensors/<id>/deletion-notes
 

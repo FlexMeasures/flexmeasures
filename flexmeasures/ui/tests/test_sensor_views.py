@@ -465,3 +465,8 @@ def test_sensor_deletion_notes_are_for_whoever_may_delete_the_sensor(
     assert b'id="delete-sensor-button"' in response.data
     note, _ = _fetch_deletion_notes(client, sensor)
     assert f"- {site.name}, flex-context: consumption-price" in note
+
+
+def test_sensor_deletion_notes_need_a_sensor_id(client, as_admin):
+    """An id that is not a number names no sensor."""
+    assert client.get("/sensors/not-a-number/deletion-notes").status_code == 404
