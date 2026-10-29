@@ -363,3 +363,23 @@ def test_sensor_page_does_not_name_fields_whose_sensor_was_deleted_before(
     assert response.status_code == 200
     note = _extract_js_string(response.data, "deletionConfirmNote")
     assert f"- {asset.name}, flex-context: production-price\n" in note + "\n"
+
+
+def test_sensor_deletion_toast_leaves_out_the_page_it_moves_on_to(
+    db, client, setup_assets, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """The sensor's own asset shows its own toast after the deletion, so the deletion's toast does not repeat it."""
+    sensor = _get_prosumer_sensor(db)
+    own_asset = db.session.get(GenericAsset, sensor.generic_asset_id)
+    original_flex_model = own_asset.flex_model
+    own_asset.flex_model = {"soc-min": {"sensor": sensor.id, "default": "1 kWh"}}
+    db.session.commit()
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    own_asset.flex_model = original_flex_model
+    db.session.commit()
+    assert response.status_code == 200
+    note = _extract_js_string(response.data, "deletionConfirmNote")
+    toast = _extract_js_string(response.data, "deletionToast")
+    assert f"- {own_asset.name}, flex-model: soc-min" in note
+    assert url_for("AssetCrudUI:properties", id=own_asset.id) not in toast

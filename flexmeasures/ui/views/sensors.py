@@ -55,6 +55,9 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
         paths, url = editor_paths_and_url(asset, config_name, paths)
         fields = ", ".join(paths)
         lines.append(f"- {asset.name}, {config_name}: {fields}")
+        if asset.id == sensor.generic_asset_id:
+            # The page moves on to this asset, whose own toast already links to these fields.
+            continue
         links.append(
             Markup('<a href="{url}">{asset}</a> ({config}: {fields})').format(
                 url=url, asset=asset.name, config=config_name, fields=fields
@@ -75,6 +78,8 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
             *lines,
         ]
     )
+    if not links:
+        return confirm_note, Markup("")
     toast = Markup(
         "These flex-config fields referred to the deleted sensor, and need a new sensor: {fields}. Until then, scheduling uses the default of such a field as a fixed value, or ignores the field."
     ).format(fields=Markup("; ").join(links))
