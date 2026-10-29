@@ -32,7 +32,6 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Graph and flex-config sensor searches now wait for a keyword, unit, or an explicit request before loading results, and hide public assets by default unless "Include public assets" is checked
 * When uploading sensor data, you can now set the time prior to which the data was recorded, such as when moving historical data from another system together with its original recording times [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_ and `PR #2734 <https://www.github.com/FlexMeasures/flexmeasures/pull/2734>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
@@ -52,6 +51,7 @@ New features
 * The asset lists on an organisation's page and on the asset overview now show only top-level assets per default, so the sites you are looking for are no longer buried among their sub-assets, and both offer the same two checkboxes to widen the list again: untick *Top-level only* for the whole tree, or tick *Include public assets*, which is off per default [see `PR #2523 <https://www.github.com/FlexMeasures/flexmeasures/pull/2523>`_]
 * The audit log of a device group's asset now notes which devices join or leave the group, and when a member moves to another site, or the group moves away from its members, so the history of a group's membership can be read in one place; a device whose group is deleted gets a note, too [see `PR #2723 <https://www.github.com/FlexMeasures/flexmeasures/pull/2723>`_ and `PR #2769 <https://www.github.com/FlexMeasures/flexmeasures/pull/2769>`_]
 * When a report automation aggregates only one asset type of a device group, the group's audit log notes which members it starts with, and which members enter or leave that selection as their asset type changes [see `PR #2724 <https://www.github.com/FlexMeasures/flexmeasures/pull/2724>`_]
+* Graph and flex-config sensor searches now hide public assets by default unless "Include public assets" is checked and  wait for a keyword, unit, or an explicit request before loading results [see `PR #2775 <https://www.github.com/FlexMeasures/flexmeasures/pull/2775>`_]
 
 Infrastructure / Support
 -------------------------
