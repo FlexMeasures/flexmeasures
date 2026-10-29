@@ -38,7 +38,7 @@ FlexMeasures is ideally suited for:
 - Situations where you need to optimize for many different energy use cases, such as batteries, electric vehicles, heating/cooling and more, often simultaneously.
 - Organizations that don't have in-house energy optimization and scheduling expertise
 - Large organizations with enterprise-level requirements around security and auditing
-- End users have complex scheduling and optimization needs. 
+- End users with complex scheduling and optimization needs. 
 
 ## For developers: Frequently asked questions about integrating energy scheduling and optimization into an EMS: 
 
