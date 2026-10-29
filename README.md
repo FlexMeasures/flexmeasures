@@ -40,7 +40,7 @@ FlexMeasures is ideally suited for:
 - Large organizations with enterprise-level requirements around security and auditing
 - End users with complex scheduling and optimization needs. 
 
-## For developers: Frequently asked questions about integrating energy scheduling and optimization into an EMS: 
+## For developers: frequently asked questions about integrating energy scheduling and optimization into an EMS: 
 
 
 ### I need help with integrating real-time data and continuously computing new data
