@@ -1243,6 +1243,46 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
 
 
+@pytest.mark.parametrize(
+    "flags, config_saved",
+    [([], True), (["--save-config"], True), (["--no-save-config"], False)],
+)
+def test_add_report_saves_its_config_unless_told_not_to(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, flags, config_saved
+):
+    """A report's data source holds the config the report was computed under, unless `--no-save-config` is passed.
+
+    That tells reports computed under different configs apart, and lets `--source` compute one again.
+    """
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+    cli_input = _report_cli_input(
+        tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+    )
+
+    check_command_ran_without_error(
+        runner.invoke(add_report, to_flags(cli_input) + flags)
+    )
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after=cli_input["start"], event_ends_before=cli_input["end"]
+    )
+    data_generator = stored_report.sources[0].attributes["data_generator"]
+    if config_saved:
+        reporter_config = yaml.safe_load(
+            (tmp_path / "reporter_config.yaml").read_text()
+        )
+        assert (
+            data_generator["config"]["transformations"]
+            == reporter_config["transformations"]
+        )
+    else:
+        assert "config" not in data_generator
+
+
 def test_add_report_says_when_a_rerun_saves_nothing_new(
     app, fresh_db, setup_dummy_data_fresh_db, tmp_path
 ):
