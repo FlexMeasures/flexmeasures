@@ -248,6 +248,97 @@ def test_get_assets_sort_with_search_filter(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_paging_without_sort_sees_all_assets(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Paging through the asset list without a sort order must not skip assets.
+
+    Regression test: without a sort order (or when sorting ties on e.g. owner),
+    the query had no total order, so Postgres was free to return rows in
+    whatever order each query plan produced. Walking LIMIT/OFFSET pages then
+    showed some assets twice and never showed others (#2572).
+    """
+    account = setup_accounts["Prosumer"]
+    asset_type = db.session.query(GenericAssetType).first()
+    for i in range(30):
+        db.session.add(
+            GenericAsset(
+                name=f"paging-test asset {i:02d}",
+                generic_asset_type_id=asset_type.id,
+                account_id=account.id,
+            )
+        )
+    db.session.commit()
+
+    per_page = 3
+    seen_ids: list[int] = []
+    page = 1
+    total_pages = None
+    while total_pages is None or page <= total_pages:
+        response = client.get(
+            url_for("AssetAPI:index"),
+            query_string={"page": page, "per_page": per_page, "all_accessible": True},
+        )
+        assert response.status_code == 200
+        seen_ids.extend(asset["id"] for asset in response.json["data"])
+        total_pages = -(-response.json["filtered-records"] // per_page)
+        page += 1
+        assert page <= 100  # pagination terminates
+
+    duplicates = len(seen_ids) - len(set(seen_ids))
+    assert duplicates == 0, f"unsorted paging duplicated {duplicates} rows"
+    num_assets = db.session.query(GenericAsset).count()
+    assert (
+        len(set(seen_ids)) == num_assets
+    ), f"unsorted paging skipped {num_assets - len(set(seen_ids))} assets"
+
+    # Clean up: later tests count the assets the fixtures seeded.
+    db.session.query(GenericAsset).filter(
+        GenericAsset.name.like("paging-test asset%")
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_unsupported_sort_by_still_orders_by_id(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """An unsupported sort_by must not silently drop the ordering.
+
+    The public API validates sort_by, but query_assets_by_search_terms is a utility other callers
+    may use; an unsupported field used to leave the query unordered, which reintroduces the unstable
+    paging from #2572. We assert the ordering on the compiled statement rather than on observed row
+    order, since an unordered query may happen to return ascending ids.
+    """
+    from flexmeasures.data.queries.generic_assets import (
+        query_assets_by_search_terms,
+    )
+
+    for search_terms, filter_statement in (
+        (None, True),
+        (["e"], GenericAsset.account_id.isnot(None)),
+    ):
+        for sort_dir in ("asc", "desc"):
+            query = query_assets_by_search_terms(
+                search_terms=search_terms,
+                filter_statement=filter_statement,
+                sort_by="unsupported_field",
+                sort_dir=sort_dir,
+            )
+            compiled = query.compile(compile_kwargs={"literal_binds": False})
+            compiled_str = str(compiled)
+            assert "ORDER BY" in compiled_str, compiled_str[-200:]
+            order_by_clause = compiled_str.split("ORDER BY")[-1]
+            # exactly one ordering expression: the asset id, ascending
+            assert order_by_clause.strip() in (
+                "anon_1.id ASC",
+                "anon_1.id",
+                "generic_asset.id ASC",
+                "generic_asset.id",
+            ), order_by_clause
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):

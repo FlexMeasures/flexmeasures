@@ -63,7 +63,7 @@
               <span class="fa fa-info-circle" title="
               This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
 
-A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
+A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. A yellow light indicates that the data is not stale, but incomplete, for instance an aggregate of a device group that leaves out members which did not report. Hover the light to learn more about what is missing. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
 
 How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
 
@@ -110,8 +110,14 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
     const timeAgo = getTimeAgo(lastCallTime);
-    const statusIcon = sensor.stale ? "🔴" : "🟢";
+    // a fresh aggregate that leaves out some of its group's members is not stale, but not complete either
+    const statusIcon = sensor.stale ? "🔴" : (sensor["missing-members"]?.length ? "🟡" : "🟢");
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
+    // link each member left out to its own sensor page, where its data shows what it did not report
+    const missingMembers = (sensor["missing-members"] || []).map(
+      (member) => `<a href="/sensors/${member.id}" title="See the data of this member">${escapeHtml(member["asset-name"])} / ${escapeHtml(member.name)}</a>`
+    );
+    const missingInfo = missingMembers.length ? `<br><small>Missing: ${missingMembers.join(", ")}</small>` : "";
 
     return {
       sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
@@ -127,7 +133,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span><br><span class="time-ago" data-timestamp="${lastCallTime}">
+      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span>${missingInfo}<br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };

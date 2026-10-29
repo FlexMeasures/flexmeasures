@@ -15,6 +15,9 @@ from flexmeasures.data.models.annotations import (
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from flexmeasures.data.services.group_membership_audit import (
+    note_deletion as note_group_membership_deletion,
+)
 
 """Services for managing assets"""
 
@@ -675,6 +678,8 @@ def delete_asset(asset: GenericAsset):
     asset_name, asset_id = asset.name, asset.id
     cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
+    # the statement below deletes the asset, its offspring and their sensors without a flush, which is where group changes are noted otherwise
+    note_group_membership_deletion(asset)
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)
