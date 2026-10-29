@@ -15,6 +15,8 @@ from flexmeasures.ui.tests.utils import (
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
+    login,
+    logout,
 )
 
 """
@@ -530,6 +532,26 @@ def test_asset_pages_point_at_fields_whose_sensor_was_deleted(
     response = client.get(
         url_for("AssetCrudUI:graphs", id=intact_asset.id), follow_redirects=True
     )
+    assert response.status_code == 200
+    assert _extract_deleted_sensor_references_toast(response.data) is None
+
+
+def test_asset_pages_do_not_point_users_who_cannot_edit_at_the_editor(
+    client, db, setup_accounts, setup_generic_asset_types
+):
+    """A user who can read an asset but not edit its flex-config cannot pick a new sensor, so gets no toast asking to."""
+    public_asset = GenericAsset(
+        name="public-asset-with-a-field-whose-sensor-was-deleted",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=None,
+        flex_context={"production-price": {"sensor": None, "default": "10 EUR/MWh"}},
+    )
+    db.session.add(public_asset)
+    db.session.commit()
+
+    login(client, "test_prosumer_user_2@seita.nl", "testtest")
+    response = client.get(url_for("AssetCrudUI:context", id=public_asset.id))
+    logout(client)
     assert response.status_code == 200
     assert _extract_deleted_sensor_references_toast(response.data) is None
 

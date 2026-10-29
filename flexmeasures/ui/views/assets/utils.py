@@ -8,6 +8,7 @@ from flexmeasures import Asset
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.sensors import unset_sensor_reference_paths
+from flexmeasures.ui.utils.auth_utils import user_can_access
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -72,8 +73,12 @@ def deleted_sensor_references_toast(asset: GenericAsset) -> Markup | None:
     but the field needs a new sensor, and until it has one, saving its flex-config is refused.
     So each page of the asset points the user at the editor for it.
 
-    :returns: The toast's message, or None if no field lost its sensor.
+    Only a user who can edit the asset's flex-config is pointed at the editor, as no one else can save the fix.
+
+    :returns: The toast's message, or None if no field lost its sensor, or the user cannot fix it.
     """
+    if not user_can_access(asset, "edit-flex-config"):
+        return None
     editors = (
         ("flex-context", asset.flex_context, "flex-context editor"),
         ("flex-model", asset.flex_model, "flex-model editor on the Properties page"),
