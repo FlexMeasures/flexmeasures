@@ -21,6 +21,7 @@ from flask import url_for
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import login, logout
+from flexmeasures.ui.views.sensors import MAX_NAMED_FIELD_GROUPS
 
 
 @pytest.fixture(scope="function")
@@ -336,7 +337,7 @@ def test_sensor_page_only_counts_fields_on_assets_the_user_cannot_see(
     note = _extract_js_string(response.data, "deletionConfirmNote")
     toast = _extract_js_string(response.data, "deletionToast")
 
-    assert "- fields on 1 asset(s) you cannot see" in note
+    assert "- fields on 1 asset you cannot see" in note
     assert asset.name not in note
     assert asset.name not in toast
     assert f"/assets/{asset.id}/" not in toast
@@ -383,3 +384,37 @@ def test_sensor_deletion_toast_leaves_out_the_page_it_moves_on_to(
     toast = _extract_js_string(response.data, "deletionToast")
     assert f"- {own_asset.name}, flex-model: soc-min" in note
     assert url_for("AssetCrudUI:properties", id=own_asset.id) not in toast
+
+
+def test_sensor_page_names_only_the_first_few_assets_whose_fields_need_a_new_sensor(
+    db, client, setup_assets, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """A shared sensor, such as a price, can be referenced by many assets, which the confirmation and toast do not list in full."""
+    sensor = _get_prosumer_sensor(db)
+    for i in range(MAX_NAMED_FIELD_GROUPS + 2):
+        db.session.add(
+            GenericAsset(
+                name=f"site-{i}-sharing-a-price-sensor-to-delete",
+                generic_asset_type=setup_generic_asset_types["battery"],
+                owner=setup_accounts["Prosumer"],
+                flex_context={
+                    "consumption-price": {"sensor": sensor.id, "default": "20 EUR/MWh"}
+                },
+            )
+        )
+    db.session.commit()
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+    assert response.status_code == 200
+    note = _extract_js_string(response.data, "deletionConfirmNote")
+    toast = _extract_js_string(response.data, "deletionToast")
+
+    named_lines = [
+        line
+        for line in note.splitlines()
+        if line.startswith("- ") and not line.startswith("- and ")
+    ]
+    assert len(named_lines) == MAX_NAMED_FIELD_GROUPS
+    assert re.search(r"^- and \d+ more$", note, re.MULTILINE)
+    assert toast.count("<a href=") == MAX_NAMED_FIELD_GROUPS
+    assert re.search(r"; and \d+ more\.", toast)

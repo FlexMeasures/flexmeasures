@@ -524,7 +524,7 @@ def test_asset_pages_point_at_fields_whose_sensor_was_deleted(
             in toast
         )
         assert (
-            "Fields in the flex-model of this asset refer to a sensor that has been deleted: soc-min."
+            "A field in the flex-model of this asset refers to a sensor that has been deleted: soc-min."
             in toast
         )
         assert url_for("AssetCrudUI:properties", id=asset.id) in toast

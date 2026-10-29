@@ -34,6 +34,9 @@ from flexmeasures.ui.views import (
 )
 from flexmeasures.auth.policy import check_access
 
+# How many assets' flex-configs the sensor page names when deleting a sensor leaves fields without one.
+MAX_NAMED_FIELD_GROUPS = 10
+
 
 def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
     """What the sensor page tells the user who deletes this sensor about the flex-config fields it would leave without a sensor.
@@ -42,6 +45,7 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
     After deleting, a toast links to the editor for each of them, which the page shows once it has moved on to the sensor's asset.
     A sensor can be referenced from assets the user cannot read, such as when it is public,
     so those are only counted, not named.
+    A shared sensor, such as a price, can be referenced by many assets, so only the first few are named.
 
     :returns: The note for the confirmation, and the toast, each empty if deleting the sensor leaves no field without one.
     """
@@ -63,12 +67,23 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
                 url=url, asset=asset.name, config=config_name, fields=fields
             )
         )
+    if len(lines) > MAX_NAMED_FIELD_GROUPS:
+        lines = lines[:MAX_NAMED_FIELD_GROUPS] + [
+            f"- and {len(lines) - MAX_NAMED_FIELD_GROUPS} more"
+        ]
+    if len(links) > MAX_NAMED_FIELD_GROUPS:
+        links = links[:MAX_NAMED_FIELD_GROUPS] + [
+            Markup("and {count} more").format(count=len(links) - MAX_NAMED_FIELD_GROUPS)
+        ]
     if unreadable_assets:
-        lines.append(f"- fields on {len(unreadable_assets)} asset(s) you cannot see")
+        unreadable = (
+            "1 asset"
+            if len(unreadable_assets) == 1
+            else f"{len(unreadable_assets)} assets"
+        )
+        lines.append(f"- fields on {unreadable} you cannot see")
         links.append(
-            Markup("fields on {count} asset(s) you cannot see").format(
-                count=len(unreadable_assets)
-            )
+            Markup("fields on {assets} you cannot see").format(assets=unreadable)
         )
     if not lines:
         return "", Markup("")

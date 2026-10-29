@@ -89,9 +89,15 @@ def deleted_sensor_references_toast(asset: GenericAsset) -> Markup | None:
         if not paths:
             continue
         paths, url = editor_paths_and_url(asset, config_name, paths)
+        subject = (
+            "A field in the {config} of this asset refers"
+            if len(paths) == 1
+            else "Fields in the {config} of this asset refer"
+        )
         parts.append(
             Markup(
-                'Fields in the {config} of this asset refer to a sensor that has been deleted: {fields}. <a href="{url}">Pick a new sensor in the {editor}</a>.'
+                subject
+                + ' to a sensor that has been deleted: {fields}. <a href="{url}">Pick a new sensor in the {editor}</a>.'
             ).format(
                 config=config_name, fields=", ".join(paths), url=url, editor=editor
             )
