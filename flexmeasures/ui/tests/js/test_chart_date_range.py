@@ -48,6 +48,26 @@ def test_explicit_link_wins_and_legacy_session_is_a_fallback(assert_js):
     """)
 
 
+def test_clearing_the_session_forgets_the_selected_window(assert_js):
+    assert_js("""
+        import { restoreChartDateRange, rememberChartDateRange, forgetChartDateRange } from "/js/chart-date-range.js";
+        localStorage.clear();
+        rememberChartDateRange("2024-01-01", "2024-01-04");
+        forgetChartDateRange();
+        eq("a forgotten range is not restored", restoreChartDateRange(""), null);
+        eq("the session range applies again", restoreChartDateRange("", "2023-02-01", "2023-02-03").start.toISOString(), "2023-02-01T00:00:00.000Z");
+        const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+        Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new Error("Storage blocked"); } });
+        try {
+            forgetChartDateRange();
+            eq("blocked storage does not break forgetting", true, true);
+        } finally {
+            Object.defineProperty(window, "localStorage", descriptor);
+            localStorage.clear();
+        }
+    """)
+
+
 def test_invalid_or_unavailable_storage_does_not_break_graphs(assert_js):
     assert_js("""
         import { restoreChartDateRange, rememberChartDateRange } from "/js/chart-date-range.js";

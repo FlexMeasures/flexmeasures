@@ -35,3 +35,12 @@ export function rememberChartDateRange(start, end) {
     // Browsers that disallow storage can still display the selected range.
   }
 }
+
+/** Forget the selected window, so that clearing the session also resets the graphs to their default range. */
+export function forgetChartDateRange() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (_) {
+    // Without storage, nothing was remembered.
+  }
+}
