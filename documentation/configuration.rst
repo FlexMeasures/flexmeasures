@@ -880,6 +880,21 @@ Its ``--stuck-after-minutes`` option overrides this setting.
 Default: ``timedelta(hours=6)``
 
 
+.. _monitor_automations_notify_users:
+
+FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether ``flexmeasures monitor automations`` also emails the people responsible for the assets whose automations failed:
+the users with the ``account-admin`` role in the asset's organisation, and the users with the ``consultant`` role in its consultancy organisation.
+Each of them receives one digest per monitoring run, listing only the automations they can see.
+The host's digest is sent regardless, and still lists every failed run.
+
+Switch this on once you want your users to start receiving these emails.
+
+Default: ``False``
+
+
 .. _redis-config:
 
 Redis
