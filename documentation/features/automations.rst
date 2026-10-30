@@ -271,6 +271,9 @@ These runs on demand do not affect the automations' recurrence, and the runner d
 The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-dependents=true``, which needs permission to manage the automations on each of the assets involved,
 and the *Automations* page offers *Run with dependents* for an automation that another one listed there waits for.
 
+The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
+what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.
+
 Running automations
 -------------------
 

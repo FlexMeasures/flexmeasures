@@ -787,6 +787,85 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }).join("<br>");
   }
 
+  /* Draw the chain an automation is part of, among the automations listed on this page,
+     with the automations that run first on the left, and an arrow from each automation to the ones that wait for it.
+     An automation waited for that is not listed here is drawn too, without what it waits for in turn.
+     A dashed arrow means the waiting automation runs even when the one it waits for failed. */
+  function chainGraph(automationId) {
+    const upstreamOf = (id) => automationsById.get(id)?.["depends-on"] || [];
+    const downstreamOf = (id) => [...automationsById.values()]
+      .filter((other) => upstreamOf(other.id).some((dependency) => dependency.automation === id))
+      .map((other) => other.id);
+    const nodes = new Set([automationId]);
+    const queue = [automationId];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const next of [...upstreamOf(id).map((dependency) => dependency.automation), ...downstreamOf(id)]) {
+        if (!nodes.has(next)) {
+          nodes.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    if (nodes.size === 1) {
+      return `<p class="text-muted">No automation listed here waits for this one, or is waited for by it.</p>`;
+    }
+    // An automation's column is the number of automations on the longest path of upstream automations leading to it.
+    const columns = new Map();
+    const columnOf = (id, visiting = new Set()) => {
+      if (columns.has(id)) {
+        return columns.get(id);
+      }
+      // The server refuses cycles; this only keeps a stale listing from looping.
+      if (visiting.has(id)) {
+        return 0;
+      }
+      visiting.add(id);
+      const upstreamColumns = upstreamOf(id).map((dependency) => columnOf(dependency.automation, visiting));
+      const column = upstreamColumns.length ? 1 + Math.max(...upstreamColumns) : 0;
+      columns.set(id, column);
+      return column;
+    };
+    nodes.forEach((id) => columnOf(id));
+    const [boxWidth, boxHeight, gapX, gapY] = [180, 36, 48, 14];
+    const rowsPerColumn = new Map();
+    const positions = new Map();
+    [...nodes].sort((a, b) => a - b).forEach((id) => {
+      const column = columns.get(id);
+      const row = rowsPerColumn.get(column) || 0;
+      rowsPerColumn.set(column, row + 1);
+      positions.set(id, { x: column * (boxWidth + gapX), y: row * (boxHeight + gapY) });
+    });
+    const width = (Math.max(...columns.values()) + 1) * (boxWidth + gapX) - gapX + 2;
+    const height = Math.max(...rowsPerColumn.values()) * (boxHeight + gapY) - gapY + 2;
+    const arrows = [...nodes].flatMap((id) => upstreamOf(id).map((dependency) => {
+      const from = positions.get(dependency.automation);
+      const to = positions.get(id);
+      return `<path class="chain-arrow" d="M ${from.x + boxWidth} ${from.y + boxHeight / 2} C ${from.x + boxWidth + gapX / 2} ${from.y + boxHeight / 2}, ${to.x - gapX / 2} ${to.y + boxHeight / 2}, ${to.x} ${to.y + boxHeight / 2}"
+        fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#chain-arrowhead)"${dependency["allow-failure"] ? ` stroke-dasharray="5 4"` : ""}/>`;
+    }));
+    const boxes = [...nodes].map((id) => {
+      const { x, y } = positions.get(id);
+      const automation = automationsById.get(id);
+      const label = automation ? `${id}: ${automation.name}` : `${id} (not listed here)`;
+      const shown = label.length > 24 ? `${label.slice(0, 23)}…` : label;
+      const current = id === automationId;
+      return `<g class="chain-node${current ? " chain-node-current" : ""}" data-automation-id="${id}">
+        <title>${esc(label)}</title>
+        <rect x="${x + 1}" y="${y + 1}" width="${boxWidth}" height="${boxHeight}" rx="6"
+          fill="${current ? "var(--bs-primary)" : "var(--bs-body-bg)"}" stroke="var(--bs-primary)" stroke-width="1.5"/>
+        <text x="${x + 1 + boxWidth / 2}" y="${y + 1 + boxHeight / 2}" text-anchor="middle" dominant-baseline="central"
+          font-size="13" fill="${current ? "var(--bs-white)" : "var(--bs-body-color)"}">${esc(shown)}</text>
+      </g>`;
+    });
+    return `<div style="overflow-x: auto"><svg class="automation-chain" width="${width + 8}" height="${height}" role="img"
+      aria-label="The automations this one waits for, and those that wait for it">
+      <defs><marker id="chain-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+      ${arrows.join("")}${boxes.join("")}
+    </svg></div>`;
+  }
+
   function loadAutomationInfo(automationId) {
     $.ajax({
       url: automationUrl(automationId),
@@ -843,6 +922,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6 title="Each run waits for the latest runs of these automations that are due at or before its own time.">Waits for</h6>
           <p>${dependsOnText(res["depends-on"])}</p>
+          <h6 title="The automations listed here that this one waits for, and those that wait for it, directly or through others. A dashed arrow means the waiting automation runs even when the one it waits for failed.">Chain</h6>
+          ${chainGraph(Number(automationId))}
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs
