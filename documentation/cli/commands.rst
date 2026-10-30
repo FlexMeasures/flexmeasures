@@ -78,7 +78,7 @@ of which some are referred to in this documentation.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
-``flexmeasures edit automation``                  Edit an automation's name, recurrence, timezone or activation status.
+``flexmeasures edit automation``                  Edit an automation's name, recurrence, timezone, activation status, parameters or data generator.
 ================================================= =======================================
 
 ``delete`` - Delete data

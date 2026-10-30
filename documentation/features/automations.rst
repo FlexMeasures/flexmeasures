@@ -63,6 +63,31 @@ Automations are active by default (use ``--inactive`` to create them in deactiva
 Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), change the timezone, activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
 These changes are recorded in the asset's audit log.
 
+Editing what an automation computes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An automation's parameters, and its data generator and configuration, can be changed afterwards, too:
+with ``--parameters``, ``--data-generator``, ``--config`` and ``--source`` on ``flexmeasures edit automation``,
+with the same fields on `[PATCH] /assets/(id)/automations/(automation-id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_,
+and with the parameters and config fields of the *Edit* form on the asset's *Automations* page.
+They are checked as on creation, including whether you may use the sensors they name.
+
+A new configuration does not change the data source the automation records under.
+It moves the automation to the data source storing that configuration, which is looked up or created as on creation,
+and leaves the old data source as it is:
+other automations may compute under it, and what it recorded was computed with its configuration.
+For example, a forecast automation on data source 120 whose ``train-period`` changes moves to another source, say 121,
+so that forecasts made before and after the change can be told apart.
+Leaving out ``--data-generator`` or ``--config`` keeps the current one,
+and ``--source`` moves the automation to an existing data source instead, under the same rules as on creation.
+A schedule automation accepts new parameters only, as its data source follows from the asset (see `Automating schedules`_).
+
+Whoever makes such a change through the API or the UI becomes the user whose access every run of the automation checks.
+Keeping the creator instead would let an editor point the automation at sensors only its creator may use.
+
+Runs before and after such a change are kept apart by a new schedule revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
+A run planned before the change, including one being retried and the jobs it already queued, still computes with the parameters and the data source it was planned with.
+
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
 
