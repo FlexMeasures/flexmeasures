@@ -82,11 +82,17 @@ Leaving out ``--data-generator`` or ``--config`` keeps the current one,
 and ``--source`` moves the automation to an existing data source instead, under the same rules as on creation.
 A schedule automation accepts new parameters only, as its data source follows from the asset (see `Automating schedules`_).
 
-Whoever makes such a change through the API or the UI becomes the user whose access every run of the automation checks.
-Keeping the creator instead would let an editor point the automation at sensors only its creator may use.
+Every run of an automation checks the access of the user it runs as, who is its creator at first.
+An edit through the API or the UI leaves that user as it is, so the sensors it names have to pass the access checks of both the editor and that user:
+this way, nobody can point the automation at sensors that only they may use, while its runs are checked against someone else.
+To have the automation run as you from then on, tick *Run as me* in the *Edit* form, or send ``run-as-me`` with the PATCH request;
+the sensors are then checked against your access only, and the switch is written to the asset's audit log.
+This is also how to keep an automation going whose user can no longer act, for instance because they left.
 
 Runs before and after such a change are kept apart by a new revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
 A run planned before the change, including one being retried and the jobs it already queued, still computes with the parameters and the data source it was planned with.
+It is checked against the user the automation runs as by the time it runs, though,
+so after a switch with *Run as me*, a run planned before it fails if it involves a sensor that only its old definition named, and that you may not use.
 
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
