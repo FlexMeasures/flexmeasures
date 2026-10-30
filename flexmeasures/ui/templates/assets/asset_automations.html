@@ -223,7 +223,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="mb-3 chooses-generator">
                   <label for="automationConfig" class="form-label">Data generator config (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. They cannot be changed afterwards." style="font-size: 16px"></i>
+                     title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. Changing them afterwards moves the automation to the data source storing the new settings." style="font-size: 16px"></i>
                   </label>
                   <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
                   <div class="form-text">Leave empty for the generator's defaults.</div>
@@ -280,6 +280,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                      title="The cron time follows this local clock, including daylight-saving changes. For example, choose Europe/Amsterdam to run at 06:00 Amsterdam time year-round." style="font-size: 16px"></i>
                   </label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
+                </div>
+                <!-- What an automation computes is loaded when the form opens, as the listing does not carry it. -->
+                <div class="mb-3 d-none" id="editAutomationConfigGroup">
+                  <label for="editAutomationConfig" class="form-label">Data generator config (JSON)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="How the data generator is set up. Changing it moves the automation to the data source storing the new config, leaving the current data source, and what was computed under it, as it is." style="font-size: 16px"></i>
+                  </label>
+                  <textarea class="form-control" id="editAutomationConfig" rows="4" disabled></textarea>
+                  <div class="form-text" id="editAutomationGenerator"></div>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationParameters" class="form-label">Parameters (JSON)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Forecast parameters, a schedule trigger message, or report parameters, checked as on creation. A fixed start, end or prior is refused, as every run would share that moment." style="font-size: 16px"></i>
+                  </label>
+                  <textarea class="form-control" id="editAutomationParameters" rows="4" disabled></textarea>
+                  <div class="form-text">
+                    Changing the parameters or the config makes you the user whose access each run of this automation checks.
+                    Runs already planned still compute what they were planned with.
+                  </div>
                 </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
@@ -538,6 +558,63 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       active: false,
       sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
     };
+  }
+
+  // Read a JSON textarea, reporting where it is malformed rather than failing silently.
+  function readJsonField(selector, label) {
+    const text = $(selector).val().trim();
+    if (!text) {
+      return {};
+    }
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`${label} is not valid JSON: ${e.message}`);
+    }
+  }
+
+  /* What the edit form starts from: the automation's parameters, and its data generator's config, where it has one to edit.
+     A schedule automation's data source follows from the asset, so it has none. */
+  function loadedEditDefinition(automation, details) {
+    const source = automation.type !== "scheduling" ? details?.source : null;
+    return {
+      parameters: details?.parameters ?? {},
+      config: source ? source.config ?? {} : null,
+      source: source ?? null,
+    };
+  }
+
+  function resetEditAutomationDefinition() {
+    $("#editAutomationParameters, #editAutomationConfig").val("").prop("disabled", true);
+    $("#editAutomationGenerator").text("");
+    $("#editAutomationConfigGroup").addClass("d-none");
+  }
+
+  function fillEditAutomationDefinition(loaded) {
+    $("#editAutomationParameters").val(JSON.stringify(loaded.parameters, null, 4)).prop("disabled", false);
+    if (loaded.config !== null) {
+      $("#editAutomationConfig").val(JSON.stringify(loaded.config, null, 4)).prop("disabled", false);
+      $("#editAutomationGenerator").text(`Currently computed under data source ${loaded.source.id}: ${loaded.source.description}.`);
+      $("#editAutomationConfigGroup").removeClass("d-none");
+    }
+  }
+
+  /* The parameters and config the edit form changed, compared with what it loaded.
+     Sending only those keeps a rename from checking parameters again which may no longer hold, such as ones naming a since deleted sensor.
+     The fields were filled in from the loaded values as they are, so an unchanged field reads back to the same JSON. */
+  function editedDefinition(loaded) {
+    const edited = {};
+    const parameters = readJsonField("#editAutomationParameters", "Parameters");
+    if (JSON.stringify(parameters) !== JSON.stringify(loaded.parameters)) {
+      edited.parameters = parameters;
+    }
+    if (loaded.config !== null) {
+      const config = readJsonField("#editAutomationConfig", "Data generator config");
+      if (JSON.stringify(config) !== JSON.stringify(loaded.config)) {
+        edited.config = config;
+      }
+    }
+    return edited;
   }
 
   // Run this automation once, now, on top of its recurring runs.
@@ -961,6 +1038,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       loadAutomationInfo($(this).attr("id").replace("AutomationInfoModal-", ""));
     });
 
+    // What the edit form loaded (see `loadedEditDefinition`); null until it is loaded, and the form then sends no parameters or config.
+    let editAutomationLoaded = null;
+
     $(document).on("click", ".automation-edit", function () {
       const automation = automationsById.get(Number($(this).data("id")));
       if (!automation) {
@@ -973,7 +1053,29 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
       $("#editAutomationErr").addClass("d-none").text("");
+      editAutomationLoaded = null;
+      resetEditAutomationDefinition();
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
+      // Read afresh rather than from an opened panel, so that the form starts from what the automation computes now.
+      $.ajax({
+        url: automationUrl(automation.id),
+        method: "GET",
+        success: function (res) {
+          // The form may have been opened on another automation while this loaded.
+          if (Number($("#editAutomationId").val()) === automation.id) {
+            editAutomationLoaded = loadedEditDefinition(automation, res);
+            fillEditAutomationDefinition(editAutomationLoaded);
+          }
+        },
+        error: function (xhr) {
+          if (Number($("#editAutomationId").val()) === automation.id) {
+            $("#editAutomationErr").removeClass("d-none").text(
+              `Could not read this automation's parameters and config: ${automationAjaxErrorMessage(xhr)}.`
+              + " Its name, schedule and activation can still be changed."
+            );
+          }
+        },
+      });
     });
 
     // Open the creation form filled in from an existing automation, to create a variation on it.
@@ -1035,16 +1137,25 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#editAutomationForm").submit(function (event) {
       event.preventDefault();
       const automationId = $("#editAutomationId").val();
+      const automationData = {
+        name: $("#editAutomationName").val(),
+        cron: $("#editAutomationCron").val(),
+        timezone: $("#editAutomationTimezone").val(),
+        active: $("#editAutomationActive").is(":checked"),
+      };
+      if (editAutomationLoaded !== null) {
+        try {
+          Object.assign(automationData, editedDefinition(editAutomationLoaded));
+        } catch (error) {
+          $("#editAutomationErr").removeClass("d-none").text(error.message);
+          return;
+        }
+      }
       $.ajax({
         url: automationUrl(automationId),
         method: "PATCH",
         contentType: "application/json",
-        data: JSON.stringify({
-          name: $("#editAutomationName").val(),
-          cron: $("#editAutomationCron").val(),
-          timezone: $("#editAutomationTimezone").val(),
-          active: $("#editAutomationActive").is(":checked"),
-        }),
+        data: JSON.stringify(automationData),
         success: () => location.reload(),
         error: function (xhr) {
           $("#editAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not update the automation."));
@@ -1150,19 +1261,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     // A source picked and then left behind by closing the form would still disable the generator fields when the form is opened again,
     // with nothing on screen to say why, so the form opens on a clean slate.
     $("#newAutomationModal").on("hidden.bs.modal", () => clearSelectedSource());
-
-    // Read a JSON textarea, reporting where it is malformed rather than failing silently.
-    function readJsonField(selector, label) {
-      const text = $(selector).val().trim();
-      if (!text) {
-        return {};
-      }
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        throw new Error(`${label} is not valid JSON: ${e.message}`);
-      }
-    }
 
     // Create an automation
     $("#newAutomationForm").submit(function (event) {
