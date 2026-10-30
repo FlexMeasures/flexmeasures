@@ -1582,7 +1582,7 @@ def test_patch_automation_refused_for_the_run_user_unless_taken_over(
     assert response.status_code == 403, response.json
     message = response.json["message"]
     assert f"Test Prosumer User 2 (user {requesting_user.id})" in message
-    assert "run-as-me" in message
+    assert "tick Run as me in the edit form, or send run-as-me" in message
     if run_user:
         assert f"sensor {battery.sensors[1].id}" in message
         assert f"{run_user} (user {run_user_id})" in message

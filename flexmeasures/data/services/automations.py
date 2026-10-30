@@ -2412,7 +2412,11 @@ def _check_run_user_access(automation: Automation, prepared: PreparedAutomation)
     if automation.execution_user_id in (None, current_user.id):
         return
     run_user = db.session.get(User, automation.execution_user_id)
-    takeover = f" To have it run as you, {current_user.username} (user {current_user.id}), instead, set run-as-me."
+    # The API and the edit form share this message, so it names the way to take over in both.
+    takeover = (
+        f" To have it run as you, {current_user.username} (user {current_user.id}), instead,"
+        " tick Run as me in the edit form, or send run-as-me with the request."
+    )
     if run_user is None or not run_user.active:
         exception = Forbidden()
         exception.api_message = (
