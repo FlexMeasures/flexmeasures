@@ -2056,42 +2056,60 @@ def create_automation(
     return automation, warnings
 
 
-def _create_builtin_automation(
+@dataclass
+class PreparedAutomation:
+    """What an automation is set up with once its definition has been validated, short of the automation itself.
+
+    Creating an automation and editing one both validate a definition the same way,
+    so they share this, and differ only in what they do with it.
+    """
+
+    generator: DataSource
+    parameters: dict
+    timezone: str
+    warnings: list[str]
+    # The generator set up from the data source, where the automation type has one to set up before it runs.
+    data_generator: Any = None
+
+
+def _prepare_builtin_automation(
     asset,
-    name: str,
     cronstr: str,
     timezone: str | None = None,
     automation_type: str = "forecasting",
-    active: bool = True,
     parameters: dict | None = None,
     generator_class: str | None = None,
     config: dict | None = None,
     source=None,
-    origin: str = "API",
     check_permissions: bool = False,
-) -> tuple[Automation, list[str]]:
-    """Create an automation (not committed yet), validating its parameters by type.
+    source_is_kept: bool = False,
+) -> PreparedAutomation:
+    """Validate an automation's definition by type, and look up or create the data source storing its generator config.
 
     For forecasts and reports, the data generator config is stored on a data source.
-    An audit log record is added to the asset.
 
     :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
                               record data on the sensors it writes to, and read the data source they name, if they name one.
-                              Set this for automations created by a user (through the API or the UI);
+                              Set this for automations defined by a user (through the API or the UI);
                               the CLI runs without a user, and is trusted.
+    :param source_is_kept: whether the source is the one the automation already runs on,
+                           which an edit leaving the data generator alone hands over without the user having chosen it.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the data generator cannot be set up.
     :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
-    :returns: the automation and a list of warnings.
     """
     from werkzeug.exceptions import Forbidden
 
-    from flexmeasures.data.models.audit_log import AssetAuditLog
     from flexmeasures.data.services.data_sources import user_may_use_source
 
     # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
     # so naming one takes more than being allowed to read what it computed: it has to be a source the user may work with.
-    if check_permissions and source is not None and not user_may_use_source(source):
+    if (
+        check_permissions
+        and source is not None
+        and not source_is_kept
+        and not user_may_use_source(source)
+    ):
         exception = Forbidden()
         exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
         raise exception
@@ -2099,7 +2117,6 @@ def _create_builtin_automation(
     parameters = parameters or {}
     timezone = timezone or get_default_automation_timezone(asset)
     warnings: list[str] = []
-    generator_id = None
     data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
@@ -2201,26 +2218,64 @@ def _create_builtin_automation(
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source
-        db.session.flush()
-        generator_id = generator.id
-    elif automation_type == "scheduling":
+    else:
         # The scheduler and its configuration make up the automation's data generator,
         # the same way a forecaster and its configuration do for a forecast automation.
         # It is resolved here, rather than above, for the same reason as the forecaster's.
-        generator_id = resolve_schedule_generator(asset.id, parameters, timezone).id
-        db.session.flush()
+        generator = resolve_schedule_generator(asset.id, parameters, timezone)
+    db.session.flush()
+    return PreparedAutomation(
+        generator=generator,
+        parameters=parameters,
+        timezone=timezone,
+        warnings=warnings,
+        data_generator=data_generator,
+    )
 
-    automation_fields = dict(
+
+def _create_builtin_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source=None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation (not committed yet), validating its definition by type (see `_prepare_builtin_automation`).
+
+    An audit log record is added to the asset.
+
+    :returns: the automation and a list of warnings.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    prepared = _prepare_builtin_automation(
+        asset,
+        cronstr=cronstr,
+        timezone=timezone,
+        automation_type=automation_type,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+    )
+    automation = Automation(
         asset_id=asset.id,
         type=automation_type,
         name=name,
         cronstr=cronstr,
         active=active,
-        generator_id=generator_id,
-        parameters=parameters,
+        generator_id=prepared.generator.id,
+        parameters=prepared.parameters,
+        timezone=prepared.timezone,
     )
-    automation_fields["timezone"] = timezone
-    automation = Automation(**automation_fields)
     db.session.add(automation)
     db.session.flush()
     AssetAuditLog.add_record(
@@ -2231,8 +2286,8 @@ def _create_builtin_automation(
             note_report_selection,
         )
 
-        note_report_selection(automation, data_generator)
-    return automation, warnings
+        note_report_selection(automation, prepared.data_generator)
+    return automation, prepared.warnings
 
 
 def update_automation(
