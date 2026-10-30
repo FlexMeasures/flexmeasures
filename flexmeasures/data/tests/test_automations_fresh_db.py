@@ -198,7 +198,7 @@ def test_a_durable_run_schedules_what_it_was_planned_with(
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",
@@ -242,7 +242,7 @@ def _planned_schedule_run(fresh_db, battery, sequential: bool):
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",
@@ -973,7 +973,7 @@ def _schedule_run(db, automation, parameters) -> AutomationRun:
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",
