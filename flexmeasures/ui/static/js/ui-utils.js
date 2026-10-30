@@ -195,6 +195,30 @@ export function unavailableReferencesWarning(
 }
 
 /**
+ * The warning a flex-config dialogue shows above its configuration when some of its fields lost their sensor.
+ *
+ * Deleting a sensor leaves its references in place without a sensor, and the API refuses to save those,
+ * so the user has to know before saving that each such field needs a new sensor.
+ * Each field is also marked on its card, but that can be out of sight, such as on another commodity's tab.
+ *
+ * @param {number} count - How many fields lost their sensor.
+ * @returns {HTMLElement|null} - The warning, or null if there is nothing to warn about.
+ */
+export function deletedSensorReferencesWarning(count) {
+  if (count === 0) {
+    return null;
+  }
+  const warning = document.createElement("div");
+  warning.className = "alert alert-warning mt-2";
+  warning.setAttribute("role", "alert");
+  warning.textContent =
+    count === 1
+      ? "1 field refers to a sensor that has been deleted. Changes can only be saved once it has a new sensor or a fixed value, or is removed."
+      : `${count} fields refer to a sensor that has been deleted. Changes can only be saved once each of them has a new sensor or a fixed value, or is removed.`;
+  return warning;
+}
+
+/**
  * How both dialogues word a reference to a sensor we could not look up.
  *
  * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,

@@ -438,9 +438,11 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
             getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
-            escapeHtml, countSensorsGone, unavailableReferencesWarning
+            escapeHtml, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
-        import { flexConfigSensorIds } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
+        import {
+            flexConfigSensorIds, isUnsetSensorReference, unsetSensorReferencePaths, referenceWithSensor, unsetSensorReferenceNote
+        } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -605,7 +607,8 @@
                 const card = activeCard();
                 const name = card.id.replace('-control', '');
                 const flexModel = getFlexModel()
-                const sensorReference = { "sensor": sensorId };
+                const currentValue = FlexModelFieldValidTypes[name].includes(Array) ? flexModel[name][selectedIndex()] : flexModel[name];
+                const sensorReference = referenceWithSensor(currentValue, sensorId);
                 const defaultInput = document.getElementById('flexSensorDefaultInput');
                 if (defaultInput && defaultInput.value.trim()) {
                     sensorReference.default = defaultInput.value.trim();
@@ -849,7 +852,9 @@
 
                     const component = document.createElement('div');
 
-                    if (isKeyValueObject) {
+                    if (isUnsetSensorReference(value)) {
+                        component.innerHTML = `<div class="text-warning-emphasis">${escapeHtml(unsetSensorReferenceNote(value))}</div>`;
+                    } else if (isKeyValueObject) {
                         const sensor = await renderSensor(value.sensor);
                         component.innerHTML = sensor;
                     } else if (isFixed) {
@@ -887,6 +892,9 @@
                 const isExtraField = name in extraFields;
                 const card = document.createElement('div');
                 card.className = 'card m-1 mt-0';
+                if (isUnsetSensorReference(value)) {
+                    card.classList.add('border-warning');
+                }
                 card.id = `${name}-control`;
 
                 // set card element to disabled if its an extrafield
@@ -1024,7 +1032,8 @@
 
                 const contentContainer = document.createElement('div');
                 contentContainer.innerHTML = `
-                    ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
+                    ${isUnsetSensorReference(value) ? `<div class="text-warning-emphasis">${escapeHtml(unsetSensorReferenceNote(value))}</div>`
+                        : isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
                     ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
                 `;
@@ -1355,6 +1364,10 @@
                 );
                 if (warning !== null) {
                     flexmodelContainer.prepend(warning);
+                }
+                const deletedWarning = deletedSensorReferencesWarning(unsetSensorReferencePaths(assetFlexModel).length);
+                if (deletedWarning !== null) {
+                    flexmodelContainer.prepend(deletedWarning);
                 }
             };
 

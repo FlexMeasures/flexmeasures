@@ -323,12 +323,13 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning
+        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
     const {
         entrySensorId, isStructuralField, cleanFlexContext, findFlexContextCurrency, currencyInUnit,
-        parseCommitmentValue, describeCommitmentValue, flexConfigSensorIds
+        parseCommitmentValue, describeCommitmentValue, flexConfigSensorIds,
+        isUnsetSensorReference, unsetSensorReferencePaths, referenceWithSensor, unsetSensorReferenceNote
     } = flexContextUtils;
 
     let hasInitialized = false;
@@ -664,6 +665,13 @@
                 item.textContent = `${commitment["name"] || "(unnamed)"} (${commitment["commodity"] || "electricity"})`;
                 sensorsContent.push(item);
             });
+        } else if (isUnsetSensorReference(fieldValue)) {
+            // An ancestor's value only applies to a top-level field, and only if this one has no default to use instead.
+            const inheritedFrom = activeCommodityIndex === null ? inheritedFlexContext[fieldName]?.asset_name ?? null : null;
+            const item = document.createElement('div');
+            item.className = 'text-warning-emphasis';
+            item.textContent = unsetSensorReferenceNote(fieldValue, inheritedFrom);
+            sensorsContent.push(item);
         } else if (isKeyValueObject) {
             const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
             sensorsContent.push(item);
@@ -703,6 +711,9 @@
 
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
+        if (isUnsetSensorReference(fieldValue)) {
+            card.classList.add("border-warning");
+        }
         card.id = `${fieldName}-control`;
         // set card element to disabled if it's an extra field
         if (isExtraField) {
@@ -855,6 +866,13 @@
                 item.classList.add("align-items-center", "pb-2");
                 valueContainer.appendChild(item);
             }
+        } else if (isUnsetSensorReference(fieldValue)) {
+            // Only one with a default is inherited, as one without it defines nothing.
+            card.classList.add("border-warning");
+            const note = document.createElement('div');
+            note.className = 'text-warning-emphasis';
+            note.textContent = unsetSensorReferenceNote(fieldValue);
+            valueContainer.appendChild(note);
         } else if (typeof fieldValue === "object" && fieldValue !== null && fieldValue["sensor"]) {
             valueContainer.appendChild(convertHtmlToElement(await renderSensor(fieldValue["sensor"])));
         } else {
@@ -930,8 +948,13 @@
 
         // Ancestor-defined fields not shadowed by a local field apply when
         // scheduling this asset, so show them here, uneditable.
+        // A local field whose sensor was deleted shadows nothing unless it has a default to use instead.
         const inheritedToShow = Object.keys(inheritedFlexContext)
-            .filter((key) => assetFlexContext[key] === null || assetFlexContext[key] === undefined)
+            .filter((key) => {
+                const localValue = assetFlexContext[key];
+                return localValue === null || localValue === undefined
+                    || (isUnsetSensorReference(localValue) && !("default" in localValue));
+            })
             .sort();
         if (inheritedToShow.length > 0) {
             const divider = document.createElement('div');
@@ -950,6 +973,11 @@
         );
         if (warning !== null) {
             flexContextFormEle.prepend(warning);
+        }
+        // Saving is refused while any field lacks its sensor, wherever it sits, so count them across the whole flex-context too.
+        const deletedWarning = deletedSensorReferencesWarning(unsetSensorReferencePaths(assetFlexContext).length);
+        if (deletedWarning !== null) {
+            flexContextFormEle.prepend(deletedWarning);
         }
 
         if (storedActiveCard && activeCard()) {
@@ -1020,7 +1048,7 @@
                     activeContext[flexId] = [entry];
                 }
             } else {
-                activeContext[flexId] = { sensor: sensorId };
+                activeContext[flexId] = referenceWithSensor(activeContext[flexId], sensorId);
             }
         }
 

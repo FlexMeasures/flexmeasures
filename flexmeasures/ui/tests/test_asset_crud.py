@@ -15,6 +15,8 @@ from flexmeasures.ui.tests.utils import (
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
+    login,
+    logout,
 )
 
 """
@@ -473,6 +475,93 @@ def _extract_inherited_flex_context(page_data: bytes) -> dict:
     match = re.search(rb"const inheritedFlexContext = (\{.*?\});", page_data)
     assert match, "inheritedFlexContext not found on the context page"
     return json.loads(match.group(1))
+
+
+def test_asset_pages_point_at_fields_whose_sensor_was_deleted(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types
+):
+    """Each page of an asset whose flex-config lost a sensor shows a toast naming the fields, linking to the editor for them."""
+    asset = GenericAsset(
+        name="asset-with-fields-whose-sensor-was-deleted",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "site-power-capacity": "1 MVA",
+            "production-price": {"sensor": None, "default": "10 EUR/MWh"},
+            "commodities": [
+                {
+                    "commodity": "gas",
+                    "consumption-price": {"sensor": None, "upper": "5 EUR/MWh"},
+                }
+            ],
+        },
+        flex_model={"soc-min": {"sensor": None, "lower": "0 kWh"}},
+    )
+    intact_asset = GenericAsset(
+        name="asset-with-all-its-sensors",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={"site-power-capacity": "1 MVA"},
+    )
+    db.session.add_all([asset, intact_asset])
+    db.session.commit()
+
+    for page in ("AssetCrudUI:context", "AssetCrudUI:graphs", "AssetCrudUI:properties"):
+        response = client.get(url_for(page, id=asset.id), follow_redirects=True)
+        assert response.status_code == 200
+        toast = _extract_deleted_sensor_references_toast(response.data)
+        assert toast is not None, f"no toast on {page}"
+        assert (
+            "Fields in the flex-context of this asset refer to a sensor that has been deleted: production-price, commodities &gt; 1 &gt; consumption-price."
+            in toast
+        )
+        assert (
+            url_for(
+                "AssetCrudUI:context",
+                id=asset.id,
+                flex_context_field="production-price",
+            )
+            in toast
+        )
+        assert (
+            "A field in the flex-model of this asset refers to a sensor that has been deleted: soc-min."
+            in toast
+        )
+        assert url_for("AssetCrudUI:properties", id=asset.id) in toast
+
+    response = client.get(
+        url_for("AssetCrudUI:graphs", id=intact_asset.id), follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert _extract_deleted_sensor_references_toast(response.data) is None
+
+
+def test_asset_pages_do_not_point_users_who_cannot_edit_at_the_editor(
+    client, db, setup_accounts, setup_generic_asset_types
+):
+    """A user who can read an asset but not edit its flex-config cannot pick a new sensor, so gets no toast asking to."""
+    public_asset = GenericAsset(
+        name="public-asset-with-a-field-whose-sensor-was-deleted",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=None,
+        flex_context={"production-price": {"sensor": None, "default": "10 EUR/MWh"}},
+    )
+    db.session.add(public_asset)
+    db.session.commit()
+
+    login(client, "test_prosumer_user_2@seita.nl", "testtest")
+    response = client.get(url_for("AssetCrudUI:context", id=public_asset.id))
+    logout(client)
+    assert response.status_code == 200
+    assert _extract_deleted_sensor_references_toast(response.data) is None
+
+
+def _extract_deleted_sensor_references_toast(page_data: bytes) -> str | None:
+    """Parse the message of the toast about fields whose sensor was deleted, if the page shows one."""
+    match = re.search(
+        rb'showToast\(("(?:[^"\\]|\\.)*"), "info", \{ delay: 15000 \}\);', page_data
+    )
+    return json.loads(match.group(1)) if match else None
 
 
 def test_breadcrumb_cross_account_parent(
