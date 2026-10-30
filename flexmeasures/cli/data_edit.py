@@ -25,8 +25,8 @@ from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.schemas.automations import (
     AutomationIdField,
     CronField,
-    TimezoneField,
 )
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
@@ -284,6 +284,49 @@ def edit_plan(
         f"Plan '{plan.name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
         **MsgStyle.SUCCESS,
     )
+
+
+@fm_edit_data.command("reset-rate-limit")
+@with_appcontext
+@click.option(
+    "--account",
+    required=True,
+    type=AccountIdField(),
+    help="ID of the account whose rate limits to reset.",
+)
+@click.option(
+    "--limit",
+    "limit_name",
+    type=click.Choice(["trigger", "default"]),
+    help="Reset only this limit: the trigger limit (on schedules and forecasts), or the default limit (on all API requests)."
+    " Both are reset if you leave this out.",
+)
+def reset_rate_limit(account: Account, limit_name: str | None):
+    """
+    Reset an account's rate limits, so that its requests are accepted again straight away.
+
+    Use this when an account ran into a rate limit and its integration has been fixed,
+    so that it does not have to wait out the rest of the window.
+    """
+    from flexmeasures.api.common.rate_limiting import limiter, reset_rate_limits
+
+    if not limiter.enabled:
+        abort(
+            "Rate limiting is turned off on this server, so there is nothing to reset."
+        )
+    limit_names = [limit_name] if limit_name else ["trigger", "default"]
+    reset = reset_rate_limits(account, limit_names)
+    skipped = [name for name in limit_names if name not in reset]
+    if skipped:
+        click.secho(
+            f"Account '{account.name}' (ID: {account.id}) is exempt from the {' and '.join(skipped)} rate {pluralize('limit', len(skipped))}, so there was nothing to reset there.",
+            **MsgStyle.WARN,
+        )
+    if reset:
+        click.secho(
+            f"Reset the {' and '.join(reset)} rate {pluralize('limit', len(reset))} of account '{account.name}' (ID: {account.id}).",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_edit_data.command("attribute")

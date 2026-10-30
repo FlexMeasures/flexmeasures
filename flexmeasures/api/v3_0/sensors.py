@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import isodate
 from datetime import datetime, timedelta
 
@@ -90,7 +92,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
@@ -545,6 +547,7 @@ class SensorAPI(FlaskView):
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
+            .order_by(Sensor.id)
         )
 
         if filter is not None:
@@ -595,6 +598,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -606,6 +610,10 @@ class SensorAPI(FlaskView):
             The file should have columns for a timestamp (event_start) and a value (event_value).
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
+
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -710,6 +718,9 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        if not belief_time_measured_instantly:
+            # Fix the belief time now, so data processed by a queued job is not believed later than its upload
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -1469,7 +1480,14 @@ class SensorAPI(FlaskView):
         )
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor: Sensor):
@@ -1532,6 +1550,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -2083,6 +2103,7 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
+            Data that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2121,6 +2142,27 @@ class SensorAPI(FlaskView):
                           asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
+                    partial-aggregate:
+                      summary: An aggregate leaving out a member
+                      description: |
+                        The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
+                        `missing-members` lists the sensors left out, and is left out itself where no member is missing.
+                      value:
+                        - staleness: "PT6M"
+                          stale: false
+                          staleness_since: "2024-01-15T14:30:00+00:00"
+                          reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report"
+                          source_type: "reporter"
+                          id: 88750
+                          name: "power"
+                          resolution: "PT15M"
+                          asset_id: 12
+                          asset_name: "Street"
+                          relation: "sensor belongs to this asset"
+                          missing-members:
+                            - id: 88754
+                              name: "power"
+                              asset-name: "Heat pump"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:

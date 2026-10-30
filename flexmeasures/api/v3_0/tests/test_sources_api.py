@@ -5,6 +5,7 @@ from flask import url_for
 from sqlalchemy import select
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -275,12 +276,14 @@ def test_get_sources_only_latest_tie_break_by_id(
 
     This covers the documented tie-break rule in _filter_sources_to_latest.
     """
+    # Identical sources are refused, but a scheduler has one source per flex config it computed under.
     source_lower_id = DataSource(
         name="TieBreakScheduler",
         type="scheduler",
         model="TieModel",
         version="1.0",
         account_id=requesting_user.account_id,
+        attributes={"data_generator": {"config": {"flex-context": "a"}}},
     )
     source_higher_id = DataSource(
         name="TieBreakScheduler",
@@ -288,6 +291,7 @@ def test_get_sources_only_latest_tie_break_by_id(
         model="TieModel",
         version="1.0",
         account_id=requesting_user.account_id,
+        attributes={"data_generator": {"config": {"flex-context": "b"}}},
     )
     db.session.add(source_lower_id)
     db.session.flush()
@@ -350,13 +354,12 @@ def test_get_source_auth(
 ):
     """A data source of another account cannot be looked up."""
     supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
-    source = DataSource(
-        name="PrivateSupplierSource",
-        type="demo script",
+    # An earlier test may have set up this source already.
+    source = get_or_create_source(
+        "PrivateSupplierSource",
+        source_type="demo script",
         account=supplier_user.account,
     )
-    db.session.add(source)
-    db.session.flush()
 
     response = client.get(url_for("SourceAPI:get", id=source.id))
     assert response.status_code == expected_status_code

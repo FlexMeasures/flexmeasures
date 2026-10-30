@@ -12,7 +12,7 @@
 
   <p>{{ error_description }} The error message says:</p>
   <p class="error">{{ error_class }} {% if error_class %}:{% endif %} "{{ error_message }}"</p>
-  <p>You might want to try to <a onclick="window.history.back()">return and select something else</a> or <a href="/?clear-session=1">clear your session</a> and try again.</p>
+  <p>You might want to try to <a onclick="window.history.back()">return and select something else</a> or <a href="{{ url_for('flexmeasures_ui.dashboard_view') }}?clear-session=1">clear your session</a> and try again.</p>
 
 </div>
 
