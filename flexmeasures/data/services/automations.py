@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import functools
+import json
 from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -2026,7 +2027,6 @@ def create_automation(
     check_permissions: bool = False,
 ) -> tuple[Automation, list[str]]:
     """Create an automation through its registered handler, without committing."""
-    from flask_security import current_user
     from flexmeasures.data.automations import (
         get_automation_handler,
         validate_automation_type,
@@ -2048,11 +2048,7 @@ def create_automation(
         check_permissions=check_permissions,
     )
     if check_permissions:
-        if current_user.is_anonymous:
-            from werkzeug.exceptions import Unauthorized
-
-            raise Unauthorized()
-        automation.execution_user_id = current_user.id
+        automation.execution_user_id = _current_user_id()
     return automation, warnings
 
 
@@ -2290,27 +2286,169 @@ def _create_builtin_automation(
     return automation, prepared.warnings
 
 
+def _current_user_id() -> int:
+    """The id of the user making a request, refusing an anonymous one."""
+    from flask_security import current_user
+
+    if current_user.is_anonymous:
+        from werkzeug.exceptions import Unauthorized
+
+        raise Unauthorized()
+    return current_user.id
+
+
+def _prepare_automation_edit(
+    automation: Automation,
+    cronstr: str,
+    timezone: str,
+    parameters: dict | None,
+    generator_class: str | None,
+    config: dict | None,
+    source: DataSource | None,
+    check_permissions: bool,
+) -> PreparedAutomation:
+    """Validate an edit of an automation's parameters, data generator, config or data source, filling in what the edit leaves out.
+
+    :raises marshmallow.ValidationError: if the edited definition is invalid.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+
+    if source is not None and (generator_class or config):
+        raise ValidationError(
+            {
+                "source": [
+                    "A data source already stores the data generator and the configuration it runs under,"
+                    " so it cannot be combined with data-generator or config."
+                ]
+            }
+        )
+    if automation.type == "scheduling":
+        if source is not None:
+            raise ValidationError(
+                {
+                    "source": [
+                        "A schedule automation cannot name a source:"
+                        " its data source follows from the asset and the flex config, and is resolved afresh on every run."
+                    ]
+                }
+            )
+        # The data generator follows from the asset, and a config or data generator is refused as on creation.
+        source_is_kept = False
+    elif source is not None:
+        source_is_kept = source.id == automation.generator_id
+    elif generator_class is not None or config is not None:
+        # Whichever of the two is left out stays as it was.
+        if generator_class is None and automation.type in Automation.SUPPORTED_TYPES:
+            generator_class = automation.generator.model
+        if config is None:
+            config = automation.generator.attributes.get("data_generator", {}).get(
+                "config", {}
+            )
+        source_is_kept = False
+    else:
+        source = automation.generator
+        source_is_kept = True
+    return get_automation_handler(automation.type).prepare(
+        automation.asset,
+        cronstr=cronstr,
+        timezone=timezone,
+        parameters=(
+            parameters if parameters is not None else dict(automation.parameters or {})
+        ),
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+        source_is_kept=source_is_kept,
+    )
+
+
+def _apply_automation_edit(
+    automation: Automation, prepared: PreparedAutomation, check_permissions: bool
+) -> list[str]:
+    """Give an automation the parameters and data source of a validated edit (see `_prepare_automation_edit`).
+
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    changes = []
+    if prepared.parameters != dict(automation.parameters or {}):
+        changes.append(f"parameters: {json.dumps(prepared.parameters)}")
+        automation.parameters = prepared.parameters
+    if prepared.generator.id != automation.generator_id:
+        changes.append(
+            f"data source: {automation.generator_id} → {prepared.generator.id}"
+        )
+        automation.generator_id = prepared.generator.id
+        automation.generator = prepared.generator
+        if automation.type == "reporting":
+            from flexmeasures.data.services.group_membership_audit import (
+                note_report_selection,
+            )
+
+            note_report_selection(automation, prepared.data_generator)
+    if changes and check_permissions:
+        # The sensors were just checked against this user's access, so this user's access is what every run checks from now on.
+        # Keeping the creator would let an editor point the automation at sensors only the creator may use.
+        automation.execution_user_id = _current_user_id()
+    return changes
+
+
 def update_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source: DataSource | None = None,
     origin: str = "API",
+    check_permissions: bool = False,
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
+
+    New parameters, a new data generator or config, or another data source are validated as on creation (see `AutomationHandler.prepare`).
+    A new config moves the automation onto the data source storing it, leaving the old source as it is,
+    because other automations may share it, and what was computed under it was computed with its config.
+    Leaving out the data generator or the config keeps the current one.
+    Any of these changes starts a new schedule revision, keeping runs computed before and after the change apart,
+    but leaves the cursor alone, as which runs are due has not changed.
+    Set `check_permissions` when a user makes the change (through the API or the UI):
+    the sensors involved are then checked against that user's access,
+    and that user becomes the one whose access every run checks.
+
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
+    :raises marshmallow.ValidationError: if the new definition is invalid.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
+    # Validate a new definition before changing anything, so that a refused edit leaves the automation as it was.
+    prepared = None
+    if any(
+        value is not None for value in (parameters, generator_class, config, source)
+    ):
+        prepared = _prepare_automation_edit(
+            automation,
+            cronstr=cronstr or automation.cronstr,
+            timezone=timezone or automation.timezone,
+            parameters=parameters,
+            generator_class=generator_class,
+            config=config,
+            source=source,
+            check_permissions=check_permissions,
+        )
+
     changes = []
     reset_cursor = False
+    new_revision = False
     if name is not None and name != automation.name:
         changes.append(f"name: '{automation.name}' → '{name}'")
         automation.name = name
@@ -2327,10 +2465,17 @@ def update_automation(
         if active:
             reset_cursor = True
         automation.active = active
-    if reset_cursor:
-        # A new revision keeps the durable runs of the old and the new schedule apart,
+    if prepared is not None:
+        definition_changes = _apply_automation_edit(
+            automation, prepared, check_permissions
+        )
+        changes.extend(definition_changes)
+        new_revision = bool(definition_changes)
+    if reset_cursor or new_revision:
+        # A new revision keeps the durable runs of the old and the new schedule (or definition) apart,
         # even where they fall on the same scheduled UTC time.
         automation.schedule_revision += 1
+    if reset_cursor:
         automation.cursor = get_initial_cursor()
     if changes:
         AssetAuditLog.add_record(

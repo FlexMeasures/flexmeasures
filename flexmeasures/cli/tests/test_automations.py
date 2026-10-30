@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
 import re
@@ -1417,6 +1418,77 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data_fresh_db, tmp_pat
     )
     assert result.exit_code != 0
     assert "Invalid start-offset" in result.output
+
+
+def test_edit_report_automation_config_and_parameters(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A report automation's config and parameters can be edited from the CLI.
+
+    A new config keeps the reporter, moves the automation onto the data source storing that config,
+    and leaves the old data source as it was; the CLI makes no user the one runs execute as.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.data.models.time_series import Sensor
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            asset_id=report_sensor.generic_asset_id,
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    old_source = automation.generator
+    old_config = old_source.attributes["data_generator"]["config"]
+    revision = automation.schedule_revision
+
+    new_config = deepcopy(old_config)
+    new_config["transformations"][1]["args"] = ["4h"]
+    config_file = tmp_path / "new_reporter_config.yml"
+    config_file.write_text(yaml.dump(new_config))
+    parameters = dict(automation.parameters)
+    parameters["start-offset"] = "-2D,DB"
+    parameters["end-offset"] = "DB"
+    parameters_file = tmp_path / "new_parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully updated" in result.output, result.output
+    assert automation.generator_id != old_source.id
+    assert automation.generator.model == "PandasReporter"
+    assert automation.generator.attributes["data_generator"]["config"] == new_config
+    assert old_source.attributes["data_generator"]["config"] == old_config
+    assert automation.parameters["start-offset"] == "-2D,DB"
+    assert automation.schedule_revision == revision + 1
+    assert automation.execution_user_id is None
+
+    # A config naming the source that stores it, too, is refused.
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--source", str(old_source.id),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "cannot be combined with" in result.output
 
 
 @pytest.mark.parametrize(

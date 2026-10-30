@@ -1287,3 +1287,266 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
+
+
+def _post_forecast_automation(client, battery, sensor_id: int, config: dict) -> dict:
+    """Create a forecast automation through the API, returning the response body."""
+    response = client.post(
+        url_for("AssetAPI:post_automation", id=battery.id),
+        json={
+            "name": "Forecasts to edit",
+            "cron": "0 6 * * *",
+            "type": "forecasting",
+            "parameters": {"sensor": sensor_id},
+            "config": config,
+        },
+    )
+    assert response.status_code == 201, response.json
+    return response.json
+
+
+def _patch_automation(client, battery, automation_id: int, payload: dict):
+    return client.patch(
+        url_for(
+            "AssetAPI:patch_automation",
+            id=battery.id,
+            automation_id=automation_id,
+        ),
+        json=payload,
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_parameters_config_and_source(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation's parameters, config and data source can be changed after creation, each validated as on creation.
+
+    A new config moves the automation onto the data source storing it, and leaves the old source as it was,
+    and each change starts a new schedule revision without touching the cursor.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    first_sensor, second_sensor = battery.sensors[0], battery.sensors[1]
+    with app.test_client() as client:
+        created = _post_forecast_automation(
+            client, battery, first_sensor.id, {"missing-threshold": 0.5}
+        )
+    automation = db.session.get(Automation, created["id"])
+    first_source = automation.generator
+    first_config = dict(first_source.attributes["data_generator"]["config"])
+    cursor, revision = automation.cursor, automation.schedule_revision
+
+    # New parameters keep the data source.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"parameters": {"sensor": second_sensor.id}}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.parameters == {"sensor": second_sensor.id}
+    assert automation.generator_id == first_source.id
+    assert automation.schedule_revision == revision + 1
+    assert automation.cursor == cursor
+    assert automation.execution_user_id == requesting_user.id
+
+    # A new config moves the automation onto another data source, and keeps its forecaster.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": {"missing-threshold": 0.2}}
+        )
+    assert response.status_code == 200, response.json
+    second_source = automation.generator
+    assert second_source.id != first_source.id
+    assert second_source.model == first_source.model
+    assert (
+        second_source.attributes["data_generator"]["config"]["missing-threshold"] == 0.2
+    )
+    assert first_source.attributes["data_generator"]["config"] == first_config
+    assert automation.parameters == {"sensor": second_sensor.id}
+    assert automation.schedule_revision == revision + 2
+    assert automation.cursor == cursor
+    audit_events = db.session.scalars(
+        select(AssetAuditLog.event).filter_by(affected_asset_id=battery.id)
+    ).all()
+    assert any(
+        f"data source: {first_source.id} → {second_source.id}" in event
+        for event in audit_events
+    )
+
+    # Naming the earlier data source moves the automation back onto it.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"source": first_source.id}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.generator_id == first_source.id
+
+    # Sending what the automation already has changes nothing, so no new revision either.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client,
+            battery,
+            automation.id,
+            {"parameters": {"sensor": second_sensor.id}, "source": first_source.id},
+        )
+    assert response.status_code == 200, response.json
+    assert automation.schedule_revision == revision + 3
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "payload, field",
+    [
+        ({"source": "FIRST_SOURCE", "config": {}}, "source"),
+        ({"parameters": {"sensor": "SENSOR", "start": "2026-01-01T00:00+01:00"}}, None),
+        ({"parameters": {"sensor": -1}}, "parameters"),
+        ({"config": {"missing-threshold": "lots"}}, "config"),
+        ({"data-generator": "NoSuchForecaster"}, None),
+    ],
+)
+def test_patch_automation_with_invalid_definition(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    payload,
+    field,
+):
+    """An invalid edit is refused as an invalid creation is, and leaves the automation as it was."""
+    battery = add_battery_assets["Test battery"]
+    sensor = battery.sensors[0]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, sensor.id, {})
+    automation = db.session.get(Automation, created["id"])
+    generator_id, revision = automation.generator_id, automation.schedule_revision
+    payload = json.loads(
+        json.dumps(payload)
+        .replace('"FIRST_SOURCE"', str(generator_id))
+        .replace('"SENSOR"', str(sensor.id))
+    )
+    with app.test_client() as client:
+        response = _patch_automation(client, battery, automation.id, payload)
+    assert response.status_code == 422, response.json
+    if field is not None:
+        assert field in json.dumps(response.json["message"])
+    db.session.expire_all()
+    automation = db.session.get(Automation, created["id"])
+    assert automation.parameters == {"sensor": sensor.id}
+    assert automation.generator_id == generator_id
+    assert automation.schedule_revision == revision
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_onto_inaccessible_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+):
+    """New parameters are checked against the editing user's access to the sensors they name, as on creation."""
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="wind power",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+        response = _patch_automation(
+            client,
+            battery,
+            created["id"],
+            {"parameters": {"sensor": someone_elses_sensor.id}},
+        )
+    assert response.status_code == 403, response.json
+    db.session.expire_all()
+    automation = db.session.get(Automation, created["id"])
+    assert automation.parameters == {"sensor": battery.sensors[0].id}
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_schedule_automation_source(
+    app,
+    db,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+):
+    """A schedule automation's data source follows from its asset, so an edit cannot name one."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Schedules to edit",
+                "cron": "0 12 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+        assert response.status_code == 201, response.json
+        response = _patch_automation(
+            client,
+            battery,
+            response.json["id"],
+            {"source": add_automations[0].generator_id},
+        )
+    assert response.status_code == 422, response.json
+    assert "schedule automation cannot name a source" in json.dumps(
+        response.json["message"]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_runs_as_the_editor(
+    app,
+    db,
+    add_battery_assets,
+    setup_roles_users,
+    requesting_user,
+):
+    """Whoever changes what an automation computes becomes the user whose access its runs check, while a rename keeps the creator."""
+    battery = add_battery_assets["Test battery"]
+    creator_id = setup_roles_users["Test Prosumer User"]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = creator_id
+    db.session.commit()
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"name": "Renamed forecasts"}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.execution_user_id == creator_id
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client,
+            battery,
+            automation.id,
+            {"parameters": {"sensor": battery.sensors[1].id}},
+        )
+    assert response.status_code == 200, response.json
+    assert automation.execution_user_id == requesting_user.id

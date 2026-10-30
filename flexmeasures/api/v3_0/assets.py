@@ -1878,16 +1878,25 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+        .. :quickref: Assets; Update an automation.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone or activation status.
+          summary: Update an automation.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Any subset of the fields can be sent.
+
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
-            Other automation fields cannot be updated; instead, create a new automation.
+
+            New `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.
+            The user making such a change becomes the one whose access every run of the automation checks.
+            A new `config` moves the automation to the data source storing that config, and the old data source is left as it is,
+            because other automations may share it, and what was computed under it was computed with its config.
+            Sending a `data-generator` without a `config`, or the other way round, keeps the one left out.
+            Runs before and after such a change are kept apart, while which runs are due stays the same.
+            A schedule automation's data source follows from the asset, so it accepts new `parameters` only.
+
             Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
@@ -1913,6 +1922,18 @@ class AssetAPI(FlaskView):
                     summary: Deactivate the automation
                     value:
                       active: false
+                  new_parameters:
+                    summary: Forecast another sensor
+                    value:
+                      parameters:
+                        sensor: 2093
+                  new_config:
+                    summary: Train the forecaster on more history
+                    description: >-
+                      Moves the automation to the data source storing this config, keeping its forecaster.
+                    value:
+                      config:
+                        train-period: P60D
           responses:
             200:
               description: PROCESSED
@@ -1932,7 +1953,16 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        update_automation(automation, origin="API", **automation_data)
+        try:
+            update_automation(
+                automation, origin="API", check_permissions=True, **automation_data
+            )
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+        except AutomationSensorsUnknown as e:
+            return unprocessable_entity(str(e))
+        except ValueError as e:
+            return unprocessable_entity(str(e))
         db.session.commit()
         response = automation_schema.dump(automation)
         response["recurrence-description"] = describe_cronstr(automation.cronstr)
