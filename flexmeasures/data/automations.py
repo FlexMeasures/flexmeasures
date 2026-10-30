@@ -256,8 +256,13 @@ class AutomationHandler:
             if automation_run is not None
             else dict(automation.parameters or {})
         )
+        from flexmeasures.data.services.automations import generator_of_run
+
         generator, sensors = resolve_plugin_generator(
-            automation, self, parameters=planned_parameters
+            automation,
+            self,
+            parameters=planned_parameters,
+            source=generator_of_run(automation, automation_run),
         )
         validate_output_scope(automation.asset_id, sensors["output_sensors"])
         source_id = generator.data_source.id
@@ -393,24 +398,28 @@ def validate_output_scope(asset_id, sensors):
             )
 
 
-def resolve_plugin_generator(automation, handler, parameters=None):
-    """Resolve the declared generator and sensors without sharing mutable run state."""
+def resolve_plugin_generator(automation, handler, parameters=None, source=None):
+    """Resolve the declared generator and sensors without sharing mutable run state.
+
+    :param source: the data source to compute with, such as the one a run was planned with; defaults to the automation's own.
+    """
     from flexmeasures.data.services.data_generators import (
         resolve_data_generator_sensors,
     )
 
-    if automation.generator is None:
+    source = source if source is not None else automation.generator
+    if source is None:
         raise ValueError(f"Automation {automation.id} has no data source to run.")
     installed_version = handler.installed_generator_version()
-    if automation.generator.version != installed_version:
+    if source.version != installed_version:
         raise ValueError(
-            f"Automation {automation.id} uses generator version {automation.generator.version},"
+            f"Automation {automation.id} uses generator version {source.version},"
             f" but version {installed_version} is installed. Recreate the automation with the installed plugin version."
         )
-    generator = copy(automation.generator.data_generator)
+    generator = copy(source.data_generator)
     if type(generator) is not handler.generator_class:
         raise ValueError(
-            f"Data source {automation.generator_id} does not belong to automation type '{automation.type}'."
+            f"Data source {source.id} does not belong to automation type '{automation.type}'."
         )
     generator._parameters = None
     loaded = generator._parameters_schema.load(
@@ -454,8 +463,14 @@ def check_execution_access(automation, sensors):
 
 @record_outcome_on_automation_run
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
-    """Compute and persist declared results with provenance in a plugin-enabled worker."""
+    """Compute and persist declared results with provenance in a plugin-enabled worker.
+
+    The job computes with the data source and the parameters it was queued with,
+    also when the automation has been edited since, the way a job of a built-in type does.
+    Its sensors are still checked against the access of the user whose access the automation's runs check now.
+    """
     from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.services.generator_results import (
         check_generator_results,
         describe_generator,
@@ -466,14 +481,14 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
     if automation is None:
         raise ValueError(f"Automation {automation_id} is missing.")
     handler = get_automation_handler(automation.type)
-    if (
-        automation.generator_id != data_source_id
-        or dict(automation.parameters) != parameters
-    ):
+    source = db.session.get(DataSource, data_source_id)
+    if source is None:
         raise ValueError(
-            "The automation changed after its job was queued. Queue a new run."
+            f"Data source {data_source_id}, which automation {automation_id} was queued with, is missing."
         )
-    generator, sensors = resolve_plugin_generator(automation, handler, parameters)
+    generator, sensors = resolve_plugin_generator(
+        automation, handler, parameters, source=source
+    )
     validate_output_scope(automation.asset_id, sensors["output_sensors"])
     check_execution_access(automation, sensors)
     output_ids = {sensor.id for sensor in sensors["output_sensors"]}

@@ -1320,8 +1320,13 @@ def resolve_schedule_automation_sensors(
     }
 
 
-def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
-    """Work out which sensors an automation reads from and writes to on each run.
+def resolve_automation_sensors(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> dict[str, list[Sensor]]:
+    """Work out which sensors an automation reads from and writes to on each run, or on the given run.
+
+    A run computes with the data source and the parameters it was planned with,
+    which differ from the automation's own once the automation has been edited since.
 
     Forecast and report sensors are derived from the data generator,
     while schedule sensors are derived from the same prepared trigger message used to queue the scheduling job.
@@ -1330,10 +1335,13 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    planned_parameters = dict(
+        (automation_run if automation_run is not None else automation).parameters or {}
+    )
     if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
-                dict(automation.parameters or {}),
+                planned_parameters,
                 automation.asset_id,
                 automation.timezone,
             )
@@ -1341,13 +1349,14 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
             raise AutomationSensorsUnknown(
                 f"Could not determine the sensors of schedule automation {automation.id}: {exc}"
             ) from exc
-    if automation.generator is None:
+    generator = generator_of_run(automation, automation_run)
+    if generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
         )
     try:
-        data_generator = automation.generator.data_generator
-        parameters = dict(automation.parameters or {})
+        data_generator = generator.data_generator
+        parameters = planned_parameters
         if automation.type == "reporting":
             parameters = prepare_report_parameters(
                 parameters,
@@ -1415,8 +1424,14 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     automation = db.session.get(Automation, automation_id)
     if automation is None:
         return None
+    # A job queued before the automation was edited computes what its run was planned with,
+    # so it is held to the sensors of that plan.
+    run_id = (rq_job.meta.get("trigger") or {}).get("automation_run_id")
+    automation_run = db.session.get(AutomationRun, run_id) if run_id else None
     try:
-        sensors = resolve_automation_sensors(automation)["output_sensors"]
+        sensors = resolve_automation_sensors(automation, automation_run)[
+            "output_sensors"
+        ]
     except AutomationSensorsUnknown as exc:
         current_app.logger.error(
             f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
@@ -2742,10 +2757,27 @@ def run_automation(
         scheduled_at = automation_run.scheduled_at
     handler = get_automation_handler(automation.type)
     if automation.execution_user_id is not None:
-        check_execution_access(automation, resolve_automation_sensors(automation))
+        check_execution_access(
+            automation, resolve_automation_sensors(automation, automation_run)
+        )
     return handler.run(
         automation, automation_run=automation_run, scheduled_at=scheduled_at
     )
+
+
+def generator_of_run(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> DataSource | None:
+    """The data source a run computes with: the one it was claimed with, also when the automation has been pointed at another one since.
+
+    A run on demand has no record, and computes with the automation's current data source.
+    """
+    if automation_run is not None and automation_run.generator_id is not None:
+        return (
+            db.session.get(DataSource, automation_run.generator_id)
+            or automation.generator
+        )
+    return automation.generator
 
 
 def _run_forecast_automation(
@@ -2753,14 +2785,10 @@ def _run_forecast_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    # A run records the data generator it was claimed with,
-    # so a retry forecasts with the configuration the run was planned with,
-    # also when the automation has been pointed at another one since.
+    # A retry forecasts with the configuration the run was planned with.
     # That configuration decides how many jobs a run has,
     # so re-planning it with another one would plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
-    generator = automation.generator
-    if automation_run is not None and automation_run.generator_id is not None:
-        generator = db.session.get(DataSource, automation_run.generator_id) or generator
+    generator = generator_of_run(automation, automation_run)
     if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
@@ -2804,16 +2832,17 @@ def _run_report_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    if automation.generator is None:
+    # A retried run reports with the data source and the parameters it was planned with, rather than whatever the automation says now.
+    generator = generator_of_run(automation, automation_run)
+    if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
-    reporter = automation.generator.data_generator
+    reporter = generator.data_generator
     if not isinstance(reporter, Reporter):
         raise ValueError(
-            f"Data source {automation.generator_id} of automation {automation.id} does not store a Reporter."
+            f"Data source {generator.id} of automation {automation.id} does not store a Reporter."
         )
-    # A retried run reports with the parameters it was planned with, rather than whatever the automation says now.
     parameters = prepare_report_parameters(
         (
             dict(automation_run.parameters)

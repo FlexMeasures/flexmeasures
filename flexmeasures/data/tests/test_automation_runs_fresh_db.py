@@ -1300,8 +1300,8 @@ def test_a_forecast_cycle_records_only_on_the_sensors_its_automation_was_checked
     if not checked:
         resolve = automations_service.resolve_automation_sensors
 
-        def resolve_without_outputs(automation):
-            return {**resolve(automation), "output_sensors": []}
+        def resolve_without_outputs(automation, automation_run=None):
+            return {**resolve(automation, automation_run), "output_sensors": []}
 
         monkeypatch.setattr(
             automations_service, "resolve_automation_sensors", resolve_without_outputs

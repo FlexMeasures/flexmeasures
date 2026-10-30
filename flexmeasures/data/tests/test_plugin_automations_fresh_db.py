@@ -592,3 +592,46 @@ def test_a_job_that_failed_before_its_run_recorded_it_is_caught_up_on_with_its_e
         "ValueError",
         "no readings to ingest",
     )
+
+
+@pytest.mark.parametrize("edited", ["after queueing", "before dispatching"])
+def test_a_run_planned_before_an_edit_computes_what_it_was_planned_with(
+    fresh_db, app, ingestion_plugin, ingestion_assets, edited
+):
+    """A run, and the job it queues, compute with the data source and the parameters the run was planned with, also when the automation was edited since.
+
+    The edit moves the automation onto another data source writing to another sensor,
+    so a job computing the edited definition would record on that sensor, and one held to it would be refused.
+    """
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.services.automations import update_automation
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    planned_source_id = automation.generator_id
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+
+    def edit():
+        update_automation(
+            automation, config={"sensor": sensors[1].id}, parameters={"value": 9}
+        )
+        fresh_db.session.commit()
+        assert automation.generator_id != planned_source_id
+
+    if edited == "before dispatching":
+        edit()
+    result = run_automation(automation, automation_run=run)
+    if edited == "after queueing":
+        edit()
+    job = Job.fetch(result["job_id"], connection=app.redis_connection)
+    work_on_rq(app.queues["ingestion"], job=job)
+    job.refresh()
+    assert job.is_finished, job.exc_info
+
+    beliefs = fresh_db.session.scalars(select(TimedBelief)).all()
+    assert [(b.sensor_id, b.event_value, b.source_id) for b in beliefs] == [
+        (sensors[0].id, 3, planned_source_id)
+    ]
+    fresh_db.session.expire_all()
+    assert fresh_db.session.get(AutomationRun, run_id).execution_state == "succeeded"
