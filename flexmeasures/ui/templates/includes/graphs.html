@@ -71,6 +71,9 @@
     let stepTriggered = false;
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
     let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
+    // Remembered per asset, as sources that need telling apart are specific to an asset's data.
+    const colorBySourceKey = {{ ('fm-color-by-source-asset-' ~ asset.id) | tojson if active_page == "assets" else 'null' }};
+    let colorBySource = colorBySourceKey !== null && localStorage.getItem(colorBySourceKey) === '1';
     let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
@@ -406,6 +409,21 @@
             fastMode = false;  // no toggle on this page, so always use Vega-Lite
         }
         syncFullBeliefInfoToggle();
+        const colorBySourceToggle = document.getElementById('colorBySourceToggle');
+        if (colorBySourceToggle) {
+            colorBySourceToggle.checked = colorBySource;
+            colorBySourceToggle.addEventListener('change', async function () {
+                colorBySource = this.checked;
+                localStorage.setItem(colorBySourceKey, colorBySource ? '1' : '0');
+                if (fastRenderActive()) {
+                    updateFastChart();
+                } else if (storeStartDate && storeEndDate) {
+                    $("#spinner").show();
+                    await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+                    $("#spinner").hide();
+                }
+            });
+        }
 
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
@@ -1042,6 +1060,7 @@
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
             fullBeliefInfo: fullBeliefInfo,
+            colorBySource: colorBySource,
             datasetName: datasetName,
             annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
             // The requested query window, so the x-axis spans the whole selected
@@ -1071,7 +1090,7 @@
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
         if (fastRenderActive()) { return; }  // in fast mode, data is rendered by updateFastChart instead
-        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType);
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType + (colorBySource && chartType === 'chart_for_multiple_sensors' ? '&color-by-source=true' : ''));
         await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
       .then(function (result) {
 

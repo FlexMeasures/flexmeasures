@@ -2612,3 +2612,26 @@ def test_get_jobs_pagination_sorts_across_pages(
 
     app.queues["scheduling"].empty()
     app.queues["forecasting"].empty()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("color_by_source", [None, "true"])
+def test_get_asset_chart_colored_by_source(
+    client, annotated_asset, requesting_user, color_by_source
+):
+    """Chart specs color lines per sensor and source only when asked to."""
+    query = {"dataset_name": f"asset_{annotated_asset.id}"}
+    if color_by_source:
+        query["color-by-source"] = color_by_source
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string=query,
+    )
+    assert response.status_code == 200
+    chart_specs = response.get_data(as_text=True)
+    assert ('"sensor_and_source"' in chart_specs) == bool(color_by_source)
+    # The option configures the chart, so it must not leak into the specs as a chart property.
+    assert "color-by-source" not in chart_specs
+    assert "color_by_source" not in chart_specs
