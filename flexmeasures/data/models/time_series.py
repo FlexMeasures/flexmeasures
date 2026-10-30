@@ -652,9 +652,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         # never attempt a DB look-up for a row that does not exist.
         if hasattr(self, "_as_dict_override") and self._as_dict_override:
             return self._as_dict_override
-        parent_asset = db.session.execute(
-            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
-        ).scalar_one_or_none()
+        parent_asset = self.generic_asset.parent_asset
         return dict(
             asset_id=self.generic_asset.id,
             id=self.id,
@@ -1229,6 +1227,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
+                # FlexMeasures has no materialized view of most recent beliefs yet,
+                # so looking it up would cost one extra query for every sensor.
+                use_materialized_view=False,
             )
             if use_latest_version_per_event and not one_deterministic_belief_per_event:
                 # Asking for one belief per event settles the versions itself, family by family,
