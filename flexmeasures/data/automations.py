@@ -98,6 +98,7 @@ class AutomationHandler:
         source=None,
         check_permissions: bool = False,
         source_is_kept: bool = False,
+        editing: bool = False,
     ):
         """Validate an automation's definition, and look up or create the data source storing its generator config.
 
@@ -110,6 +111,7 @@ class AutomationHandler:
             get_default_automation_timezone,
         )
         from flexmeasures.data.services.automations import (
+            EDIT_REFUSED,
             PreparedAutomation,
             _prepare_builtin_automation,
         )
@@ -132,6 +134,7 @@ class AutomationHandler:
                 source=source,
                 check_permissions=check_permissions,
                 source_is_kept=source_is_kept,
+                editing=editing,
             )
         if generator_class not in (None, self.generator_class.__name__):
             raise ValidationError("This automation type determines its data generator.")
@@ -156,7 +159,10 @@ class AutomationHandler:
         )
         sensors = resolve_data_generator_sensors(generator, loaded)
         if check_permissions:
-            check_sensor_access(**sensors)
+            if editing:
+                check_sensor_access(**sensors, refused=EDIT_REFUSED)
+            else:
+                check_sensor_access(**sensors)
         validate_output_scope(asset.id, sensors["output_sensors"])
         if source is None:
             from flexmeasures.data.services.data_sources import get_or_create_source
@@ -180,6 +186,8 @@ class AutomationHandler:
             timezone=timezone or get_default_automation_timezone(asset),
             warnings=[],
             data_generator=generator,
+            input_sensors=sensors["input_sensors"],
+            output_sensors=sensors["output_sensors"],
         )
 
     def create(self, **kwargs):
@@ -429,13 +437,21 @@ def resolve_plugin_generator(automation, handler, parameters=None, source=None):
     return generator, resolve_data_generator_sensors(generator, loaded)
 
 
+def user_has_permission(user, entity, permission: str) -> bool:
+    """Whether a given user, rather than the one making the request, holds a permission on an entity."""
+    from flexmeasures.auth.policy import user_has_admin_access, user_matches_principals
+
+    return user_has_admin_access(user, permission) or user_matches_principals(
+        user, entity.__acl__().get(permission, [])
+    )
+
+
 def check_execution_access(automation, sensors):
     """Recheck the API creator's current permissions for unattended execution.
 
     A null identity denotes trusted CLI creation or a legacy automation. A deleted
     identity remains stored and fails closed, rather than reverting to CLI trust.
     """
-    from flexmeasures.auth.policy import user_has_admin_access, user_matches_principals
     from flexmeasures.data.models.user import User
 
     if automation.execution_user_id is None:
@@ -451,11 +467,7 @@ def check_execution_access(automation, sensors):
         (sensors["output_sensors"], "create-children"),
     ):
         for entity in entities:
-            if not user_has_admin_access(
-                user, permission
-            ) and not user_matches_principals(
-                user, entity.__acl__().get(permission, [])
-            ):
+            if not user_has_permission(user, entity, permission):
                 raise Forbidden(
                     f"Automation {automation.id} creator no longer has '{permission}' permission on {entity}."
                 )

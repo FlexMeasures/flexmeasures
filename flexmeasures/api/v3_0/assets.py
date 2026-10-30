@@ -1890,7 +1890,10 @@ class AssetAPI(FlaskView):
             so runs from before it are not caught up on, while a run due in that very minute still is.
 
             New `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.
-            The user making such a change becomes the one whose access every run of the automation checks.
+            Every run of the automation checks the access of the user it runs as (its creator, at first), who stays the same,
+            so the sensors involved are checked against the access of both the user making the change and that user.
+            Set `run-as-me` to have the automation run as the user making the change from then on, instead;
+            the sensors are then checked against that user's access only, and the switch is written to the asset's audit log.
             A new `config` moves the automation to the data source storing that config, and the old data source is left as it is,
             because other automations may share it, and what was computed under it was computed with its config.
             Sending a `data-generator` without a `config`, or the other way round, keeps the one left out.
@@ -1934,6 +1937,12 @@ class AssetAPI(FlaskView):
                     value:
                       config:
                         train-period: P60D
+                  run_as_me:
+                    summary: Take over the automation's runs
+                    description: >-
+                      Every run checks your access from now on, for example because the user it ran as has left.
+                    value:
+                      run-as-me: true
           responses:
             200:
               description: PROCESSED
@@ -1955,7 +1964,11 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             update_automation(
-                automation, origin="API", check_permissions=True, **automation_data
+                automation,
+                origin="API",
+                check_permissions=True,
+                run_as_editor=automation_data.pop("run_as_me", False),
+                **automation_data,
             )
         except ValidationError as e:
             return unprocessable_entity(e.messages)

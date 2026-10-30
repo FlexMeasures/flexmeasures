@@ -192,6 +192,15 @@ class AutomationUpdateSchema(Schema):
             "example": 6,
         },
     )
+    run_as_me = fields.Bool(
+        data_key="run-as-me",
+        metadata={
+            "description": "Have the automation run as you from now on, so that every run checks your access,"
+            " rather than that of the user it runs as now (its creator, at first)."
+            " Without it, a change of what the automation computes has to pass the access checks of both you and that user.",
+            "example": True,
+        },
+    )
 
     @validates_schema
     def validate_generator_is_named_once(self, data: dict, **kwargs):

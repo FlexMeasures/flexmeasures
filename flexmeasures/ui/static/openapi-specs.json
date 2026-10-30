@@ -3666,7 +3666,7 @@
       },
       "patch": {
         "summary": "Update an automation.",
-        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nThe user making such a change becomes the one whose access every run of the automation checks.\nA new `config` moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
+        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nEvery run of the automation checks the access of the user it runs as (its creator, at first), who stays the same,\nso the sensors involved are checked against the access of both the user making the change and that user.\nSet `run-as-me` to have the automation run as the user making the change from then on, instead;\nthe sensors are then checked against that user's access only, and the switch is written to the asset's audit log.\nA new `config` moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3720,6 +3720,13 @@
                     "config": {
                       "train-period": "P60D"
                     }
+                  }
+                },
+                "run_as_me": {
+                  "summary": "Take over the automation's runs",
+                  "description": "Every run checks your access from now on, for example because the user it ran as has left.",
+                  "value": {
+                    "run-as-me": true
                   }
                 }
               }
@@ -6931,6 +6938,11 @@
             "type": "integer",
             "description": "ID of an existing data source to move the automation to, instead of naming a `data-generator` and its `config`.",
             "example": 6
+          },
+          "run-as-me": {
+            "type": "boolean",
+            "description": "Have the automation run as you from now on, so that every run checks your access, rather than that of the user it runs as now (its creator, at first). Without it, a change of what the automation computes has to pass the access checks of both you and that user.",
+            "example": true
           }
         },
         "additionalProperties": false

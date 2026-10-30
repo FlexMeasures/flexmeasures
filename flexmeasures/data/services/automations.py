@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import functools
 import json
 from copy import copy, deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timedelta, timezone
 import os
 import socket
@@ -2081,6 +2081,13 @@ class PreparedAutomation:
     warnings: list[str]
     # The generator set up from the data source, where the automation type has one to set up before it runs.
     data_generator: Any = None
+    # The sensors the automation reads from and records on, as its definition names them.
+    input_sensors: list[Sensor] = dataclass_field(default_factory=list)
+    output_sensors: list[Sensor] = dataclass_field(default_factory=list)
+
+
+# How a refused edit starts, before the sensor which the edit would involve the user in (see `check_sensor_access`).
+EDIT_REFUSED = "You cannot change this automation, because it would then"
 
 
 def _prepare_builtin_automation(
@@ -2094,6 +2101,7 @@ def _prepare_builtin_automation(
     source=None,
     check_permissions: bool = False,
     source_is_kept: bool = False,
+    editing: bool = False,
 ) -> PreparedAutomation:
     """Validate an automation's definition by type, and look up or create the data source storing its generator config.
 
@@ -2105,6 +2113,7 @@ def _prepare_builtin_automation(
                               the CLI runs without a user, and is trusted.
     :param source_is_kept: whether the source is the one the automation already runs on,
                            which an edit leaving the data generator alone hands over without the user having chosen it.
+    :param editing: whether the definition is an edit of an existing automation, which a refusal then says.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the data generator cannot be set up.
     :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
@@ -2214,7 +2223,10 @@ def _prepare_builtin_automation(
         )
 
     if check_permissions:
-        check_sensor_access(input_sensors, output_sensors)
+        if editing:
+            check_sensor_access(input_sensors, output_sensors, refused=EDIT_REFUSED)
+        else:
+            check_sensor_access(input_sensors, output_sensors)
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
     # so that this does not reveal where a sensor sits to someone who may not read it.
@@ -2241,6 +2253,8 @@ def _prepare_builtin_automation(
         timezone=timezone,
         warnings=warnings,
         data_generator=data_generator,
+        input_sensors=input_sensors,
+        output_sensors=output_sensors,
     )
 
 
@@ -2375,11 +2389,53 @@ def _prepare_automation_edit(
         source=source,
         check_permissions=check_permissions,
         source_is_kept=source_is_kept,
+        editing=True,
     )
 
 
+def _check_run_user_access(automation: Automation, prepared: PreparedAutomation):
+    """Require the user whom an automation runs as to have access to the sensors of its edited definition, too.
+
+    The editor's access was checked while preparing the edit.
+    Checking the run user as well keeps an edit from pointing the automation at sensors which only the editor may use,
+    while its runs go on being checked against someone else.
+
+    :raises werkzeug.exceptions.Forbidden: if the run user is missing or inactive, or lacks access to a sensor.
+    """
+    from flask_security import current_user
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.automations import user_has_permission
+    from flexmeasures.data.models.user import User
+
+    # An automation without a run user was set up through the CLI, which is trusted, so its runs check nobody.
+    if automation.execution_user_id in (None, current_user.id):
+        return
+    run_user = db.session.get(User, automation.execution_user_id)
+    takeover = f" To have it run as you, {current_user.username} (user {current_user.id}), instead, set run-as-me."
+    if run_user is None or not run_user.active:
+        exception = Forbidden()
+        exception.api_message = (
+            f"You cannot change this automation while it runs as user {automation.execution_user_id},"
+            f" who is missing or inactive.{takeover}"
+        )
+        raise exception
+    for sensors, permission, action in (
+        (prepared.input_sensors, "read", "read data from"),
+        (prepared.output_sensors, "create-children", "record data on"),
+    ):
+        for sensor in sensors:
+            if not user_has_permission(run_user, sensor, permission):
+                exception = Forbidden()
+                exception.api_message = (
+                    f"{EDIT_REFUSED} {action} sensor {sensor.id},"
+                    f" which {run_user.username} (user {run_user.id}), whom it runs as, cannot {action}.{takeover}"
+                )
+                raise exception
+
+
 def _apply_automation_edit(
-    automation: Automation, prepared: PreparedAutomation, check_permissions: bool
+    automation: Automation, prepared: PreparedAutomation
 ) -> list[str]:
     """Give an automation the parameters and data source of a validated edit (see `_prepare_automation_edit`).
 
@@ -2401,11 +2457,63 @@ def _apply_automation_edit(
             )
 
             note_report_selection(automation, prepared.data_generator)
-    if changes and check_permissions:
-        # The sensors were just checked against this user's access, so this user's access is what every run checks from now on.
-        # Keeping the creator would let an editor point the automation at sensors only the creator may use.
-        automation.execution_user_id = _current_user_id()
     return changes
+
+
+def _take_over_runs(automation: Automation) -> list[str]:
+    """Make the user making a change the one whom the automation runs as.
+
+    :returns: a list of (human-readable) changes; empty if that user already was.
+    """
+    editor_id = _current_user_id()
+    if editor_id == automation.execution_user_id:
+        return []
+    previous = (
+        f"user {automation.execution_user_id}"
+        if automation.execution_user_id is not None
+        else "no user"
+    )
+    automation.execution_user_id = editor_id
+    return [f"runs as: {previous} → user {editor_id}"]
+
+
+def _validate_automation_edit(
+    automation: Automation,
+    cronstr: str,
+    timezone: str,
+    parameters: dict | None,
+    generator_class: str | None,
+    config: dict | None,
+    source: DataSource | None,
+    check_permissions: bool,
+    run_as_editor: bool,
+) -> PreparedAutomation | None:
+    """Validate what an edit changes about what an automation computes, or whom it runs as (see `update_automation`).
+
+    :returns: the edited definition, or None if the edit changes neither.
+    """
+    if run_as_editor and not check_permissions:
+        raise ValueError(
+            "Only a user making the change can have the automation run as them."
+        )
+    # Taking over the runs alone validates the current definition, as the sensors it names are then checked against someone else.
+    if not run_as_editor and all(
+        value is None for value in (parameters, generator_class, config, source)
+    ):
+        return None
+    prepared = _prepare_automation_edit(
+        automation,
+        cronstr=cronstr,
+        timezone=timezone,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+    )
+    if check_permissions and not run_as_editor:
+        _check_run_user_access(automation, prepared)
+    return prepared
 
 
 def update_automation(
@@ -2420,6 +2528,7 @@ def update_automation(
     source: DataSource | None = None,
     origin: str = "API",
     check_permissions: bool = False,
+    run_as_editor: bool = False,
 ) -> list[str]:
     """Update an automation (not committed yet).
 
@@ -2434,32 +2543,32 @@ def update_automation(
     Any of these changes starts a new revision, keeping runs computed before and after the change apart,
     but leaves the cursor alone, as which runs are due has not changed.
     Set `check_permissions` when a user makes the change (through the API or the UI):
-    the sensors involved are then checked against that user's access,
-    and that user becomes the one whose access every run checks.
+    the sensors involved are then checked against the access of that user, and of the user whom the automation runs as,
+    who stays the same, so that nobody's access widens without them knowing.
+    Set `run_as_editor` as well to make the user making the change the one whom the automation runs as, instead;
+    the sensors of the (edited) definition are then checked against that user's access only.
 
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
     :raises marshmallow.ValidationError: if the new definition is invalid.
-    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user,
+                                           or a sensor is not accessible to the user whom the automation runs as.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     # Validate a new definition before changing anything, so that a refused edit leaves the automation as it was.
-    prepared = None
-    if any(
-        value is not None for value in (parameters, generator_class, config, source)
-    ):
-        prepared = _prepare_automation_edit(
-            automation,
-            cronstr=cronstr or automation.cronstr,
-            timezone=timezone or automation.timezone,
-            parameters=parameters,
-            generator_class=generator_class,
-            config=config,
-            source=source,
-            check_permissions=check_permissions,
-        )
+    prepared = _validate_automation_edit(
+        automation,
+        cronstr=cronstr or automation.cronstr,
+        timezone=timezone or automation.timezone,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+        run_as_editor=run_as_editor,
+    )
 
     changes = []
     reset_cursor = False
@@ -2481,11 +2590,11 @@ def update_automation(
             reset_cursor = True
         automation.active = active
     if prepared is not None:
-        definition_changes = _apply_automation_edit(
-            automation, prepared, check_permissions
-        )
+        definition_changes = _apply_automation_edit(automation, prepared)
         changes.extend(definition_changes)
         new_revision = bool(definition_changes)
+    if run_as_editor:
+        changes.extend(_take_over_runs(automation))
     if reset_cursor or new_revision:
         # A new revision keeps the durable runs of the old and the new schedule (or definition) apart,
         # even where they fall on the same scheduled UTC time.
