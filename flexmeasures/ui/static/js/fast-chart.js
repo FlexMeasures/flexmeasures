@@ -258,9 +258,10 @@ function numericRows(data) {
  *
  * @param {Object[]} data - Decompressed chart data rows.
  * @param {Object[]} [groupSpec] - Optional subplot structure: [{ title, sensorIds, sensorType }].
+ * @param {boolean} [colorBySource] - Name multi-sensor series by sensor and source, so each source gets its own color.
  * @returns {Object[]} - List of groups: { title, units, sensorType, multiSensor, series }.
  */
-function groupData(data, groupSpec) {
+export function groupData(data, groupSpec, colorBySource) {
   const groups = [];
   // A sensor may be configured in several subplots (sensors_to_show rows), and
   // then its data must show in each of them, as in the Vega-Lite charts.
@@ -331,7 +332,8 @@ function groupData(data, groupSpec) {
   // Mirror the Vega-Lite legend encoding:
   // - multi-sensor (asset) charts: one legend entry per sensor, labeled
   //   "sensor (asset)", with sources distinguished by line style;
-  // - single-sensor (sensor page) charts: one legend entry per source.
+  // - single-sensor (sensor page) charts: one legend entry per source;
+  // - with colorBySource, multi-sensor charts get one legend entry (and color) per sensor and source.
   const uniqueSensorKeys = new Set();
   for (const group of groups) {
     for (const s of group.series.values()) {
@@ -355,7 +357,8 @@ function groupData(data, groupSpec) {
       // via their shared legend entry, as in the Vega-Lite charts.
       const srcLabel =
         (s.source && sourceLabels.get(s.source.id)) || s.sourceLabel;
-      s.name = nameBySensor ? s.sensorDescription || s.sensorName : srcLabel;
+      const sensorLabel = s.sensorDescription || s.sensorName;
+      s.name = !nameBySensor ? srcLabel : colorBySource ? sensorLabel + " · " + srcLabel : sensorLabel;
       s.sensorType = group.sensorType || s.sensorName;
       series.push(s);
     }
@@ -1476,7 +1479,7 @@ function buildLineBarOption(elementId, groups, opts) {
       // Vertically center the legend beside its subplot rather than pinning it
       // to the top of the chart. Estimate the rendered height (one row per entry)
       // and offset from the grid top by half the leftover space.
-      const rowHeight = FONT_SIZE + 6; // font size + itemGap between rows
+      const rowHeight = FONT_SIZE * (opts.colorBySource ? 2 : 1) + 6; // font size per text line + itemGap between rows
       const legendContentHeight = legendNames.length * rowHeight;
       const legendTop = top + Math.max(0, (GRID_HEIGHT - legendContentHeight) / 2);
       legends.push({
@@ -1498,6 +1501,8 @@ function buildLineBarOption(elementId, groups, opts) {
           width: LEGEND_WIDTH - 30,
           overflow: "truncate",
         },
+        // Show the sensor and the source on separate lines, so neither is truncated away.
+        formatter: opts.colorBySource ? (name) => name.replace(" · ", "\n") : undefined,
       });
     }
     xAxes.push({
@@ -2444,7 +2449,7 @@ export function renderFastChart(elementId, data, options) {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
     const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== CHARGE_POINT_SESSIONS_GROUP_TITLE);
-    const groups = groupData(data, groupSpec);
+    const groups = groupData(data, groupSpec, !!opts.colorBySource);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
   }
   if (!option) {
