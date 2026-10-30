@@ -297,9 +297,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   </label>
                   <textarea class="form-control" id="editAutomationParameters" rows="4" disabled></textarea>
                   <div class="form-text">
-                    Changing the parameters or the config makes you the user whose access each run of this automation checks.
+                    Changes to the parameters or the config are checked against your access, and against that of the user this automation runs as.
                     Runs already planned still compute what they were planned with.
                   </div>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationRunAsMe" disabled>
+                  <label class="form-check-label" for="editAutomationRunAsMe">Run as me
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="From now on, every run of this automation checks your access, instead of that of the user it runs as now. Use this to take over an automation, for instance when that user has left." style="font-size: 16px"></i>
+                  </label>
                 </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
@@ -586,12 +593,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   function resetEditAutomationDefinition() {
     $("#editAutomationParameters, #editAutomationConfig").val("").prop("disabled", true);
+    $("#editAutomationRunAsMe").prop("checked", false).prop("disabled", true);
     $("#editAutomationGenerator").text("");
     $("#editAutomationConfigGroup").addClass("d-none");
   }
 
   function fillEditAutomationDefinition(loaded) {
     $("#editAutomationParameters").val(JSON.stringify(loaded.parameters, null, 4)).prop("disabled", false);
+    $("#editAutomationRunAsMe").prop("disabled", false);
     if (loaded.config !== null) {
       $("#editAutomationConfig").val(JSON.stringify(loaded.config, null, 4)).prop("disabled", false);
       $("#editAutomationGenerator").text(`Currently computed under data source ${loaded.source.id}: ${loaded.source.description}.`);
@@ -599,7 +608,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
-  /* The parameters and config the edit form changed, compared with what it loaded.
+  /* The parameters and config the edit form changed, compared with what it loaded, and whether to take over the automation's runs.
      Sending only those keeps a rename from checking parameters again which may no longer hold, such as ones naming a since deleted sensor.
      The fields were filled in from the loaded values as they are, so an unchanged field reads back to the same JSON. */
   function editedDefinition(loaded) {
@@ -613,6 +622,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       if (JSON.stringify(config) !== JSON.stringify(loaded.config)) {
         edited.config = config;
       }
+    }
+    if ($("#editAutomationRunAsMe").is(":checked")) {
+      edited["run-as-me"] = true;
     }
     return edited;
   }

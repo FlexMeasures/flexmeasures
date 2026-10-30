@@ -75,6 +75,28 @@ def test_the_edit_form_sends_only_the_parameters_and_config_that_changed(assert_
     """))
 
 
+def test_the_edit_form_takes_over_the_runs_only_when_asked(assert_js):
+    """Run-as-me is sent only when ticked, so that an edit keeps the user whom the automation runs as by default."""
+    assert_js(edit_page_js("""
+        page.resetEditAutomationDefinition();
+        check("run-as-me waits for the automation to load", field("editAutomationRunAsMe").disabled, "enabled");
+        const loaded = page.loadedEditDefinition(
+            {id: 7, type: "forecasting"},
+            {parameters: {sensor: 2092}, source: {id: 6, description: "TrainPredictPipeline", config: {}}});
+        page.fillEditAutomationDefinition(loaded);
+        check("and can be ticked once it has", !field("editAutomationRunAsMe").disabled, "disabled");
+
+        eq("unticked, it is not sent", page.editedDefinition(loaded), {});
+        field("editAutomationRunAsMe").checked = true;
+        eq("ticked, it is sent, also without other changes", page.editedDefinition(loaded), {"run-as-me": true});
+        field("editAutomationParameters").value = JSON.stringify({sensor: 2093});
+        eq("and together with them", page.editedDefinition(loaded), {parameters: {sensor: 2093}, "run-as-me": true});
+
+        page.resetEditAutomationDefinition();
+        check("reopening the form unticks it", !field("editAutomationRunAsMe").checked, "still ticked");
+    """))
+
+
 def test_a_schedule_automation_offers_no_config_to_edit(assert_js):
     """A schedule automation's data source follows from the asset, so the form hides the config and never sends one."""
     assert_js(edit_page_js("""
