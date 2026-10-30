@@ -1520,7 +1520,7 @@ class AssetAPI(FlaskView):
                             cursor: "2026-07-11T06:00:00+02:00"
                             next-run: "2026-07-12T06:00:00+02:00"
                             recurrence-description: "At 06:00"
-                            schedule-revision: 1
+                            revision: 1
                             active: true
                             job-stats:
                               finished: 3
@@ -1634,7 +1634,7 @@ class AssetAPI(FlaskView):
                         cursor: "2026-07-11T06:00:00+02:00"
                         next-run: "2026-07-12T06:00:00+02:00"
                         recurrence-description: "At 06:00"
-                        schedule-revision: 1
+                        revision: 1
                         active: true
                         parameters:
                           sensor: 2092
@@ -1664,7 +1664,7 @@ class AssetAPI(FlaskView):
                           latest-run:
                             id: 12
                             scheduled-at: "2026-07-11T04:00:00+00:00"
-                            schedule-revision: 1
+                            revision: 1
                             dispatch-state: queued
                             execution-state: succeeded
                             attempt-count: 1

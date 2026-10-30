@@ -807,8 +807,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${esc(res.timezone)}</p>
           <h6 title="Read on the automation's own clock, ${esc(res.timezone)}.">Cursor</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
-          <h6>Schedule revision</h6>
-          <p>${esc(res["schedule-revision"])}</p>
+          <h6>Revision</h6>
+          <p>${esc(res["revision"])}</p>
           <h6>Data source</h6>
           <p>${esc(generator)}</p>
           <h6 title="The static settings this data source was created with. Changing one of them makes a new data source.">Configuration</h6>

@@ -1449,7 +1449,7 @@ def test_edit_report_automation_config_and_parameters(
     automation = fresh_db.session.execute(select(Automation)).scalar_one()
     old_source = automation.generator
     old_config = old_source.attributes["data_generator"]["config"]
-    revision = automation.schedule_revision
+    revision = automation.revision
 
     new_config = deepcopy(old_config)
     new_config["transformations"][1]["args"] = ["4h"]
@@ -1475,7 +1475,7 @@ def test_edit_report_automation_config_and_parameters(
     assert automation.generator.attributes["data_generator"]["config"] == new_config
     assert old_source.attributes["data_generator"]["config"] == old_config
     assert automation.parameters["start-offset"] == "-2D,DB"
-    assert automation.schedule_revision == revision + 1
+    assert automation.revision == revision + 1
     assert automation.execution_user_id is None
 
     # A config naming the source that stores it, too, is refused.
@@ -1862,7 +1862,7 @@ def test_report_run_planned_before_an_edit_reports_what_it_was_planned_with(
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2023, 4, 10, 10, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",

@@ -79,7 +79,7 @@ def test_get_automations(
     assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["next-run"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["recurrence-description"] == "At 06:00"
-    assert day_ahead["schedule-revision"] == 1
+    assert day_ahead["revision"] == 1
     assert day_ahead["active"] is True
     assert day_ahead["created-at"] is not None
     intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
@@ -155,7 +155,7 @@ def test_get_automation_details(
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
-    assert response.json["schedule-revision"] == 1
+    assert response.json["revision"] == 1
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     run_stats = response.json["run-stats"]
     assert run_stats["total"] == 1
@@ -1328,7 +1328,7 @@ def test_patch_automation_parameters_config_and_source(
     """An automation's parameters, config and data source can be changed after creation, each validated as on creation.
 
     A new config moves the automation onto the data source storing it, and leaves the old source as it was,
-    and each change starts a new schedule revision without touching the cursor.
+    and each change starts a new revision without touching the cursor.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
@@ -1341,7 +1341,7 @@ def test_patch_automation_parameters_config_and_source(
     automation = db.session.get(Automation, created["id"])
     first_source = automation.generator
     first_config = dict(first_source.attributes["data_generator"]["config"])
-    cursor, revision = automation.cursor, automation.schedule_revision
+    cursor, revision = automation.cursor, automation.revision
 
     # New parameters keep the data source.
     with app.test_client() as client:
@@ -1351,7 +1351,7 @@ def test_patch_automation_parameters_config_and_source(
     assert response.status_code == 200, response.json
     assert automation.parameters == {"sensor": second_sensor.id}
     assert automation.generator_id == first_source.id
-    assert automation.schedule_revision == revision + 1
+    assert automation.revision == revision + 1
     assert automation.cursor == cursor
     assert automation.execution_user_id == requesting_user.id
 
@@ -1369,7 +1369,7 @@ def test_patch_automation_parameters_config_and_source(
     )
     assert first_source.attributes["data_generator"]["config"] == first_config
     assert automation.parameters == {"sensor": second_sensor.id}
-    assert automation.schedule_revision == revision + 2
+    assert automation.revision == revision + 2
     assert automation.cursor == cursor
     audit_events = db.session.scalars(
         select(AssetAuditLog.event).filter_by(affected_asset_id=battery.id)
@@ -1396,7 +1396,7 @@ def test_patch_automation_parameters_config_and_source(
             {"parameters": {"sensor": second_sensor.id}, "source": first_source.id},
         )
     assert response.status_code == 200, response.json
-    assert automation.schedule_revision == revision + 3
+    assert automation.revision == revision + 3
 
 
 @pytest.mark.parametrize(
@@ -1426,7 +1426,7 @@ def test_patch_automation_with_invalid_definition(
     with app.test_client() as client:
         created = _post_forecast_automation(client, battery, sensor.id, {})
     automation = db.session.get(Automation, created["id"])
-    generator_id, revision = automation.generator_id, automation.schedule_revision
+    generator_id, revision = automation.generator_id, automation.revision
     payload = json.loads(
         json.dumps(payload)
         .replace('"FIRST_SOURCE"', str(generator_id))
@@ -1441,7 +1441,7 @@ def test_patch_automation_with_invalid_definition(
     automation = db.session.get(Automation, created["id"])
     assert automation.parameters == {"sensor": sensor.id}
     assert automation.generator_id == generator_id
-    assert automation.schedule_revision == revision
+    assert automation.revision == revision
 
 
 @pytest.mark.parametrize(

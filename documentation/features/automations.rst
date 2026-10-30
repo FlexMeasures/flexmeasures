@@ -85,7 +85,7 @@ A schedule automation accepts new parameters only, as its data source follows fr
 Whoever makes such a change through the API or the UI becomes the user whose access every run of the automation checks.
 Keeping the creator instead would let an editor point the automation at sensors only its creator may use.
 
-Runs before and after such a change are kept apart by a new schedule revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
+Runs before and after such a change are kept apart by a new revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
 A run planned before the change, including one being retried and the jobs it already queued, still computes with the parameters and the data source it was planned with.
 
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
@@ -277,7 +277,7 @@ Runs and retries
 ----------------
 
 Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
-The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and schedule revision, so two runners started in the same minute cannot both execute it.
+The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and revision, so two runners started in the same minute cannot both execute it.
 A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
 
 Before queueing anything, the runner writes down the plan for the run: the parameters it will use and the individual jobs it intends to create, each with its own logical name and a job ID derived from the run.
@@ -309,8 +309,8 @@ A run tracks two things separately: how far its *dispatch* got (``pending``, ``c
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
-Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
-Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
+Editing an automation's cron string, timezone, parameters or data generator config, or reactivating it, counts up its revision.
+Runs from before and after the change therefore stay distinct, even when they fall on the same scheduled UTC time.
 
 Running one automation on demand
 --------------------------------

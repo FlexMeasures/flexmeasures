@@ -66,7 +66,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
     run = AutomationRun(
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
-        schedule_revision=due_forecast_automation.schedule_revision,
+        revision=due_forecast_automation.revision,
         automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
@@ -80,7 +80,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
     duplicate = AutomationRun(
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
-        schedule_revision=due_forecast_automation.schedule_revision,
+        revision=due_forecast_automation.revision,
         automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
@@ -97,7 +97,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
     same_occurrence_new_revision = AutomationRun(
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
-        schedule_revision=due_forecast_automation.schedule_revision + 1,
+        revision=due_forecast_automation.revision + 1,
         automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
@@ -114,7 +114,7 @@ def test_job_intents_are_unique_per_run(fresh_db, due_forecast_automation):
     run = AutomationRun(
         automation=due_forecast_automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=due_forecast_automation.schedule_revision,
+        revision=due_forecast_automation.revision,
         automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
@@ -285,16 +285,16 @@ def test_run_plan_snapshot_is_immutable_after_automation_edit(
     assert first_result.exit_code == 0, first_result.output
     run = fresh_db.session.scalars(select(AutomationRun)).one()
     original_parameters = dict(run.parameters)
-    original_revision = run.schedule_revision
+    original_revision = run.revision
 
     due_forecast_automation.parameters["duration"] = "PT4H"
     due_forecast_automation.cronstr = "30 1 * * *"
-    due_forecast_automation.schedule_revision += 1
+    due_forecast_automation.revision += 1
     fresh_db.session.commit()
     fresh_db.session.refresh(run)
 
     assert run.parameters == original_parameters
-    assert run.schedule_revision == original_revision
+    assert run.revision == original_revision
     assert run.plan["cronstr"] == "0 1 * * *"
 
 
@@ -801,7 +801,7 @@ def _add_finished_runs(db, automation: Automation, count: int) -> None:
         run = AutomationRun(
             automation=automation,
             scheduled_at=first_scheduled_at + timedelta(minutes=index),
-            schedule_revision=automation.schedule_revision,
+            revision=automation.revision,
             automation_type="forecasting",
             generator_id=automation.generator_id,
             dispatch_state="queued" if index % 2 else "failed",
@@ -896,7 +896,7 @@ def _add_partially_queued_run(
     run = AutomationRun(
         automation=automation,
         scheduled_at=scheduled_at,
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation_type,
         generator_id=automation.generator_id,
         dispatch_state="partially_queued",

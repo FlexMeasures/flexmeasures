@@ -482,7 +482,7 @@ def _claimed_run(fresh_db, automation):
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",

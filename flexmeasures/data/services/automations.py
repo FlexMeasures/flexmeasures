@@ -170,7 +170,7 @@ def _run_snapshot(automation: Automation, scheduled_at: datetime) -> dict[str, A
         "automation_name": automation.name,
         "asset_id": automation.asset_id,
         "scheduled_at": scheduled_at.astimezone(timezone.utc).isoformat(),
-        "schedule_revision": automation.schedule_revision,
+        "revision": automation.revision,
         "cronstr": automation.cronstr,
         "timezone": automation.timezone,
         "generator_id": automation.generator_id,
@@ -226,7 +226,7 @@ def claim_due_automation_run(
             Automation.active.is_(True),
             Automation.cronstr == due_automation.expected_cronstr,
             Automation.timezone == due_automation.expected_timezone,
-            Automation.schedule_revision == due_automation.automation.schedule_revision,
+            Automation.revision == due_automation.automation.revision,
             cursor_matches,
         )
         .values(cursor=due_automation.scheduled_at)
@@ -240,7 +240,7 @@ def claim_due_automation_run(
     run = AutomationRun(
         automation=automation,
         scheduled_at=due_automation.scheduled_at,
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",
@@ -2431,7 +2431,7 @@ def update_automation(
     A new config moves the automation onto the data source storing it, leaving the old source as it is,
     because other automations may share it, and what was computed under it was computed with its config.
     Leaving out the data generator or the config keeps the current one.
-    Any of these changes starts a new schedule revision, keeping runs computed before and after the change apart,
+    Any of these changes starts a new revision, keeping runs computed before and after the change apart,
     but leaves the cursor alone, as which runs are due has not changed.
     Set `check_permissions` when a user makes the change (through the API or the UI):
     the sensors involved are then checked against that user's access,
@@ -2489,7 +2489,7 @@ def update_automation(
     if reset_cursor or new_revision:
         # A new revision keeps the durable runs of the old and the new schedule (or definition) apart,
         # even where they fall on the same scheduled UTC time.
-        automation.schedule_revision += 1
+        automation.revision += 1
     if reset_cursor:
         automation.cursor = get_initial_cursor()
     if changes:
@@ -2517,7 +2517,7 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
     return {
         "id": run.id,
         "scheduled-at": run.scheduled_at.isoformat(),
-        "schedule-revision": run.schedule_revision,
+        "revision": run.revision,
         "dispatch-state": run.dispatch_state,
         "execution-state": run.execution_state,
         "attempt-count": run.attempt_count,
