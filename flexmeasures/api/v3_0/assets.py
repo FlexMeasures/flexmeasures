@@ -1783,9 +1783,9 @@ class AssetAPI(FlaskView):
             and permission to record data on the sensors it writes to.
 
             An automation can wait for other automations that it consumes the results of, listed in `depends-on`.
-            Each of its runs then waits for their runs scheduled for the same time, and queues its jobs once those ended,
+            Each of its runs then waits for their latest runs due at or before its own scheduled time, and queues its jobs once those ended,
             or is skipped if one of them failed, unless that dependency has `allow-failure` set.
-            The automations it waits for can be on any asset you can read, and have to recur on the same schedule.
+            The automations it waits for can be on any asset you can read, and may recur on another schedule.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1892,7 +1892,7 @@ class AssetAPI(FlaskView):
             Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
-            An automation's runs wait for the runs of the automations in `depends-on` that are scheduled for the same time,
+            An automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,
             so the recurrence and the timezone can only change along with `depends-on`, and not while other automations depend on this one.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
@@ -1923,7 +1923,7 @@ class AssetAPI(FlaskView):
                   wait_for_another_automation:
                     summary: Wait for the runs of automation 4
                     description: >-
-                      Each run waits for the run of automation 4 scheduled for the same time, and is skipped if that one failed.
+                      Each run waits for the latest run of automation 4 due at or before its own time, and is skipped if that one failed.
                     value:
                       depends-on:
                         - automation: 4

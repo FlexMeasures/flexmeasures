@@ -123,7 +123,7 @@ class Automation(db.Model, AuthModelMixin):
         passive_deletes=True,
         order_by="desc(AutomationRun.scheduled_at)",
     )
-    # The automations whose run for the same scheduled time each run of this one waits for (see `AutomationDependency`).
+    # The automations whose latest run due at or before its own scheduled time each run of this one waits for (see `AutomationDependency`).
     dependencies = db.relationship(
         "AutomationDependency",
         foreign_keys="AutomationDependency.automation_id",
@@ -196,7 +196,7 @@ class Automation(db.Model, AuthModelMixin):
 class AutomationDependency(db.Model):
     """One automation that another automation's runs wait for.
 
-    A run of the dependent automation is dispatched only once the upstream automation's run for the same scheduled time has ended,
+    A run of the dependent automation is dispatched only once the upstream automation's latest run due at or before its own scheduled time has ended,
     and is skipped if that run failed, unless the dependency allows for failure.
     """
 

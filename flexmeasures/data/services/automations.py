@@ -403,33 +403,48 @@ def _upstream_run_state(run: AutomationRun) -> str:
     return "pending"
 
 
-def _state_without_upstream_run(upstream: Automation, run: AutomationRun) -> str:
-    """Say what it means that an upstream automation has no run scheduled for the same time as this run.
+def _state_without_upstream_run(upstream: Automation, due_at: datetime) -> str:
+    """Say what it means that an upstream automation has no run for the time it was due at.
 
     - 'pending': the upstream automation is due at that time, but no runner claimed its run yet.
     - 'passed-over': the upstream automation was due at that time, but moved past it without a run,
       as missed runs are coalesced or left out (see `get_due_automations`).
     - 'not-scheduled': the upstream automation was never going to run at that time,
-      as it is inactive, recurs on another schedule, or did not exist yet.
+      as it is inactive, or did not exist yet.
     """
-    automation = run.automation
     if (
         not upstream.active
-        or (upstream.cronstr, upstream.timezone)
-        != (automation.cronstr, automation.timezone)
         # An automation's first run can be the one due in the minute it was created (see `get_initial_cursor`).
-        or floor_to_minute(upstream.created_at) > run.scheduled_at
+        or floor_to_minute(upstream.created_at) > due_at
     ):
         return "not-scheduled"
-    if upstream.cursor is None or upstream.cursor < run.scheduled_at:
+    if upstream.cursor is None or upstream.cursor < due_at:
         return "pending"
     return "passed-over"
+
+
+def get_upstream_due_at(
+    upstream: Automation, scheduled_at: datetime
+) -> datetime | None:
+    """Return when the upstream run that a run scheduled at this time waits for is due.
+
+    That is the latest time the upstream automation is due at, by its own schedule, up to and including the time the waiting run is scheduled at.
+    For instance, an hourly run at 10:00 waits for the run of a quarter-hourly upstream automation due at 10:00,
+    and a quarter-hourly run at 10:15 waits for the run of an hourly upstream automation due at 10:00.
+
+    :returns: None if the upstream automation's schedule cannot be read, such as for a stale timezone.
+    """
+    try:
+        return get_latest_scheduled_run(upstream, scheduled_at)
+    except (CroniterError, ValueError, ZoneInfoNotFoundError):
+        return None
 
 
 def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
     """Decide whether a run can be dispatched yet, going by the runs of the automations it waits for.
 
-    Each upstream automation's run for the same scheduled time counts.
+    Each upstream automation's latest run due at or before the run's own scheduled time counts (see `get_upstream_due_at`),
+    so the automations need not recur on the same schedule.
     The run is skipped as soon as one of those failed or will not happen, unless its dependency allows for that,
     as its jobs would compute with input that was never produced.
     Otherwise, it waits for as long as one of them has yet to end.
@@ -440,25 +455,33 @@ def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
     """
     found = []
     for dependency in run.automation.dependencies:
-        upstream_run = db.session.scalars(
-            select(AutomationRun)
-            .where(
-                AutomationRun.automation_id == dependency.upstream_id,
-                AutomationRun.scheduled_at == run.scheduled_at,
-            )
-            .order_by(AutomationRun.schedule_revision.desc())
-            .limit(1)
-        ).first()
+        due_at = get_upstream_due_at(dependency.upstream, run.scheduled_at)
+        upstream_run = (
+            db.session.scalars(
+                select(AutomationRun)
+                .where(
+                    AutomationRun.automation_id == dependency.upstream_id,
+                    AutomationRun.scheduled_at == due_at,
+                )
+                .order_by(AutomationRun.schedule_revision.desc())
+                .limit(1)
+            ).first()
+            if due_at is not None
+            else None
+        )
+        if upstream_run is not None:
+            state = _upstream_run_state(upstream_run)
+        elif due_at is None:
+            state = "not-scheduled"
+        else:
+            state = _state_without_upstream_run(dependency.upstream, due_at)
         found.append(
             {
                 "automation": dependency.upstream_id,
                 "allow-failure": dependency.allow_failure,
+                "due-at": due_at.isoformat() if due_at is not None else None,
                 "run": upstream_run.id if upstream_run is not None else None,
-                "state": (
-                    _upstream_run_state(upstream_run)
-                    if upstream_run is not None
-                    else _state_without_upstream_run(dependency.upstream, run)
-                ),
+                "state": state,
             }
         )
     if any(
@@ -578,7 +601,10 @@ def release_automation_runs_waiting_for(upstream_run: AutomationRun) -> None:
         )
         .where(
             AutomationDependency.upstream_id == upstream_run.automation_id,
-            AutomationRun.scheduled_at == upstream_run.scheduled_at,
+            # A run waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`),
+            # so the runs that wait for this one are scheduled at the same time or later.
+            # Those that wait for a later upstream run are checked, too, and left waiting (see `release_waiting_automation_run`).
+            AutomationRun.scheduled_at >= upstream_run.scheduled_at,
             AutomationRun.dispatch_state == "waiting",
         )
         .order_by(AutomationRun.id)
@@ -2305,11 +2331,7 @@ def create_automation(
     if dependencies:
         # Check these first, so that nothing is set up for an automation that is refused.
         validate_automation_dependencies(
-            None,
-            dependencies,
-            cronstr=cronstr,
-            timezone=timezone or get_default_automation_timezone(asset),
-            check_permissions=check_permissions,
+            None, dependencies, check_permissions=check_permissions
         )
     automation, warnings = get_automation_handler(automation_type).create(
         asset=asset,
@@ -2530,40 +2552,19 @@ def update_automation(
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
-    A run waits for the upstream runs scheduled for the same time,
-    so the recurrence and the timezone can only change in step with the automations it waits for,
-    and not at all while other automations wait for it.
     An audit log record is added to the asset.
 
     :param dependencies:        the automations whose runs this automation's runs wait for, replacing the ones it had; None leaves them as they are.
     :param check_permissions:   whether to require that the current user may read the upstream automations named in `dependencies`.
-    :raises marshmallow.ValidationError: if the dependencies, or the new schedule, are not possible.
+    :raises marshmallow.ValidationError: if the dependencies are not possible.
     :returns: a list of (human-readable) changes; empty if nothing changed.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     # Check everything before changing anything, so that a refused update leaves the automation as it was.
-    validate_dependents_keep_schedule(automation, cronstr, timezone)
-    schedule_changes = (cronstr is not None and cronstr != automation.cronstr) or (
-        timezone is not None and timezone != automation.timezone
-    )
-    if dependencies is not None or schedule_changes:
+    if dependencies is not None:
         validate_automation_dependencies(
-            automation,
-            (
-                dependencies
-                if dependencies is not None
-                else [
-                    {
-                        "upstream": dependency.upstream,
-                        "allow_failure": dependency.allow_failure,
-                    }
-                    for dependency in automation.dependencies
-                ]
-            ),
-            cronstr=cronstr,
-            timezone=timezone,
-            check_permissions=check_permissions and dependencies is not None,
+            automation, dependencies, check_permissions=check_permissions
         )
 
     changes = []
@@ -2629,29 +2630,21 @@ def _upstream_ids_reachable_from(automation_ids: set[int]) -> set[int]:
 def validate_automation_dependencies(
     automation: Automation | None,
     dependencies: list[dict[str, Any]],
-    cronstr: str | None = None,
-    timezone: str | None = None,
     check_permissions: bool = False,
 ) -> None:
     """Check that an automation may wait for these upstream automations.
 
-    A run waits for the upstream run scheduled for the very same time, so an upstream automation has to recur on the same schedule:
-    the same cron string, read in the same timezone.
+    The automations need not recur on the same schedule, as a run waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`).
     An automation waiting for itself, directly or through others, would never run, so such a cycle is refused.
 
     :param automation:          the automation that is to wait, or None for one that is about to be created.
     :param dependencies:        dicts with the upstream automation under "upstream", and whether its failure is allowed for under "allow_failure".
-    :param cronstr:             the cron string the automation is about to have, if not the one it has.
-    :param timezone:            the timezone the automation is about to have, if not the one it has.
     :param check_permissions:   whether to require that the current user may read each upstream automation (and so its asset).
     :raises marshmallow.ValidationError: if a dependency is not possible, under the "depends-on" field.
     :raises werkzeug.exceptions.Forbidden: if the current user may not read an upstream automation.
     """
     from flexmeasures.auth.policy import check_access
 
-    if automation is not None:
-        cronstr = cronstr or automation.cronstr
-        timezone = timezone or automation.timezone
     automation_id = automation.id if automation is not None else None
     errors = []
     upstream_ids = [dependency["upstream"].id for dependency in dependencies]
@@ -2673,12 +2666,6 @@ def validate_automation_dependencies(
         if automation_id is not None and upstream.id == automation_id:
             errors.append(f"Automation {upstream.id} cannot wait for itself.")
             continue
-        if upstream.cronstr != cronstr or upstream.timezone != timezone:
-            errors.append(
-                f"Automation {upstream.id} recurs per cron string '{upstream.cronstr}' in timezone '{upstream.timezone}',"
-                f" while this automation recurs per '{cronstr}' in '{timezone}'."
-                " A run waits for the upstream run scheduled for the same time, so both have to recur on the same schedule."
-            )
     # An automation that is about to be created has nothing waiting for it yet, so it cannot close a cycle.
     if automation_id is not None and automation_id in _upstream_ids_reachable_from(
         {upstream_id for upstream_id in upstream_ids if upstream_id != automation_id}
@@ -2688,33 +2675,6 @@ def validate_automation_dependencies(
         )
     if errors:
         raise ValidationError({"depends-on": errors})
-
-
-def validate_dependents_keep_schedule(
-    automation: Automation, cronstr: str | None, timezone: str | None
-) -> None:
-    """Refuse a new schedule for an automation that other automations wait for, as their runs would no longer line up with its runs.
-
-    :raises marshmallow.ValidationError: under the "cron" field, naming the automations that wait for this one.
-    """
-    new_cronstr = cronstr or automation.cronstr
-    new_timezone = timezone or automation.timezone
-    if (new_cronstr, new_timezone) == (automation.cronstr, automation.timezone):
-        return
-    dependent_ids = db.session.scalars(
-        select(AutomationDependency.automation_id)
-        .where(AutomationDependency.upstream_id == automation.id)
-        .order_by(AutomationDependency.automation_id)
-    ).all()
-    if dependent_ids:
-        raise ValidationError(
-            {
-                "cron": [
-                    f"Automation(s) {', '.join(map(str, dependent_ids))} wait for this automation's runs, so it has to keep recurring per '{automation.cronstr}' in '{automation.timezone}'."
-                    " Remove those dependencies first, or change the schedule of the automations that wait for it, too, once they no longer do."
-                ]
-            }
-        )
 
 
 def set_automation_dependencies(

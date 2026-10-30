@@ -1,6 +1,6 @@
 """add automation dependencies
 
-Let an automation's runs wait for the run of another automation at the same scheduled time.
+Let an automation's runs wait for the latest run of another automation due at or before their own scheduled time.
 A run that waits is 'waiting' to be dispatched, and a run whose upstream run failed is 'skipped'.
 
 Revision ID: b8e4c2d7f913

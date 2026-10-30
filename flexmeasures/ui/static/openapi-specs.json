@@ -3666,7 +3666,7 @@
       },
       "patch": {
         "summary": "Update an automation's name, cron string, timezone, activation status or dependencies.",
-        "description": "Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nAn automation's runs wait for the runs of the automations in `depends-on` that are scheduled for the same time,\nso the recurrence and the timezone can only change along with `depends-on`, and not while other automations depend on this one.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "description": "Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nAn automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,\nso the recurrence and the timezone can only change along with `depends-on`, and not while other automations depend on this one.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3707,7 +3707,7 @@
                 },
                 "wait_for_another_automation": {
                   "summary": "Wait for the runs of automation 4",
-                  "description": "Each run waits for the run of automation 4 scheduled for the same time, and is skipped if that one failed.",
+                  "description": "Each run waits for the latest run of automation 4 due at or before its own time, and is skipped if that one failed.",
                   "value": {
                     "depends-on": [
                       {
@@ -3829,7 +3829,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n\nAn automation can wait for other automations that it consumes the results of, listed in `depends-on`.\nEach of its runs then waits for their runs scheduled for the same time, and queues its jobs once those ended,\nor is skipped if one of them failed, unless that dependency has `allow-failure` set.\nThe automations it waits for can be on any asset you can read, and have to recur on the same schedule.\n",
+        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n\nAn automation can wait for other automations that it consumes the results of, listed in `depends-on`.\nEach of its runs then waits for their latest runs due at or before its own scheduled time, and queues its jobs once those ended,\nor is skipped if one of them failed, unless that dependency has `allow-failure` set.\nThe automations it waits for can be on any asset you can read, and may recur on another schedule.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -6828,7 +6828,7 @@
         "properties": {
           "automation": {
             "type": "integer",
-            "description": "ID of the automation to wait for. It has to recur on the same schedule (the same cron string, in the same timezone).",
+            "description": "ID of the automation to wait for. It may recur on another schedule.",
             "example": 4
           },
           "allow-failure": {
@@ -6901,7 +6901,7 @@
           },
           "depends-on": {
             "type": "array",
-            "description": "The automations whose runs each run of this automation waits for: the runs scheduled for the same time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and have to recur on the same schedule. A run on demand does not wait.",
+            "description": "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and may recur on another schedule. A run on demand does not wait.",
             "example": [
               {
                 "automation": 4,
@@ -6940,7 +6940,7 @@
           },
           "depends-on": {
             "type": "array",
-            "description": "The automations whose runs each run of this automation waits for: the runs scheduled for the same time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and have to recur on the same schedule. A run on demand does not wait. Replaces the automations it depended on; send an empty list to have its runs wait for none.",
+            "description": "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and may recur on another schedule. A run on demand does not wait. Replaces the automations it depended on; send an empty list to have its runs wait for none.",
             "example": [
               {
                 "automation": 4,

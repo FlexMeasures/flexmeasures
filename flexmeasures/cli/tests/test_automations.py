@@ -3029,12 +3029,11 @@ def test_add_edit_and_show_automation_dependencies(
     assert shown.exit_code == 0, shown.output
     assert f"Upstream (ID: {upstream.id}), also when it fails" in shown.output
 
-    # The upstream automation keeps its schedule while another one waits for it.
-    refused = runner.invoke(
-        edit_automation, ["--id", str(upstream.id), "--cron", "5 * * * *"]
+    # The upstream automation can move to another schedule while another one waits for it.
+    moved = runner.invoke(
+        edit_automation, ["--id", str(upstream.id), "--cron", "*/15 * * * *"]
     )
-    assert refused.exit_code != 0
-    assert str(downstream.id) in refused.output
+    assert moved.exit_code == 0, moved.output
 
     cleared = runner.invoke(
         edit_automation, ["--id", str(downstream.id), "--no-dependencies"]

@@ -101,7 +101,7 @@ def run_automations():
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
 
-    A run of an automation that depends on other automations waits for their runs scheduled for the same time,
+    A run of an automation that depends on other automations waits for their latest runs due at or before its own scheduled time,
     and queues its jobs as soon as the last of them ended, or is skipped if one of them failed.
     This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """

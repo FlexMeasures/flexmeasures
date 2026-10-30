@@ -116,9 +116,10 @@ def test_post_automation_refuses_to_wait_for_an_unreadable_automation(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_post_automation_refuses_another_schedule(
+def test_post_automation_waiting_for_one_on_another_schedule(
     app, fresh_db, upstream_automations, requesting_user
 ):
+    """A run waits for the latest upstream run due at or before its own time, so the schedules need not match."""
     battery, sensor, upstream = upstream_automations
     with app.test_client() as client:
         response = _post(
@@ -128,8 +129,10 @@ def test_post_automation_refuses_another_schedule(
             [{"automation": upstream["own"].id}],
             cron="0 7 * * *",
         )
-    assert response.status_code == 422, response.json
-    assert "same schedule" in str(response.json["message"]["json"]["depends-on"])
+    assert response.status_code == 201, response.json
+    assert response.json["depends-on"] == [
+        {"automation": upstream["own"].id, "allow-failure": False}
+    ]
 
 
 @pytest.mark.parametrize(
@@ -138,7 +141,7 @@ def test_post_automation_refuses_another_schedule(
 def test_patch_automation_dependencies(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """Dependencies can be replaced and cleared, and a schedule change that would break them is refused."""
+    """Dependencies can be replaced and cleared, and the schedule can change while they stay."""
     battery, sensor, upstream = upstream_automations
     with app.test_client() as client:
         created = _post(client, battery, sensor, [{"automation": upstream["own"].id}])
@@ -147,9 +150,11 @@ def test_patch_automation_dependencies(
             "AssetAPI:patch_automation", id=battery.id, automation_id=created.json["id"]
         )
 
-        refused = client.patch(url, json={"cron": "0 7 * * *"})
-        assert refused.status_code == 422, refused.json
-        assert "depends-on" in refused.json["message"]["json"]
+        moved = client.patch(url, json={"cron": "0 7 * * *"})
+        assert moved.status_code == 200, moved.json
+        assert moved.json["depends-on"] == [
+            {"automation": upstream["own"].id, "allow-failure": False}
+        ]
 
         replaced = client.patch(
             url,
@@ -164,7 +169,7 @@ def test_patch_automation_dependencies(
             {"automation": upstream["public"].id, "allow-failure": True}
         ]
 
-        cleared = client.patch(url, json={"cron": "0 7 * * *", "depends-on": []})
+        cleared = client.patch(url, json={"depends-on": []})
     assert cleared.status_code == 200, cleared.json
     assert cleared.json["depends-on"] == []
     assert cleared.json["cron"] == "0 7 * * *"

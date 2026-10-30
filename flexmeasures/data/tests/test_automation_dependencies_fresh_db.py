@@ -145,6 +145,7 @@ def test_a_dependent_run_waits_and_then_runs_once_its_upstream_run_succeeded(
         {
             "automation": snapper.id,
             "allow-failure": False,
+            "due-at": SCHEDULED_AT.isoformat(),
             "run": snapper_run.id,
             "state": "pending",
         }
@@ -281,6 +282,7 @@ def test_a_run_goes_ahead_without_an_inactive_upstream_automation(
         {
             "automation": snapper.id,
             "allow-failure": False,
+            "due-at": SCHEDULED_AT.isoformat(),
             "run": None,
             "state": "not-scheduled",
         }
@@ -298,15 +300,87 @@ def test_a_run_on_demand_does_not_wait(fresh_db, app, make_automation):
     assert app.queues["ingestion"].count == 1
 
 
-def test_dependencies_must_share_the_schedule(fresh_db, make_automation):
-    """A run waits for the upstream run scheduled for the same time, so a different cron string or timezone is refused."""
+def _run_at(db, automation: Automation, scheduled_at: datetime) -> AutomationRun:
+    db.session.expire_all()
+    return db.session.scalars(
+        select(AutomationRun).where(
+            AutomationRun.automation_id == automation.id,
+            AutomationRun.scheduled_at == scheduled_at,
+        )
+    ).one()
+
+
+def test_an_hourly_run_waits_for_the_upstream_run_due_at_its_own_time(
+    fresh_db, app, make_automation
+):
+    """An hourly automation can wait for one that recurs every 15 minutes, and its run at 01:00 waits for the upstream run due at 01:00."""
+    puller = make_automation("Pull meter data", cronstr="*/15 * * * *")
+    # Only the upstream run at 01:00 is due, rather than those at 00:15, 00:30 and 00:45, too.
+    puller.cursor = datetime(2026, 8, 5, 0, 45, tzinfo=timezone.utc)
+    fresh_db.session.commit()
+    forecast = make_automation("Forecast", depends_on=[puller])
+
+    returns = _tick()
+
+    assert returns[forecast.id]["dispatch_state"] == "waiting"
+    puller_run = _run_at(fresh_db, puller, SCHEDULED_AT)
+    upstream = _run_at(fresh_db, forecast, SCHEDULED_AT).plan["upstream-runs"][0]
+    assert (upstream["due-at"], upstream["run"]) == (
+        SCHEDULED_AT.isoformat(),
+        puller_run.id,
+    )
+
+    _work(app, puller_run)
+
+    assert _run_at(fresh_db, forecast, SCHEDULED_AT).dispatch_state == "queued"
+
+
+@pytest.mark.parametrize("upstream_fails", [False, True])
+def test_a_quarter_hourly_run_waits_for_the_latest_hourly_upstream_run(
+    fresh_db, app, make_automation, failing_value, upstream_fails
+):
+    """A run every 15 minutes waits for the latest run of an hourly upstream automation.
+
+    Its runs at 01:00 and 01:15 both wait for the upstream run due at 01:00, and both are released once that one ended.
+    """
+    quarter_past = datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc)
+    puller = make_automation("Pull meter data", value=-1 if upstream_fails else 1)
+    forecast = make_automation("Forecast", depends_on=[puller], cronstr="*/15 * * * *")
+    forecast.cursor = datetime(2026, 8, 5, 0, 45, tzinfo=timezone.utc)
+    fresh_db.session.commit()
+
+    _tick()
+    returns = _tick(datetime(2026, 8, 5, 1, 15, 30, tzinfo=timezone.utc))
+
+    assert returns[forecast.id]["dispatch_state"] == "waiting"
+    later_run = _run_at(fresh_db, forecast, quarter_past)
+    assert later_run.plan["upstream-runs"][0]["due-at"] == SCHEDULED_AT.isoformat()
+
+    _work(app, _run_at(fresh_db, puller, SCHEDULED_AT))
+
+    expected = "skipped" if upstream_fails else "succeeded"
+    for scheduled_at in (SCHEDULED_AT, quarter_past):
+        run = _run_at(fresh_db, forecast, scheduled_at)
+        if not upstream_fails:
+            assert run.dispatch_state == "queued"
+            _work(app, run)
+            run = _run_at(fresh_db, forecast, scheduled_at)
+        assert run.execution_state == expected
+
+
+def test_automations_waiting_for_each_other_can_change_their_schedules(
+    fresh_db, make_automation
+):
+    """Runs wait for the latest upstream run due at or before their own time, so either automation can move to another schedule."""
     snapper = make_automation("Snap meter readings")
-    with pytest.raises(ValidationError) as e:
-        make_automation("Compute flows", depends_on=[snapper], cronstr="5 * * * *")
-    assert "same schedule" in str(e.value.messages["depends-on"])
-    fresh_db.session.rollback()
-    with pytest.raises(ValidationError):
-        make_automation("Compute flows", depends_on=[snapper], tz="Europe/Amsterdam")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+
+    update_automation(snapper, cronstr="*/15 * * * *")
+    update_automation(flows, cronstr="5 * * * *")
+    fresh_db.session.commit()
+
+    assert (snapper.cronstr, flows.cronstr) == ("*/15 * * * *", "5 * * * *")
+    assert _dependency_ids(fresh_db, flows) == [snapper.id]
 
 
 def test_cycles_and_self_dependencies_are_refused(fresh_db, make_automation):
@@ -322,36 +396,6 @@ def test_cycles_and_self_dependencies_are_refused(fresh_db, make_automation):
         update_automation(snapper, dependencies=[{"upstream": snapper}])
     fresh_db.session.rollback()
     assert _dependency_ids(fresh_db, snapper) == []
-
-
-def test_an_automation_others_wait_for_keeps_its_schedule(fresh_db, make_automation):
-    """Changing the schedule of an automation others wait for would leave their runs waiting for runs that never come."""
-    snapper = make_automation("Snap meter readings")
-    flows = make_automation("Compute flows", depends_on=[snapper])
-
-    with pytest.raises(ValidationError) as e:
-        update_automation(snapper, cronstr="5 * * * *")
-    assert str(flows.id) in str(e.value.messages["cron"])
-    assert snapper.cronstr == "0 * * * *"
-
-    # The dependent automation can move along with dropping its dependency, after which the upstream one is free to move, too.
-    update_automation(flows, cronstr="5 * * * *", dependencies=[])
-    fresh_db.session.commit()
-    update_automation(snapper, cronstr="5 * * * *")
-    fresh_db.session.commit()
-    assert snapper.cronstr == "5 * * * *"
-
-
-def test_a_dependent_automation_cannot_move_away_from_its_upstream_schedule(
-    fresh_db, make_automation
-):
-    """Changing only the schedule of an automation that waits for others is refused, as its runs would no longer line up."""
-    snapper = make_automation("Snap meter readings")
-    flows = make_automation("Compute flows", depends_on=[snapper])
-
-    with pytest.raises(ValidationError):
-        update_automation(flows, cronstr="5 * * * *")
-    assert flows.cronstr == "0 * * * *"
 
 
 def test_deleting_an_upstream_automation_drops_the_dependency(

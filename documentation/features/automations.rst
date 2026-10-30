@@ -239,14 +239,15 @@ Rather than staggering their cron strings and hoping the first one finishes in t
         --type reporting --reporter PandasReporter --config flows-config.yml --parameters flows-parameters.yml \
         --depends-on 7
 
-Each run of the waiting automation then waits for the run of automation 7 that is scheduled for the same time.
+Each run of the waiting automation then waits for the latest run of automation 7 that is due at or before its own scheduled time.
 It queues its jobs as soon as that run has ended successfully, and is *skipped* if it failed, so that it never computes on input that was never produced.
 A skipped run says which upstream run it was skipped for, and anything waiting for a skipped run is skipped, too.
 To have a run go ahead even when the run it waits for failed, also pass ``--allow-failure-of 7``.
 
 An automation can wait for several others (repeat ``--depends-on``), and these can be on any asset you can read.
-They have to recur on the same schedule, that is, with the same cron string in the same timezone, as a run waits for the upstream run scheduled for the very same time.
-That is also why an automation that others wait for cannot change its schedule, and an automation that waits for others can only change its schedule together with its dependencies (see ``flexmeasures edit automation --help``).
+They may recur on another schedule, as each run waits for the latest upstream run due at or before its own scheduled time, by the upstream automation's own cron string and timezone.
+For instance, an hourly forecast that waits for meter data pulled every 15 minutes runs at 10:00 once the pull due at 10:00 ended.
+The other way around, a forecast every 15 minutes that waits for an hourly pull runs at 10:15, 10:30 and 10:45 on the pull due at 10:00, so a failure of that one pull has all three of them skipped.
 A dependency that would have an automation end up waiting for itself is refused.
 
 Some cases where the upstream run does not happen:
@@ -255,7 +256,6 @@ Some cases where the upstream run does not happen:
 - If the upstream automation was never going to run at that time, because it is inactive or did not exist yet, the waiting run goes ahead without it. Its run record says so.
 
 The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for among those listed there.
-Picking one copies its schedule into the creation form.
 
 When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.
 

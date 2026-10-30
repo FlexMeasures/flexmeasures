@@ -75,7 +75,7 @@ class AutomationDependencySchema(Schema):
         required=True,
         data_key="automation",
         metadata={
-            "description": "ID of the automation to wait for. It has to recur on the same schedule (the same cron string, in the same timezone).",
+            "description": "ID of the automation to wait for. It may recur on another schedule.",
             "example": 4,
         },
     )
@@ -90,9 +90,9 @@ class AutomationDependencySchema(Schema):
 
 
 DEPENDS_ON_DESCRIPTION = (
-    "The automations whose runs each run of this automation waits for: the runs scheduled for the same time."
+    "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time."
     " A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure."
-    " Upstream automations can be on any asset you can read, and have to recur on the same schedule."
+    " Upstream automations can be on any asset you can read, and may recur on another schedule."
     " A run on demand does not wait."
 )
 

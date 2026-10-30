@@ -105,7 +105,7 @@ def fm_edit_data():
     "depends_on",
     multiple=True,
     type=AutomationIdField(),
-    help="ID of an automation whose runs each run of this one waits for: the run scheduled for the same time."
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
     " Replaces the automations it waited for. Repeat to wait for several automations.",
 )
 @click.option(
@@ -132,11 +132,7 @@ def edit_automation(
     allow_failure_of: tuple[Automation, ...] = (),
     no_dependencies: bool = False,
 ):
-    """Edit the name, recurrence, timezone, activation status or dependencies of an automation.
-
-    The recurrence and timezone of an automation that waits for other automations have to stay those of the automations it waits for,
-    so pass --depends-on (or --no-dependencies) along with --cron or --timezone to change both.
-    """
+    """Edit the name, recurrence, timezone, activation status or dependencies of an automation."""
     if no_dependencies and (depends_on or allow_failure_of):
         raise click.UsageError(
             "--no-dependencies cannot be combined with --depends-on or --allow-failure-of."

@@ -195,7 +195,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="mb-3">
                   <label for="automationDependsOn" class="form-label">Waits for
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="Optional. Automations whose results this one uses. Each run waits for their runs scheduled for the same time, and queues its jobs once those ended, or is skipped if one of them failed. They have to recur on the same schedule. Picking one copies its schedule into the fields above." style="font-size: 16px"></i>
+                     title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
                   </label>
                   <select class="form-select" id="automationDependsOn" multiple size="3"></select>
                   <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
@@ -296,7 +296,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="mb-3">
                   <label for="editAutomationDependsOn" class="form-label">Waits for
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="Optional. Automations whose results this one uses. Each run waits for their runs scheduled for the same time, and queues its jobs once those ended, or is skipped if one of them failed. They have to recur on the same schedule." style="font-size: 16px"></i>
+                     title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
                   </label>
                   <select class="form-select" id="editAutomationDependsOn" multiple size="3"></select>
                   <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
@@ -829,7 +829,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
-          <h6 title="Each run waits for the runs of these automations that are scheduled for the same time.">Waits for</h6>
+          <h6 title="Each run waits for the latest runs of these automations that are due at or before its own time.">Waits for</h6>
           <p>${dependsOnText(res["depends-on"])}</p>
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
@@ -1118,16 +1118,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           );
         },
       });
-    });
-
-    /* A run waits for the upstream runs scheduled for the very same time, so an automation has to recur on the schedule of those it waits for.
-       Picking one therefore copies its schedule into the form, rather than leaving a mismatch for the server to refuse. */
-    $("#automationDependsOn").on("change", function () {
-      const picked = ($(this).val() || []).map((id) => automationsById.get(Number(id))).filter(Boolean);
-      if (picked.length) {
-        $("#automationCron").val(picked[0]["cron"]);
-        $("#automationTimezone").val(picked[0].timezone);
-      }
     });
 
     // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.

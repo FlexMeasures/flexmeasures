@@ -1879,9 +1879,9 @@ def add_forecast(  # noqa: C901
     "depends_on",
     multiple=True,
     type=AutomationIdField(),
-    help="ID of an automation whose runs each run of this one waits for: the run scheduled for the same time."
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
     " A run queues its jobs once the runs it waits for ended, and is skipped if one of them failed (but see --allow-failure-of)."
-    " The automation waited for has to recur on the same schedule, so --cron and --timezone have to match it."
+    " The automation waited for may recur on another schedule."
     " Repeat to wait for several automations.",
 )
 @click.option(
@@ -1944,7 +1944,7 @@ def add_automation(  # noqa: C901
     and configuration stored on it.
 
     An automation that consumes what another automation produces can wait for it (--depends-on),
-    so that each of its runs queues its jobs only once the other automation's run for the same time ended.
+    so that each of its runs queues its jobs only once the other automation's latest run due at or before that time ended.
 
     Every forecaster and pipeline option that `flexmeasures add forecast` accepts is accepted here, too,
     but is left out of the help text above to keep it focused on the automation itself;
