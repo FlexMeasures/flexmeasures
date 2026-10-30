@@ -259,6 +259,18 @@ The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allo
 
 When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.
 
+To re-run a whole chain, for instance once the data at its start was backfilled, run its first automation along with the automations that wait for it:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 7 --with-dependents
+
+Automation 7 runs right away, and each active automation that waits for it, directly or through others, gets a run that waits for the runs started along with it,
+and is skipped if one of those failed, just like scheduled runs.
+These runs on demand do not affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue, as whoever started them is told.
+The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-dependents=true``, which needs permission to manage the automations on each of the assets involved,
+and the *Automations* page offers *Run with dependents* for an automation that another one listed there waits for.
+
 Running automations
 -------------------
 

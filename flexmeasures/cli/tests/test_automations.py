@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.services.generator_results import (
@@ -3041,6 +3041,39 @@ def test_add_edit_and_show_automation_dependencies(
     assert cleared.exit_code == 0, cleared.output
     fresh_db.session.expire_all()
     assert fresh_db.session.get(Automation, downstream.id).dependencies == []
+
+
+def test_run_automation_with_dependents(
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis
+):
+    """--with-dependents runs the automations waiting for this one, too, each holding back until the run it waits for ended."""
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+
+    result = runner.invoke(
+        run_one_automation, ["--automation", str(upstream.id), "--with-dependents"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "('Downstream') run" in result.output and "is waiting" in result.output
+    fresh_db.session.expire_all()
+    runs = fresh_db.session.scalars(
+        select(AutomationRun).order_by(AutomationRun.id)
+    ).all()
+    assert [(run.automation.name, run.trigger, run.dispatch_state) for run in runs] == [
+        ("Upstream", "on-demand", "queued"),
+        ("Downstream", "on-demand", "waiting"),
+    ]
 
 
 def test_add_automation_allow_failure_of_needs_depends_on(

@@ -4930,7 +4930,7 @@
     "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
-        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n\nPass `with-dependents=true` to also run the active automations that wait for this one, directly or through others,\nfor instance to re-run a chain of automations once the data at its start was backfilled.\nEach of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.\nThis needs permission to manage the automations on each of their assets, too.\nThe response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4954,6 +4954,16 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "with-dependents",
+            "required": false,
+            "description": "Also run the active automations that wait for this one, directly or through others.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -4971,6 +4981,23 @@
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "n-jobs": 2,
                       "message": "Request has been accepted for processing."
+                    }
+                  },
+                  "triggered-with-dependents": {
+                    "summary": "Automation run accepted, along with the automations waiting for it",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "n-jobs": 1,
+                      "message": "Request has been accepted for processing.",
+                      "dependent-runs": [
+                        {
+                          "automation": 8,
+                          "run": 412,
+                          "dispatch-state": "waiting"
+                        }
+                      ]
                     }
                   }
                 }

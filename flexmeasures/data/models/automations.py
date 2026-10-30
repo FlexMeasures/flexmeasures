@@ -240,15 +240,22 @@ AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
 
 
 class AutomationRun(db.Model):
-    """Durable execution record for one scheduled automation occurrence."""
+    """Durable execution record for one run of an automation, scheduled or on demand."""
 
     __tablename__ = "automation_run"
     __table_args__ = (
-        db.UniqueConstraint(
+        # One run per scheduled occurrence, while on-demand runs can share a time with any other run.
+        db.Index(
+            "automation_run_occurrence_uq",
             "automation_id",
             "scheduled_at",
             "schedule_revision",
-            name="automation_run_occurrence_uq",
+            unique=True,
+            postgresql_where=db.text("trigger = 'schedule'"),
+        ),
+        db.CheckConstraint(
+            "trigger IN ('schedule', 'on-demand')",
+            name="automation_run_trigger_ck",
         ),
         db.CheckConstraint(
             "dispatch_state IN ('pending', 'claimed', 'waiting', 'partially_queued', 'queued', 'failed')",
@@ -277,6 +284,8 @@ class AutomationRun(db.Model):
     )
     scheduled_at = db.Column(db.DateTime(timezone=True), nullable=False)
     schedule_revision = db.Column(db.Integer, nullable=False)
+    # Whether the run was due by the automation's schedule, or asked for on demand along with a chain of runs (see `run_automation_chain`).
+    trigger = db.Column(db.String(16), nullable=False, default="schedule")
     automation_type = db.Column(db.String(80), nullable=False)
     generator_id = db.Column(db.Integer, nullable=True)
     # A run that is 'waiting' holds back its jobs until the upstream runs it depends on have ended (see `AutomationDependency`).

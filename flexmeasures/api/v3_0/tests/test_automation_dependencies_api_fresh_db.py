@@ -4,8 +4,13 @@ from datetime import timedelta
 
 import pytest
 from flask import url_for
+from sqlalchemy import select
 
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import (
+    Automation,
+    AutomationDependency,
+    AutomationRun,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
@@ -194,3 +199,56 @@ def test_patch_automation_refuses_to_wait_for_an_unreadable_automation(
     assert response.status_code == 403, response.json
     fresh_db.session.expire_all()
     assert fresh_db.session.get(Automation, upstream["own"].id).dependencies == []
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation_with_dependents(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """Triggering with dependents runs the automations waiting for this one, too, and lists their runs."""
+    battery, sensor, upstream = upstream_automations
+    upstream["own"].parameters = {"sensor": sensor.id}
+    fresh_db.session.commit()
+    with app.test_client() as client:
+        created = _post(client, battery, sensor, [{"automation": upstream["own"].id}])
+        assert created.status_code == 201, created.json
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=upstream["own"].id,
+                **{"with-dependents": "true"},
+            )
+        )
+    assert response.status_code == 202, response.json
+    assert [
+        (run["automation"], run["dispatch-state"])
+        for run in response.json["dependent-runs"]
+    ] == [(created.json["id"], "waiting")]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation_with_dependents_needs_access_to_each_of_them(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """An automation waiting for this one on an asset the user may not manage is not run on their say, and neither is this one."""
+    battery, sensor, upstream = upstream_automations
+    fresh_db.session.add(
+        AutomationDependency(automation=upstream["foreign"], upstream=upstream["own"])
+    )
+    fresh_db.session.commit()
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=upstream["own"].id,
+                **{"with-dependents": "true"},
+            )
+        )
+    assert response.status_code == 403, response.json
+    assert fresh_db.session.scalars(select(AutomationRun)).all() == []

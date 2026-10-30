@@ -624,10 +624,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button>`;
   }
 
+  // Whether an automation listed here waits for this one, which is when running it along with its dependents does more than running it.
+  function hasListedDependents(automation) {
+    return [...automationsById.values()].some(
+      (other) => (other["depends-on"] || []).some((dependency) => dependency.automation === automation.id)
+    );
+  }
+
   function actionButtons(automation) {
+    const runWithDependentsItem = hasListedDependents(automation) ? `
+      <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-with-dependents="true"
+        title="Run this automation once, now, along with the active automations that wait for it, directly or through others. Each of them runs once the runs it waits for ended, and is skipped if one of those failed. Their recurrence is not affected.">Run with dependents</button></li>
+    ` : "";
     const runItem = userCanRunAutomations ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}"
         title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button></li>
+      ${runWithDependentsItem}
     ` : "";
     const manageItems = userCanManage ? `
       <li><button type="button" class="dropdown-item automation-edit" data-id="${automation.id}">Edit</button></li>
@@ -1306,16 +1318,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(document).on("click", ".run-automation", function () {
       const button = $(this);
       const automationId = button.data("automation-id");
+      const withDependents = button.data("with-dependents") === true;
+      const label = button.text();
       button.prop("disabled", true).text("Queueing ...");
       $.ajax({
-        url: automationUrl(automationId, "/trigger"),
+        url: automationUrl(automationId, withDependents ? "/trigger?with-dependents=true" : "/trigger"),
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
           const nJobs = res["n-jobs"];
           const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
+          const dependentRuns = res["dependent-runs"] || [];
+          const dependents = dependentRuns.length
+            ? ` Automation(s) ${dependentRuns.map((run) => run.automation).join(", ")} run once the runs they wait for ended.`
+            : "";
           showAutomationsMessage(
-            `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
+            `${queued} for automation ${automationId}.${dependents} Recent jobs are listed on the status page.`
           );
           loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
@@ -1326,7 +1344,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           );
         },
         complete: function () {
-          button.prop("disabled", false).text("Run now");
+          button.prop("disabled", false).text(label);
         },
       });
     });

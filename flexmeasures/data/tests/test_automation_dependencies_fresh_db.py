@@ -19,6 +19,7 @@ from flexmeasures.data.services.automations import (
     dispatch_automation_run,
     get_dispatchable_automation_runs,
     run_automation,
+    run_automation_chain,
     update_automation,
 )
 from flexmeasures.data.tests.plugins.mock_ingestion import (
@@ -366,6 +367,69 @@ def test_a_quarter_hourly_run_waits_for_the_latest_hourly_upstream_run(
             _work(app, run)
             run = _run_at(fresh_db, forecast, scheduled_at)
         assert run.execution_state == expected
+
+
+@pytest.mark.parametrize("upstream_fails", [False, True])
+def test_running_a_chain_on_demand(
+    fresh_db, app, make_automation, failing_value, upstream_fails
+):
+    """Run an automation on demand along with what waits for it: each run waits for the one before it, and a failure skips the rest."""
+    snapper = make_automation("Snap meter readings", value=-1 if upstream_fails else 1)
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    totals = make_automation("Sum flows", depends_on=[flows])
+    # An inactive automation does not run, and neither does what only waits for it.
+    paused = make_automation("Paused", depends_on=[snapper])
+    paused.active = False
+    make_automation("Waits for paused", depends_on=[paused])
+    fresh_db.session.commit()
+
+    returns, dependent_runs = run_automation_chain(snapper, now=TICK)
+
+    assert [run.automation_id for run in dependent_runs] == [flows.id, totals.id]
+    assert [run.dispatch_state for run in dependent_runs] == ["waiting", "waiting"]
+    snapper_run = fresh_db.session.get(AutomationRun, returns["run_id"])
+    assert snapper_run.trigger == "on-demand"
+    assert dependent_runs[1].plan["chain-upstream-runs"] == [
+        {"automation": flows.id, "run": dependent_runs[0].id}
+    ]
+    # Their recurrence is left alone.
+    assert {snapper.cursor, flows.cursor, totals.cursor} == {CREATED_AT}
+
+    _work(app, snapper_run)
+    if upstream_fails:
+        for run in dependent_runs:
+            assert _run_at(fresh_db, run.automation, SCHEDULED_AT).execution_state == (
+                "skipped"
+            )
+        return
+    flows_run = _run_at(fresh_db, flows, SCHEDULED_AT)
+    assert flows_run.dispatch_state == "queued"
+    assert _run_at(fresh_db, totals, SCHEDULED_AT).dispatch_state == "waiting"
+    _work(app, flows_run)
+    totals_run = _run_at(fresh_db, totals, SCHEDULED_AT)
+    assert totals_run.dispatch_state == "queued"
+    _work(app, totals_run)
+    assert _run_at(fresh_db, totals, SCHEDULED_AT).execution_state == "succeeded"
+
+
+def test_a_chain_run_on_demand_and_a_scheduled_run_keep_apart(
+    fresh_db, app, make_automation
+):
+    """Runs on demand can share a minute with the scheduled runs, and a scheduled run only ever waits for a scheduled upstream run."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+
+    returns, dependent_runs = run_automation_chain(snapper, now=TICK)
+    on_demand_snapper_run = fresh_db.session.get(AutomationRun, returns["run_id"])
+    _work(app, on_demand_snapper_run)
+
+    fresh_db.session.expire_all()
+    runs = fresh_db.session.scalars(
+        select(AutomationRun).where(AutomationRun.automation_id == flows.id)
+    ).all()
+    states = {run.trigger: run.dispatch_state for run in runs}
+    assert states == {"schedule": "waiting", "on-demand": "queued"}
 
 
 def test_automations_waiting_for_each_other_can_change_their_schedules(
