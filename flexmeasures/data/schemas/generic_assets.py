@@ -567,6 +567,21 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                     "Parent asset must belong to the same account as the child asset."
                 )
 
+    @validates_schema
+    def validate_parent_account_on_creation(self, data, **kwargs):
+        """Keep a new asset in the same account as its parent."""
+        if self.partial or getattr(self, "context", {}).get("asset") is not None:
+            return
+        parent_id = data.get("parent_asset_id")
+        if parent_id is None:
+            return
+        parent = db.session.get(GenericAsset, parent_id)
+        if parent and parent.account_id != data.get("account_id"):
+            raise ValidationError(
+                "Parent asset must belong to the same account as the child asset.",
+                "parent_asset_id",
+            )
+
     @validates("account_id")
     def validate_account(self, account_id: int | None, **kwargs):
         if account_id is None and (
