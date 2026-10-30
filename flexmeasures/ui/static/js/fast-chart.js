@@ -260,7 +260,7 @@ function numericRows(data) {
  * @param {Object[]} [groupSpec] - Optional subplot structure: [{ title, sensorIds, sensorType }].
  * @returns {Object[]} - List of groups: { title, units, sensorType, multiSensor, series }.
  */
-function groupData(data, groupSpec) {
+export function groupData(data, groupSpec) {
   const groups = [];
   // A sensor may be configured in several subplots (sensors_to_show rows), and
   // then its data must show in each of them, as in the Vega-Lite charts.
@@ -306,6 +306,7 @@ function groupData(data, groupSpec) {
       const seriesKey = sensor.id + "|" + source.id;
       if (!group.series.has(seriesKey)) {
         group.series.set(seriesKey, {
+          sensorId: sensor.id,
           sensorName: sensor.name || "sensor " + sensor.id,
           sensorDescription: sensor.description || sensor.name || "",
           sourceLabel: sourceLabel(source),
@@ -440,6 +441,21 @@ export function barIntervalMs(series) {
   const sec = series.eventResolutionSec;
   if (typeof sec === "number" && sec > 0) return sec * 1000;
   return inferResolutionMs(series.eventStarts || []);
+}
+
+// Match Vega-Lite (`create_line_layer` in belief_charts.py): use linear interpolation if any of a row's real sensors is instantaneous (event_resolution 0),
+// otherwise use step-after.
+// Only real sensors determine interpolation; fixed-value sensors (negative sensorId) always have event_resolution=0 by construction,
+// and must not force a mixed row to linear (#2253).
+export function isGroupInstantaneous(group) {
+  const realSeries = (group.series || []).filter(
+    (s) => typeof s.sensorId !== "number" || s.sensorId >= 0
+  );
+  return realSeries.some((s) =>
+    typeof s.eventResolutionSec === "number"
+      ? s.eventResolutionSec === 0
+      : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
+  );
 }
 
 // How wide (in pixels) a bar covering `intervalMs` must be drawn on a time axis spanning `spanMs` across `gridWidthPx` pixels.
@@ -1546,15 +1562,11 @@ function buildLineBarOption(elementId, groups, opts) {
       minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
-    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation for
-    // the whole row if ANY of its sensors is instantaneous (event_resolution 0),
-    // otherwise step-after. Prefer the sensor's real resolution; fall back to
-    // inferring it from event spacing only for legacy data without it.
-    const groupIsInstantaneous = group.series.some((s) =>
-      typeof s.eventResolutionSec === "number"
-        ? s.eventResolutionSec === 0
-        : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
-    );
+    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation if any of the row's real sensors is instantaneous (event_resolution 0),
+    // otherwise use step-after.
+    // Only real sensors determine interpolation; fixed-value sensors (negative sensorId) always have event_resolution=0 by construction,
+    // and must not force a mixed row to linear (#2253).
+    const groupIsInstantaneous = isGroupInstantaneous(group);
     // Annotation marks (shaded bands, instant rules) and the replay ruler live
     // on a dedicated, data-less carrier series, so they also show in subplots
     // that (still) have no data — parity with the Vega-Lite annotation layers.
