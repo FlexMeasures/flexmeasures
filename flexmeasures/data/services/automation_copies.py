@@ -29,6 +29,7 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.services.automations import (
     WINDOW_FIELDS,
     get_forecast_output_sensor,
+    set_automation_dependencies,
     validate_automation_output_scope,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
@@ -92,6 +93,8 @@ def copy_automations(
     with its references to sensors inside the subtree pointed at the new sensors.
     A copy keeps its name, type, cron expression and timezone, but starts inactive and with a fresh cursor,
     so that it inherits neither the original's run history nor its queued jobs.
+    A copy waits for the copies of the automations its original waits for, where those were copied, too,
+    and for the very automations its original waits for otherwise.
 
     An automation that cannot be copied safely is skipped rather than failing the asset copy:
     the copied asset, its sensors and the other automations are kept.
@@ -120,10 +123,11 @@ def copy_automations(
     )
 
     skipped: list[SkippedAutomation] = []
+    copies: dict[int, Automation] = {}
     for automation in source_automations:
         try:
             with db.session.begin_nested():
-                _copy_automation(
+                copies[automation.id] = _copy_automation(
                     automation=automation,
                     asset_id_map=asset_id_map,
                     sensor_id_map=sensor_id_map,
@@ -148,7 +152,35 @@ def copy_automations(
                     reason=str(e),
                 )
             )
+    _copy_dependencies(source_automations, copies)
     return skipped
+
+
+def _copy_dependencies(
+    source_automations: list[Automation], copies: dict[int, Automation]
+) -> None:
+    """Have each copy wait for what its original waits for, pointing at the copies where there are any.
+
+    This happens once all automations were copied, as an automation may wait for one that was copied after it.
+    The copies recur on the schedules of their originals, and a copied set of dependencies cannot form a cycle the originals did not,
+    so the dependencies need no validation beyond what the originals had.
+    """
+    for automation in source_automations:
+        copied_automation = copies.get(automation.id)
+        if copied_automation is None or not automation.dependencies:
+            continue
+        set_automation_dependencies(
+            copied_automation,
+            [
+                {
+                    "upstream": copies.get(dependency.upstream_id, dependency.upstream),
+                    "allow_failure": dependency.allow_failure,
+                }
+                for dependency in automation.dependencies
+            ],
+            origin="asset copy",
+        )
+    db.session.flush()
 
 
 def _copy_automation(

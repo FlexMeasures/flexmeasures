@@ -25,13 +25,14 @@ from marshmallow import ValidationError
 from rq import get_current_job
 from rq.job import Job, JobStatus
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import (
     Automation,
+    AutomationDependency,
     AutomationRun,
     AutomationRunAttempt,
     AutomationRunJob,
@@ -73,6 +74,10 @@ AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
     "queued",
     "failed",
 )
+# The automation types whose runs are dispatched a second time, after an attempt that failed.
+# A forecast run's jobs carry IDs derived from the run, so a retry recognizes the ones it already queued.
+# A schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules,
+# which is why such a run is recorded and reported, but left where it failed.
 
 
 # The automation types whose runs are dispatched again after a failed dispatch.
@@ -266,12 +271,16 @@ def claim_existing_automation_run(
     run: AutomationRun,
     owner: str | None = None,
     lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+    dispatch_states: tuple[str, ...] = AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES,
 ) -> ClaimedAutomationRun | None:
     """Claim a durable automation run whose dispatch is unfinished and unclaimed.
 
     A run is only up for grabs once no other runner holds a live claim on it,
     because the dispatch state turns to 'partially_queued' while the owning runner is still queueing the rest of its jobs.
     A runner which fails releases its own claim, so its run is immediately retryable.
+
+    :param dispatch_states: the dispatch states the run may be in to be claimed;
+                            a run that is 'waiting' for its upstream runs is claimed only once they ended (see `release_automation_runs_waiting_for`).
     """
     owner = owner or _runner_owner()
     now = _now_utc()
@@ -279,7 +288,7 @@ def claim_existing_automation_run(
         update(AutomationRun)
         .where(
             AutomationRun.id == run.id,
-            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_state.in_(dispatch_states),
             AutomationRun.dispatch_completed_at.is_(None),
             AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
             _claim_is_available(now),
@@ -309,7 +318,12 @@ def get_dispatchable_automation_runs(
     now: datetime | None = None,
     owner: str | None = None,
 ) -> list[ClaimedAutomationRun]:
-    """Claim new due occurrences and resumable durable runs for dispatch."""
+    """Claim new due occurrences, resumable durable runs, and waiting runs whose upstream runs ended, for dispatch.
+
+    A waiting run is normally dispatched as soon as the last upstream run it waits for ends (see `release_automation_runs_waiting_for`).
+    Looking at the waiting runs here, too, catches the ones whose release was missed,
+    for instance because the worker that ended the upstream run went down before it got to them.
+    """
     if now is None:
         now = _now_utc()
     now = floor_to_minute(now)
@@ -324,6 +338,8 @@ def get_dispatchable_automation_runs(
         .join(Automation)
         .where(
             Automation.active.is_(True),
+            # Whoever asked for a run on demand is told when it fails, and can ask again.
+            AutomationRun.trigger == "schedule",
             AutomationRun.automation_type.in_(AUTOMATION_RUN_RETRIED_TYPES),
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
@@ -340,7 +356,318 @@ def get_dispatchable_automation_runs(
         claimed = claim_existing_automation_run(run, owner=owner)
         if claimed is not None:
             claimed_runs.append(claimed)
+
+    waiting_runs = db.session.scalars(
+        select(AutomationRun)
+        .join(Automation)
+        .where(
+            Automation.active.is_(True),
+            AutomationRun.dispatch_state == "waiting",
+            _claim_is_available(now),
+        )
+        .order_by(AutomationRun.scheduled_at, AutomationRun.id)
+    ).all()
+    for run in waiting_runs:
+        if check_upstream_runs(run)[0] == "wait":
+            continue
+        claimed = claim_existing_automation_run(
+            run, owner=owner, dispatch_states=("waiting",)
+        )
+        if claimed is not None:
+            claimed_runs.append(claimed)
     return claimed_runs
+
+
+def _dispatch_was_given_up(run: AutomationRun) -> bool:
+    """Whether a run's dispatch failed for good, so that it will never queue (the rest of) its jobs."""
+    return (
+        run.dispatch_completed_at is None
+        and run.dispatch_state in ("failed", "partially_queued")
+        # A runner that is still queueing the jobs of a run holds a claim on it, and may yet finish.
+        and run.claim_owner is None
+        and (
+            run.trigger == "on-demand"
+            or run.automation_type not in AUTOMATION_RUN_RETRIED_TYPES
+            or run.attempt_count >= AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
+        )
+    )
+
+
+def _upstream_run_state(run: AutomationRun) -> str:
+    """Say whether an upstream run 'succeeded', 'failed', or is still 'pending', as far as the runs waiting for it are concerned.
+
+    A run that was skipped, or canceled, did not deliver what the runs waiting for it need, so it counts as failed.
+    So does a run whose dispatch was given up, as it will never end otherwise.
+    """
+    if run.execution_completed_at is not None:
+        return "succeeded" if run.execution_state == "succeeded" else "failed"
+    if _dispatch_was_given_up(run):
+        return "failed"
+    return "pending"
+
+
+def _state_without_upstream_run(upstream: Automation, due_at: datetime) -> str:
+    """Say what it means that an upstream automation has no run for the time it was due at.
+
+    - 'pending': the upstream automation is due at that time, but no runner claimed its run yet.
+    - 'passed-over': the upstream automation was due at that time, but moved past it without a run,
+      as missed runs are coalesced or left out (see `get_due_automations`).
+    - 'not-scheduled': the upstream automation was never going to run at that time,
+      as it is inactive, or did not exist yet.
+    """
+    if (
+        not upstream.active
+        # An automation's first run can be the one due in the minute it was created (see `get_initial_cursor`).
+        or floor_to_minute(upstream.created_at) > due_at
+    ):
+        return "not-scheduled"
+    if upstream.cursor is None or upstream.cursor < due_at:
+        return "pending"
+    return "passed-over"
+
+
+def get_upstream_due_at(
+    upstream: Automation, scheduled_at: datetime
+) -> datetime | None:
+    """Return when the upstream run that a run scheduled at this time waits for is due.
+
+    That is the latest time the upstream automation is due at, by its own schedule, up to and including the time the waiting run is scheduled at.
+    For instance, an hourly run at 10:00 waits for the run of a quarter-hourly upstream automation due at 10:00,
+    and a quarter-hourly run at 10:15 waits for the run of an hourly upstream automation due at 10:00.
+
+    :returns: None if the upstream automation's schedule cannot be read, such as for a stale timezone.
+    """
+    try:
+        return get_latest_scheduled_run(upstream, scheduled_at)
+    except (CroniterError, ValueError, ZoneInfoNotFoundError):
+        return None
+
+
+def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
+    """Decide whether a run can be dispatched yet, going by the runs of the automations it waits for.
+
+    Each upstream automation's latest run due at or before the run's own scheduled time counts (see `get_upstream_due_at`),
+    so the automations need not recur on the same schedule.
+    The run is skipped as soon as one of those failed or will not happen, unless its dependency allows for that,
+    as its jobs would compute with input that was never produced.
+    Otherwise, it waits for as long as one of them has yet to end.
+    An upstream automation that was never going to run at that time is left out, and the run goes ahead without it.
+
+    A run on demand only waits for the runs that were asked for along with it (see `run_automation_chain`).
+
+    :returns:   'wait', 'skip' or 'go', and for each dependency, what was found:
+                the upstream automation, whether its failure is allowed for, its run (if any) and the state of that run.
+    """
+    if run.trigger == "on-demand":
+        found = _find_chain_upstream_runs(run)
+        return _upstream_verdict(found), found
+    found = []
+    for dependency in run.automation.dependencies:
+        due_at = get_upstream_due_at(dependency.upstream, run.scheduled_at)
+        upstream_run = (
+            db.session.scalars(
+                select(AutomationRun)
+                .where(
+                    AutomationRun.automation_id == dependency.upstream_id,
+                    AutomationRun.trigger == "schedule",
+                    AutomationRun.scheduled_at == due_at,
+                )
+                .order_by(AutomationRun.schedule_revision.desc())
+                .limit(1)
+            ).first()
+            if due_at is not None
+            else None
+        )
+        if upstream_run is not None:
+            state = _upstream_run_state(upstream_run)
+        elif due_at is None:
+            state = "not-scheduled"
+        else:
+            state = _state_without_upstream_run(dependency.upstream, due_at)
+        found.append(
+            {
+                "automation": dependency.upstream_id,
+                "allow-failure": dependency.allow_failure,
+                "due-at": due_at.isoformat() if due_at is not None else None,
+                "run": upstream_run.id if upstream_run is not None else None,
+                "state": state,
+            }
+        )
+    return _upstream_verdict(found), found
+
+
+def _find_chain_upstream_runs(run: AutomationRun) -> list[dict[str, Any]]:
+    """Find the runs asked for on demand along with this run, which it waits for, as recorded when they were created."""
+    allow_failure = {
+        dependency.upstream_id: dependency.allow_failure
+        for dependency in run.automation.dependencies
+    }
+    found = []
+    for upstream in (run.plan or {}).get("chain-upstream-runs", []):
+        upstream_run = db.session.get(AutomationRun, upstream["run"])
+        found.append(
+            {
+                "automation": upstream["automation"],
+                "allow-failure": allow_failure.get(upstream["automation"], False),
+                "due-at": run.scheduled_at.isoformat(),
+                "run": upstream["run"],
+                # A run that is gone, along with its automation, will not produce anything.
+                "state": (
+                    _upstream_run_state(upstream_run)
+                    if upstream_run is not None
+                    else "failed"
+                ),
+            }
+        )
+    return found
+
+
+def _upstream_verdict(found: list[dict[str, Any]]) -> str:
+    """Say whether a run should 'skip', 'wait' or 'go', given the state of each upstream run it waits for."""
+    if any(
+        upstream["state"] in ("failed", "passed-over") and not upstream["allow-failure"]
+        for upstream in found
+    ):
+        return "skip"
+    if any(upstream["state"] == "pending" for upstream in found):
+        return "wait"
+    return "go"
+
+
+def _describe_upstream_runs(
+    found: list[dict[str, Any]], states: tuple[str, ...]
+) -> str:
+    """Name the upstream automations whose runs are in one of these states, for a message."""
+    return ", ".join(
+        f"{upstream['automation']}"
+        + (f" (run {upstream['run']})" if upstream["run"] is not None else "")
+        for upstream in found
+        if upstream["state"] in states
+    )
+
+
+def _hold_automation_run(
+    claimed_run: ClaimedAutomationRun, found: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Have a run wait for its upstream runs, releasing the claim on it, as no runner has to hold on to it meanwhile."""
+    run = claimed_run.run
+    run.dispatch_state = "waiting"
+    run.claim_owner = None
+    run.claim_expires_at = None
+    _finish_attempt(claimed_run.attempt, "waiting", 0)
+    db.session.commit()
+    message = f"It waits for the run(s) of automation(s) {_describe_upstream_runs(found, ('pending',))} to end."
+    # An upstream run may have ended between deciding to wait and saying so,
+    # in which case nothing else would come back to this run before the next runner tick.
+    released = release_waiting_automation_run(run)
+    if released is not None:
+        return released
+    return {
+        "run_id": run.id,
+        "job_id": None,
+        "n_jobs": 0,
+        "dispatch_state": "waiting",
+        "message": message,
+    }
+
+
+def _skip_automation_run(
+    claimed_run: ClaimedAutomationRun, found: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """End a run without queueing any jobs, as an upstream run it waits for did not succeed."""
+    run = claimed_run.run
+    now = _now_utc()
+    reason = f"Skipped, as the run(s) of automation(s) {_describe_upstream_runs(found, ('failed', 'passed-over'))} that this run waits for did not succeed or did not happen."
+    run.dispatch_state = "queued"
+    run.dispatch_completed_at = now
+    run.execution_state = "skipped"
+    run.execution_completed_at = now
+    run.last_error_type = "UpstreamRunFailed"
+    run.last_error_message = reason
+    run.claim_owner = None
+    run.claim_expires_at = None
+    _finish_attempt(claimed_run.attempt, "skipped", 0)
+    db.session.commit()
+    # Whatever waits for this run cannot have its input either.
+    release_automation_runs_waiting_for(run)
+    return {
+        "run_id": run.id,
+        "job_id": None,
+        "n_jobs": 0,
+        "dispatch_state": "skipped",
+        "message": reason,
+    }
+
+
+def release_waiting_automation_run(run: AutomationRun) -> dict[str, Any] | None:
+    """Dispatch a waiting run, or skip it, if the upstream runs it waits for ended.
+
+    Another worker or runner may be releasing the same run at the same time, so it is claimed first, and only one of them gets it.
+    A failure to dispatch is recorded on the run (see `dispatch_automation_run`), rather than handed to whoever ended the upstream run,
+    whose own job succeeded or failed regardless.
+
+    :returns: what the dispatch returned, or None if the run was left waiting.
+    """
+    db.session.refresh(run)
+    if run.dispatch_state != "waiting" or not run.automation.active:
+        return None
+    if check_upstream_runs(run)[0] == "wait":
+        return None
+    claimed = claim_existing_automation_run(run, dispatch_states=("waiting",))
+    if claimed is None:
+        return None
+    try:
+        return dispatch_automation_run(claimed)
+    except Exception as exc:
+        # Any error, whatever its kind, was recorded on the run by the dispatch, which is what the run's owner gets to see.
+        # The upstream run ended either way, so its job does not fail on account of the run that waited for it.
+        current_app.logger.warning(
+            f"Automation run {run.id} failed to dispatch once its upstream runs ended: {exc}"
+        )
+        return None
+
+
+def release_automation_runs_waiting_for(upstream_run: AutomationRun) -> None:
+    """Dispatch, or skip, the runs that wait for this upstream run, now that it ended.
+
+    This is called wherever a run ends: when its last job ends, when it queued no jobs, when its dispatch failed for good, and when it was skipped.
+    A runner also looks at the waiting runs on every tick (see `get_dispatchable_automation_runs`), in case a release here was missed.
+    """
+    waiting_runs = db.session.scalars(
+        select(AutomationRun)
+        .join(
+            AutomationDependency,
+            AutomationDependency.automation_id == AutomationRun.automation_id,
+        )
+        .where(
+            AutomationDependency.upstream_id == upstream_run.automation_id,
+            # A run waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`),
+            # so the runs that wait for this one are scheduled at the same time or later.
+            # Those that wait for a later upstream run are checked, too, and left waiting (see `release_waiting_automation_run`).
+            AutomationRun.scheduled_at >= upstream_run.scheduled_at,
+            AutomationRun.dispatch_state == "waiting",
+        )
+        .order_by(AutomationRun.id)
+    ).all()
+    for run in waiting_runs:
+        release_waiting_automation_run(run)
+
+
+def _release_runs_waiting_for_ended_run(run: AutomationRun) -> None:
+    """Release the runs waiting for this run, if it ended, without letting a database error there reach whoever ended it.
+
+    The callers record how a job or a dispatch ended, which stands whatever becomes of the runs waiting for it;
+    a runner picks those up on its next tick instead (see `get_dispatchable_automation_runs`).
+    """
+    if run.execution_completed_at is None and not _dispatch_was_given_up(run):
+        return
+    try:
+        release_automation_runs_waiting_for(run)
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        current_app.logger.warning(
+            f"Could not release the automation runs waiting for run {run.id}, so a runner will on its next tick: {exc}"
+        )
 
 
 def pin_automation_run_effective_start(
@@ -488,6 +815,7 @@ def mark_automation_run_dispatch_failed(
     run.claim_expires_at = _now_utc() + _retry_delay(run.attempt_count)
     _finish_attempt(attempt, run.dispatch_state, queued_count, error)
     db.session.commit()
+    _release_runs_waiting_for_ended_run(run)
 
 
 def record_automation_job_started(
@@ -555,6 +883,7 @@ def record_automation_job_succeeded(
     intent.finished_at = now
     _refresh_run_execution_state(intent.run, now)
     db.session.commit()
+    _release_runs_waiting_for_ended_run(intent.run)
 
 
 def record_automation_job_failed(
@@ -607,6 +936,7 @@ def _record_automation_job_failure(
     run.last_error_type = error_type
     run.last_error_message = error_message
     db.session.commit()
+    _release_runs_waiting_for_ended_run(run)
 
 
 def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
@@ -647,6 +977,7 @@ def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) ->
         run.execution_state = "succeeded"
         run.execution_completed_at = now
         db.session.commit()
+        _release_runs_waiting_for_ended_run(run)
         return
     run.plan = {
         **dict(run.plan or {}),
@@ -2024,8 +2355,12 @@ def create_automation(
     source: DataSource | None = None,
     origin: str = "API",
     check_permissions: bool = False,
+    dependencies: list[dict[str, Any]] | None = None,
 ) -> tuple[Automation, list[str]]:
-    """Create an automation through its registered handler, without committing."""
+    """Create an automation through its registered handler, without committing.
+
+    :param dependencies:    the automations whose runs this automation's runs wait for (see `set_automation_dependencies`).
+    """
     from flask_security import current_user
     from flexmeasures.data.automations import (
         get_automation_handler,
@@ -2033,6 +2368,11 @@ def create_automation(
     )
 
     validate_automation_type(automation_type)
+    if dependencies:
+        # Check these first, so that nothing is set up for an automation that is refused.
+        validate_automation_dependencies(
+            None, dependencies, check_permissions=check_permissions
+        )
     automation, warnings = get_automation_handler(automation_type).create(
         asset=asset,
         name=name,
@@ -2053,6 +2393,8 @@ def create_automation(
 
             raise Unauthorized()
         automation.execution_user_id = current_user.id
+    if dependencies:
+        set_automation_dependencies(automation, dependencies, origin=origin)
     return automation, warnings
 
 
@@ -2242,17 +2584,28 @@ def update_automation(
     timezone: str | None = None,
     active: bool | None = None,
     origin: str = "API",
+    dependencies: list[dict[str, Any]] | None = None,
+    check_permissions: bool = False,
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation's name, cron string, timezone, activation status and/or dependencies (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
     An audit log record is added to the asset.
 
+    :param dependencies:        the automations whose runs this automation's runs wait for, replacing the ones it had; None leaves them as they are.
+    :param check_permissions:   whether to require that the current user may read the upstream automations named in `dependencies`.
+    :raises marshmallow.ValidationError: if the dependencies are not possible.
     :returns: a list of (human-readable) changes; empty if nothing changed.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    # Check everything before changing anything, so that a refused update leaves the automation as it was.
+    if dependencies is not None:
+        validate_automation_dependencies(
+            automation, dependencies, check_permissions=check_permissions
+        )
 
     changes = []
     reset_cursor = False
@@ -2277,12 +2630,154 @@ def update_automation(
         # even where they fall on the same scheduled UTC time.
         automation.schedule_revision += 1
         automation.cursor = get_initial_cursor()
+    if dependencies is not None:
+        # This records its own audit log line, as creating an automation with dependencies does.
+        dependency_changes = set_automation_dependencies(
+            automation, dependencies, origin=origin
+        )
+    else:
+        dependency_changes = []
     if changes:
         AssetAuditLog.add_record(
             automation.asset,
             f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via {origin}.",
         )
-    return changes
+    return changes + dependency_changes
+
+
+def _describe_dependency(upstream: Automation, allow_failure: bool) -> str:
+    """Name an upstream automation in a message, and say whether its failure is allowed for."""
+    return f"{upstream.id}{' (also when it fails)' if allow_failure else ''}"
+
+
+def _upstream_ids_reachable_from(automation_ids: set[int]) -> set[int]:
+    """Return every automation that the given automations wait for, directly or through others."""
+    reached: set[int] = set()
+    frontier = set(automation_ids)
+    while frontier:
+        upstream_ids = set(
+            db.session.scalars(
+                select(AutomationDependency.upstream_id).where(
+                    AutomationDependency.automation_id.in_(frontier)
+                )
+            ).all()
+        )
+        frontier = upstream_ids - reached
+        reached |= upstream_ids
+    return reached
+
+
+def validate_automation_dependencies(
+    automation: Automation | None,
+    dependencies: list[dict[str, Any]],
+    check_permissions: bool = False,
+) -> None:
+    """Check that an automation may wait for these upstream automations.
+
+    The automations need not recur on the same schedule, as a run waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`).
+    An automation waiting for itself, directly or through others, would never run, so such a cycle is refused.
+
+    :param automation:          the automation that is to wait, or None for one that is about to be created.
+    :param dependencies:        dicts with the upstream automation under "upstream", and whether its failure is allowed for under "allow_failure".
+    :param check_permissions:   whether to require that the current user may read each upstream automation (and so its asset).
+    :raises marshmallow.ValidationError: if a dependency is not possible, under the "depends-on" field.
+    :raises werkzeug.exceptions.Forbidden: if the current user may not read an upstream automation.
+    """
+    from flexmeasures.auth.policy import check_access
+
+    automation_id = automation.id if automation is not None else None
+    errors = []
+    upstream_ids = [dependency["upstream"].id for dependency in dependencies]
+    duplicates = sorted(
+        {
+            upstream_id
+            for upstream_id in upstream_ids
+            if upstream_ids.count(upstream_id) > 1
+        }
+    )
+    if duplicates:
+        errors.append(
+            f"Automation(s) {', '.join(map(str, duplicates))} are named more than once."
+        )
+    for dependency in dependencies:
+        upstream = dependency["upstream"]
+        if check_permissions:
+            check_access(upstream, "read")
+        if automation_id is not None and upstream.id == automation_id:
+            errors.append(f"Automation {upstream.id} cannot wait for itself.")
+            continue
+    # An automation that is about to be created has nothing waiting for it yet, so it cannot close a cycle.
+    if automation_id is not None and automation_id in _upstream_ids_reachable_from(
+        {upstream_id for upstream_id in upstream_ids if upstream_id != automation_id}
+    ):
+        errors.append(
+            f"Automation {automation_id} would end up waiting for itself, as one of the automations it waits for already waits for it, directly or through others."
+        )
+    if errors:
+        raise ValidationError({"depends-on": errors})
+
+
+def set_automation_dependencies(
+    automation: Automation,
+    dependencies: list[dict[str, Any]],
+    origin: str = "API",
+) -> list[str]:
+    """Replace the automations that an automation's runs wait for (not committed yet).
+
+    Validate them first (see `validate_automation_dependencies`).
+    An audit log record is added to the asset if anything changed.
+
+    :param dependencies:    dicts with the upstream automation under "upstream", and whether its failure is allowed for under "allow_failure".
+    :returns:               a list of (human-readable) changes; empty if nothing changed.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    current = {
+        dependency.upstream_id: dependency.allow_failure
+        for dependency in automation.dependencies
+    }
+    wanted = {
+        dependency["upstream"].id: bool(dependency.get("allow_failure", False))
+        for dependency in dependencies
+    }
+    if current == wanted:
+        return []
+    upstreams = {
+        dependency["upstream"].id: dependency["upstream"] for dependency in dependencies
+    }
+    automation.dependencies = [
+        AutomationDependency(
+            automation=automation,
+            upstream=upstreams[upstream_id],
+            allow_failure=allow_failure,
+        )
+        for upstream_id, allow_failure in sorted(wanted.items())
+    ]
+    described = (
+        ", ".join(
+            _describe_dependency(upstreams[upstream_id], allow_failure)
+            for upstream_id, allow_failure in sorted(wanted.items())
+        )
+        or "none"
+    )
+    change = f"depends on: {described}"
+    if automation.id is not None:
+        AssetAuditLog.add_record(
+            automation.asset,
+            f"Updated automation '{automation.name}' ({automation.id}): {change}. Via {origin}.",
+        )
+    return [change]
+
+
+def serialize_automation_dependencies(automation: Automation) -> list[dict[str, Any]]:
+    """Render the automations an automation waits for, as the API names them."""
+    return [
+        {
+            "automation": dependency.upstream_id,
+            "allow-failure": dependency.allow_failure,
+        }
+        for dependency in automation.dependencies
+    ]
 
 
 def delete_automation(automation: Automation, origin: str = "API"):
@@ -2303,6 +2798,7 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
         "id": run.id,
         "scheduled-at": run.scheduled_at.isoformat(),
         "schedule-revision": run.schedule_revision,
+        "trigger": run.trigger,
         "dispatch-state": run.dispatch_state,
         "execution-state": run.execution_state,
         "attempt-count": run.attempt_count,
@@ -2319,6 +2815,8 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
             if run.execution_completed_at
             else None
         ),
+        # What the run found of the upstream runs it waits for, when it last looked (see `check_upstream_runs`).
+        "upstream-runs": list((run.plan or {}).get("upstream-runs", [])),
         "claim-owner": run.claim_owner,
         "claim-expires-at": (
             run.claim_expires_at.isoformat() if run.claim_expires_at else None
@@ -2508,6 +3006,15 @@ def dispatch_automation_run(
         raise AutomationRunClaimLost(
             f"Automation run {run.id} is no longer claimed by {owner}, so another runner is dispatching it."
         )
+    if run.automation.dependencies and not run.job_intents:
+        # A run that queued jobs before was past its upstream runs already, so a retry does not wait for them again.
+        verdict, found = check_upstream_runs(run)
+        run.plan = {**dict(run.plan or {}), "upstream-runs": found}
+        if verdict == "wait":
+            return _hold_automation_run(claimed_run, found)
+        if verdict == "skip":
+            return _skip_automation_run(claimed_run, found)
+        db.session.commit()
     try:
         returns = run_automation(run.automation, automation_run=run)
     except Exception as exc:
@@ -2520,6 +3027,109 @@ def dispatch_automation_run(
         "n_jobs": returns.get("n_jobs") if returns else 0,
         "dispatch_state": "queued",
     }
+
+
+def get_dependent_automations(automation: Automation) -> list[Automation]:
+    """Return the active automations that wait for this one, directly or through others, those nearest to it first.
+
+    An inactive automation is left out, and so are the ones that only wait for it, as it does not run.
+    """
+    reached = {automation.id}
+    frontier = [automation.id]
+    dependents: list[Automation] = []
+    while frontier:
+        found = db.session.scalars(
+            select(Automation)
+            .join(
+                AutomationDependency,
+                AutomationDependency.automation_id == Automation.id,
+            )
+            .where(
+                AutomationDependency.upstream_id.in_(frontier),
+                Automation.active.is_(True),
+            )
+            .order_by(Automation.id)
+        ).unique()
+        frontier = []
+        for dependent in found:
+            if dependent.id not in reached:
+                reached.add(dependent.id)
+                dependents.append(dependent)
+                frontier.append(dependent.id)
+    return dependents
+
+
+def _new_on_demand_run(
+    automation: Automation, scheduled_at: datetime, dispatch_state: str
+) -> AutomationRun:
+    """Make a durable record for a run asked for on demand (not committed yet)."""
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=scheduled_at,
+        schedule_revision=automation.schedule_revision,
+        trigger="on-demand",
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state=dispatch_state,
+        execution_state="pending",
+        attempt_count=0,
+        parameters=dict(automation.parameters or {}),
+        plan=_run_snapshot(automation, scheduled_at),
+    )
+    db.session.add(run)
+    return run
+
+
+def run_automation_chain(
+    automation: Automation,
+    now: datetime | None = None,
+    owner: str | None = None,
+) -> tuple[dict[str, Any], list[AutomationRun]]:
+    """Run an automation now, along with the automations that wait for it, each of which runs once the runs it waits for ended.
+
+    This is how a chain is re-run, for instance once the data at its start was backfilled.
+    The automation itself runs right away, without waiting for the automations it depends on, as a run on demand does.
+    Each automation that waits for it, directly or through others (see `get_dependent_automations`), gets a run that waits,
+    for the runs asked for along with it only, and that is skipped if one of those failed, as a scheduled run is.
+    None of these runs affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue.
+
+    :returns:   what the automation's own run dispatched (see `dispatch_automation_run`),
+                and the runs that wait for it, in the order of `get_dependent_automations`.
+    """
+    owner = owner or _runner_owner()
+    claimed_at = _now_utc()
+    scheduled_at = floor_to_minute(now or claimed_at)
+    root_run = _new_on_demand_run(automation, scheduled_at, "claimed")
+    root_run.claim_owner = owner
+    root_run.claimed_at = claimed_at
+    root_run.claim_expires_at = _claim_expires_at(
+        claimed_at, AUTOMATION_RUN_CLAIM_LEASE
+    )
+    root_run.attempt_count = 1
+    runs = {automation.id: root_run}
+    dependents = get_dependent_automations(automation)
+    for dependent in dependents:
+        runs[dependent.id] = _new_on_demand_run(dependent, scheduled_at, "waiting")
+    db.session.flush()
+    for dependent in dependents:
+        run = runs[dependent.id]
+        run.plan = {
+            **dict(run.plan or {}),
+            "chain-upstream-runs": [
+                {
+                    "automation": dependency.upstream_id,
+                    "run": runs[dependency.upstream_id].id,
+                }
+                for dependency in dependent.dependencies
+                if dependency.upstream_id in runs
+            ],
+        }
+    attempt = _new_attempt(root_run, owner, claimed_at)
+    db.session.commit()
+    returns = dispatch_automation_run(
+        ClaimedAutomationRun(run=root_run, attempt=attempt)
+    )
+    return returns, [runs[dependent.id] for dependent in dependents]
 
 
 def run_automation(

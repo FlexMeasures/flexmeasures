@@ -47,6 +47,7 @@ from flexmeasures.data.services.automations import (
     floor_to_minute,
     get_dispatchable_automation_runs,
     run_automation,
+    run_automation_chain,
 )
 from flexmeasures.data.services.data_sources import (
     find_duplicate_sources,
@@ -100,6 +101,10 @@ def run_automations():
 
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
+
+    A run of an automation that depends on other automations waits for their latest runs due at or before its own scheduled time,
+    and queues its jobs as soon as the last of them ended, or is skipped if one of them failed.
+    This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
     claimed_runs = get_dispatchable_automation_runs(now)
@@ -114,6 +119,17 @@ def run_automations():
         try:
             returns = dispatch_automation_run(claimed_run)
             n_jobs = returns["n_jobs"]
+            if returns.get("dispatch_state") in ("waiting", "skipped"):
+                click.secho(
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    **(
+                        MsgStyle.WARN
+                        if returns["dispatch_state"] == "skipped"
+                        else MsgStyle.SUCCESS
+                    ),
+                )
+                n_run += 1
+                continue
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
@@ -144,7 +160,14 @@ def run_automations():
     required=True,
     help="ID of the automation to run.",
 )
-def run_one_automation(automation: Automation):
+@click.option(
+    "--with-dependents",
+    "with_dependents",
+    is_flag=True,
+    help="Also run the active automations that wait for this one, directly or through others,"
+    " each once the runs it waits for ended, for instance to re-run a chain after backfilling the data at its start.",
+)
+def run_one_automation(automation: Automation, with_dependents: bool = False):
     """
     Queue the jobs for a single run of one automation, now.
 
@@ -159,7 +182,17 @@ def run_one_automation(automation: Automation):
     This does not affect the automation's recurrence: its cursor stays where it was,
     so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
     Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    A run on demand does not wait for the automations this one depends on, as it is meant to run now.
+
+    With --with-dependents, the automations that wait for this one get a run, too,
+    which waits for the runs asked for along with it, and is skipped if one of those failed:
+
+    \b
+        flexmeasures jobs run-automation --automation 4 --with-dependents
     """
+    if with_dependents:
+        _run_automation_chain(automation)
+        return
     try:
         returns = run_automation(automation)
     except (
@@ -193,6 +226,49 @@ def run_one_automation(automation: Automation):
         f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
+
+
+def _run_automation_chain(automation: Automation):
+    """Run an automation along with the automations that wait for it, and say what each of them does."""
+    try:
+        returns, dependent_runs = run_automation_chain(automation)
+    except (
+        NotImplementedError,
+        ValueError,
+        ValidationError,
+        AutomationSensorsUnknown,
+        Forbidden,
+    ) as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs, so the automations waiting for it are skipped: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Triggered a run of automation '{automation.name}' ({automation.id}) and of the {len(dependent_runs)} automation(s) waiting for it via CLI.",
+    )
+    for run in dependent_runs:
+        AssetAuditLog.add_record(
+            run.automation.asset,
+            f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), waiting for a run of automation {automation.id}, via CLI.",
+        )
+    db.session.commit()
+    click.secho(
+        f"Automation {automation.id} ('{automation.name}') run {returns['run_id']} queued {returns['n_jobs']} {automation.type} job(s) for asset {automation.asset_id}.",
+        **MsgStyle.SUCCESS,
+    )
+    for run in dependent_runs:
+        db.session.refresh(run)
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id} is {run.dispatch_state}"
+            + (f" ({run.execution_state})" if run.execution_state == "skipped" else "")
+            + ".",
+            **(MsgStyle.WARN if run.execution_state == "skipped" else MsgStyle.SUCCESS),
+        )
+    if not dependent_runs:
+        click.secho("No active automations wait for this one.", **MsgStyle.WARN)
 
 
 @fm_jobs.command("stats")

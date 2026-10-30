@@ -8,6 +8,7 @@ import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
+from marshmallow import ValidationError
 import json
 from flexmeasures.data.models.user import Account, Plan
 from flexmeasures.data.schemas.account import AccountIdField
@@ -35,6 +36,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     abort,
+    assemble_automation_dependencies,
     validate_rate_limit_cli,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
@@ -98,22 +100,66 @@ def fm_edit_data():
     default=None,
     help="Activate or deactivate the automation.",
 )
+@click.option(
+    "--depends-on",
+    "depends_on",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
+    " Replaces the automations it waited for. Repeat to wait for several automations.",
+)
+@click.option(
+    "--allow-failure-of",
+    "allow_failure_of",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation given with --depends-on whose failed (or missed) run should not stop this automation's run."
+    " Repeat for several.",
+)
+@click.option(
+    "--no-dependencies",
+    "no_dependencies",
+    is_flag=True,
+    help="Stop waiting for other automations.",
+)
 def edit_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    depends_on: tuple[Automation, ...] = (),
+    allow_failure_of: tuple[Automation, ...] = (),
+    no_dependencies: bool = False,
 ):
-    """Edit the name, recurrence, timezone or activation status of an automation."""
-    changes = update_automation(
-        automation,
-        name=name,
-        cronstr=cronstr,
-        timezone=timezone,
-        active=active,
-        origin="CLI",
-    )
+    """Edit the name, recurrence, timezone, activation status or dependencies of an automation."""
+    if no_dependencies and (depends_on or allow_failure_of):
+        raise click.UsageError(
+            "--no-dependencies cannot be combined with --depends-on or --allow-failure-of."
+        )
+    if allow_failure_of and not depends_on:
+        raise click.UsageError(
+            "--allow-failure-of needs --depends-on, as it replaces all the automations this one waits for."
+        )
+    if no_dependencies:
+        dependencies: list[dict] | None = []
+    elif depends_on:
+        dependencies = assemble_automation_dependencies(depends_on, allow_failure_of)
+    else:
+        dependencies = None
+    try:
+        changes = update_automation(
+            automation,
+            name=name,
+            cronstr=cronstr,
+            timezone=timezone,
+            active=active,
+            origin="CLI",
+            dependencies=dependencies,
+        )
+    except ValidationError as e:
+        db.session.rollback()
+        abort(f"Cannot update automation {automation.id}: {e.messages}")
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return

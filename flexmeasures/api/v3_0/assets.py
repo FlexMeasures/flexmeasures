@@ -64,8 +64,10 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    get_dependent_automations,
     resolve_automation_sensors,
     run_automation,
+    run_automation_chain,
     update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -1781,6 +1783,11 @@ class AssetAPI(FlaskView):
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from,
             and permission to record data on the sensors it writes to.
+
+            An automation can wait for other automations that it consumes the results of, listed in `depends-on`.
+            Each of its runs then waits for their latest runs due at or before its own scheduled time, and queues its jobs once those ended,
+            or is skipped if one of them failed, unless that dependency has `allow-failure` set.
+            The automations it waits for can be on any asset you can read, and may recur on another schedule.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1878,15 +1885,17 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status or dependencies.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone or activation status.
+          summary: Update an automation's name, cron string, timezone, activation status or dependencies.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
+            An automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,
+            so the recurrence and the timezone can only change along with `depends-on`, and not while other automations depend on this one.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:
@@ -1913,6 +1922,13 @@ class AssetAPI(FlaskView):
                     summary: Deactivate the automation
                     value:
                       active: false
+                  wait_for_another_automation:
+                    summary: Wait for the runs of automation 4
+                    description: >-
+                      Each run waits for the latest run of automation 4 due at or before its own time, and is skipped if that one failed.
+                    value:
+                      depends-on:
+                        - automation: 4
           responses:
             200:
               description: PROCESSED
@@ -1932,7 +1948,13 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        update_automation(automation, origin="API", **automation_data)
+        try:
+            update_automation(
+                automation, origin="API", check_permissions=True, **automation_data
+            )
+        except ValidationError as e:
+            db.session.rollback()
+            return unprocessable_entity(e.messages)
         db.session.commit()
         response = automation_schema.dump(automation)
         response["recurrence-description"] = describe_cronstr(automation.cronstr)
@@ -2006,12 +2028,30 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(
+        {
+            "with_dependents": fields.Bool(
+                data_key="with-dependents",
+                load_default=False,
+                metadata={
+                    "description": "Also run the active automations that wait for this one, directly or through others, each once the runs it waits for ended."
+                },
+            )
+        },
+        location="query",
+    )
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
     # and its output scope is checked again on each run (see validate_automation_output_scope).
     @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
-    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def trigger_automation(
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        with_dependents: bool = False,
+    ):
         """
         .. :quickref: Assets; Trigger a single run of an automation.
 
@@ -2029,6 +2069,12 @@ class AssetAPI(FlaskView):
             An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
             so the next recurring run still happens as scheduled, and a missed run is still caught up.
             Inactive automations can be triggered, too, which is how you can try one out before activating it.
+
+            Pass `with-dependents=true` to also run the active automations that wait for this one, directly or through others,
+            for instance to re-run a chain of automations once the data at its start was backfilled.
+            Each of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.
+            This needs permission to manage the automations on each of their assets, too.
+            The response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2044,6 +2090,13 @@ class AssetAPI(FlaskView):
               description: ID of the automation to run.
               schema:
                 type: integer
+            - in: query
+              name: with-dependents
+              required: false
+              description: Also run the active automations that wait for this one, directly or through others.
+              schema:
+                type: boolean
+                default: false
           responses:
             202:
               description: PROCESSING
@@ -2062,6 +2115,18 @@ class AssetAPI(FlaskView):
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         n-jobs: 2
                         message: "Request has been accepted for processing."
+                    triggered-with-dependents:
+                      summary: Automation run accepted, along with the automations waiting for it
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n-jobs: 1
+                        message: "Request has been accepted for processing."
+                        dependent-runs:
+                          - automation: 8
+                            run: 412
+                            dispatch-state: waiting
             401:
               description: UNAUTHORIZED
             403:
@@ -2078,6 +2143,8 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        if with_dependents:
+            return self._trigger_automation_chain(asset, automation)
         try:
             returns = run_automation(automation)
         except (
@@ -2111,6 +2178,59 @@ class AssetAPI(FlaskView):
         db.session.commit()
         response, status_code = request_accepted_for_processing(job_id)
         response["n-jobs"] = returns.get("n_jobs")
+        return response, status_code
+
+    def _trigger_automation_chain(
+        self, asset: GenericAsset, automation: Automation
+    ) -> tuple[dict, int]:
+        """Run an automation along with the automations that wait for it (see `run_automation_chain`)."""
+        dependents = get_dependent_automations(automation)
+        # The automations waiting for this one may be on other assets, where their runs write data, too.
+        for dependent in dependents:
+            check_access(dependent.asset, "manage-automations")
+        try:
+            returns, dependent_runs = run_automation_chain(automation)
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        AssetAuditLog.add_record(
+            asset,
+            f"Triggered a run of automation '{automation.name}' ({automation.id}) and of the {len(dependent_runs)} automation(s) waiting for it.",
+        )
+        for run in dependent_runs:
+            AssetAuditLog.add_record(
+                run.automation.asset,
+                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), waiting for a run of automation {automation.id}.",
+            )
+        db.session.commit()
+        job_id = returns.get("job_id")
+        if job_id is not None:
+            response, status_code = request_accepted_for_processing(job_id)
+        else:
+            response, status_code = {
+                "status": "ACCEPTED",
+                "job": None,
+                "message": returns.get("message")
+                or f"Automation {automation.id} had nothing to queue, so the automations waiting for it go ahead.",
+            }, 202
+        response["n-jobs"] = returns.get("n_jobs")
+        response["dependent-runs"] = []
+        for run in dependent_runs:
+            db.session.refresh(run)
+            response["dependent-runs"].append(
+                {
+                    "automation": run.automation_id,
+                    "run": run.id,
+                    "dispatch-state": run.dispatch_state,
+                }
+            )
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])
