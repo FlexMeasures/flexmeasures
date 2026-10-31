@@ -21,8 +21,8 @@ from flexmeasures.data.models.time_series import TimedBelief
 START = datetime(2015, 1, 1, tzinfo=pytz.utc)
 
 
-@pytest.fixture(scope="module")
-def charge_hub(db) -> dict[str, Sensor]:
+@pytest.fixture
+def charge_hub(fresh_db) -> dict[str, Sensor]:
     """A public site whose dashboard has the graphs a site with charge points gets.
 
     One belief per sensor, so the chart data shows which sensors were loaded.
@@ -30,12 +30,12 @@ def charge_hub(db) -> dict[str, Sensor]:
     to check that the default chart keeps a session sensor it draws elsewhere.
     """
     site_type = GenericAssetType(name="test_site_type_for_chart_sensors")
-    db.session.add(site_type)
+    fresh_db.session.add(site_type)
     site = GenericAsset(
         name="Test charge hub (chart sensors)", generic_asset_type=site_type
     )
-    db.session.add(site)
-    db.session.flush()
+    fresh_db.session.add(site)
+    fresh_db.session.flush()
 
     units = {
         "charge points power": "kW",
@@ -55,8 +55,8 @@ def charge_hub(db) -> dict[str, Sensor]:
         )
         for name, unit in units.items()
     }
-    db.session.add_all(sensors.values())
-    db.session.flush()
+    fresh_db.session.add_all(sensors.values())
+    fresh_db.session.flush()
 
     site.sensors_to_show = [
         {
@@ -80,10 +80,10 @@ def charge_hub(db) -> dict[str, Sensor]:
     ]
 
     source = DataSource(name="test script", type="demo script")
-    db.session.add(source)
-    db.session.flush()
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
     for sensor in sensors.values():
-        db.session.add(
+        fresh_db.session.add(
             TimedBelief(
                 sensor=sensor,
                 event_start=START,
@@ -92,7 +92,7 @@ def charge_hub(db) -> dict[str, Sensor]:
                 source=source,
             )
         )
-    db.session.commit()
+    fresh_db.session.commit()
     return sensors
 
 
@@ -177,7 +177,12 @@ def test_charge_points_chart_loads_its_sessions_and_two_companion_graphs(
     ],
 )
 def test_chart_data_holds_only_what_the_chart_type_draws(
-    client, setup_roles_users, charge_hub, requesting_user, chart_type, expected_names
+    client,
+    setup_roles_users_fresh_db,
+    charge_hub,
+    requesting_user,
+    chart_type,
+    expected_names,
 ):
     site = charge_hub["arrival"].generic_asset
     query = {
