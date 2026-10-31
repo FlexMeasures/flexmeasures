@@ -394,12 +394,13 @@ def test_delete_asset_with_data_requires_delete_data_permission(
 
 
 @pytest.mark.parametrize("is_child", [False, True])
-def test_delete_button_deletes_through_the_api(
+def test_delete_button_names_the_parent_and_the_ui_route_is_gone(
     client, db, as_admin, setup_accounts, setup_generic_asset_types, is_child
 ):
-    """The delete button names the asset's parent, which the page moves on to after deleting it through the API.
+    """The delete button names the asset's parent, which the page moves on to after deleting the asset through the API.
 
-    Deleting used to be a GET on a UI route, which a link on another site could trigger.
+    The button's script, which calls the API, is not run here.
+    Deleting is no longer possible through a GET on a UI route.
     """
     parent = GenericAsset(
         name=f"parent-for-deletion-test-{is_child}",
