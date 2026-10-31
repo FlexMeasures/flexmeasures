@@ -112,6 +112,7 @@ class UserCrudUI(FlaskView):
         View all user actions.
         """
         user: User = get_user_by_id_or_raise_notfound(id)
+        check_access(AuditLog.user_table_acl(user), "read")
         return render_flexmeasures_template(
             "users/user_audit_log.html",
             user=user,

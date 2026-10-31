@@ -83,3 +83,14 @@ def test_reset_password_button_resets_through_the_api(client, as_admin):
         in user_page.data
     )
     assert client.get(f"/users/reset_password_for/{user2.id}").status_code == 404
+
+
+def test_user_audit_log_is_for_whoever_may_read_it(client, as_prosumer_user1):
+    """The user audit log page follows the same rule as the API, so it names no user from another account."""
+    own = find_user_by_email("test_prosumer_user@seita.nl", keep_in_session=False)
+    other = find_user_by_email("test_dummy_user_3@seita.nl", keep_in_session=False)
+
+    assert client.get(url_for("UserCrudUI:auditlog", id=own.id)).status_code == 200
+    response = client.get(url_for("UserCrudUI:auditlog", id=other.id))
+    assert response.status_code == 403
+    assert other.username.encode() not in response.data

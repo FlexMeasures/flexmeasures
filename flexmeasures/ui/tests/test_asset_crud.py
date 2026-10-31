@@ -433,6 +433,21 @@ def test_delete_button_deletes_through_the_api(
     assert db.session.get(GenericAsset, asset.id) is not None
 
 
+def test_assets_of_an_account_need_read_access_to_it(
+    client, db, setup_assets, as_prosumer_user1
+):
+    """The page listing an account's assets names the account, so it is only for those who may read the account."""
+    from flexmeasures.data.services.users import find_user_by_email
+
+    own_account = find_user_by_email("test_prosumer_user@seita.nl").account
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+
+    assert client.get(f"/assets/owned_by/{own_account.id}").status_code == 200
+    response = client.get(f"/assets/owned_by/{other_account.id}")
+    assert response.status_code == 403
+    assert other_account.name.encode() not in response.data
+
+
 def test_inherited_flex_context_in_editor(
     client, db, as_admin, setup_accounts, setup_generic_asset_types
 ):

@@ -96,6 +96,7 @@ class AssetCrudUI(FlaskView):
             assets = []
             msg = f"Account {account_id} unknown."
         else:
+            check_access(account, "read")
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",

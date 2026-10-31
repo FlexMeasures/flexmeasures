@@ -112,7 +112,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* The buttons for deleting an asset and resetting a password now act through the API [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
 
 * An ``AggregatorReporter`` input that holds more than one belief about an event, such as one read with ``most-recent-beliefs-only: false``, is now refused with a message naming the sensor and the event, where it used to fail with a ``KeyError`` [see `PR #2741 <https://www.github.com/FlexMeasures/flexmeasures/pull/2741>`_]
