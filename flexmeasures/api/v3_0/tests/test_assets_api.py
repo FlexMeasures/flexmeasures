@@ -769,11 +769,7 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data, requestin
         json=post_data,
     )
     print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "not allowed to create assets for this account"
-        in asset_creation_response.json["message"]["json"]["account_id"][0]
-    )
+    assert asset_creation_response.status_code == 403
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -1718,6 +1714,29 @@ def test_regular_user_cannot_create_child_of_public_asset(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
     assert "same account" in response.json["message"]["json"]["parent_asset_id"][0]
+
+
+@pytest.mark.parametrize("with_parent", [False, True])
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
+def test_consultant_can_create_client_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db, with_parent
+):
+    """A consultant can create both top-level and child assets for a client."""
+    account = setup_accounts["ConsultancyClient"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=account.id)
+    ).first()
+    assert parent is not None
+    post_data = get_asset_post_data()
+    post_data.update(
+        name="Consultant-created asset",
+        account_id=account.id,
+        parent_asset_id=parent.id if with_parent else None,
+    )
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    assert response.status_code == 201
+    assert response.json["account_id"] == account.id
+    assert response.json["parent_asset_id"] == post_data["parent_asset_id"]
 
 
 @pytest.mark.parametrize(
