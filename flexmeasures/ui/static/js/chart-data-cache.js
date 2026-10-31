@@ -178,18 +178,24 @@ export function createChartDataCache({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
      * @param {Date} options.start - Start of the newly selected window.
      * @param {Date} options.end - End of the newly selected window.
      * @param {boolean} [options.mostRecentBeliefsOnly] - Pass false to get every recorded belief.
+     * @param {string} [options.chartType] - On an asset, get only the data this chart type draws.
      * @param {AbortSignal} [options.signal] - Signal used to abort in-flight requests.
      * @returns {Promise<Object[]>} - Belief records covering exactly the newly selected window.
      */
     async load(dataPath, options) {
-      const { start, end, mostRecentBeliefsOnly, signal } = options;
+      const { start, end, mostRecentBeliefsOnly, chartType, signal } = options;
       // Work from a snapshot throughout.
       // Selections are not serialised and their requests are not aborted,
       // so a second selection can replace what is held while this one is still awaiting its data.
       // Merging against the snapshot keeps each result's span and records describing the same thing.
       // Records past their age are treated as absent, so this window is fetched afresh.
+      // Records loaded for another chart type cover other sensors, so they are treated as absent too.
       const held =
-        cached !== null && Date.now() - cached.fetchedAt < maxAgeMs ? cached : null;
+        cached !== null &&
+        Date.now() - cached.fetchedAt < maxAgeMs &&
+        cached.chartType === chartType
+          ? cached
+          : null;
       const resolutionMs = held ? effectiveResolutionMs(held.data) : 0;
       // Reuse only what a direct fetch would have returned identically.
       // Windows that merely touch still form one contiguous span,
@@ -210,6 +216,7 @@ export function createChartDataCache({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
               start: range.start,
               end: range.end,
               mostRecentBeliefsOnly: mostRecentBeliefsOnly,
+              chartType: chartType,
               signal: signal,
             })
           )
@@ -221,8 +228,15 @@ export function createChartDataCache({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
               data: dedupeRecords(held.data.concat(...fetched)),
               // Extending keeps the original age, so a span cannot outlive the limit by being added to.
               fetchedAt: held.fetchedAt,
+              chartType: chartType,
             }
-          : { start: start, end: end, data: [].concat(...fetched), fetchedAt: Date.now() };
+          : {
+              start: start,
+              end: end,
+              data: [].concat(...fetched),
+              fetchedAt: Date.now(),
+              chartType: chartType,
+            };
         // Whichever selection finishes last decides what is held.
         // Both spans are self-consistent, so the worst case is a later selection re-fetching.
         cached = assembled;

@@ -109,6 +109,7 @@ Infrastructure / Support
 * Every kind of data generator (e.g. a ``Forecaster``, ``Scheduler`` or ``Reporter``) now has its results checked and saved in the same way: all of a run's outputs are saved or none of them, and recording on a sensor the generator was not checked against raises ``GeneratorWritesUncheckedSensor`` [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
 * Stop installing the libraries for passkey, authenticator-app and SMS sign-in, which FlexMeasures does not support, as it ships email-based two-factor authentication only; to enable the ``authenticator`` method anyway, install ``qrcode`` [see `PR #2564 <https://www.github.com/FlexMeasures/flexmeasures/pull/2564>`_]
 * Add a concepts page on data pipelining, which describes in one place how time-series data is referenced (sensor references, source filters, fallback values), cleaned on the way in and bounded on the way out, and link to it from the feature pages and tutorials [see `PR #2721 <https://www.github.com/FlexMeasures/flexmeasures/pull/2721>`_]
+* On an asset with charge points, the Default chart no longer loads the charging-session sensors it doesn't draw, and the Charge Points chart loads only the sensors it draws; switching between them loads that chart's data [see `PR #2790 <https://www.github.com/FlexMeasures/flexmeasures/pull/2790>`_]
 
 Bugfixes
 -----------
