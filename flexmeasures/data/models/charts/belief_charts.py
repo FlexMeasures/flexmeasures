@@ -28,7 +28,10 @@ CHARGE_POINT_SESSION_SENSOR_NAMES = (
     "plug in",
     "plug out",
 )
-CHARGE_POINT_COMPANION_TITLES = ("Prices", "Power flow by type")
+PRICES_TITLE = "Prices"
+POWER_FLOW_BY_TYPE_TITLE = "Power flow by type"
+CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
+# Of the power flows, the Charge Points chart shows only this one.
 CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
 
 
@@ -1458,7 +1461,7 @@ def chart_for_chargepoint_sessions(
     }
     for idx, entry in enumerate(sensors_to_show_copy):
         title = entry.get("title")
-        if title == "Power flow by type":
+        if title == POWER_FLOW_BY_TYPE_TITLE:
             for plot in entry.get("plots", []):
                 if "sensors" in plot:
                     plot["sensors"] = [

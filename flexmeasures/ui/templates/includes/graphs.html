@@ -465,8 +465,10 @@
                 {% if active_page == "assets" %}
                 // The data held was loaded for the previous chart type, which draws other sensors,
                 // so this one loads its own (reloadChartData renders it, in either renderer).
+                // A running replay is stopped first: it would keep drawing the previous chart type's data,
+                // and stopping it redraws the Vega-Lite chart, which must not land after the reload.
                 playBackDataLoadedForKnownDateRange = false;
-                reloadChartData();
+                stopReplay().catch(console.error).then(() => reloadChartData());
                 return;
                 {% endif %}
                 // Switch to the right renderer for the newly selected chart type: the

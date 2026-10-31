@@ -22,6 +22,8 @@ from flexmeasures.data.models.charts.belief_charts import (
     CHARGE_POINT_POWER_SENSOR_NAME,
     CHARGE_POINT_SESSION_SENSOR_NAMES,
     CHARGE_POINT_SESSIONS_TITLE,
+    POWER_FLOW_BY_TYPE_TITLE,
+    PRICES_TITLE,
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -1033,10 +1035,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             ]
             power_sensors = [
                 sensor
-                for sensor in sensors_in_graph("Power flow by type")
+                for sensor in sensors_in_graph(POWER_FLOW_BY_TYPE_TITLE)
                 if sensor.name == CHARGE_POINT_POWER_SENSOR_NAME
             ]
-            price_sensors = sensors_in_graph("Prices")
+            price_sensors = sensors_in_graph(PRICES_TITLE)
             return list(dict.fromkeys(session_sensors + power_sensors + price_sensors))
         return SensorsToShowSchema.flatten(sensors_to_show)
 
