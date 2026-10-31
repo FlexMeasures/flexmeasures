@@ -18,6 +18,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    asset_contains_data,
     get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
@@ -367,6 +368,11 @@ class AssetCrudUI(FlaskView):
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
         asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "edit-assets")
+        for descendant in asset.offspring:
+            check_access(descendant, "edit-assets")
+        if asset_contains_data(asset):
+            check_access(asset, "delete-data")
         parent_asset_id = asset.parent_asset_id
         delete_asset(asset)
         db.session.commit()
@@ -531,7 +537,7 @@ class AssetCrudUI(FlaskView):
             own_organisation_name=_own_account.name,
             user_can_create_assets=user_can_create_assets(),
             user_can_create_children=user_can_create_children(asset),
-            user_can_delete_asset=user_can_delete(asset),
+            user_can_delete_asset=user_can_delete(asset, check_data=False),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
             attributes_label=ATTRIBUTES_FIELD_LABEL,
