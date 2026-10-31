@@ -142,7 +142,7 @@ class SensorUI(FlaskView):
             "sensors/index.html",
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
-            user_can_delete_sensor=user_can_delete(sensor),
+            user_can_delete_sensor=user_can_delete(sensor, check_data=False),
             user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
             user_can_create_children_sensor=can_create_children,
             user_can_trigger_forecasts=can_trigger_forecasts,

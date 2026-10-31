@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from flask import url_for
+from sqlalchemy import event, select
 
 import pytest
 import json
@@ -9,7 +10,7 @@ import re
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.ui.tests.utils import (
     assert_asset_listing_filter_row,
     mock_asset_data,
@@ -373,6 +374,47 @@ def test_delete_asset(client, db, as_admin, setup_assets):
     )
     assert response.status_code == 200
     assert b"have been deleted" in response.data
+
+
+def test_delete_asset_with_data_requires_delete_data_permission(
+    client, db, as_prosumer_user1, setup_assets
+):
+    """The asset UI endpoint must protect data even when its button is visible."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+    response = client.get(
+        url_for("AssetCrudUI:delete_with_data", id=asset.id),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+
+    from flexmeasures.api.tests.utils import get_auth_token
+
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    api_response = client.delete(
+        url_for("AssetAPI:delete", id=asset.id),
+        headers={"Authorization": auth_token},
+    )
+    assert api_response.status_code == 403
+    assert db.session.get(GenericAsset, asset.id) is not None
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def test_delete_child_asset_redirects_to_parent(
@@ -765,11 +807,12 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: cannot delete or create top-level assets.
-        ("as_prosumer_user1", False, False),
+        # Plain account member: may see the delete action, but the endpoint can
+        # reject it when deleting the asset would also delete data.
+        ("as_prosumer_user1", True, False),
     ],
 )
-def test_admin_only_buttons_on_properties_page(
+def test_delete_and_create_buttons_on_properties_page(
     db,
     client,
     setup_assets,
@@ -779,8 +822,9 @@ def test_admin_only_buttons_on_properties_page(
     expect_create_asset_btn,
 ):
     """
-    'Delete this asset' and 'Create asset' (child asset via account) are
-    gated on account-admin permissions and must not appear for plain users.
+    The delete button uses a fast asset permission check. The endpoint decides
+    whether the current user may also delete data; creating an asset remains
+    gated on account-admin permissions.
     """
     from flexmeasures.data.services.users import find_user_by_email
 
@@ -805,6 +849,36 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+def test_asset_properties_rendering_does_not_query_timed_belief(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """Rendering the delete control must not scan the asset's measurement data."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+    statements = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement.lower())
+
+    event.listen(db.engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    finally:
+        event.remove(db.engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    assert not any("timed_belief" in statement for statement in statements)
+    assert b"Delete this asset" in response.data
 
 
 def test_group_field_hints_on_properties_page(
