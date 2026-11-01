@@ -1,11 +1,15 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 
-from flexmeasures.data.services.generic_assets import format_json_field_change
+from flexmeasures.data.services.generic_assets import (
+    asset_contains_data,
+    format_json_field_change,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 
@@ -446,3 +450,69 @@ def test_asset_sensors_are_listed_in_creation_order(
         "power",
         "consumption-capacity",
     ]
+
+
+def _asset_tree_with_a_sensor_on_the_grandchild(db, asset_types, name):
+    root = GenericAsset(name=f"{name} root", generic_asset_type=asset_types["battery"])
+    child = GenericAsset(
+        name=f"{name} child",
+        generic_asset_type=asset_types["battery"],
+        parent_asset=root,
+    )
+    grandchild = GenericAsset(
+        name=f"{name} grandchild",
+        generic_asset_type=asset_types["battery"],
+        parent_asset=child,
+    )
+    sensor = Sensor(name="power", generic_asset=grandchild, unit="MW")
+    db.session.add_all([root, child, grandchild, sensor])
+    db.session.flush()
+    return root, sensor
+
+
+def test_asset_contains_data_finds_beliefs_on_a_grandchild_sensor(
+    db, setup_generic_asset_types, setup_sources
+):
+    """A sensor without beliefs holds no data, and a belief on a grandchild's sensor counts as data of the root."""
+    root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
+        db, setup_generic_asset_types, "contains-data"
+    )
+    assert not asset_contains_data(root, lock=False)
+
+    db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            source=setup_sources["Seita"],
+            event_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            belief_horizon=timedelta(0),
+            event_value=1,
+        )
+    )
+    db.session.flush()
+    assert asset_contains_data(root, lock=False)
+    assert asset_contains_data(root)
+
+
+def test_asset_contains_data_names_the_sensors_it_probes(db, setup_generic_asset_types):
+    """The probe on timed_belief lists the subtree's sensor IDs, so Postgres looks each one up in the index.
+
+    With a subquery in their place, Postgres may read the whole table's index instead,
+    which on a large database takes seconds whenever the subtree holds no beliefs.
+    """
+    root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
+        db, setup_generic_asset_types, "probe-shape"
+    )
+    statements = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append((statement.lower(), parameters))
+
+    event.listen(db.engine, "before_cursor_execute", record_statement)
+    try:
+        asset_contains_data(root, lock=False)
+    finally:
+        event.remove(db.engine, "before_cursor_execute", record_statement)
+
+    [(probe, parameters)] = [s for s in statements if "from timed_belief" in s[0]]
+    assert probe.count("select") == 1
+    assert sensor.id in parameters.values()
