@@ -89,7 +89,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
-    SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
@@ -257,6 +256,7 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         "use_latest_version_per_event": "use-latest-version-per-event",
         "most_recent_beliefs_only": "most-recent-beliefs-only",
         "compress_json": "compress-json",
+        "chart_type": "chart-type",
     }
 
     use_latest_version_per_event = fields.Boolean(
@@ -279,6 +279,13 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         required=False,
         metadata=dict(
             description="If true, compress the JSON response.",
+        ),
+    )
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
         ),
     )
 
@@ -1234,7 +1241,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        sensors = asset.chart_sensors(kwargs.pop("chart_type", None))
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)

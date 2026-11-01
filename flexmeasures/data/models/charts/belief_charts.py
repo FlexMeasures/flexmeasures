@@ -17,6 +17,23 @@ from flexmeasures.utils.flexmeasures_inflection import (
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 from flexmeasures.utils.coding_utils import flatten_unique
 
+# The graph of charging-session timestamps, which only the Charge Points chart draws,
+# together with the two graphs it shows alongside them (see chart_for_chargepoint_sessions).
+CHARGE_POINT_SESSIONS_TITLE = "Charge Point sessions"
+CHARGE_POINT_SESSION_SENSOR_NAMES = (
+    "arrival",
+    "departure",
+    "start charging",
+    "stop charging",
+    "plug in",
+    "plug out",
+)
+PRICES_TITLE = "Prices"
+POWER_FLOW_BY_TYPE_TITLE = "Power flow by type"
+CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
+# Of the power flows, the Charge Points chart shows only this one.
+CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
+
 
 def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
@@ -769,7 +786,7 @@ def _process_sensor_entry(
         Sensor specification dictionary or None if entry should be skipped
     """
     title = entry.get("title")
-    if title == "Charge Point sessions":
+    if title == CHARGE_POINT_SESSIONS_TITLE:
         return None
 
     sensors = _extract_sensors_from_entry(entry)
@@ -1163,23 +1180,14 @@ def chart_for_chargepoint_sessions(
             [
                 s
                 for s in sensors
-                if s.unit == "s"
-                and s.name
-                in [
-                    "arrival",
-                    "departure",
-                    "start charging",
-                    "stop charging",
-                    "plug in",
-                    "plug out",
-                ]
+                if s.unit == "s" and s.name in CHARGE_POINT_SESSION_SENSOR_NAMES
             ]
         )
 
     sensor_ids = [s.id for s in all_sensors]
 
     cp_chart = {
-        "title": "Charge Point sessions",
+        "title": CHARGE_POINT_SESSIONS_TITLE,
         "width": "container",
         "height": 300,
         "selection": {
@@ -1453,13 +1461,13 @@ def chart_for_chargepoint_sessions(
     }
     for idx, entry in enumerate(sensors_to_show_copy):
         title = entry.get("title")
-        if title == "Power flow by type":
+        if title == POWER_FLOW_BY_TYPE_TITLE:
             for plot in entry.get("plots", []):
                 if "sensors" in plot:
                     plot["sensors"] = [
                         sensor
                         for sensor in plot["sensors"]
-                        if sensor.name == "charge points power"
+                        if sensor.name == CHARGE_POINT_POWER_SENSOR_NAME
                     ]
     chart_specs = chart_for_multiple_sensors(
         sensors_to_show_copy,
@@ -1471,7 +1479,7 @@ def chart_for_chargepoint_sessions(
     chart_specs["vconcat"] = [
         chart
         for chart in chart_specs["vconcat"]
-        if chart["title"] in ["Prices", "Power flow by type"]
+        if chart["title"] in CHARGE_POINT_COMPANION_TITLES
     ]
 
     # Synchronize x-axis panning/zooming across all stacked subcharts.
