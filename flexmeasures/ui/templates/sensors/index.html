@@ -721,7 +721,12 @@ For the data, note the following:
 
             if (!response.ok) {
                 const errorData = await response.json();
-                showToast("Error triggering forecast: " + (errorData.message || response.statusText), "error");
+                const message = errorData.message || response.statusText;
+                showToast("Error triggering forecast: " + (
+                    response.status === 429
+                        ? errorWithRetryAfter(message, response.headers.get("Retry-After"))
+                        : message
+                ), "error");
                 button.classList.remove('d-none');
                 spinner.classList.add('d-none');
                 return;

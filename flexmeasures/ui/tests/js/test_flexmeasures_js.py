@@ -31,6 +31,21 @@ def test_number_with_commas(assert_js):
         """)
 
 
+def test_retry_after_error_shows_local_retry_time(assert_js):
+    assert_js(LOAD_FLEXMEASURES_JS + """
+        const now = Date.now;
+        Date.now = () => Date.UTC(2026, 9, 20, 12, 0);
+        const expected = new Date(Date.UTC(2026, 9, 20, 12, 5)).toLocaleString();
+        eq("delta seconds", errorWithRetryAfter("Rate limited.", "300"),
+           `Rate limited. Try again at ${expected}.`);
+        eq("HTTP date", errorWithRetryAfter("Rate limited.", "Tue, 20 Oct 2026 12:05:00 GMT"),
+           `Rate limited. Try again at ${expected}.`);
+        eq("missing header", errorWithRetryAfter("Rate limited.", null), "Rate limited.");
+        eq("invalid header", errorWithRetryAfter("Rate limited.", "unknown"), "Rate limited.");
+        Date.now = now;
+        """)
+
+
 def test_currency_codes_become_symbols(assert_js):
     assert_js(LOAD_FLEXMEASURES_JS + """
         eq("a currency code in a unit is replaced", convertCurrencyCodeToSymbol("EUR/MWh"), "€/MWh");

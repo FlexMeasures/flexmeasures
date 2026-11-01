@@ -18,6 +18,7 @@ from click_default_group import DefaultGroup
 from marshmallow import fields
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import (
     validate_color_hex,
@@ -79,6 +80,10 @@ class LogsClickExceptions:
     def invoke(self, ctx: click.Context):
         try:
             return super().invoke(ctx)  # type: ignore[misc]
+        except PlanQuotaExceeded as exc:
+            error = click.ClickException(str(exc))
+            self._log_click_exception(ctx, error)
+            raise error from exc
         except click.ClickException as exc:
             self._log_click_exception(ctx, exc)
             raise

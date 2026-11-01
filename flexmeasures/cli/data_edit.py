@@ -157,15 +157,19 @@ CLEARABLE_PLAN_FIELDS = [
     " Pass 'unlimited' to exempt them.",
 )
 @click.option(
-    "--max-users", type=int, help="How many users an account on this plan may have."
+    "--max-users",
+    type=click.IntRange(min=0),
+    help="How many users an account on this plan may have.",
 )
 @click.option(
-    "--max-assets", type=int, help="How many assets an account on this plan may have."
+    "--max-assets",
+    type=click.IntRange(min=0),
+    help="How many assets an account on this plan may have.",
 )
 @click.option(
     "--max-clients",
-    type=int,
-    help="How many client accounts a consultancy account on this plan may have.",
+    type=click.IntRange(min=0),
+    help="How many client organisations a consultancy organisation on this plan may have.",
 )
 @click.option(
     "--legacy/--no-legacy",
@@ -652,12 +656,11 @@ def transfer_ownership(asset: Asset, new_owner: Account):
             transfer_ownership_recursive(child, account)
 
     transfer_ownership_recursive(asset, new_owner)
+    db.session.commit()
     click.secho(
         f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
-
-    db.session.commit()
 
 
 @fm_edit_data.command("transfer-parenthood")

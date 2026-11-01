@@ -2,6 +2,16 @@ $(document).ready(function () {
     ready();
 });
 
+function errorWithRetryAfter(message, retryAfter) {
+    if (!retryAfter) return message;
+    const seconds = Number(retryAfter);
+    const retryTime = Number.isFinite(seconds)
+        ? new Date(Date.now() + seconds * 1000)
+        : new Date(retryAfter);
+    if (Number.isNaN(retryTime.getTime())) return message;
+    return `${message} Try again at ${retryTime.toLocaleString()}.`;
+}
+
 
 $(window).resize(function () {
     $('body').css('padding-top', $("#navbar-fixed-top").height());

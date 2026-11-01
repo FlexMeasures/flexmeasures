@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import current_app, request
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_security import login_required
@@ -17,7 +17,8 @@ from flexmeasures.auth.policy import (
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, AccountRole, Plan
+from flexmeasures.data.models.user import Account, AccountRole, Plan, User
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import (
     get_account_by_id_or_raise_notfound,
     get_accounts,
@@ -158,6 +159,21 @@ class AccountCrudUI(FlaskView):
         rate_limits_disabled_in_play_mode = (
             current_app.config.get("FLEXMEASURES_MODE") == "play"
         )
+        plan_usage = {
+            "users": db.session.scalar(
+                select(func.count(User.id)).where(User.account_id == account.id)
+            ),
+            "assets": db.session.scalar(
+                select(func.count(GenericAsset.id)).where(
+                    GenericAsset.account_id == account.id
+                )
+            ),
+            "clients": db.session.scalar(
+                select(func.count(Account.id)).where(
+                    Account.consultancy_account_id == account.id
+                )
+            ),
+        }
 
         return render_flexmeasures_template(
             "accounts/account.html",
@@ -171,6 +187,7 @@ class AccountCrudUI(FlaskView):
             effective_default_rate_limit=effective_default_rate_limit,
             effective_trigger_rate_limit=effective_trigger_rate_limit,
             rate_limits_disabled_in_play_mode=rate_limits_disabled_in_play_mode,
+            plan_usage=plan_usage,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,

@@ -647,10 +647,15 @@ function rejectIfNotOk(response) {
   const contentType = response.headers.get("content-type");
   if (contentType && contentType.includes("application/json")) {
     return response.json().then((err) => {
-      throw new Error(extractApiErrorMessage(err, fallback));
+      const message = extractApiErrorMessage(err, fallback);
+      throw new Error(response.status === 429
+        ? errorWithRetryAfter(message, response.headers.get("Retry-After"))
+        : message);
     });
   }
-  throw new Error(fallback);
+  throw new Error(response.status === 429
+    ? errorWithRetryAfter(fallback, response.headers.get("Retry-After"))
+    : fallback);
 }
 
 /**
