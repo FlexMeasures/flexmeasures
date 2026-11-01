@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import url_for
+from sqlalchemy import event, select
 
 import pytest
 import json
@@ -8,8 +9,10 @@ import copy
 import re
 
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.ui.tests.utils import (
     assert_asset_listing_filter_row,
     mock_asset_data,
@@ -26,6 +29,17 @@ The real logic tests are done in the api package, which is also the better place
 """
 
 api_path_assets = "http://localhost//api/v3_0/assets"
+
+
+def sensor_has_beliefs(db, sensor) -> bool:
+    return (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def test_assets_page_empty(db, client, as_prosumer_user1):
@@ -359,28 +373,37 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     assert b"Must be one of: sum, min, max, mean." in response.data
 
 
-def test_delete_asset(client, db, as_admin, setup_assets):
-    """Deleting a top-level asset redirects to the asset index and shows a toast."""
-    assets = list(setup_assets.values())
-    top_level = next(
-        (a for a in assets if a.parent_asset_id is None),
-        None,
-    )
-    assert top_level is not None, "No top-level asset found in fixtures"
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=top_level.id),
-        follow_redirects=True,
-    )
-    assert response.status_code == 200
-    assert b"have been deleted" in response.data
-
-
-def test_delete_child_asset_redirects_to_parent(
-    client, db, as_admin, setup_accounts, setup_generic_asset_types
+def test_delete_asset_with_data_requires_delete_data_permission(
+    client, db, as_prosumer_user1, setup_assets
 ):
-    """Deleting a child asset should redirect to the parent asset's context page."""
+    """Deleting an asset that holds data requires the delete-data permission, which a member without a role lacks."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert sensor_has_beliefs(db, sensor)
+
+    from flexmeasures.api.tests.utils import get_auth_token
+
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    api_response = client.delete(
+        url_for("AssetAPI:delete", id=asset.id),
+        headers={"Authorization": auth_token},
+    )
+    assert api_response.status_code == 403
+    assert db.session.get(GenericAsset, asset.id) is not None
+    assert sensor_has_beliefs(db, sensor)
+
+
+@pytest.mark.parametrize("is_child", [False, True])
+def test_delete_button_names_the_parent_and_the_ui_route_is_gone(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types, is_child
+):
+    """The delete button names the asset's parent, which the page moves on to after deleting the asset through the API.
+
+    The button's script, which calls the API, is not run here.
+    Deleting is no longer possible through a GET on a UI route.
+    """
     parent = GenericAsset(
-        name="parent-for-deletion-test",
+        name=f"parent-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -388,9 +411,8 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(parent)
     db.session.flush()
-
     child = GenericAsset(
-        name="child-for-deletion-test",
+        name=f"child-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -399,13 +421,32 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(child)
     db.session.commit()
+    asset = child if is_child else parent
 
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=child.id),
-        follow_redirects=False,
+    page = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    expected_parent = str(parent.id) if is_child else ""
+    assert (
+        f'data-asset-id="{asset.id}" data-parent-asset-id="{expected_parent}"'.encode()
+        in page.data
     )
-    assert response.status_code == 302
-    assert url_for("AssetCrudUI:context", id=parent.id) in response.location
+
+    assert client.get(f"/assets/delete_with_data/{asset.id}").status_code == 404
+    assert db.session.get(GenericAsset, asset.id) is not None
+
+
+def test_assets_of_an_account_need_read_access_to_it(
+    client, db, setup_assets, as_prosumer_user1
+):
+    """The page listing an account's assets names the account, so it is only for those who may read the account."""
+    from flexmeasures.data.services.users import find_user_by_email
+
+    own_account = find_user_by_email("test_prosumer_user@seita.nl").account
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+
+    assert client.get(f"/assets/owned_by/{own_account.id}").status_code == 200
+    response = client.get(f"/assets/owned_by/{other_account.id}")
+    assert response.status_code == 403
+    assert other_account.name.encode() not in response.data
 
 
 def test_inherited_flex_context_in_editor(
@@ -630,7 +671,7 @@ def test_breadcrumb_cross_account_parent(
 #
 # ACL summary used by the tests below:
 #   - GenericAsset.update    → any member of the owning organisation (+ consultants)
-#   - GenericAsset.delete    → organisation-admin or consultant only
+#   - GenericAsset.delete-data → organisation-admin or consultant only
 #   - GenericAsset.create-children (child assets/sensors) → any organisation member
 #   - Account.create-children (top-level assets) → organisation-admin or consultant
 #
@@ -638,7 +679,7 @@ def test_breadcrumb_cross_account_parent(
 #   • The "Create asset" child-asset button on the properties page
 #   • The "Copy this asset" / "Copy to <org>" copy buttons
 # "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
-# "user_can_delete_asset" (GenericAsset.delete) gates the "Delete this asset" button.
+# "user_can_delete_asset" (GenericAsset.edit-assets, plus delete-data if the asset holds data) gates the "Delete this asset" button.
 # ---------------------------------------------------------------------------
 
 
@@ -765,7 +806,7 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: cannot delete or create top-level assets.
+        # Plain account member: cannot delete an asset holding data or create top-level assets.
         ("as_prosumer_user1", False, False),
     ],
 )
@@ -805,6 +846,99 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_data_query",
+    [
+        ("as_prosumer_account_admin", False),
+        ("as_prosumer_user1", True),
+    ],
+)
+def test_asset_page_checks_for_data_only_for_users_without_delete_data(
+    db, client, setup_assets, request, login_fixture, expect_data_query
+):
+    """Who may delete data may delete the asset either way, so only for other users does the page query whether the asset holds data."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert sensor_has_beliefs(db, sensor)
+    request.getfixturevalue(login_fixture)
+    statements = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement.lower())
+
+    event.listen(db.engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    finally:
+        event.remove(db.engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    assert (
+        any("from timed_belief" in statement for statement in statements)
+        is expect_data_query
+    )
+    assert (b"Delete this asset" in response.data) is not expect_data_query
+
+
+def test_member_may_delete_an_asset_without_data(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member without a role may delete an asset of their organisation whose sensors hold no data, as the API allows."""
+    parent = GenericAsset(
+        name="parent-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="child-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    sensor = Sensor(name="sensor-without-data", generic_asset=child, unit="kW")
+    db.session.add_all([parent, child, sensor])
+    db.session.commit()
+
+    response = client.get(url_for("AssetCrudUI:properties", id=parent.id))
+    assert response.status_code == 200
+    assert b"Delete this asset" in response.data
+
+
+def test_copy_button_does_not_claim_the_copy_cannot_be_deleted(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member may copy a child asset that holds data, and may delete the copy, as copies hold no data."""
+    parent = GenericAsset(
+        name="parent-of-an-asset-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="asset-with-an-annotation-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    db.session.add_all([parent, child])
+    db.session.flush()
+    child.annotations.append(
+        Annotation(
+            content="makes the asset hold data",
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            end=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            source=DataSource(name="annotator", type="demo script"),
+            type="label",
+        )
+    )
+    db.session.commit()
+
+    page = client.get(url_for("AssetCrudUI:properties", id=child.id))
+    assert page.status_code == 200
+    assert b"Copy this asset" in page.data
+    assert b"Delete this asset" not in page.data
+    assert b"you can copy but not delete" not in page.data
 
 
 def test_group_field_hints_on_properties_page(

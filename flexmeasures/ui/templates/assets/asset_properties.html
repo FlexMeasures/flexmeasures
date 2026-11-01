@@ -146,7 +146,7 @@
                 <div>
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
-                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}. Ctrl-click to open the copy in a new tab.">
                         Copy this asset
                     </button>
                 </div>
@@ -156,7 +156,7 @@
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
                         data-target-account-id="{{ copy_target_account_id }}"
-                        title="Copy asset and all its children to {{ own_organisation_name }}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        title="Copy asset and all its children to {{ own_organisation_name }}. Ctrl-click to open the copy in a new tab.">
                         Copy to {{ own_organisation_name }}
                     </button>
                 </div>
@@ -164,7 +164,7 @@
                 {% if user_can_delete_asset %}
                 <div>
                     <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
-                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
+                        type="button" data-asset-id="{{ asset.id }}" data-parent-asset-id="{{ asset.parent_asset_id or '' }}">Delete this asset
                     </button>
                 </div>
                 {% endif %}

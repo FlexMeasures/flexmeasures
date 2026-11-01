@@ -16,9 +16,10 @@ from unittest.mock import patch
 
 import pytest
 from flask import url_for
+from sqlalchemy import select
 
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import login, logout
 from flexmeasures.ui.views.sensors import MAX_NAMED_FIELD_GROUPS
@@ -418,6 +419,52 @@ def test_sensor_page_leaves_the_search_for_fields_to_the_delete_button(
         search.assert_not_called()
         _fetch_deletion_notes(client, sensor)
         search.assert_called_once_with(sensor.id)
+
+
+def test_sensor_page_hides_the_delete_button_from_members_if_the_sensor_holds_data(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """A member without a role may not delete data, so is not offered to delete a sensor that holds some."""
+    sensor = setup_assets["wind-asset-1"].sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
+
+    assert response.status_code == 200
+    assert b'id="delete-sensor-button"' not in response.data
+
+
+def test_sensor_api_deletion_still_requires_delete_data_permission(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """The fast page check must not bypass the sensor endpoint's data guard."""
+    sensor = setup_assets["wind-asset-1"].sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+    from flexmeasures.api.tests.utils import get_auth_token
+
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    response = client.delete(
+        url_for("SensorAPI:delete", id=sensor.id),
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 403
+    assert db.session.get(Sensor, sensor.id) is not None
 
 
 def test_sensor_deletion_notes_are_only_for_users_who_may_delete_the_sensor(
