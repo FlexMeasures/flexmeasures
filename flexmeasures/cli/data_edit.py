@@ -656,12 +656,11 @@ def transfer_ownership(asset: Asset, new_owner: Account):
             transfer_ownership_recursive(child, account)
 
     transfer_ownership_recursive(asset, new_owner)
+    db.session.commit()
     click.secho(
         f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
-
-    db.session.commit()
 
 
 @fm_edit_data.command("transfer-parenthood")

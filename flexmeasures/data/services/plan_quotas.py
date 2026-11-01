@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from sqlalchemy import event, func, inspect, select
 from sqlalchemy.orm import Session
-from werkzeug.exceptions import UnprocessableEntity
 
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.user import Account, Plan, User
@@ -14,6 +13,10 @@ QUOTAS = (
     ("assets", GenericAsset, "account_id", "max_assets"),
     ("client organisations", Account, "consultancy_account_id", "max_clients"),
 )
+
+
+class PlanQuotaExceeded(Exception):
+    """An organisation's plan prevents an operation."""
 
 
 def _target_id(obj, field: str) -> int | None:
@@ -80,7 +83,7 @@ def _enforce_consultancy_roles(session: Session) -> None:
             )
             plan = _plan_for(account, session) if account is not None else None
         if plan is not None and plan.max_clients == 0:
-            raise UnprocessableEntity(
+            raise PlanQuotaExceeded(
                 "This organisation's plan does not allow consultancy privileges."
             )
 
@@ -150,7 +153,7 @@ def _enforce_new_account_quotas(session: Session, new_account_additions) -> None
         limit_field = next(field for name, _, _, field in QUOTAS if name == label)
         limit = getattr(plan, limit_field) if plan is not None else None
         if limit is not None and added > limit:
-            raise UnprocessableEntity(
+            raise PlanQuotaExceeded(
                 f"This organisation's plan allows at most {limit} {label}. "
                 "It currently has 0."
             )
@@ -200,7 +203,7 @@ def _enforce_existing_account_quotas(session: Session, additions, removals) -> N
             )
             if current + added - removals[(account_id, label)] > limit:
                 resource = label.removesuffix("s") if limit == 1 else label
-                raise UnprocessableEntity(
+                raise PlanQuotaExceeded(
                     f"This organisation's plan allows at most {limit} {resource}. "
                     f"It currently has {current}."
                 )

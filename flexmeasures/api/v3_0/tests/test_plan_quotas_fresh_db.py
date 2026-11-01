@@ -3,7 +3,7 @@
 import pytest
 from flask import url_for
 from sqlalchemy import func, select
-from werkzeug.exceptions import UnprocessableEntity
+from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
 
 from flexmeasures.api.common.utils.api_utils import copy_asset
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
@@ -32,7 +32,7 @@ def test_new_organisation_enforces_zero_user_quota_before_first_flush(fresh_db):
     )
     fresh_db.session.add_all([account, user])
 
-    with pytest.raises(UnprocessableEntity, match="at most 0 users"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 0 users"):
         fresh_db.session.flush()
 
 
@@ -106,7 +106,7 @@ def test_asset_quota_rejects_creation_and_subtree_copy(
     # The copied root fits; its child would exceed the quota. Roll back both.
     account.plan.max_assets = 3
     fresh_db.session.commit()
-    with pytest.raises(UnprocessableEntity, match="at most 3 assets"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 3 assets"):
         copy_asset(source, account=account)
     assert (
         fresh_db.session.scalar(
@@ -203,19 +203,19 @@ def test_relationship_transfers_cannot_bypass_destination_quotas(
 
     supplier_asset = setup_generic_assets_fresh_db["test_wind_turbine"]
     supplier_asset.owner = prosumer
-    with pytest.raises(UnprocessableEntity, match="at most 1 asset"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 1 asset"):
         fresh_db.session.flush()
     fresh_db.session.rollback()
 
     supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
     supplier_user.account = prosumer
-    with pytest.raises(UnprocessableEntity, match="at most 3 users"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 3 users"):
         fresh_db.session.flush()
     fresh_db.session.rollback()
 
     client_account = setup_accounts_fresh_db["ConsultancyClient"]
     client_account.consultancy_account = prosumer
-    with pytest.raises(UnprocessableEntity, match="at most 0 client organisations"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 0 client organisations"):
         fresh_db.session.flush()
     fresh_db.session.rollback()
 
@@ -236,7 +236,7 @@ def test_fk_only_user_creation_cannot_gain_consultant_role(
     )
     fresh_db.session.add(user)
 
-    with pytest.raises(UnprocessableEntity, match="consultancy privileges"):
+    with pytest.raises(PlanQuotaExceeded, match="consultancy privileges"):
         fresh_db.session.flush()
 
 
@@ -248,7 +248,7 @@ def test_existing_consultant_cannot_move_to_zero_client_plan(
     consultant = find_user_by_email("test_consultant@seita.nl")
     consultant.account_id = prosumer.id
 
-    with pytest.raises(UnprocessableEntity, match="consultancy privileges"):
+    with pytest.raises(PlanQuotaExceeded, match="consultancy privileges"):
         fresh_db.session.flush()
 
 
@@ -273,5 +273,5 @@ def test_changed_plan_id_is_enforced_before_flush(
             ].generic_asset_type,
         )
     )
-    with pytest.raises(UnprocessableEntity, match="at most 1 asset"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 1 asset"):
         fresh_db.session.flush()
