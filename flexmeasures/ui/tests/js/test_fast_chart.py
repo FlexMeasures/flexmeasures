@@ -556,3 +556,57 @@ def test_replay_ruler_survives_empty_data(assert_js):
         disposeFastChart(container.id);
         container.remove();
         """)
+
+
+def test_fixed_value_sensor_does_not_force_linear_interpolation(assert_js):
+    """Fixed-value sensors (negative sensor id, event_resolution=0) must not force a row to linear interpolation (#2253)."""
+    assert_js("""
+        import { groupData, isGroupInstantaneous } from "/js/fast-chart.js";
+
+        const t0 = 1700000000000;
+        const step = 15 * 60 * 1000;
+        const makeRow = (ts, val, id, name, res) => ({
+            event_start: ts,
+            event_value: val,
+            sensor: {id, name, unit: "kWh", event_resolution: res},
+            source: {id: id < 0 ? -1 : 1, name: id < 0 ? "flex-model" : "meter", type: "other"},
+        });
+
+        // 1. Real 15-min interval sensor (id=1, res=900) + fixed-value sensor (id=-1, res=0) -> step-after.
+        const mixedIntervalAndFixed = groupData(
+            [
+                makeRow(t0, 10, 1, "energy", 900),
+                makeRow(t0 + step, 12, 1, "energy", 900),
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+            ],
+            [{title: "Mixed interval", sensorIds: [1, -1]}],
+        );
+
+        // 2. Real instantaneous sensor (id=2, res=0) + fixed-value sensor (id=-1, res=0) -> linear.
+        const mixedInstantAndFixed = groupData(
+            [
+                makeRow(t0, 50, 2, "state of charge", 0),
+                makeRow(t0 + step, 55, 2, "state of charge", 0),
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+            ],
+            [{title: "Mixed instantaneous", sensorIds: [2, -1]}],
+        );
+
+        // 3. Only fixed-value sensors (id=-1, id=-2, res=0) -> step-after.
+        const onlyFixed = groupData(
+            [
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+                makeRow(t0, 80, -2, "soc-max", 0),
+                makeRow(t0 + step, 80, -2, "soc-max", 0),
+            ],
+            [{title: "Bounds only", sensorIds: [-1, -2]}],
+        );
+
+        eq("sensor ids are preserved on grouped series", mixedIntervalAndFixed[0].series.map((s) => s.sensorId), [1, -1]);
+        eq("interval sensor + fixed-value sensor stays step-after", isGroupInstantaneous(mixedIntervalAndFixed[0]), false);
+        eq("instantaneous sensor + fixed-value sensor stays linear", isGroupInstantaneous(mixedInstantAndFixed[0]), true);
+        eq("a row with only fixed-value sensors uses step-after", isGroupInstantaneous(onlyFixed[0]), false);
+        """)
