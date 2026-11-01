@@ -764,20 +764,55 @@ export function initDeleteAssetButton() {
   const btn = document.getElementById("delete-asset-button");
   if (!btn) return;
   const assetId = btn.dataset.assetId;
+  const parentAssetId = btn.dataset.parentAssetId;
 
   btn.addEventListener("click", function () {
     confirmAndFetch(
       "Are you sure you want to delete this asset and all time series data associated with it?",
-      "/assets/delete_with_data/" + assetId,
-      { method: "GET", credentials: "same-origin" },
-      (response) => {
+      apiBasePath + "/api/v3_0/assets/" + assetId,
+      { method: "DELETE", credentials: "same-origin" },
+      () => {
         showToast("Asset deleted successfully.", "success");
         setTimeout(() => {
-          window.location.href = response.url;
+          window.location.href = parentAssetId
+            ? "/assets/" + parentAssetId + "/context"
+            : "/assets";
         }, 1500);
       },
       "Failed to delete asset",
     );
+  });
+}
+
+/**
+ * Attach click handlers to all elements with the "js-reset-password-btn" class.
+ * Each button must carry a data-user-id attribute,
+ * and data-own-password="true" when it resets the password of the logged-in user,
+ * whose session the reset ends.
+ */
+export function initResetPasswordButtons() {
+  document.querySelectorAll(".js-reset-password-btn").forEach((btn) => {
+    const ownPassword = btn.dataset.ownPassword === "true";
+    btn.addEventListener("click", function () {
+      confirmAndFetch(
+        ownPassword
+          ? "Reset your password? You will be logged out, and receive an email with instructions to choose a new one."
+          : "Reset this user's password? They will be logged out, their API access token will stop working, and they will receive an email with instructions to choose a new one.",
+        apiBasePath + "/api/v3_0/users/" + btn.dataset.userId + "/password-reset",
+        { method: "PATCH", credentials: "same-origin" },
+        () => {
+          if (ownPassword) {
+            window.location.href = "/";
+            return;
+          }
+          showToast(
+            "The password has been reset, and instructions to choose a new one have been sent.",
+            "success",
+          );
+        },
+        "Failed to reset the password",
+      );
+    });
   });
 }
 

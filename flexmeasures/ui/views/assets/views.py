@@ -17,8 +17,6 @@ from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
-    delete_asset,
-    asset_contains_data,
     get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
@@ -85,7 +83,6 @@ class AssetCrudUI(FlaskView):
             message=msg,
             account=None,
             user_can_create_assets=user_can_create_assets(),
-            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -99,6 +96,7 @@ class AssetCrudUI(FlaskView):
             assets = []
             msg = f"Account {account_id} unknown."
         else:
+            check_access(account, "read")
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
@@ -218,7 +216,6 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
-            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -363,25 +360,6 @@ class AssetCrudUI(FlaskView):
                 current_app.logger.error(exc)
 
         return redirect(url_for("AssetCrudUI:properties", id=asset.id))
-
-    @login_required
-    def delete_with_data(self, id: str):
-        """Delete via /assets/delete_with_data/<id>"""
-        asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "edit-assets")
-        for descendant in asset.offspring:
-            check_access(descendant, "edit-assets")
-        if asset_contains_data(asset):
-            check_access(asset, "delete-data")
-        parent_asset_id = asset.parent_asset_id
-        delete_asset(asset)
-        db.session.commit()
-        session["toast_msg"] = (
-            f"Asset {id} and assorted meter readings / forecasts have been deleted."
-        )
-        if parent_asset_id:
-            return redirect(url_for("AssetCrudUI:context", id=parent_asset_id))
-        return redirect(url_for("AssetCrudUI:index"))
 
     @login_required
     @route("/<id>/auditlog")

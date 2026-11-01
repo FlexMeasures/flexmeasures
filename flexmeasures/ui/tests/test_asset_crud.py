@@ -31,6 +31,17 @@ The real logic tests are done in the api package, which is also the better place
 api_path_assets = "http://localhost//api/v3_0/assets"
 
 
+def sensor_has_beliefs(db, sensor) -> bool:
+    return (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
@@ -362,43 +373,13 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     assert b"Must be one of: sum, min, max, mean." in response.data
 
 
-def test_delete_asset(client, db, as_admin, setup_assets):
-    """Deleting a top-level asset redirects to the asset index and shows a toast."""
-    assets = list(setup_assets.values())
-    top_level = next(
-        (a for a in assets if a.parent_asset_id is None),
-        None,
-    )
-    assert top_level is not None, "No top-level asset found in fixtures"
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=top_level.id),
-        follow_redirects=True,
-    )
-    assert response.status_code == 200
-    assert b"have been deleted" in response.data
-
-
 def test_delete_asset_with_data_requires_delete_data_permission(
     client, db, as_prosumer_user1, setup_assets
 ):
-    """The asset UI endpoint must protect data even when its button is visible."""
+    """Deleting an asset that holds data requires the delete-data permission, which a member without a role lacks."""
     asset = setup_assets["wind-asset-2"]
     sensor = asset.sensors[0]
-    assert (
-        db.session.scalar(
-            select(TimedBelief.sensor_id)
-            .where(TimedBelief.sensor_id == sensor.id)
-            .limit(1)
-        )
-        is not None
-    )
-
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=asset.id),
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 403
+    assert sensor_has_beliefs(db, sensor)
 
     from flexmeasures.api.tests.utils import get_auth_token
 
@@ -409,22 +390,20 @@ def test_delete_asset_with_data_requires_delete_data_permission(
     )
     assert api_response.status_code == 403
     assert db.session.get(GenericAsset, asset.id) is not None
-    assert (
-        db.session.scalar(
-            select(TimedBelief.sensor_id)
-            .where(TimedBelief.sensor_id == sensor.id)
-            .limit(1)
-        )
-        is not None
-    )
+    assert sensor_has_beliefs(db, sensor)
 
 
-def test_delete_child_asset_redirects_to_parent(
-    client, db, as_admin, setup_accounts, setup_generic_asset_types
+@pytest.mark.parametrize("is_child", [False, True])
+def test_delete_button_names_the_parent_and_the_ui_route_is_gone(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types, is_child
 ):
-    """Deleting a child asset should redirect to the parent asset's context page."""
+    """The delete button names the asset's parent, which the page moves on to after deleting the asset through the API.
+
+    The button's script, which calls the API, is not run here.
+    Deleting is no longer possible through a GET on a UI route.
+    """
     parent = GenericAsset(
-        name="parent-for-deletion-test",
+        name=f"parent-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -432,9 +411,8 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(parent)
     db.session.flush()
-
     child = GenericAsset(
-        name="child-for-deletion-test",
+        name=f"child-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -443,13 +421,32 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(child)
     db.session.commit()
+    asset = child if is_child else parent
 
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=child.id),
-        follow_redirects=False,
+    page = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    expected_parent = str(parent.id) if is_child else ""
+    assert (
+        f'data-asset-id="{asset.id}" data-parent-asset-id="{expected_parent}"'.encode()
+        in page.data
     )
-    assert response.status_code == 302
-    assert url_for("AssetCrudUI:context", id=parent.id) in response.location
+
+    assert client.get(f"/assets/delete_with_data/{asset.id}").status_code == 404
+    assert db.session.get(GenericAsset, asset.id) is not None
+
+
+def test_assets_of_an_account_need_read_access_to_it(
+    client, db, setup_assets, as_prosumer_user1
+):
+    """The page listing an account's assets names the account, so it is only for those who may read the account."""
+    from flexmeasures.data.services.users import find_user_by_email
+
+    own_account = find_user_by_email("test_prosumer_user@seita.nl").account
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+
+    assert client.get(f"/assets/owned_by/{own_account.id}").status_code == 200
+    response = client.get(f"/assets/owned_by/{other_account.id}")
+    assert response.status_code == 403
+    assert other_account.name.encode() not in response.data
 
 
 def test_inherited_flex_context_in_editor(
@@ -864,14 +861,7 @@ def test_asset_page_checks_for_data_only_for_users_without_delete_data(
     """Who may delete data may delete the asset either way, so only for other users does the page query whether the asset holds data."""
     asset = setup_assets["wind-asset-2"]
     sensor = asset.sensors[0]
-    assert (
-        db.session.scalar(
-            select(TimedBelief.sensor_id)
-            .where(TimedBelief.sensor_id == sensor.id)
-            .limit(1)
-        )
-        is not None
-    )
+    assert sensor_has_beliefs(db, sensor)
     request.getfixturevalue(login_fixture)
     statements = []
 
