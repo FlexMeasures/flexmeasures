@@ -521,11 +521,16 @@
                 const flexCheckBox = document.getElementById('flexCheckBox');
                 const sensorSearchBar = document.getElementById('sensorSearchBar');
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+                const searchNow = document.getElementById('flexModelSearchNow');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
-                    { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
+                    { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors },
+                    { element: searchNow, id: 'flexModelSearchNow', eventType: 'click', handler: (event) => {
+                        event.preventDefault();
+                        searchSensors();
+                    } }
                 ];
 
                 elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
@@ -648,10 +653,11 @@
             }
 
             async function searchSensors() {
-                const searchValue = sensorSearchBar.value.toLowerCase();
+                document.getElementById('flexModelSensorSearchPrompt').classList.add('d-none');
+                const searchValue = document.getElementById('sensorSearchBar').value.toLowerCase();
                 spinnerElement.style.display = 'flex';
                 senSearchResEle.style.display = 'none';
-                const flexUnitsSelectValue = flexUnitsSelect.value;
+                const flexUnitsSelectValue = document.getElementById('flexUnitsSelect').value;
 
                 const params = new URLSearchParams();
 
@@ -659,9 +665,7 @@
                     params.append('filter', searchValue);
                 }
 
-                if (flexCheckBox.checked) {
-                    params.append('include_public_assets', true);
-                }
+                params.set('include_public_assets', document.getElementById('flexCheckBox').checked);
 
                 if (flexUnitsSelectValue !== "null") {
                     params.append('unit', flexUnitsSelectValue);
@@ -1166,6 +1170,10 @@
                                     </select>
                                 </div>
                             </div>
+                            <p id="flexModelSensorSearchPrompt" class="text-muted mt-2 mb-0">
+                                Start searching by keyword or unit. Or
+                                <a href="#" id="flexModelSearchNow">search right now</a>.
+                            </p>
                             ${supportsSensorDefault ? `
                                 <label for="flexSensorDefaultInput" class="form-label mt-2">
                                     Default fallback (optional)
