@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import url_for
+from sqlalchemy import event, select
 
 import pytest
 import json
@@ -8,8 +9,10 @@ import copy
 import re
 
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.ui.tests.utils import (
     assert_asset_listing_filter_row,
     mock_asset_data,
@@ -375,6 +378,47 @@ def test_delete_asset(client, db, as_admin, setup_assets):
     assert b"have been deleted" in response.data
 
 
+def test_delete_asset_with_data_requires_delete_data_permission(
+    client, db, as_prosumer_user1, setup_assets
+):
+    """The asset UI endpoint must protect data even when its button is visible."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+    response = client.get(
+        url_for("AssetCrudUI:delete_with_data", id=asset.id),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+
+    from flexmeasures.api.tests.utils import get_auth_token
+
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    api_response = client.delete(
+        url_for("AssetAPI:delete", id=asset.id),
+        headers={"Authorization": auth_token},
+    )
+    assert api_response.status_code == 403
+    assert db.session.get(GenericAsset, asset.id) is not None
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def test_delete_child_asset_redirects_to_parent(
     client, db, as_admin, setup_accounts, setup_generic_asset_types
 ):
@@ -630,7 +674,7 @@ def test_breadcrumb_cross_account_parent(
 #
 # ACL summary used by the tests below:
 #   - GenericAsset.update    → any member of the owning organisation (+ consultants)
-#   - GenericAsset.delete    → organisation-admin or consultant only
+#   - GenericAsset.delete-data → organisation-admin or consultant only
 #   - GenericAsset.create-children (child assets/sensors) → any organisation member
 #   - Account.create-children (top-level assets) → organisation-admin or consultant
 #
@@ -638,7 +682,7 @@ def test_breadcrumb_cross_account_parent(
 #   • The "Create asset" child-asset button on the properties page
 #   • The "Copy this asset" / "Copy to <org>" copy buttons
 # "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
-# "user_can_delete_asset" (GenericAsset.delete) gates the "Delete this asset" button.
+# "user_can_delete_asset" (GenericAsset.edit-assets, plus delete-data if the asset holds data) gates the "Delete this asset" button.
 # ---------------------------------------------------------------------------
 
 
@@ -765,7 +809,7 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: cannot delete or create top-level assets.
+        # Plain account member: cannot delete an asset holding data or create top-level assets.
         ("as_prosumer_user1", False, False),
     ],
 )
@@ -805,6 +849,106 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_data_query",
+    [
+        ("as_prosumer_account_admin", False),
+        ("as_prosumer_user1", True),
+    ],
+)
+def test_asset_page_checks_for_data_only_for_users_without_delete_data(
+    db, client, setup_assets, request, login_fixture, expect_data_query
+):
+    """Who may delete data may delete the asset either way, so only for other users does the page query whether the asset holds data."""
+    asset = setup_assets["wind-asset-2"]
+    sensor = asset.sensors[0]
+    assert (
+        db.session.scalar(
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        is not None
+    )
+    request.getfixturevalue(login_fixture)
+    statements = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement.lower())
+
+    event.listen(db.engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    finally:
+        event.remove(db.engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    assert (
+        any("from timed_belief" in statement for statement in statements)
+        is expect_data_query
+    )
+    assert (b"Delete this asset" in response.data) is not expect_data_query
+
+
+def test_member_may_delete_an_asset_without_data(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member without a role may delete an asset of their organisation whose sensors hold no data, as the API allows."""
+    parent = GenericAsset(
+        name="parent-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="child-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    sensor = Sensor(name="sensor-without-data", generic_asset=child, unit="kW")
+    db.session.add_all([parent, child, sensor])
+    db.session.commit()
+
+    response = client.get(url_for("AssetCrudUI:properties", id=parent.id))
+    assert response.status_code == 200
+    assert b"Delete this asset" in response.data
+
+
+def test_copy_button_does_not_claim_the_copy_cannot_be_deleted(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member may copy a child asset that holds data, and may delete the copy, as copies hold no data."""
+    parent = GenericAsset(
+        name="parent-of-an-asset-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="asset-with-an-annotation-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    db.session.add_all([parent, child])
+    db.session.flush()
+    child.annotations.append(
+        Annotation(
+            content="makes the asset hold data",
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            end=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            source=DataSource(name="annotator", type="demo script"),
+            type="label",
+        )
+    )
+    db.session.commit()
+
+    page = client.get(url_for("AssetCrudUI:properties", id=child.id))
+    assert page.status_code == 200
+    assert b"Copy this asset" in page.data
+    assert b"Delete this asset" not in page.data
+    assert b"you can copy but not delete" not in page.data
 
 
 def test_group_field_hints_on_properties_page(
