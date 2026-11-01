@@ -6,16 +6,22 @@ import pandas as pd
 import pytest
 import pytz
 import timely_beliefs as tb
-from sqlalchemy import select
+from sqlalchemy import select, text
+from timely_beliefs.beliefs.materialized_views import (
+    MVIEW_NAME,
+    create_mview_ddl,
+    drop_mview_ddl,
+)
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
     simplify_index,
 )
-from flexmeasures.tests.utils import get_power_sensor, get_test_sensor
+from flexmeasures.tests.utils import QueryCounter, get_power_sensor, get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -457,3 +463,90 @@ def test_user_source_ids_criterion(db, setup_markets, setup_roles_users):
     assert user_1 in returned_sources
     assert script in returned_sources, "non-user sources should be unaffected"
     assert user_2 not in returned_sources, "other users' data should be ignored"
+
+
+class StatementRecorder(QueryCounter):
+    """Count SQLAlchemy queries and keep their SQL text, so a test can say which queries ran."""
+
+    def __init__(self, connection):
+        super().__init__(connection)
+        self.statements: list[str] = []
+
+    def callback(self, conn, cursor, statement, *args, **kwargs):
+        self.statements.append(statement)
+        super().callback(conn, cursor, statement, *args, **kwargs)
+
+
+@pytest.fixture
+def most_recent_beliefs_mview(db):
+    """Create the materialized view of most recent beliefs, as a host may have done, and drop it afterwards."""
+    db.session.execute(text(create_mview_ddl(TimedBelief)))
+    db.session.commit()
+    yield
+    db.session.rollback()
+    db.session.execute(text(drop_mview_ddl()))
+    db.session.commit()
+
+
+def test_search_looks_up_the_materialized_view_once(setup_beliefs, db):
+    """A search over several sensors should ask the database for the view of most recent beliefs once, not once per sensor."""
+    sensors = db.session.scalars(select(Sensor).order_by(Sensor.id)).all()
+    assert len(sensors) > 1
+    with StatementRecorder(db.engine) as recorder:
+        TimedBelief.search(sensors, most_recent_beliefs_only=True, sum_multiple=False)
+    assert len([s for s in recorder.statements if "pg_matviews" in s]) == 1
+    assert not [s for s in recorder.statements if MVIEW_NAME in s]
+
+
+def test_search_uses_the_materialized_view_where_it_exists(
+    setup_beliefs, db, most_recent_beliefs_mview
+):
+    """Where a host created the view of most recent beliefs, a search should use it, and find the same beliefs as without it."""
+    sensors = db.session.scalars(select(Sensor).order_by(Sensor.id)).all()
+    with StatementRecorder(db.engine) as recorder:
+        bdfs = TimedBelief.search(
+            sensors, most_recent_beliefs_only=True, sum_multiple=False
+        )
+    assert len([s for s in recorder.statements if "pg_matviews" in s]) == 1
+    assert len([s for s in recorder.statements if MVIEW_NAME in s]) == len(sensors)
+
+    db.session.execute(text(drop_mview_ddl()))
+    bdfs_without_mview = TimedBelief.search(
+        sensors, most_recent_beliefs_only=True, sum_multiple=False
+    )
+    assert sum(len(bdf) for bdf in bdfs.values()) > 0
+    for sensor in sensors:
+        pd.testing.assert_frame_equal(
+            bdfs[sensor].sort_index(), bdfs_without_mview[sensor].sort_index()
+        )
+
+
+def test_search_does_not_look_up_the_materialized_view_when_it_is_not_needed(
+    setup_beliefs, db
+):
+    """Only a search for the most recent beliefs can use the view, so other searches should not ask the database for it."""
+    sensors = db.session.scalars(select(Sensor).order_by(Sensor.id)).all()
+    with StatementRecorder(db.engine) as recorder:
+        TimedBelief.search(sensors, most_recent_beliefs_only=False, sum_multiple=False)
+    assert recorder.count > 0, "the search should have queried the database"
+    assert not [s for s in recorder.statements if "pg_matviews" in s]
+
+
+def test_sensor_as_dict_does_not_query_the_parent_asset(setup_beliefs, db):
+    """Once an asset and its parent are loaded, describing the other sensors of that asset needs no more queries."""
+    asset = get_test_sensor(db).generic_asset
+    parent = GenericAsset(
+        name="parent of the market", generic_asset_type=asset.generic_asset_type
+    )
+    db.session.add(parent)
+    asset.parent_asset = parent
+    db.session.flush()
+    sensors = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=asset.id).order_by(Sensor.id)
+    ).all()
+    assert len(sensors) > 1
+    assert sensors[0].as_dict["asset_id"] == asset.id  # loads the asset and its parent
+    with StatementRecorder(db.engine) as recorder:
+        for sensor in sensors[1:]:
+            assert sensor.as_dict["asset_id"] == asset.id
+    assert recorder.statements == []

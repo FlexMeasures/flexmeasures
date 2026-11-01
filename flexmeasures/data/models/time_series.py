@@ -17,6 +17,7 @@ from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import JSONB
 import timely_beliefs as tb
+from timely_beliefs.beliefs.materialized_views import get_most_recent_beliefs_mview
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
@@ -652,9 +653,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         # never attempt a DB look-up for a row that does not exist.
         if hasattr(self, "_as_dict_override") and self._as_dict_override:
             return self._as_dict_override
-        parent_asset = db.session.execute(
-            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
-        ).scalar_one_or_none()
+        parent_asset = self.generic_asset.parent_asset
         return dict(
             asset_id=self.generic_asset.id,
             id=self.id,
@@ -1213,6 +1212,13 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
 
+        # timely-beliefs would otherwise look up its materialized view of most recent beliefs once per sensor.
+        most_recent_beliefs_mview = (
+            get_most_recent_beliefs_mview(db.session)
+            if most_recent_beliefs_only and not most_recent_only
+            else None
+        )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -1229,6 +1235,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
+                # Look the view up once for all sensors, not once per sensor.
+                use_materialized_view=most_recent_beliefs_mview is not None,
+                most_recent_beliefs_mview=most_recent_beliefs_mview,
             )
             if use_latest_version_per_event and not one_deterministic_belief_per_event:
                 # Asking for one belief per event settles the versions itself, family by family,
