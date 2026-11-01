@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 from flask import url_for
-from sqlalchemy import event, select
+from sqlalchemy import select
 
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -421,12 +421,10 @@ def test_sensor_page_leaves_the_search_for_fields_to_the_delete_button(
         search.assert_called_once_with(sensor.id)
 
 
-def test_sensor_page_rendering_does_not_query_timed_belief_for_delete_control(
-    db, client, setup_assets, as_prosumer_user1, monkeypatch
+def test_sensor_page_hides_the_delete_button_from_members_if_the_sensor_holds_data(
+    db, client, setup_assets, as_prosumer_user1
 ):
-    """The delete control's permission check must not scan the sensor's data."""
-    from flexmeasures.ui.utils.auth_utils import user_can_access
-
+    """A member without a role may not delete data, so is not offered to delete a sensor that holds some."""
     sensor = setup_assets["wind-asset-1"].sensors[0]
     assert (
         db.session.scalar(
@@ -436,30 +434,11 @@ def test_sensor_page_rendering_does_not_query_timed_belief_for_delete_control(
         )
         is not None
     )
-    actual_user_can_access = user_can_access
 
-    def without_forecast_permission(context, permission):
-        if permission == "trigger-forecasts":
-            return False
-        return actual_user_can_access(context, permission)
-
-    monkeypatch.setattr(
-        "flexmeasures.ui.views.sensors.user_can_access", without_forecast_permission
-    )
-    statements = []
-
-    def record_statement(conn, cursor, statement, parameters, context, executemany):
-        statements.append(statement.lower())
-
-    event.listen(db.engine, "before_cursor_execute", record_statement)
-    try:
-        response = client.get(url_for("SensorUI:get", id=sensor.id))
-    finally:
-        event.remove(db.engine, "before_cursor_execute", record_statement)
+    response = client.get(url_for("SensorUI:get", id=sensor.id))
 
     assert response.status_code == 200
-    assert not any("timed_belief" in statement for statement in statements)
-    assert b'id="delete-sensor-button"' in response.data
+    assert b'id="delete-sensor-button"' not in response.data
 
 
 def test_sensor_api_deletion_still_requires_delete_data_permission(

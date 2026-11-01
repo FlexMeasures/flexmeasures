@@ -537,7 +537,7 @@ class AssetCrudUI(FlaskView):
             own_organisation_name=_own_account.name,
             user_can_create_assets=user_can_create_assets(),
             user_can_create_children=user_can_create_children(asset),
-            user_can_delete_asset=user_can_delete(asset, check_data=False),
+            user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
             attributes_label=ATTRIBUTES_FIELD_LABEL,

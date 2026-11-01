@@ -672,7 +672,7 @@ def test_breadcrumb_cross_account_parent(
 #
 # ACL summary used by the tests below:
 #   - GenericAsset.update    → any member of the owning organisation (+ consultants)
-#   - GenericAsset.delete    → organisation-admin or consultant only
+#   - GenericAsset.delete-data → organisation-admin or consultant only
 #   - GenericAsset.create-children (child assets/sensors) → any organisation member
 #   - Account.create-children (top-level assets) → organisation-admin or consultant
 #
@@ -680,7 +680,7 @@ def test_breadcrumb_cross_account_parent(
 #   • The "Create asset" child-asset button on the properties page
 #   • The "Copy this asset" / "Copy to <org>" copy buttons
 # "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
-# "user_can_delete_asset" (GenericAsset.delete) gates the "Delete this asset" button.
+# "user_can_delete_asset" (GenericAsset.edit-assets, plus delete-data if the asset holds data) gates the "Delete this asset" button.
 # ---------------------------------------------------------------------------
 
 
@@ -807,12 +807,11 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: may see the delete action, but the endpoint can
-        # reject it when deleting the asset would also delete data.
-        ("as_prosumer_user1", True, False),
+        # Plain account member: cannot delete an asset holding data or create top-level assets.
+        ("as_prosumer_user1", False, False),
     ],
 )
-def test_delete_and_create_buttons_on_properties_page(
+def test_admin_only_buttons_on_properties_page(
     db,
     client,
     setup_assets,
@@ -822,9 +821,8 @@ def test_delete_and_create_buttons_on_properties_page(
     expect_create_asset_btn,
 ):
     """
-    The delete button uses a fast asset permission check. The endpoint decides
-    whether the current user may also delete data; creating an asset remains
-    gated on account-admin permissions.
+    'Delete this asset' and 'Create asset' (child asset via account) are
+    gated on account-admin permissions and must not appear for plain users.
     """
     from flexmeasures.data.services.users import find_user_by_email
 
@@ -851,10 +849,17 @@ def test_delete_and_create_buttons_on_properties_page(
         assert b"Create asset" not in page.data
 
 
-def test_asset_properties_rendering_does_not_query_timed_belief(
-    db, client, setup_assets, as_prosumer_user1
+@pytest.mark.parametrize(
+    "login_fixture, expect_data_query",
+    [
+        ("as_prosumer_account_admin", False),
+        ("as_prosumer_user1", True),
+    ],
+)
+def test_asset_page_checks_for_data_only_for_users_without_delete_data(
+    db, client, setup_assets, request, login_fixture, expect_data_query
 ):
-    """Rendering the delete control must not scan the asset's measurement data."""
+    """Who may delete data may delete the asset either way, so only for other users does the page query whether the asset holds data."""
     asset = setup_assets["wind-asset-2"]
     sensor = asset.sensors[0]
     assert (
@@ -865,6 +870,7 @@ def test_asset_properties_rendering_does_not_query_timed_belief(
         )
         is not None
     )
+    request.getfixturevalue(login_fixture)
     statements = []
 
     def record_statement(conn, cursor, statement, parameters, context, executemany):
@@ -877,7 +883,34 @@ def test_asset_properties_rendering_does_not_query_timed_belief(
         event.remove(db.engine, "before_cursor_execute", record_statement)
 
     assert response.status_code == 200
-    assert not any("timed_belief" in statement for statement in statements)
+    assert (
+        any("from timed_belief" in statement for statement in statements)
+        is expect_data_query
+    )
+    assert (b"Delete this asset" in response.data) is not expect_data_query
+
+
+def test_member_may_delete_an_asset_without_data(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member without a role may delete an asset of their organisation whose sensors hold no data, as the API allows."""
+    parent = GenericAsset(
+        name="parent-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="child-a-member-may-delete",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    sensor = Sensor(name="sensor-without-data", generic_asset=child, unit="kW")
+    db.session.add_all([parent, child, sensor])
+    db.session.commit()
+
+    response = client.get(url_for("AssetCrudUI:properties", id=parent.id))
+    assert response.status_code == 200
     assert b"Delete this asset" in response.data
 
 
