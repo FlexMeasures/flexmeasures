@@ -195,6 +195,30 @@ export function unavailableReferencesWarning(
 }
 
 /**
+ * The warning a flex-config dialogue shows above its configuration when some of its fields lost their sensor.
+ *
+ * Deleting a sensor leaves its references in place without a sensor, and the API refuses to save those,
+ * so the user has to know before saving that each such field needs a new sensor.
+ * Each field is also marked on its card, but that can be out of sight, such as on another commodity's tab.
+ *
+ * @param {number} count - How many fields lost their sensor.
+ * @returns {HTMLElement|null} - The warning, or null if there is nothing to warn about.
+ */
+export function deletedSensorReferencesWarning(count) {
+  if (count === 0) {
+    return null;
+  }
+  const warning = document.createElement("div");
+  warning.className = "alert alert-warning mt-2";
+  warning.setAttribute("role", "alert");
+  warning.textContent =
+    count === 1
+      ? "1 field refers to a sensor that has been deleted. Changes can only be saved once it has a new sensor or a fixed value, or is removed."
+      : `${count} fields refer to a sensor that has been deleted. Changes can only be saved once each of them has a new sensor or a fixed value, or is removed.`;
+  return warning;
+}
+
+/**
  * How both dialogues word a reference to a sensor we could not look up.
  *
  * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
@@ -745,20 +769,55 @@ export function initDeleteAssetButton() {
   const btn = document.getElementById("delete-asset-button");
   if (!btn) return;
   const assetId = btn.dataset.assetId;
+  const parentAssetId = btn.dataset.parentAssetId;
 
   btn.addEventListener("click", function () {
     confirmAndFetch(
       "Are you sure you want to delete this asset and all time series data associated with it?",
-      "/assets/delete_with_data/" + assetId,
-      { method: "GET", credentials: "same-origin" },
-      (response) => {
+      apiBasePath + "/api/v3_0/assets/" + assetId,
+      { method: "DELETE", credentials: "same-origin" },
+      () => {
         showToast("Asset deleted successfully.", "success");
         setTimeout(() => {
-          window.location.href = response.url;
+          window.location.href = parentAssetId
+            ? "/assets/" + parentAssetId + "/context"
+            : "/assets";
         }, 1500);
       },
       "Failed to delete asset",
     );
+  });
+}
+
+/**
+ * Attach click handlers to all elements with the "js-reset-password-btn" class.
+ * Each button must carry a data-user-id attribute,
+ * and data-own-password="true" when it resets the password of the logged-in user,
+ * whose session the reset ends.
+ */
+export function initResetPasswordButtons() {
+  document.querySelectorAll(".js-reset-password-btn").forEach((btn) => {
+    const ownPassword = btn.dataset.ownPassword === "true";
+    btn.addEventListener("click", function () {
+      confirmAndFetch(
+        ownPassword
+          ? "Reset your password? You will be logged out, and receive an email with instructions to choose a new one."
+          : "Reset this user's password? They will be logged out, their API access token will stop working, and they will receive an email with instructions to choose a new one.",
+        apiBasePath + "/api/v3_0/users/" + btn.dataset.userId + "/password-reset",
+        { method: "PATCH", credentials: "same-origin" },
+        () => {
+          if (ownPassword) {
+            window.location.href = "/";
+            return;
+          }
+          showToast(
+            "The password has been reset, and instructions to choose a new one have been sent.",
+            "success",
+          );
+        },
+        "Failed to reset the password",
+      );
+    });
   });
 }
 

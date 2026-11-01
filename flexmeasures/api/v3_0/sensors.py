@@ -547,6 +547,7 @@ class SensorAPI(FlaskView):
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
+            .order_by(Sensor.id)
         )
 
         if filter is not None:
@@ -597,7 +598,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
-        belief_time: datetime | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -610,9 +611,9 @@ class SensorAPI(FlaskView):
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
 
-            By default, FlexMeasures assumes the data was not known prior to the time of upload.
-            Set belief-time-measured-instantly to record each value as known when its event ended,
-            or set belief-time to record all values as known at that time (e.g. the closure time of the market that set the prices).
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -719,7 +720,7 @@ class SensorAPI(FlaskView):
         }
         if not belief_time_measured_instantly:
             # Fix the belief time now, so data processed by a queued job is not believed later than its upload
-            upload_data["belief-time"] = (belief_time or server_now()).isoformat()
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -2102,6 +2103,7 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
+            Data that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2140,6 +2142,27 @@ class SensorAPI(FlaskView):
                           asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
+                    partial-aggregate:
+                      summary: An aggregate leaving out a member
+                      description: |
+                        The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
+                        `missing-members` lists the sensors left out, and is left out itself where no member is missing.
+                      value:
+                        - staleness: "PT6M"
+                          stale: false
+                          staleness_since: "2024-01-15T14:30:00+00:00"
+                          reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report"
+                          source_type: "reporter"
+                          id: 88750
+                          name: "power"
+                          resolution: "PT15M"
+                          asset_id: 12
+                          asset_name: "Street"
+                          relation: "sensor belongs to this asset"
+                          missing-members:
+                            - id: 88754
+                              name: "power"
+                              asset-name: "Heat pump"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:

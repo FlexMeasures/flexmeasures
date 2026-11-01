@@ -31,11 +31,36 @@ BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE = (
 )
 
 
-class BeliefReplacementNotAllowed(Exception):
-    """Saving would change existing beliefs, which this server does not allow."""
+class BeliefReplacementNotAllowed(IntegrityError):
+    """Saving would change existing beliefs, which this server does not allow.
 
-    def __init__(self, message: str = BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE):
-        super().__init__(message)
+    It is the IntegrityError that refused the replacement, renamed and with a readable message,
+    so code catching IntegrityError around saving beliefs still catches it.
+    """
+
+    def __init__(self, error: IntegrityError):
+        super().__init__(
+            error.statement,
+            error.params,
+            error.orig,
+            hide_parameters=error.hide_parameters,
+            connection_invalidated=error.connection_invalidated,
+        )
+
+    def __str__(self) -> str:
+        """Leave out the SQL statement and parameters, which IntegrityError would show."""
+        return BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE
+
+    def __reduce__(self):
+        """Pickle as IntegrityError does, but through this class's own constructor."""
+        error = IntegrityError(
+            self.statement,
+            self.params,
+            self.orig,
+            hide_parameters=self.hide_parameters,
+            connection_invalidated=self.connection_invalidated,
+        )
+        return self.__class__, (error,)
 
 
 def is_belief_replacement(error: IntegrityError) -> bool:
@@ -121,7 +146,7 @@ def _save_and_commit(
         if not is_belief_replacement(error):
             raise
         db.session.rollback()
-        raise BeliefReplacementNotAllowed() from error
+        raise BeliefReplacementNotAllowed(error) from error
     return status
 
 

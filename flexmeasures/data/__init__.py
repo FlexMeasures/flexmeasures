@@ -98,6 +98,12 @@ def register_at(app: Flask):
     Migrate(app, db, directory=os.path.join(app.root_path, "data", "migrations"))
     _add_vacuum_option_to_db_upgrade(app)
 
+    from flexmeasures.data.services.group_membership_audit import (
+        register as register_group_membership_audit,
+    )
+
+    register_group_membership_audit(db.session)
+
     app.database_schema_is_migrated_to_head = True
     if not app.testing and app.config.get("FLEXMEASURES_ENV") != "documentation":
         from flexmeasures.data.utils import (

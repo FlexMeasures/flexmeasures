@@ -402,13 +402,18 @@ def test_upload_csv_file_returns_accepted_job(
     [
         ({}, None),  # the time of upload
         (
-            {"belief-time": "2022-12-15T12:00:00+01:00"},
+            {"prior": "2022-12-15T12:00:00+01:00"},
             "2022-12-15T12:00:00+01:00",
+        ),
+        # A prior in the future is accepted, as on POST /sensors/<id>/data
+        (
+            {"prior": "2099-01-01T00:00:00+00:00"},
+            "2099-01-01T00:00:00+00:00",
         ),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file_job_carries_belief_time(
+def test_upload_csv_file_job_carries_prior(
     client,
     setup_api_test_data,
     requesting_user,
@@ -437,7 +442,7 @@ def test_upload_csv_file_job_carries_belief_time(
     assert response.status_code == 202
 
     job = current_app.queues["ingestion"].fetch_job(response.json["job"])
-    belief_time = pd.Timestamp(job.kwargs["upload_data"]["belief-time"])
+    belief_time = pd.Timestamp(job.kwargs["upload_data"]["prior"])
     if expected_belief_time is None:
         assert before_request <= belief_time <= server_now()
     else:
@@ -449,17 +454,19 @@ def test_upload_csv_file_job_carries_belief_time(
     [
         (
             {
-                "belief-time": "2022-12-15T12:00:00+01:00",
+                "prior": "2022-12-15T12:00:00+01:00",
                 "belief-time-measured-instantly": "on",
             },
             "cannot be combined",
         ),
-        ({"belief-time": "2999-01-01T00:00:00+00:00"}, "lies in the future"),
-        ({"belief-time": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
+        ({"prior": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
+        # Beyond pandas' Timestamp bounds, so saving it would crash
+        ({"prior": "2999-01-01T00:00:00+00:00"}, "can be stored"),
+        ({"prior": "1600-01-01T00:00:00+00:00"}, "can be stored"),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file_rejects_invalid_belief_time(
+def test_upload_csv_file_rejects_invalid_prior(
     client, setup_api_test_data, requesting_user, form_data, expected_message
 ):
     sensor = setup_api_test_data["some gas sensor"]
@@ -780,10 +787,14 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset = existing_sensor.generic_asset
     asset.flex_model = {
         "soc-max": {"sensor": existing_sensor_id},
+        # a reference that carries a bound keeps it, for a new sensor to be picked
+        "soc-min": {"sensor": existing_sensor_id, "lower": "0 kWh"},
         "static-limit": "10 kW",
     }
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
+        # a reference that carries a default keeps it, for a new sensor to be picked
+        "production-price": {"sensor": existing_sensor_id, "default": "10 EUR/MWh"},
         "inflexible-device-sensors": [existing_sensor_id],
         # not a valid combination with the deprecated key above, but a deleted
         # sensor should be pruned from any of the inflexible-device keys
@@ -823,8 +834,13 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 
     asset_after = db.session.get(GenericAsset, asset.id)
     assert asset_after.flex_model.get("soc-max") is None
+    assert asset_after.flex_model.get("soc-min") == {"sensor": None, "lower": "0 kWh"}
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
+    assert asset_after.flex_context.get("production-price") == {
+        "sensor": None,
+        "default": "10 EUR/MWh",
+    }
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
     assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)

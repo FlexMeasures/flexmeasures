@@ -51,6 +51,7 @@ If you host FlexMeasures yourself, :ref:`getting_started` and :ref:`cli` explain
 
 For a recurring pipeline, consider a dedicated integration user.
 FlexMeasures records the authenticated user as the data source, making the pipeline's provenance easy to recognize.
+Forecasters, schedulers and reporters can later select data by its source: see :ref:`data_source_filters`.
 
 Install version 0.9.4 or newer of the client:
 
@@ -100,7 +101,7 @@ Before automating the pipeline, you can test the file on the sensor page:
 1. Open the relevant sensor.
 2. Expand **Upload data** in the left side panel.
 3. Choose the file and its unit.
-4. Select **Measured instantly** if each value was known when its event ended.
+4. Under **Belief time**, choose **Measured instantly** if each value was recorded when its event ended.
 5. Upload the file and inspect the chart.
 
 The panel also offers an example Excel file.
@@ -108,8 +109,8 @@ If the UI accepts your file but the automated upload does not,
 focus troubleshooting on the client configuration, credentials and network connection rather than the file format.
 
 .. A future screenshot belongs here. It should show the sensor page with the
-   "Upload data" panel expanded, including the file selector, "Measured
-   instantly" checkbox, unit selector and upload button.
+   "Upload data" panel expanded, including the file selector, the "Belief
+   time" choice, unit selector and upload button.
 
 Uploading the file with the FlexMeasures Client
 -----------------------------------------------
@@ -122,10 +123,10 @@ The following call works for both CSV and Excel files:
     :end-before: # End file upload example
     :dedent: 12
 
-``belief_time_measured_instantly=True`` records each value as known when its event ended.
-Leave it at the default ``False`` when the values only became known at upload time.
-The raw API and the UI also accept a ``belief-time``, which records all uploaded values as known at that time,
-for example the closure time of the market that set the prices.
+``belief_time_measured_instantly=True`` records each value when its event ended.
+Leave it at the default ``False`` to record the values at upload time.
+The raw API and the UI also accept a ``prior``, which records all uploaded values at that belief time,
+for example their original recording time when moving historical data from another system.
 
 The file upload currently assumes that values use the sensor's unit.
 The UI and raw API additionally let you specify a different compatible input unit for conversion.
@@ -322,3 +323,4 @@ Next: use the ingested data
 After ingesting measurements, prices and forecasts, you can ask FlexMeasures to forecast new data or compute optimized schedules.
 Current device state, such as a battery's state of charge, may be supplied in the scheduling trigger's ``flex-model``.
 See :ref:`tut_forecasting_scheduling` and :ref:`describing_flexibility` for the next steps.
+How a flex-model, a forecaster or a report refers to the ingested sensors, and how it can clean their readings, is described in :ref:`data_pipelining`.

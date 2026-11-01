@@ -1,9 +1,10 @@
 from datetime import timedelta
 
 from flask import current_app, request
-from flask_classful import FlaskView
+from flask_classful import FlaskView, route
 from flask_security import login_required
-from werkzeug.exceptions import NotFound
+from markupsafe import Markup
+from werkzeug.exceptions import Forbidden, NotFound
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
@@ -13,6 +14,7 @@ from flexmeasures.data.services.automations import (
     get_automations_feeding_sensor,
 )
 from flexmeasures.data.services.timerange import get_timerange
+from flexmeasures.data.services.sensors import flex_config_fields_left_without_sensor
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.auth_utils import (
     user_can_access,
@@ -21,6 +23,7 @@ from flexmeasures.ui.utils.auth_utils import (
     user_can_update,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
+from flexmeasures.ui.views.assets.utils import editor_paths_and_url
 from flexmeasures.ui.utils.view_utils import (
     render_flexmeasures_template,
     available_units,
@@ -30,6 +33,72 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
 from flexmeasures.auth.policy import check_access
+
+# How many assets' flex-configs the sensor page names when deleting a sensor leaves fields without one.
+MAX_NAMED_FIELD_GROUPS = 10
+
+
+def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
+    """What the sensor page tells the user who deletes this sensor about the flex-config fields it would leave without a sensor.
+
+    Before deleting, the confirmation names them, as plain text.
+    After deleting, a toast links to the editor for each of them, which the page shows once it has moved on to the sensor's asset.
+    A sensor can be referenced from assets the user cannot read, such as when it is public,
+    so those are only counted, not named.
+    A shared sensor, such as a price, can be referenced by many assets, so only the first few are named.
+
+    :returns: The note for the confirmation, and the toast, each empty if deleting the sensor leaves no field without one.
+    """
+    lines = []
+    links = []
+    unreadable_assets = set()
+    for asset, config_name, paths in flex_config_fields_left_without_sensor(sensor.id):
+        if not user_can_read(asset):
+            unreadable_assets.add(asset.id)
+            continue
+        paths, url = editor_paths_and_url(asset, config_name, paths)
+        fields = ", ".join(paths)
+        lines.append(f"- {asset.name}, {config_name}: {fields}")
+        if asset.id == sensor.generic_asset_id:
+            # The page moves on to this asset, whose own toast already links to these fields.
+            continue
+        links.append(
+            Markup('<a href="{url}">{asset}</a> ({config}: {fields})').format(
+                url=url, asset=asset.name, config=config_name, fields=fields
+            )
+        )
+    if len(lines) > MAX_NAMED_FIELD_GROUPS:
+        lines = lines[:MAX_NAMED_FIELD_GROUPS] + [
+            f"- and {len(lines) - MAX_NAMED_FIELD_GROUPS} more"
+        ]
+    if len(links) > MAX_NAMED_FIELD_GROUPS:
+        links = links[:MAX_NAMED_FIELD_GROUPS] + [
+            Markup("and {count} more").format(count=len(links) - MAX_NAMED_FIELD_GROUPS)
+        ]
+    if unreadable_assets:
+        unreadable = (
+            "1 asset"
+            if len(unreadable_assets) == 1
+            else f"{len(unreadable_assets)} assets"
+        )
+        lines.append(f"- fields on {unreadable} you cannot see")
+        links.append(
+            Markup("fields on {assets} you cannot see").format(assets=unreadable)
+        )
+    if not lines:
+        return "", Markup("")
+    confirm_note = "\n".join(
+        [
+            "These flex-config fields refer to this sensor. They keep their default, bounds and source filters, but will need a new sensor:",
+            *lines,
+        ]
+    )
+    if not links:
+        return confirm_note, Markup("")
+    toast = Markup(
+        "These flex-config fields referred to the deleted sensor, and need a new sensor: {fields}. Until then, scheduling uses the default of such a field as a fixed value, or ignores the field."
+    ).format(fields=Markup("; ").join(links))
+    return confirm_note, toast
 
 
 class SensorUI(FlaskView):
@@ -99,3 +168,21 @@ class SensorUI(FlaskView):
                 if user_can_read(automation)
             ],
         )
+
+    @login_required
+    @route("/<int:id>/deletion-notes")
+    def deletion_notes(self, id: int):
+        """GET from /sensors/<id>/deletion-notes
+
+        What to tell the user about deleting this sensor, fetched once they click to delete it,
+        as finding the flex-config fields it would leave without a sensor means searching every asset.
+        This is for the sensor page only, so its response may change, unlike that of the API.
+        It answers whoever the sensor page shows the delete button to, which is whoever the API lets delete the sensor.
+        """
+        sensor = db.session.get(Sensor, id)
+        if sensor is None:
+            raise NotFound
+        if not user_can_delete(sensor):
+            raise Forbidden
+        confirmation_note, toast = describe_fields_left_without_sensor(sensor)
+        return {"confirmation-note": confirmation_note, "toast": str(toast)}

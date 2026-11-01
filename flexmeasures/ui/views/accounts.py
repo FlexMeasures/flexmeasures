@@ -202,7 +202,7 @@ class AccountCrudUI(FlaskView):
     def auditlog(self, account_id: str):
         """/accounts/auditlog/<account_id>"""
         account = get_account_by_id_or_raise_notfound(account_id)
-        check_access(account, "read")
+        check_access(AuditLog.account_table_acl(account), "read")
 
         audit_logs = get_audit_log_records(account)
 

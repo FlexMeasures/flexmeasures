@@ -504,3 +504,17 @@ def test_the_unavailable_references_warning(assert_js):
         eq("several in the plural, naming what they point at", some.textContent,
            "3 saved references are not available anymore, as the sensors they point at have been deleted. You can remove or update them.");
         """)
+
+
+def test_the_deleted_sensor_references_warning(assert_js):
+    """A flex-config dialogue warns that it cannot save while fields lack their deleted sensor."""
+    assert_js("""
+        import { deletedSensorReferencesWarning } from "/js/ui-utils.js";
+
+        eq("nothing to warn about, no warning", deletedSensorReferencesWarning(0), null);
+        eq("one field is warned about in the singular", deletedSensorReferencesWarning(1).textContent,
+           "1 field refers to a sensor that has been deleted. Changes can only be saved once it has a new sensor or a fixed value, or is removed.");
+        eq("several in the plural", deletedSensorReferencesWarning(2).textContent,
+           "2 fields refer to a sensor that has been deleted. Changes can only be saved once each of them has a new sensor or a fixed value, or is removed.");
+        eq("as an alert", deletedSensorReferencesWarning(1).getAttribute("role"), "alert");
+        """)

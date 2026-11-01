@@ -51,7 +51,7 @@ from flexmeasures.data.schemas.utils import (
     convert_to_quantity,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.utils.time_utils import get_timezone, server_now
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.bound_utils import (
     apply_bounds_to_values,
     bound_validation_errors,
@@ -66,7 +66,11 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 from flexmeasures.data.schemas.attributes import JSON
-from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    AwareDateTimeField,
+    validate_storable_belief_time,
+)
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -400,6 +404,38 @@ def sensor_reference_keys() -> frozenset[str]:
     )
 
 
+def is_unset_sensor_reference(value: Any) -> bool:
+    """Whether a value is a sensor reference whose sensor was unset, which deleting the sensor leaves behind.
+
+    Deleting a sensor keeps the rest of each flex-config reference to it, such as its default, bounds and source filters,
+    so that they are still in place when a new sensor is picked for the field.
+    Only sensor deletion writes such a reference: the API refuses one.
+    """
+    return (
+        isinstance(value, dict)
+        and "sensor" in value
+        and value["sensor"] is None
+        and set(value) <= sensor_reference_keys()
+    )
+
+
+def unset_sensor_reference_paths(value: Any, path: tuple[str, ...] = ()) -> list[str]:
+    """Where a flex-config holds references whose sensor was deleted, so that the UI can point the user at them.
+
+    Such a reference can sit at any depth, such as in a commodity's flex-context or inside a commitment,
+    so each one is named by its path, e.g. "commodities > 2 > consumption-price", counting list positions from 1.
+    """
+    if is_unset_sensor_reference(value):
+        return [" > ".join(path)]
+    if isinstance(value, dict):
+        children = [(str(k), v) for k, v in value.items()]
+    elif isinstance(value, list):
+        children = [(str(i), v) for i, v in enumerate(value, start=1)]
+    else:
+        return []
+    return [p for k, v in children for p in unset_sensor_reference_paths(v, (*path, k))]
+
+
 def refuse_unknown_sensor_reference_keys(
     value: dict[str, Any], known: frozenset[str] | set[str] | None = None
 ) -> None:
@@ -623,6 +659,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if value["sensor"] is None:
+            raise FMValidationError(
+                'This sensor reference has no sensor (`"sensor": null`), which is how FlexMeasures marks a reference whose sensor was deleted.'
+                " Pick a sensor for it, or replace the reference with a fixed value."
+            )
         refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
@@ -926,12 +967,13 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
-    belief_time = AwareDateTimeField(
+    prior = AwareDateTimeField(
         required=False,
         allow_none=True,
-        data_key="belief-time",
+        data_key="prior",
+        validate=validate_storable_belief_time,
         metadata=dict(
-            description="Time at which all uploaded data was known, as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly, and cannot lie in the future.",
+            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
             example="2026-10-15T12:00:00+02:00",
         ),
     )
@@ -941,14 +983,12 @@ class SensorDataFileDescriptionSchema(Schema):
     )
 
     @validates_schema
-    def validate_belief_time(self, data, **kwargs):
-        """Refuse a belief time that conflicts with measured-instantly."""
-        if data.get("belief_time") is not None and data.get(
-            "belief_time_measured_instantly"
-        ):
+    def validate_prior(self, data, **kwargs):
+        """Refuse a prior that conflicts with measured-instantly."""
+        if data.get("prior") is not None and data.get("belief_time_measured_instantly"):
             raise ValidationError(
-                field_name="belief_time",
-                message="A belief time cannot be combined with belief-time-measured-instantly.",
+                field_name="prior",
+                message="A prior cannot be combined with belief-time-measured-instantly.",
             )
 
 
@@ -1023,7 +1063,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
-        belief_time = fields.pop("belief_time", None)
+        belief_time = fields.pop("prior", None)
         if belief_time is None and not belief_time_measured_instantly:
             belief_time = pd.Timestamp.utcnow()
 
@@ -1143,21 +1183,6 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
-
-    @validates_schema
-    def validate_belief_time_is_not_in_the_future(self, data, **kwargs):
-        """Refuse a belief time that lies in the future.
-
-        This is checked only when the request comes in, against the clock of the server that received it.
-        A queued job validates its data again on a worker, whose clock may lag behind,
-        so checking there would refuse an upload believed at the time it was received.
-        """
-        belief_time = data.get("belief_time")
-        if belief_time is not None and belief_time > server_now():
-            raise ValidationError(
-                field_name="belief_time",
-                message=f"Belief time {belief_time.isoformat()} lies in the future.",
-            )
 
     @post_load
     def post_load(self, fields, **kwargs):
