@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import url_for
 from sqlalchemy import event, select
@@ -9,6 +9,8 @@ import copy
 import re
 
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.ui.tests.utils import (
@@ -912,6 +914,41 @@ def test_member_may_delete_an_asset_without_data(
     response = client.get(url_for("AssetCrudUI:properties", id=parent.id))
     assert response.status_code == 200
     assert b"Delete this asset" in response.data
+
+
+def test_copy_button_does_not_claim_the_copy_cannot_be_deleted(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """A member may copy a child asset that holds data, and may delete the copy, as copies hold no data."""
+    parent = GenericAsset(
+        name="parent-of-an-asset-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    child = GenericAsset(
+        name="asset-with-an-annotation-a-member-may-copy",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset=parent,
+    )
+    db.session.add_all([parent, child])
+    db.session.flush()
+    child.annotations.append(
+        Annotation(
+            content="makes the asset hold data",
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            end=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            source=DataSource(name="annotator", type="demo script"),
+            type="label",
+        )
+    )
+    db.session.commit()
+
+    page = client.get(url_for("AssetCrudUI:properties", id=child.id))
+    assert page.status_code == 200
+    assert b"Copy this asset" in page.data
+    assert b"Delete this asset" not in page.data
+    assert b"you can copy but not delete" not in page.data
 
 
 def test_group_field_hints_on_properties_page(
