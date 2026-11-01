@@ -471,47 +471,49 @@ def _asset_tree_with_a_sensor_on_the_grandchild(db, asset_types, name):
 
 
 def test_asset_contains_data_finds_beliefs_on_a_grandchild_sensor(
-    db, setup_generic_asset_types, setup_sources
+    fresh_db, setup_generic_asset_types_fresh_db, setup_sources_fresh_db
 ):
     """A sensor without beliefs holds no data, and a belief on a grandchild's sensor counts as data of the root."""
     root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
-        db, setup_generic_asset_types, "contains-data"
+        fresh_db, setup_generic_asset_types_fresh_db, "contains-data"
     )
     assert not asset_contains_data(root, lock=False)
 
-    db.session.add(
+    fresh_db.session.add(
         TimedBelief(
             sensor=sensor,
-            source=setup_sources["Seita"],
+            source=setup_sources_fresh_db["Seita"],
             event_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
             belief_horizon=timedelta(0),
             event_value=1,
         )
     )
-    db.session.flush()
+    fresh_db.session.flush()
     assert asset_contains_data(root, lock=False)
     assert asset_contains_data(root)
 
 
-def test_asset_contains_data_names_the_sensors_it_probes(db, setup_generic_asset_types):
+def test_asset_contains_data_names_the_sensors_it_probes(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
     """The probe on timed_belief lists the subtree's sensor IDs, so Postgres looks each one up in the index.
 
     With a subquery in their place, Postgres may read the whole table's index instead,
     which on a large database takes seconds whenever the subtree holds no beliefs.
     """
     root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
-        db, setup_generic_asset_types, "probe-shape"
+        fresh_db, setup_generic_asset_types_fresh_db, "probe-shape"
     )
     statements = []
 
     def record_statement(conn, cursor, statement, parameters, context, executemany):
         statements.append((statement.lower(), parameters))
 
-    event.listen(db.engine, "before_cursor_execute", record_statement)
+    event.listen(fresh_db.engine, "before_cursor_execute", record_statement)
     try:
         asset_contains_data(root, lock=False)
     finally:
-        event.remove(db.engine, "before_cursor_execute", record_statement)
+        event.remove(fresh_db.engine, "before_cursor_execute", record_statement)
 
     [(probe, parameters)] = [s for s in statements if "from timed_belief" in s[0]]
     assert probe.count("select") == 1
