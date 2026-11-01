@@ -9,7 +9,6 @@ from flask import current_app
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
-from flask_security import current_user
 from sqlalchemy import select
 
 if TYPE_CHECKING:
@@ -25,8 +24,6 @@ from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
 )
-from flexmeasures.auth.policy import user_has_admin_access
-from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.utils.unit_utils import split_into_magnitude_and_unit
 
 
@@ -567,22 +564,27 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                     "Parent asset must belong to the same account as the child asset."
                 )
 
+    @validates_schema
+    def validate_parent_account_on_creation(self, data, **kwargs):
+        """Keep a new asset in the same account as its parent."""
+        if self.partial or getattr(self, "context", {}).get("asset") is not None:
+            return
+        parent_id = data.get("parent_asset_id")
+        if parent_id is None:
+            return
+        parent = db.session.get(GenericAsset, parent_id)
+        if parent and parent.account_id != data.get("account_id"):
+            raise ValidationError(
+                "Parent asset must belong to the same account as the child asset.",
+                "parent_asset_id",
+            )
+
     @validates("account_id")
     def validate_account(self, account_id: int | None, **kwargs):
-        if account_id is None and (
-            running_as_cli() or user_has_admin_access(current_user, "update")
-        ):
+        if account_id is None:
             return
-        account = db.session.get(Account, account_id)
-        if not account:
+        if db.session.get(Account, account_id) is None:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
-        if not running_as_cli() and (
-            not user_has_admin_access(current_user, "update")
-            and account_id != current_user.account_id
-        ):
-            raise ValidationError(
-                "User is not allowed to create assets for this account."
-            )
 
     @validates("attributes")
     def validate_attributes(self, attributes: dict, **kwargs):

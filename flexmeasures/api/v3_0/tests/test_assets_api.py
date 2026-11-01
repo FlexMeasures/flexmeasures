@@ -769,11 +769,7 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data, requestin
         json=post_data,
     )
     print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "not allowed to create assets for this account"
-        in asset_creation_response.json["message"]["json"]["account_id"][0]
-    )
+    assert asset_creation_response.status_code == 403
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -1018,7 +1014,9 @@ def test_post_an_asset_with_existing_name(
         parent = get_asset_by_name(parent_name)
 
     post_data["name"] = child_name
-    post_data["account_id"] = requesting_user.account_id
+    post_data["account_id"] = (
+        parent.account_id if parent else requesting_user.account_id
+    )
 
     if parent:
         post_data["parent_asset_id"] = parent.id
@@ -1698,7 +1696,7 @@ def test_regular_user_cannot_create_child_of_public_asset(
     client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
 ):
     """A plain account member must not be able to create a child asset under a public
-    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    (account-less) parent because the parent and child have different owners.
     """
     epex_asset = setup_markets["epex_da"].generic_asset
     assert epex_asset.account_id is None, "epex must be a public asset"
@@ -1714,7 +1712,31 @@ def test_regular_user_cannot_create_child_of_public_asset(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert "same account" in response.json["message"]["json"]["parent_asset_id"][0]
+
+
+@pytest.mark.parametrize("with_parent", [False, True])
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
+def test_consultant_can_create_client_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db, with_parent
+):
+    """A consultant can create both top-level and child assets for a client."""
+    account = setup_accounts["ConsultancyClient"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=account.id)
+    ).first()
+    assert parent is not None
+    post_data = get_asset_post_data()
+    post_data.update(
+        name="Consultant-created asset",
+        account_id=account.id,
+        parent_asset_id=parent.id if with_parent else None,
+    )
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    assert response.status_code == 201
+    assert response.json["account_id"] == account.id
+    assert response.json["parent_asset_id"] == post_data["parent_asset_id"]
 
 
 @pytest.mark.parametrize(
@@ -1760,9 +1782,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
-    ``GenericAsset.create-children`` only allows members of the account that
-    owns the parent asset. A Prosumer account-admin is not a Supplier account
-    member, so the request must be rejected.
+    The parent and child must belong to the same account, so the request is rejected.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")
@@ -1773,7 +1793,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
 
     # account_id is set to the user's own account – the schema requires non-site-admins
     # to only create assets for their own account, so this is the only valid value.
-    # The security hole is that the parent belongs to a *different* account.
+    # The parent belongs to a different account.
     post_data = {
         "name": "Cross-account child (auth-fix test 2)",
         "latitude": 30.1,
@@ -1784,7 +1804,8 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert "same account" in response.json["message"]["json"]["parent_asset_id"][0]
 
 
 @pytest.fixture
