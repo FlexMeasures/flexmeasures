@@ -122,13 +122,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     return {
       sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
         <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Relation: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
-      asset: `${escapeHtml(sensor.asset_name)} (<a href="/assets/${sensor.asset_id}">${sensor.asset_id}</a>)`,
-      source_type: escapeHtml(sensor.source_type || "None"),
-      staleness_since: `
-        <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
+      asset: `${escapeHtml(sensor["asset-name"])} (<a href="/assets/${sensor["asset-id"]}">${sensor["asset-id"]}</a>)`,
+      "source-type": escapeHtml(sensor["source-type"] || "None"),
+      "staleness-since": `
+        <span title="${sensor["staleness-since"] ? sensor["staleness-since"] : 'Never'}">
           ${
-            sensor.staleness_since ?
-              getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) :
+            sensor["staleness-since"] ?
+              getHumanFriendlyDeltaOrTimeStr(sensor["staleness-since"]) :
               "Never"
           }
         </span>
@@ -187,8 +187,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       columns: [
         { data: "sensor_info", title: "Sensor" },
         { data: "asset", title: "Asset" },
-        { data: "source_type", title: "Data source type" },
-        { data: "staleness_since", title: "Time of latest record" },
+        { data: "source-type", title: "Data source type" },
+        { data: "staleness-since", title: "Time of latest record" },
         { data: "status", title: "Status", className: "text-right" },
         { data: "url", title: "URL", className: "d-none" },
       ],
