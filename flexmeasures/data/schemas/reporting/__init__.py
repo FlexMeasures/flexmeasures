@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, pre_load, validate
+from marshmallow import Schema, fields, post_load, pre_load, validate
 
 from flexmeasures.data.schemas.sources import (
     DataSourceIdField,
@@ -29,6 +29,16 @@ class ReporterConfigSchema(Schema):
             examples=["forecaster"],
         ),
     )
+
+    @post_load
+    def drop_the_default_output_source_type(self, data: dict, **kwargs) -> dict:
+        """Naming the type a report is saved under anyway says nothing new, so it is dropped, rather than starting a source of its own.
+
+        A config saying 'reporter' then dumps as though it said nothing, so its source is the one the same config without it has.
+        """
+        if data.get("output_source_type") == "reporter":
+            del data["output_source_type"]
+        return data
 
 
 class ReporterParametersSchema(Schema):

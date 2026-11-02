@@ -1954,12 +1954,12 @@ def test_a_config_without_an_output_source_type_leaves_the_source_as_it_was(
     )
     assert reporter.source_type == "reporter"
 
-    # naming the default type is a different configuration, so it has a source of its own
+    # naming the default type says nothing new, so it keeps the same source
     named = AggregatorReporter(
         config={"method": "sum", "output-source-type": "reporter"}
     )
     assert named.data_source.type == "reporter"
-    assert named.data_source != source
+    assert named.data_source == source
 
 
 def test_a_report_is_saved_under_the_source_type_its_config_names(setup_dummy_data, db):

@@ -269,8 +269,8 @@ and a forecast of sensor 10 is not trained on it (see :ref:`forecasting`).
    A forecast of sensor 10 leaves out forecasters only when its config has no ``"auto"`` entry saying which sources of sensor 10 to train on.
    Such an entry replaces that default, so add ``"exclude-source-types": ["forecaster"]`` to it, if its other filters would let the community's forecast in.
 
-Leaving ``output-source-type`` out keeps a reporter's source as it was, so adding it to an existing reporter starts a new source,
-and the sensor's earlier reports stay under the old one.
+Leaving ``output-source-type`` out, or setting it to ``"reporter"``, keeps a reporter's source as it was.
+Setting it to another type for an existing reporter starts a new source, and the sensor's earlier reports stay under the old one.
 
 
 Example: Profits & losses
