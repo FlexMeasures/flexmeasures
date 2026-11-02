@@ -17,6 +17,9 @@ Creating an automation
 
 In the UI, the *New automation* button on the asset's *Automations* page opens a form for a new automation on that asset.
 It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the task's parameters, and either an existing data source to reuse or the data generator and its configuration.
+The type starts as that of the tab in front, so the button on the *Reporting* tab starts a report.
+Closing the form keeps what was typed into it, and the button opens that draft again, until *Clear form* empties it.
+A report can also start from one of the :ref:`report_templates`, which leaves only its sensors and a few values to fill in.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_new.png
     :align: center

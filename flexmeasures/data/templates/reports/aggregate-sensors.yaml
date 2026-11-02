@@ -7,6 +7,14 @@
 name: aggregate-sensors
 description: Aggregate several power or energy sensors into one total, summing them, or subtracting those weighted -1.
 reporter: AggregatorReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Adds up several sensors into one total, and can subtract some of them."
+  # More inputs can be added, named part-3, part-4 and so on.
+  add_inputs: part
+  # Each input gets a weight, which the config's weights store under the input's name.
+  input_weights: true
 config:
   # Combine the input sensors event by event, by summing them.
   method: sum

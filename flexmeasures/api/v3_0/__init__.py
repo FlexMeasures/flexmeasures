@@ -37,6 +37,7 @@ from flexmeasures.api.v3_0.jobs import JobAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
 from flexmeasures.api.v3_0.sources import SourceAPI
+from flexmeasures.api.v3_0.report_templates import ReportTemplateAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
@@ -94,6 +95,7 @@ def register_at(app: Flask):
     ServicesAPI.register(app)
     SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
     SourceAPI.register(app, route_prefix=v3_0_api_prefix)
+    ReportTemplateAPI.register(app, route_prefix=v3_0_api_prefix)
 
     register_swagger_ui(app)
 

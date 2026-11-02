@@ -7,6 +7,10 @@
 name: dynamic-tariff
 description: Dynamic electricity tariff, from the day-ahead price plus the energy tax and a supplier surcharge, with VAT added.
 reporter: PandasReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Your energy price: the day-ahead price plus taxes, a supplier surcharge and VAT."
 config:
   required_input:
     # The day-ahead price, the energy tax and the surcharge should be recorded in the same unit, such as EUR/MWh.

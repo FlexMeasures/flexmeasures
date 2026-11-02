@@ -6,6 +6,15 @@
 name: meter-readings-to-flow
 description: Flow per interval from the readings of a cumulative meter, with implausible flows left out.
 reporter: PandasReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Turns the readings of a meter that counts up into the usage per interval."
+  labels:
+    config.transformations[2].args[0]: Lowest plausible flow per interval
+    config.transformations[3].args[0]: Highest plausible flow per interval
+    # The flow is stored unconverted, so a kW sensor would get a 15-minute flow in kWh as if it were kW.
+    parameters.output[0].sensor: "Output sensor: flow, in the meter's unit (such as kWh, not kW)"
 config:
   required_input:
     # The meter readings should be taken at the resolution of the output sensor, such as every 15 minutes.

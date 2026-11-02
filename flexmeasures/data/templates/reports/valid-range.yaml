@@ -8,6 +8,13 @@
 name: valid-range
 description: Sensor values within a valid range, with out-of-range values left out.
 reporter: PandasReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Keeps only the values within a range, and leaves out the rest."
+  labels:
+    config.transformations[0].args[0]: Lowest valid value
+    config.transformations[1].args[0]: Highest valid value
 config:
   required_input:
     - name: measurements

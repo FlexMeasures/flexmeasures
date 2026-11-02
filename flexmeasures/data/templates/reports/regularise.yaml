@@ -6,6 +6,10 @@
 name: regularise
 description: Irregular sensor readings put on a regular grid, interpolating between the readings around each grid point.
 reporter: PandasReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Puts readings taken at irregular times onto a regular 15-minute grid."
 config:
   # Each reading is used as one value per moment, without its belief time and source.
   droplevels: true

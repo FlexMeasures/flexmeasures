@@ -70,6 +70,15 @@ JQUERY_STUB = """
                 nodes.forEach(node => node.classList.toggle(name, on));
                 return self;
             },
+            filter: function (keep) {
+                const kept = nodes.filter((node, index) => keep(index, node));
+                return {length: kept.length};
+            },
+            attr: function (name, value) {
+                if (value === undefined) return nodes.length ? nodes[0].getAttribute(name) : undefined;
+                nodes.forEach(node => node.setAttribute(name, value));
+                return self;
+            },
         };
         return self;
     };
@@ -165,6 +174,11 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and leaves the copy inactive", document.getElementById("automationActive").checked, false);
 
         const generatorFields = () => [...document.querySelectorAll(".chooses-generator")];
+        eq("a report copy's generator field hints at a reporter, not a forecaster",
+           document.getElementById("automationGenerator").getAttribute("placeholder"), "PandasReporter");
+        check("and its parameters hint at a report's inputs and outputs",
+              document.getElementById("automationParameters").getAttribute("placeholder").includes('"output"'),
+              document.getElementById("automationParameters").getAttribute("placeholder"));
         check("a report copy can still name a data generator",
               generatorFields().length > 0 && generatorFields().every(field => field.style.display !== "none"),
               "hidden for a type that chooses its own generator");
@@ -177,6 +191,10 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
               generatorFields().every(field => field.style.display === "none"),
               "still shown for a schedule automation");
 
+        eq("a schedule copy's parameters hint at a schedule's window",
+           document.getElementById("automationParameters").getAttribute("placeholder"),
+           '{{"start-offset": "1D,DB", "duration": "P1D"}}');
+
         page.resetNewAutomationForm();
 
         eq("opening a blank form clears the copied name", document.getElementById("automationName").value, "");
@@ -185,6 +203,8 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and restores the asset's own timezone",
            document.getElementById("automationTimezone").value, "Europe/Amsterdam");
         eq("and the default type", document.getElementById("automationType").value, "forecasting");
+        eq("with a forecaster's example again",
+           document.getElementById("automationGenerator").getAttribute("placeholder"), "TrainPredictPipeline");
         eq("and a new automation is active again, as the form is rendered",
            document.getElementById("automationActive").checked, true);
         check("and the data generator fields are shown again, after a schedule copy hid them",
