@@ -2,7 +2,7 @@
 
 import json
 
-from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+from flexmeasures.data.models.charts.chart_types import CHARGE_POINT_CHART_NAMES
 
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):

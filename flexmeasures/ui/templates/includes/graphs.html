@@ -73,7 +73,7 @@
     let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
     let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
-    // The graph titles and sensor name the Charge Points chart goes by, as the Python chart builder names them.
+    // The graph titles and sensor name the Charge Points chart goes by, as the registry of asset chart types names them.
     const chargePointChartNames = {{ charge_point_chart_names | tojson }};
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
     // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can

@@ -2143,7 +2143,7 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
 }
 
 // The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
-// from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
+// from the registry of asset chart types, whose layout of the Charge Points chart uses the same names (CHARGE_POINT_CHART_NAMES in chart_types.py):
 // - sessionsTitle: the dashboard group holding the raw session-marker sensors (arrival, departure, plug in/out, start/stop charging).
 //   Their values are epoch timestamps, not plottable quantities, so (like Vega-Lite) only the Charge Points chart type shows them;
 //   the default multi-sensor view hides this group.
@@ -2161,7 +2161,7 @@ function capitalizeTitle(title) {
  * Whether the Charge Points chart shows this graph below its sessions.
  *
  * @param {string} title - The graph's title, as in sensors_to_show.
- * @param {Object} chargePointChart - The names the Charge Points chart goes by (CHARGE_POINT_CHART_NAMES in belief_charts.py).
+ * @param {Object} chargePointChart - The names the Charge Points chart goes by (CHARGE_POINT_CHART_NAMES in chart_types.py).
  * @returns {boolean}
  */
 export function isChargePointCompanionTitle(title, chargePointChart) {

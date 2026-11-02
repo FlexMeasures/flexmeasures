@@ -319,7 +319,7 @@ def add_jinja_filters(app):
 
 
 def add_jinja_variables(app):
-    from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+    from flexmeasures.data.models.charts.chart_types import CHARGE_POINT_CHART_NAMES
 
     # Set variables for Jinja template context
     for v, d in (

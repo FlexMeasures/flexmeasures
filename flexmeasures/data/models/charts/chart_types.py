@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from typing import Callable
 
 from flexmeasures.data.models.charts.belief_charts import (
+    CHARGE_POINT_COMPANION_TITLES,
+    CHARGE_POINT_POWER_SENSOR_NAME,
     CHARGE_POINT_SESSIONS_TITLE,
+    POWER_FLOW_BY_TYPE_TITLE,
     charge_point_session_sensors,
     charge_point_companion_graph,
     chart_for_chargepoint_sessions,
@@ -113,6 +116,16 @@ def charge_point_sessions_layout(sensors_to_show: list[dict]) -> list[dict]:
         if (graph := charge_point_companion_graph(entry)) is not None
     ]
     return [sessions_graph, *companion_graphs]
+
+
+# The names that the layout of the Charge Points chart goes by, for the fast chart in the browser (handed to it by includes/graphs.html).
+# The fast chart still lays out the graphs itself, by these names, so that it draws what charge_point_sessions_layout holds.
+CHARGE_POINT_CHART_NAMES = {
+    "sessionsTitle": CHARGE_POINT_SESSIONS_TITLE,
+    "companionTitles": list(CHARGE_POINT_COMPANION_TITLES),
+    "powerFlowTitle": POWER_FLOW_BY_TYPE_TITLE,
+    "powerSensorName": CHARGE_POINT_POWER_SENSOR_NAME,
+}
 
 
 def has_charge_points(asset: "GenericAsset") -> bool:  # noqa F821
