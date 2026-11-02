@@ -1,0 +1,47 @@
+# Prepared report template: valid range.
+#
+# Copies a sensor's values, leaving out any value outside a valid range,
+# using the PandasReporter.
+# Unlike the clipped-values template, an out-of-range value is dropped rather than pulled to the nearest bound,
+# so a faulty reading leaves a gap instead of a plausible-looking value.
+# Replace each FILL_IN placeholder: the bounds of the valid range, and your own sensor IDs.
+name: valid-range
+description: Sensor values within a valid range, with out-of-range values left out.
+reporter: PandasReporter
+config:
+  required_input:
+    - name: measurements
+  required_output:
+    - name: valid
+  transformations:
+    # The lowest valid value, in the unit of the input sensor; values below it are left out.
+    - df_input: measurements
+      df_output: above-lower
+      method: ge
+      args: [FILL_IN]
+    # The highest valid value, in the unit of the input sensor; values above it are left out.
+    - df_input: measurements
+      df_output: below-upper
+      method: le
+      args: [FILL_IN]
+    - df_input: measurements
+      df_output: valid
+      method: where
+      args: ["@above-lower"]
+    - method: where
+      args: ["@below-upper"]
+    - method: dropna
+parameters:
+  input:
+    # The sensor recording the values to check.
+    - name: measurements
+      sensor: FILL_IN
+  output:
+    # The sensor to store the valid values; it should record the same unit and event resolution as the input sensor.
+    - name: valid
+      sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB

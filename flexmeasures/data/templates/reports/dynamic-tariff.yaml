@@ -1,0 +1,61 @@
+# Prepared report template: dynamic tariff.
+#
+# Computes a dynamic electricity tariff from the day-ahead price,
+# by adding the energy tax and a supplier's surcharge, and then the VAT,
+# using the PandasReporter.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: dynamic-tariff
+description: Dynamic electricity tariff, from the day-ahead price plus the energy tax and a supplier surcharge, with VAT added.
+reporter: PandasReporter
+config:
+  required_input:
+    # The day-ahead price, the energy tax and the surcharge should be recorded in the same unit, such as EUR/MWh.
+    # They may each have their own resolution: all inputs are read at the finest one, usually that of the day-ahead price.
+    - name: day-ahead
+    - name: energy-tax
+    - name: surcharge
+    # The VAT rate in %, such as 21.
+    - name: vat
+  required_output:
+    - name: tariff
+  transformations:
+    # The VAT rate as a factor: 21% becomes 1.21.
+    - df_input: vat
+      df_output: vat-factor
+      method: divide
+      args: [100]
+    - method: add
+      args: [1]
+    # The price before VAT.
+    - df_input: day-ahead
+      df_output: tariff
+      method: add
+      args: ["@energy-tax"]
+    - method: add
+      args: ["@surcharge"]
+    # The price with VAT.
+    - method: multiply
+      args: ["@vat-factor"]
+parameters:
+  input:
+    # The sensor recording the day-ahead price.
+    - name: day-ahead
+      sensor: FILL_IN
+    # The sensor recording the energy tax.
+    - name: energy-tax
+      sensor: FILL_IN
+    # The sensor recording the supplier's surcharge.
+    - name: surcharge
+      sensor: FILL_IN
+    # The sensor recording the VAT rate, in %.
+    - name: vat
+      sensor: FILL_IN
+  output:
+    # The sensor to store the tariff, in the unit of the price inputs.
+    - name: tariff
+      sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run computes the tariff for the next day, so run it once the day-ahead prices are published, such as at 14:00.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: 1D,DB
+  end-offset: 2D,DB

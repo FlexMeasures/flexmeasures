@@ -1,0 +1,71 @@
+# Prepared report template: regularise.
+#
+# Puts the irregular readings of a sensor on a regular grid, such as every 15 minutes,
+# interpolating between the readings on either side of each grid point, using the PandasReporter.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: regularise
+description: Irregular sensor readings put on a regular grid, interpolating between the readings around each grid point.
+reporter: PandasReporter
+config:
+  # Each reading is used as one value per moment, without its belief time and source.
+  droplevels: true
+  required_input:
+    - name: irregular
+  required_output:
+    - name: regular
+  transformations:
+    # The grid points (edit "15min" here and below to match the event resolution of the output sensor) ...
+    - df_input: irregular
+      df_output: grid
+      method: resample
+      args: ["15min"]
+      skip_if_empty: true
+    - method: asfreq
+      skip_if_empty: true
+    # ... added to the readings, in order of time.
+    - df_input: irregular
+      df_output: regular
+      method: _append
+      args: ["@grid"]
+      skip_if_empty: true
+    - method: sort_index
+      skip_if_empty: true
+    # Each grid point gets the value interpolated between the readings around it,
+    # and grid points before the first reading get the first reading.
+    - method: interpolate
+      args: ["time"]
+      skip_if_empty: true
+    - method: bfill
+      skip_if_empty: true
+    # A reading that falls on a grid point is kept only once.
+    - method: groupby
+      kwargs:
+        level: 0
+    - method: first
+    # Only the grid points remain.
+    - method: resample
+      args: ["15min"]
+      skip_if_empty: true
+    - method: nearest
+      skip_if_empty: true
+parameters:
+  input:
+    # The sensor recording the irregular readings.
+    # Data written by reporters is not read as a reading,
+    # so that the regular values can be stored on the same sensor without being regularised again.
+    - name: irregular
+      sensor: FILL_IN
+      exclude_source_types: [reporter]
+  output:
+    # The sensor to store the regular values, in the unit of the readings, such as the same sensor.
+    - name: regular
+      sensor: FILL_IN
+  # The values are moments on the grid, rather than events lasting a grid interval,
+  # so they can be stored on a sensor recording instantaneous readings, like the input sensor.
+  check_output_resolution: false
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run covers the four hours either side of the hour it runs in, so run it every hour, such as at minute 5.
+  # A grid point near the end of the window is interpolated again by later runs, once the readings after it are in.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: HB,-4h
+  end-offset: HB,4h

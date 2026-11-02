@@ -1,0 +1,33 @@
+# Prepared report template: aggregate sensors.
+#
+# Aggregates the power (or energy) recorded by several sensors into one total, such as a site's consumption
+# or a community's net grid power, using the AggregatorReporter.
+# A weight of -1 subtracts a sensor instead, such as an EV charger from a meter that also measures it.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: aggregate-sensors
+description: Aggregate several power or energy sensors into one total, summing them, or subtracting those weighted -1.
+reporter: AggregatorReporter
+config:
+  # Combine the input sensors event by event, by summing them.
+  method: sum
+  # Optionally, weigh an input by its name, for example to subtract an EV charger:
+  # weights:
+  #   part-2: -1.0
+parameters:
+  input:
+    # The sensors to aggregate.
+    # Name them as you like (a weight in the config refers to a sensor by its name here),
+    # and add or remove entries to match your site.
+    - name: part-1
+      sensor: FILL_IN
+    - name: part-2
+      sensor: FILL_IN
+  output:
+    # The sensor to store the report.
+    # Each input is converted to its unit and resampled to its event resolution before the inputs are summed.
+    - sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB

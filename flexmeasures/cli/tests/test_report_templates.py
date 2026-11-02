@@ -119,11 +119,9 @@ def test_every_template_is_well_formed(app):
             assert description["sensor"] == PLACEHOLDER
 
 
-def test_building_consumption_template_validates(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
-    """The building-consumption template validates against the AggregatorReporter schemas, once sensors are filled in."""
-    template = get_report_template("building-consumption")
+def test_aggregate_sensors_template_validates(app, fresh_db, setup_dummy_data_fresh_db):
+    """The aggregate-sensors template validates against the AggregatorReporter schemas, once sensors are filled in."""
+    template = get_report_template("aggregate-sensors")
     assert template["reporter"] == "AggregatorReporter"
 
     reporter_class = app.data_generators["reporter"][template["reporter"]]
@@ -141,10 +139,10 @@ def test_building_consumption_template_validates(
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
-def test_building_consumption_sums_its_input_sensors(
+def test_aggregate_sensors_sums_its_input_sensors(
     app, fresh_db, setup_dummy_data_fresh_db
 ):
-    """The building-consumption template totals its input sensors event by event."""
+    """The aggregate-sensors template totals its input sensors event by event, at the resolution of the output sensor."""
     sensor1_id, sensor2_id, _, _ = setup_dummy_data_fresh_db
     sensor1 = fresh_db.session.get(Sensor, sensor1_id)
     site_sensor = Sensor(
@@ -155,24 +153,28 @@ def test_building_consumption_sums_its_input_sensors(
     fresh_db.session.add(site_sensor)
     fresh_db.session.commit()
 
-    template = get_report_template("building-consumption")
+    template = get_report_template("aggregate-sensors")
+    parameters = {
+        "input": [
+            {"name": "part-1", "sensor": sensor1_id},
+            {"name": "part-2", "sensor": sensor2_id},
+        ],
+        "output": [{"sensor": site_sensor.id}],
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T04:00:00+00:00",
+    }
     report = AggregatorReporter(config=template["config"]).compute(
-        parameters={
-            "input": [
-                {"name": "part-1", "sensor": sensor1_id},
-                {"name": "part-2", "sensor": sensor2_id},
-            ],
-            "output": [{"sensor": site_sensor.id}],
-            "start": "2023-04-10T00:00:00+00:00",
-            "end": "2023-04-10T04:00:00+00:00",
-            # both sensors are hourly here, unlike the 15-minute default of the template
-            "resolution": "PT1H",
-        }
+        parameters=parameters
     )[0]["data"]
 
     # both sensors hold the hour index as their value, so the site total is twice that
     assert len(report) == 4
     assert (report.values.T == [0, 2, 4, 6]).all()
+
+    # weighing one input -1 subtracts it, which leaves nothing of two equal sensors
+    config = dict(template["config"], weights={"part-2": -1.0})
+    report = AggregatorReporter(config=config).compute(parameters=parameters)[0]["data"]
+    assert (report.values.T == [0, 0, 0, 0]).all()
 
 
 def test_daily_energy_template_totals_a_power_sensor(
@@ -276,6 +278,233 @@ def test_clipped_values_template_bounds_its_input(
     assert (report.values.T == [1, 1, 2, 2]).all()
 
 
+def test_valid_range_template_leaves_out_values_outside_its_range(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """The valid-range template drops out-of-range values, rather than pulling them to a bound."""
+    template = get_report_template("valid-range")
+    assert template["reporter"] == "PandasReporter"
+    assert find_placeholders(template["config"]) == [
+        "transformations[0].args[0]",
+        "transformations[1].args[0]",
+    ]
+    config = deepcopy(template["config"])
+    config["transformations"][0]["args"] = [1]
+    config["transformations"][1]["args"] = [2]
+    app.data_generators["reporter"][template["reporter"]]._config_schema.load(config)
+
+    sensor1_id, _, _, _ = setup_dummy_data_fresh_db
+    sensor1 = fresh_db.session.get(Sensor, sensor1_id)
+    valid_sensor = Sensor(
+        "valid measurements",
+        generic_asset=sensor1.generic_asset,
+        event_resolution=timedelta(hours=1),
+    )
+    fresh_db.session.add(valid_sensor)
+    fresh_db.session.commit()
+
+    report = PandasReporter(config=config).compute(
+        parameters={
+            "input": [{"name": "measurements", "sensor": sensor1_id}],
+            "output": [{"name": "valid", "sensor": valid_sensor.id}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T04:00:00+00:00",
+        }
+    )[0]["data"]
+
+    # the sensor holds the hour index (0, 1, 2, 3), of which only 1 and 2 lie in the range [1, 2]
+    assert list(report.values.T[0]) == [1, 2]
+    assert [t.hour for t in report.index.get_level_values("event_start")] == [1, 2]
+
+
+def _save_values(db, sensor, start, values, resolution):
+    """Record one belief per event on the sensor, known a day before the first event."""
+    source = db.session.scalar(
+        select(DataSource).filter_by(name="template test source")
+    )
+    if source is None:
+        source = DataSource("template test source")
+        db.session.add(source)
+        db.session.flush()
+    db.session.add_all(
+        [
+            TimedBelief(
+                event_start=start + i * resolution,
+                belief_time=start - timedelta(days=1),
+                event_value=value,
+                sensor=sensor,
+                source=source,
+            )
+            for i, value in enumerate(values)
+        ]
+    )
+
+
+def test_dynamic_tariff_template_adds_taxes_and_vat(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """The dynamic-tariff template adds the energy tax and the surcharge to the day-ahead price, and then the VAT, across resolutions."""
+    template = get_report_template("dynamic-tariff")
+    assert template["reporter"] == "PandasReporter"
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    assert find_placeholders(template["config"]) == []
+    reporter_class._config_schema.load(template["config"])
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    quarter, day = timedelta(minutes=15), timedelta(days=1)
+    day_ahead = Sensor(
+        "day-ahead", generic_asset=asset, event_resolution=quarter, unit="EUR/MWh"
+    )
+    energy_tax = Sensor(
+        "energy tax", generic_asset=asset, event_resolution=day, unit="EUR/MWh"
+    )
+    surcharge = Sensor(
+        "surcharge", generic_asset=asset, event_resolution=day, unit="EUR/MWh"
+    )
+    vat = Sensor("VAT", generic_asset=asset, event_resolution=day, unit="%")
+    tariff = Sensor(
+        "tariff", generic_asset=asset, event_resolution=quarter, unit="EUR/MWh"
+    )
+    fresh_db.session.add_all([day_ahead, energy_tax, surcharge, vat, tariff])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    _save_values(fresh_db, day_ahead, start, [100, 120, -20, 0], quarter)
+    _save_values(fresh_db, energy_tax, start, [50], day)
+    _save_values(fresh_db, surcharge, start, [10], day)
+    _save_values(fresh_db, vat, start, [21], day)
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(
+        template["parameters"],
+        [day_ahead.id, energy_tax.id, surcharge.id, vat.id],
+        [tariff.id],
+    )
+    assert find_placeholders(parameters) == []
+    prepared_parameters = prepare_report_parameters(parameters, "0 14 * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+
+    report = PandasReporter(config=template["config"]).compute(
+        parameters={
+            "input": parameters["input"],
+            "output": parameters["output"],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T01:00:00+00:00",
+        }
+    )[0]["data"]
+
+    # (day-ahead + 50 + 10) * 1.21, also for a negative day-ahead price
+    assert report.values.T[0] == pytest.approx([193.6, 217.8, 48.4, 72.6])
+
+
+def test_meter_readings_to_flow_template_takes_the_difference_between_readings(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """Each flow is what the meter counted until its next reading, recorded at the interval's start, and implausible flows are left out."""
+    template = get_report_template("meter-readings-to-flow")
+    assert template["reporter"] == "PandasReporter"
+    assert find_placeholders(template["config"]) == [
+        "transformations[2].args[0]",
+        "transformations[3].args[0]",
+    ]
+    config = deepcopy(template["config"])
+    config["transformations"][2]["args"] = [0]
+    config["transformations"][3]["args"] = [5]
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    reporter_class._config_schema.load(config)
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    quarter = timedelta(minutes=15)
+    readings = Sensor(
+        "meter readings", generic_asset=asset, event_resolution=quarter, unit="kWh"
+    )
+    flow = Sensor(
+        "energy per interval", generic_asset=asset, event_resolution=quarter, unit="kWh"
+    )
+    fresh_db.session.add_all([readings, flow])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    # the meter runs backwards once, between 00:30 and 00:45
+    _save_values(fresh_db, readings, start, [10, 11, 13, 12, 14], quarter)
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(template["parameters"], [readings.id], [flow.id])
+    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+    # the window ends one reading after midnight, so the day's last interval has the reading at its end
+    assert prepared_parameters["end"].endswith("T00:15:00+00:00")
+
+    report = PandasReporter(config=config).compute(
+        parameters={
+            "input": parameters["input"],
+            "output": parameters["output"],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T01:15:00+00:00",
+        }
+    )[0]["data"]
+
+    starts = [t.strftime("%H:%M") for t in report.index.get_level_values("event_start")]
+    assert dict(zip(starts, report.values.T[0])) == {"00:00": 1, "00:15": 2, "00:45": 2}
+
+
+def test_regularise_template_interpolates_onto_a_grid(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """The regularise template interpolates irregular readings onto the grid of the output sensor."""
+    template = get_report_template("regularise")
+    assert template["reporter"] == "PandasReporter"
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    assert find_placeholders(template["config"]) == []
+    reporter_class._config_schema.load(template["config"])
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    irregular = Sensor(
+        "irregular readings",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="kWh",
+    )
+    regular = Sensor(
+        "regular readings",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="kWh",
+    )
+    fresh_db.session.add_all([irregular, regular])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    for minutes, value in [(5, 10), (20, 40), (50, 70)]:
+        _save_values(
+            fresh_db,
+            irregular,
+            start + timedelta(minutes=minutes),
+            [value],
+            timedelta(0),
+        )
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(template["parameters"], [irregular.id], [regular.id])
+    prepared_parameters = prepare_report_parameters(parameters, "5 * * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+
+    # the template's own parameters, which store the values as moments, over a fixed window
+    window = {
+        k: v for k, v in parameters.items() if k not in ("start-offset", "end-offset")
+    }
+    report = PandasReporter(config=template["config"]).compute(
+        parameters=dict(
+            window,
+            start="2023-04-10T00:00:00+00:00",
+            end="2023-04-10T01:00:00+00:00",
+        )
+    )[0]["data"]
+
+    starts = [t.strftime("%H:%M") for t in report.index.get_level_values("event_start")]
+    # 00:00 lies before the first reading, so it takes that one; the others are interpolated in time
+    assert dict(zip(starts, report.values.T[0])) == pytest.approx(
+        {"00:00": 10, "00:15": 30, "00:30": 50, "00:45": 65}
+    )
+
+
 def test_show_report_templates(app):
     """The show command lists all packaged templates, and prints a single template in full."""
     from flexmeasures.cli.data_show import show_report_templates
@@ -285,11 +514,15 @@ def test_show_report_templates(app):
     result = runner.invoke(show_report_templates)
     assert result.exit_code == 0, result.output
     for name, reporter in [
-        ("building-consumption", "AggregatorReporter"),
+        ("aggregate-sensors", "AggregatorReporter"),
         ("clipped-values", "PandasReporter"),
         ("daily-energy", "PandasReporter"),
+        ("dynamic-tariff", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
+        ("meter-readings-to-flow", "PandasReporter"),
+        ("regularise", "PandasReporter"),
         ("self-consumption", "PandasReporter"),
+        ("valid-range", "PandasReporter"),
     ]:
         assert name in result.output
         assert reporter in result.output
