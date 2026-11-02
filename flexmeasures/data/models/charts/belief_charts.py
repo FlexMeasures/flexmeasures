@@ -617,6 +617,7 @@ def _build_sensor_spec(
     title: str | None,
     layers: list[dict],
     real_sensors: list["Sensor"],  # noqa F821
+    extra_transforms: list[dict] | None = None,
 ) -> dict:
     """Build the specification for a single sensor row.
 
@@ -624,6 +625,7 @@ def _build_sensor_spec(
         title: Title for the chart row
         layers: List of Vega-Lite layers
         real_sensors: List of real sensors (for filter transform)
+        extra_transforms: Transforms applied to the row's data after the sensor filter, shared by all layers
 
     Returns:
         Sensor specification dictionary
@@ -643,6 +645,8 @@ def _build_sensor_spec(
                 }
             }
         ]
+    if extra_transforms:
+        sensor_specs["transform"] = sensor_specs.get("transform", []) + extra_transforms
 
     return sensor_specs
 
@@ -692,6 +696,7 @@ def chart_for_multiple_sensors(
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
     combine_legend: bool = True,
+    color_by_source: bool = False,
     **override_chart_specs: dict,
 ):
     """Create a chart for multiple sensors.
@@ -701,6 +706,7 @@ def chart_for_multiple_sensors(
         event_starts_after: Start of time window
         event_ends_before: End of time window
         combine_legend: Whether to combine legends
+        color_by_source: Whether to give each combination of sensor and source its own color, rather than one color per sensor
         **override_chart_specs: Additional chart spec overrides
 
     Returns:
@@ -738,6 +744,7 @@ def chart_for_multiple_sensors(
             combine_legend,
             sensor_title,
             minimum_non_zero_resolution=minimum_non_zero_resolution,
+            color_by_source=color_by_source,
         )
         if sensor_spec:
             sensors_specs.append(sensor_spec)
@@ -753,6 +760,7 @@ def _process_sensor_entry(
     combine_legend: bool,
     sensor_title: str = "Sensor",
     minimum_non_zero_resolution: timedelta | None = None,
+    color_by_source: bool = False,
 ) -> dict | None:
     """Process a single sensor entry from sensors_to_show.
 
@@ -764,6 +772,7 @@ def _process_sensor_entry(
         combine_legend: Whether to combine legends
         sensor_title: Title for the sensor field
         minimum_non_zero_resolution: Minimum non-zero resolution derived from real sensors
+        color_by_source: Whether to color by sensor and source, rather than by sensor only
 
     Returns:
         Sensor specification dictionary or None if entry should be skipped
@@ -788,6 +797,24 @@ def _process_sensor_entry(
     sensor_field_definition["title"] = sensor_title
     sensor_descriptions = [_get_sensor_description(s) for s in row_sensors]
     sensor_field_definition["scale"] = dict(domain=sensor_descriptions)
+    color_transforms = None
+    if color_by_source:
+        # One color per sensor and source: the domain is left to the data,
+        # since the sources are only known once the data arrives.
+        sensor_field_definition = dict(
+            field="sensor_and_source",
+            type="nominal",
+            title=f"{sensor_title} and source",
+            # Show the sensor and the source on separate lines.
+            legend={"labelExpr": "split(datum.label, ' · ')"},
+        )
+        color_transforms = [
+            *source_legend_label_transformation,
+            {
+                "calculate": "datum.sensor.description + ' · ' + datum.source_legend_label",
+                "as": "sensor_and_source",
+            },
+        ]
 
     unit = determine_shared_unit(row_sensors)
     sensor_type = determine_shared_sensor_type(row_sensors)
@@ -821,7 +848,9 @@ def _process_sensor_entry(
 
     # Pass all sensors (real + fixed-value) so the filter transform includes
     # both positive and negative IDs, and all data rows reach this chart row.
-    return _build_sensor_spec(title, layers, real_sensors + fixed_value_sensors)
+    return _build_sensor_spec(
+        title, layers, real_sensors + fixed_value_sensors, color_transforms
+    )
 
 
 def _extract_sensors_from_entry(entry: dict) -> list["Sensor"]:  # noqa F821
@@ -976,6 +1005,7 @@ def create_line_layer(
                 else {
                     **sensor_field_definition,
                     "legend": {
+                        **sensor_field_definition.get("legend", {}),
                         "orient": "right",
                         "columns": 1,
                         "direction": "vertical",

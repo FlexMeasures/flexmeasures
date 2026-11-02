@@ -3991,6 +3991,15 @@
           },
           {
             "in": "query",
+            "name": "color-by-source",
+            "description": "If true, give each combination of sensor and data source its own color in the multi-sensor chart, rather than one color per sensor.",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "include-asset-annotations",
             "description": "If true, include the asset's own annotations in the chart.",
             "schema": {

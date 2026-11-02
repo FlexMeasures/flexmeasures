@@ -208,6 +208,13 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true (default), render one shared legend across all subcharts.",
         ),
     )
+    color_by_source = fields.Boolean(
+        data_key="color-by-source",
+        required=False,
+        metadata=dict(
+            description="If true, give each combination of sensor and data source its own color in the multi-sensor chart, rather than one color per sensor.",
+        ),
+    )
     include_asset_annotations = fields.Boolean(
         data_key="include-asset-annotations",
         required=False,

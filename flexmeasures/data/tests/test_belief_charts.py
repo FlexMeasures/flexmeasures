@@ -942,3 +942,78 @@ def test_validate_sensors_to_show_omits_y_axis_by_default(
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
     assert "y-axis" not in rows[0]
+
+
+def _line_layer_color(spec: dict) -> dict:
+    """Return the color encoding of the first row's line layer."""
+    line_layer = next(
+        layer
+        for layer in spec["vconcat"][0]["layer"]
+        if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "line"
+    )
+    return line_layer["encoding"]["color"]
+
+
+@pytest.mark.parametrize("color_by_source", [False, True])
+def test_chart_colors_by_sensor_unless_asked_to_color_by_source(
+    battery_with_soc_flex_model, color_by_source
+):
+    """By default, lines are colored per sensor; with color_by_source, per sensor and source."""
+    battery, _ = battery_with_soc_flex_model
+
+    spec = battery.chart(
+        include_data=False,
+        event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),
+        event_ends_before=datetime(2015, 1, 2, tzinfo=pytz.utc),
+        **({"color_by_source": True} if color_by_source else {}),
+    )
+    color = _line_layer_color(spec)
+    row_transforms = spec["vconcat"][0]["transform"]
+    computed_fields = [t.get("as") for t in row_transforms]
+
+    if color_by_source:
+        assert color["field"] == "sensor_and_source"
+        # The sources are only known from the data, so the domain must not be fixed to the sensors.
+        assert "domain" not in color.get("scale", {})
+        assert "sensor_and_source" in computed_fields
+        # The sensor filter must come first, so the source labels are computed per row.
+        assert "filter" in row_transforms[0]
+    else:
+        assert color["field"] == "sensor.description"
+        assert "sensor_and_source" not in computed_fields
+
+
+def test_color_by_source_label_names_sensor_and_source(battery_with_soc_flex_model):
+    """The color label of each line combines the sensor with the source, as the legend shows it."""
+    vl_convert = pytest.importorskip("vl_convert")
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    spec = battery.chart(
+        include_data=False,
+        event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),
+        event_ends_before=datetime(2015, 1, 2, tzinfo=pytz.utc),
+        color_by_source=True,
+    )
+    values = [
+        {"sensor": {"id": soc_sensor.id, "description": "state of charge"}, **source}
+        for source in [
+            _chart_source(2, "Heat balance reporter", "reporter"),
+            _chart_source(3, "Loss-corrected reporter", "reporter"),
+        ]
+    ]
+    label_spec = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "data": {"values": values},
+        "transform": spec["vconcat"][0]["transform"],
+        "mark": "text",
+        "encoding": {
+            "text": {"field": "sensor_and_source", "type": "nominal"},
+            "y": {"field": "sensor_and_source", "type": "nominal", "axis": None},
+        },
+    }
+    texts = _collect_scenegraph_texts(vl_convert.vegalite_to_scenegraph(label_spec))
+
+    assert sorted(texts) == [
+        "state of charge · Heat balance reporter",
+        "state of charge · Loss-corrected reporter",
+    ]

@@ -556,3 +556,35 @@ def test_replay_ruler_survives_empty_data(assert_js):
         disposeFastChart(container.id);
         container.remove();
         """)
+
+
+def test_color_by_source_gives_each_source_its_own_series_name(assert_js):
+    """Series are colored by name, so with colorBySource two same-type sources of one sensor must get distinct names."""
+    assert_js("""
+        import { groupData } from "/js/fast-chart.js";
+        const heat = {id: 7, name: "heat demand", description: "heat demand (Test building)", unit: "kW"};
+        const elec = {id: 8, name: "electricity use", description: "electricity use (Test building)", unit: "kW"};
+        const a = {id: 2, name: "Heat balance reporter", type: "reporter"};
+        const b = {id: 3, name: "Loss-corrected reporter", type: "reporter"};
+        const data = [];
+        for (const sensor of [heat, elec]) {
+            for (const source of [a, b]) {
+                data.push({event_start: 0, event_value: 1, belief_horizon: 0, sensor: sensor, source: source});
+            }
+        }
+        const spec = [{title: "Both sensors", sensorIds: [7, 8]}];
+        const names = (colorBySource) => groupData(data, spec, colorBySource)[0].series.map((s) => s.name).sort();
+
+        eq("by default, a sensor's sources share one name and color", names(false), [
+            "electricity use (Test building)",
+            "electricity use (Test building)",
+            "heat demand (Test building)",
+            "heat demand (Test building)",
+        ]);
+        eq("with colorBySource, each sensor and source gets its own name", names(true), [
+            "electricity use (Test building) · Heat balance reporter",
+            "electricity use (Test building) · Loss-corrected reporter",
+            "heat demand (Test building) · Heat balance reporter",
+            "heat demand (Test building) · Loss-corrected reporter",
+        ]);
+    """)
