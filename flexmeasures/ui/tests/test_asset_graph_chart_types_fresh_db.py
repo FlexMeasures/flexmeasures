@@ -57,3 +57,24 @@ def test_the_picker_stays_hidden_on_an_asset_without_charge_points(
 
     assert style == "none"
     assert options == [("default", "Default")]
+
+
+def test_the_picker_offers_a_chart_type_registered_by_a_plugin_where_it_applies(
+    client,
+    charge_hub_fresh_db: dict[str, Sensor],
+    plugin_asset_chart_type,
+    as_prosumer_user_fresh_db,
+):
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    (charge_point,) = site.child_assets
+
+    _, site_options, _ = _picker(client, site)
+    _, charge_point_options, _ = _picker(client, charge_point)
+
+    assert site_options == [
+        ("default", "Default"),
+        ("charge-point-sessions", "Charge Points"),
+        ("test-plugin-chart", "Test plugin chart"),
+    ]
+    # The test plugin's chart type applies to assets with charge points only.
+    assert charge_point_options == [("default", "Default")]

@@ -81,3 +81,23 @@ def test_chart_refuses_an_unknown_chart_type(
     response = _get_chart(client, site, {"chart-type": chart_type})
     assert response.status_code == 422, response.data
     assert "default, charge-point-sessions" in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize("chart_type", ["test-plugin-chart", "test_plugin_chart"])
+def test_chart_accepts_a_chart_type_registered_by_a_plugin(
+    client,
+    setup_roles_users_fresh_db,
+    charge_hub_fresh_db: dict[str, Sensor],
+    plugin_asset_chart_type,
+    requesting_user,
+    chart_type,
+):
+    """A plugin registers its chart types after the API was set up, so the chart type field should read the registry when it validates."""
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    response = _get_chart(client, site, {"chart-type": chart_type})
+    assert response.status_code == 200, response.data
+    # The test plugin's chart type draws the default chart.
+    assert json.loads(response.data) == json.loads(
+        _get_chart(client, site, {"chart-type": "default"}).data
+    )

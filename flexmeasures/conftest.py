@@ -2375,3 +2375,40 @@ def charge_hub_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, Sensor]:
         )
     fresh_db.session.commit()
     return sensors
+
+
+@pytest.fixture
+def plugin_asset_chart_type(app):
+    """An asset chart type registered after the app was created, as a plugin would register one.
+
+    It draws the default chart, and applies to assets with charge points, so the picker offers it on a site with charge points only.
+    The registry is restored afterwards.
+    """
+    from flexmeasures.data.models.charts.belief_charts import (
+        chart_for_multiple_sensors,
+    )
+    from flexmeasures.data.models.charts.chart_types import (
+        ASSET_CHART_TYPES,
+        LEGACY_ASSET_CHART_TYPE_NAMES,
+        AssetChartType,
+        default_layout,
+        has_charge_points,
+        register_asset_chart_type,
+    )
+
+    chart_type = register_asset_chart_type(
+        AssetChartType(
+            name="test-plugin-chart",
+            label="Test plugin chart",
+            description="the default chart, registered by a test plugin",
+            applies_to=has_charge_points,
+            layout=default_layout,
+            builder=chart_for_multiple_sensors,
+            legacy_name="test_plugin_chart",
+        )
+    )
+    try:
+        yield chart_type
+    finally:
+        ASSET_CHART_TYPES.pop(chart_type.name, None)
+        LEGACY_ASSET_CHART_TYPE_NAMES.pop(chart_type.legacy_name, None)
