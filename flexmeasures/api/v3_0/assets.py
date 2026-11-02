@@ -285,6 +285,7 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         required=False,
         metadata=dict(
             description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
+            example="chart_for_multiple_sensors",
         ),
     )
 
