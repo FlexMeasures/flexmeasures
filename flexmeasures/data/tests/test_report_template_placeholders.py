@@ -124,6 +124,17 @@ def test_a_template_can_name_a_placeholder_label():
     assert labels[:2] == ["Lowest valid value", "Highest valid value"]
 
 
+def test_the_meter_template_asks_for_an_output_sensor_in_the_meter_s_unit():
+    """The flow between meter readings is stored unconverted, so the form says which unit the output sensor needs."""
+    labels = [
+        p["label"]
+        for p in describe_placeholders(get_report_template("meter-readings-to-flow"))
+    ]
+    assert (
+        labels[-1] == "Output sensor: flow, in the meter's unit (such as kWh, not kW)"
+    )
+
+
 @pytest.mark.parametrize(
     "template", list_report_templates(), ids=lambda template: template["name"]
 )
