@@ -1063,7 +1063,7 @@ class AssetAPI(FlaskView):
         if {"flex_context", "flex_model"} & asset_data.keys():
             check_access(db_asset, "edit-flex-config")
 
-        asset_schema = AssetSchema(partial=True)
+        asset_schema = AssetSchema(partial=True, exclude=["account_id"])
         asset_schema.context = {
             "asset": db_asset
         }  # context for validating fields like parent_asset_id
@@ -1080,7 +1080,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
