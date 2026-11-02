@@ -392,7 +392,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // A data source stores a data generator and the configuration it runs under, and the results computed under it are recorded on it,
   // so picking one here is an alternative to setting the two fields below by hand.
   // Only forecast and report automations can name one: a schedule automation works its source out from the asset and the flex config on every run.
-  const SOURCE_TYPE_PER_AUTOMATION_TYPE = {
+  // Sources are picked by the kind of data generator they store rather than by their type,
+  // as a reporter can save under a source of another type, such as a sum of forecasts under a forecaster-type source.
+  const GENERATOR_TYPE_PER_AUTOMATION_TYPE = {
     forecasting: "forecaster",
     reporting: "reporter",
   };
@@ -407,9 +409,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const parameters = new URLSearchParams();
     // Every version of a source can be picked, so the listing is not collapsed to the latest one per generator.
     parameters.append("only_latest", "false");
-    const sourceType = SOURCE_TYPE_PER_AUTOMATION_TYPE[automationType];
-    if (sourceType) {
-      parameters.append("type", sourceType);
+    const generatorType = GENERATOR_TYPE_PER_AUTOMATION_TYPE[automationType];
+    if (generatorType) {
+      parameters.append("generator_type", generatorType);
     }
     if (searchTerm) {
       parameters.append("filter", searchTerm);
@@ -536,7 +538,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: automation.timezone,
       parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
       active: false,
-      sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
+      sourceId: GENERATOR_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
     };
   }
 

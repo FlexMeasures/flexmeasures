@@ -20,23 +20,28 @@ def picker_script() -> str:
 
 
 def test_source_search_asks_for_the_sources_of_the_automations_own_type(assert_js):
-    """A forecast automation searches forecasters, a report automation reporters, and a schedule automation has no generator to pick."""
+    """A forecast automation searches forecasters, a report automation reporters, and a schedule automation has no generator to pick.
+
+    Sources are searched by the kind of data generator they store, as a reporter can save under a source of another type.
+    """
     assert_js(f"""
         window.$ = () => ({{ready: () => {{}}}});
         const page = new Function({json.dumps(picker_script())}
             + "\\nreturn {{ sourceSearchUrl, sourceLabel, sourceResultsHtml, sourceConfigText }};")();
 
         const forecastUrl = new URL(page.sourceSearchUrl("forecasting", "pipeline"), "http://x");
-        eq("a forecast automation searches forecasters", forecastUrl.searchParams.get("type"), "forecaster");
+        eq("a forecast automation searches forecasters", forecastUrl.searchParams.get("generator_type"), "forecaster");
+        eq("a forecast automation does not narrow by source type", forecastUrl.searchParams.get("type"), null);
         eq("the search term is passed on", forecastUrl.searchParams.get("filter"), "pipeline");
         eq("every version can be picked, not just the latest", forecastUrl.searchParams.get("only_latest"), "false");
 
         const reportUrl = new URL(page.sourceSearchUrl("reporting", ""), "http://x");
-        eq("a report automation searches reporters", reportUrl.searchParams.get("type"), "reporter");
+        eq("a report automation searches reporters", reportUrl.searchParams.get("generator_type"), "reporter");
+        eq("a report automation does not narrow by source type", reportUrl.searchParams.get("type"), null);
         eq("an empty search term is left out", reportUrl.searchParams.get("filter"), null);
 
         const scheduleUrl = new URL(page.sourceSearchUrl("scheduling", "x"), "http://x");
-        eq("a schedule automation narrows to no source type", scheduleUrl.searchParams.get("type"), null);
+        eq("a schedule automation narrows to no kind of data generator", scheduleUrl.searchParams.get("generator_type"), null);
     """)
 
 
