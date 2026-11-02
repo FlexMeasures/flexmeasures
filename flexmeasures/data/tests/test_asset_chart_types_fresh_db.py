@@ -8,6 +8,12 @@ from flexmeasures import Sensor
 from flexmeasures.data.models.charts.belief_charts import (
     chart_for_chargepoint_sessions,
 )
+from flexmeasures.data.models.charts.chart_types import (
+    ASSET_CHART_TYPES,
+    UnknownAssetChartType,
+    get_asset_chart_type,
+)
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def _sensor_ids_drawn(chart_specs: dict | list) -> set[int]:
@@ -55,7 +61,7 @@ def test_charge_points_chart_draws_its_companion_graphs_whatever_the_title_case(
         fresh_db, site, {"Prices": prices_title, "Power flow by type": power_flow_title}
     )
 
-    chart_specs = site.chart(chart_type="chart_for_chargepoint_sessions")
+    chart_specs = site.chart(chart_type="charge-point-sessions")
 
     assert [graph["title"] for graph in chart_specs["vconcat"]] == [
         "Charge Point sessions",
@@ -94,3 +100,112 @@ def test_charge_points_chart_leaves_the_sensors_to_show_it_is_given_alone(
         [plot.get("sensors", plot.get("sensor")) for plot in entry["plots"]]
         for entry in sensors_to_show
     ] == before
+
+
+@pytest.mark.parametrize(
+    "chart_type, titles",
+    [
+        ("default", {}),
+        ("default", {"Prices": "prices", "Weather": "weather"}),
+        ("charge-point-sessions", {}),
+        (
+            "charge-point-sessions",
+            {"Prices": "prices", "Power flow by type": "power flow by type"},
+        ),
+    ],
+)
+def test_each_chart_type_draws_the_graphs_and_sensors_of_its_layout(
+    fresh_db, charge_hub: dict[str, Sensor], chart_type, titles
+):
+    """The registry's layout of a chart type is what its Vega-Lite chart draws, graph by graph."""
+    site = charge_hub["arrival"].generic_asset
+    _retitle(fresh_db, site, titles)
+    registered = get_asset_chart_type(chart_type)
+    layout = registered.layout(site.validate_sensors_to_show())
+
+    chart_specs = site.chart(chart_type=chart_type)
+
+    assert [graph["title"] for graph in chart_specs["vconcat"]] == [
+        capitalize(graph["title"]) for graph in layout
+    ]
+    for graph, drawn in zip(layout, chart_specs["vconcat"]):
+        assert _sensor_ids_drawn(drawn) == {
+            sensor.id for sensor in registered.sensors([graph])
+        }, graph["title"]
+
+
+@pytest.mark.parametrize(
+    "chart_type, expected_names",
+    [
+        (
+            "default",
+            [
+                "charge points power",
+                "building power",
+                "consumption price",
+                "temperature",
+                # Also in a graph of its own, which the default chart draws.
+                "departure",
+            ],
+        ),
+        (
+            "charge-point-sessions",
+            [
+                # In the order of the graphs they are found in.
+                "departure",
+                "arrival",
+                "plug in",
+                "charge points power",
+                "consumption price",
+            ],
+        ),
+    ],
+)
+def test_chart_type_sensors(charge_hub: dict[str, Sensor], chart_type, expected_names):
+    site = charge_hub["arrival"].generic_asset
+    sensors = get_asset_chart_type(chart_type).sensors(site.validate_sensors_to_show())
+    assert [sensor.name for sensor in sensors] == expected_names
+
+
+@pytest.mark.parametrize(
+    "legacy_name, name",
+    [
+        ("chart_for_multiple_sensors", "default"),
+        ("chart_for_chargepoint_sessions", "charge-point-sessions"),
+    ],
+)
+def test_a_legacy_chart_type_name_draws_the_same_chart(
+    charge_hub: dict[str, Sensor], legacy_name, name
+):
+    site = charge_hub["arrival"].generic_asset
+    assert site.chart(chart_type=legacy_name) == site.chart(chart_type=name)
+
+
+def test_without_a_chart_type_an_asset_gets_the_default_chart(
+    charge_hub: dict[str, Sensor],
+):
+    site = charge_hub["arrival"].generic_asset
+    assert site.chart() == site.chart(chart_type="default")
+
+
+def test_an_unknown_chart_type_is_refused(charge_hub: dict[str, Sensor]):
+    site = charge_hub["arrival"].generic_asset
+    with pytest.raises(UnknownAssetChartType, match="charge-point-sessions"):
+        site.chart(chart_type="bar_chart")
+
+
+def test_the_charge_points_chart_applies_to_assets_with_a_charge_point(
+    charge_hub: dict[str, Sensor],
+):
+    site = charge_hub["arrival"].generic_asset
+    (charge_point,) = site.child_assets
+    assert [
+        name
+        for name, chart_type in ASSET_CHART_TYPES.items()
+        if chart_type.applies_to(site)
+    ] == ["default", "charge-point-sessions"]
+    assert [
+        name
+        for name, chart_type in ASSET_CHART_TYPES.items()
+        if chart_type.applies_to(charge_point)
+    ] == ["default"]
