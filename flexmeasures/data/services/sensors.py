@@ -538,7 +538,9 @@ def _sensor_sources_by_type(
 
 
 def _get_sensor_bdfs_by_source_type(
-    sensor: Sensor, staleness_search: dict
+    sensor: Sensor,
+    staleness_search: dict,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
     We look for the source types that recorded on this sensor, so that a sensor recorded by a source type we do not know about,
@@ -551,8 +553,10 @@ def _get_sensor_bdfs_by_source_type(
     it would read every belief the sensor has whenever this type recorded none of them.
     Naming the sources instead lets the primary key answer the query directly,
     and lets a type with no sources at all be skipped without a query.
+    A caller that already looked the sensor's sources up (see `_sensor_sources_by_type`) can pass them as `sources_by_type`.
     """
-    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+    if sources_by_type is None:
+        sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
 
     # Report the default types in their usual order, and any other type that recorded here after them.
     source_types = [
@@ -585,7 +589,10 @@ def _get_sensor_bdfs_by_source_type(
 
 
 def get_staleness_start_times(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, timedelta] | None:
     """Get staleness start times for a given sensor by source.
     Also add whether there has any relevant data (for forecasters and schedulers this is future data).
@@ -596,7 +603,9 @@ def get_staleness_start_times(
     (specifically, when you could have formed an ex-post belief about it).
     """
     staleness_bdfs = _get_sensor_bdfs_by_source_type(
-        sensor=sensor, staleness_search=staleness_search
+        sensor=sensor,
+        staleness_search=staleness_search,
+        sources_by_type=sources_by_type,
     )
     if staleness_bdfs is None:
         return None
@@ -623,7 +632,10 @@ def get_staleness_start_times(
 
 
 def get_stalenesses(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, timedelta] | None:
     """Get the staleness of the sensor split by source.
 
@@ -635,6 +647,7 @@ def get_stalenesses(
     :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
     :param now:                 Datetime representing now, used both to mask future beliefs,
                                 and to measures staleness against.
+    :param sources_by_type:     The sensor's sources per source type, if already looked up (see `_sensor_sources_by_type`).
     """
 
     # Mask beliefs before now
@@ -644,7 +657,10 @@ def get_stalenesses(
     )
 
     staleness_start_times = get_staleness_start_times(
-        sensor=sensor, staleness_search=staleness_search, now=now
+        sensor=sensor,
+        staleness_search=staleness_search,
+        now=now,
+        sources_by_type=sources_by_type,
     )
     if staleness_start_times is None:
         return None
@@ -774,16 +790,15 @@ def get_statuses(
     max_staleness = status_specs.pop("max_staleness")
     max_future_staleness = status_specs.pop("max_future_staleness")
     staleness_search = status_specs.pop("staleness_search")
+    # looked up once, for the stalenesses and for the missing members of every source type
+    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
     stalenesses = get_stalenesses(
         sensor=sensor,
         staleness_search=staleness_search,
         now=now,
+        sources_by_type=sources_by_type,
     )
 
-    # looked up once for all source types, which the missing members of each are judged from
-    sources_by_type = (
-        _sensor_sources_by_type(sensor, staleness_search) if stalenesses else {}
-    )
     statuses = list()
     for source_type, (has_relevant_data, staleness) in (
         stalenesses or {None: (True, None)}

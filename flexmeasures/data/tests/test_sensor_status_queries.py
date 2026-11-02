@@ -154,5 +154,5 @@ def test_the_sources_are_looked_up_once_for_the_missing_members_of_every_source_
         "reporter",
         "forecaster",
     }
-    # once for the stalenesses, and once for the missing members of all three source types
-    assert lookup_spy.call_count == 2
+    # once, for the stalenesses and for the missing members of all three source types
+    assert lookup_spy.call_count == 1
