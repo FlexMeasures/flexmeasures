@@ -1214,22 +1214,29 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             )
 
         bdf_dict = {}
+        # Read every sensor's beliefs in as few queries as the filters allow (one per
+        # group of sensors that share timing), instead of one query per sensor. The
+        # per-sensor post-processing below is unchanged - only the database reads are
+        # batched; search_session_multi returns the same frame per sensor that
+        # search_session would have returned for it alone.
+        raw_bdf_by_sensor_id = cls.search_session_multi(
+            session=db.session,
+            sensors=sensors,
+            # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
+            event_ends_after=event_starts_after,
+            event_starts_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=parsed_sources,
+            **most_recent_filters,
+            custom_filter_criteria=source_criteria,
+            custom_join_targets=custom_join_targets,
+        )
         for sensor in sensors:
-            bdf = cls.search_session(
-                session=db.session,
-                sensor=sensor,
-                # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
-                event_ends_after=event_starts_after,
-                event_starts_before=event_ends_before,
-                beliefs_after=beliefs_after,
-                beliefs_before=beliefs_before,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
-                source=parsed_sources,
-                **most_recent_filters,
-                custom_filter_criteria=source_criteria,
-                custom_join_targets=custom_join_targets,
-            )
+            sensor_id = sensor if isinstance(sensor, int) else sensor.id
+            bdf = raw_bdf_by_sensor_id[sensor_id]
             if use_latest_version_per_event and not one_deterministic_belief_per_event:
                 # Asking for one belief per event settles the versions itself, family by family,
                 # so it does not need this pass first.
