@@ -1714,7 +1714,10 @@ def test_regular_user_cannot_create_child_of_public_asset(
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
-    assert "same account" in response.json["message"]["json"]["parent_asset_id"][0]
+    assert (
+        "must match the account of the parent asset"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.mark.parametrize("with_parent", [False, True])
@@ -1806,7 +1809,10 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
-    assert "same account" in response.json["message"]["json"]["parent_asset_id"][0]
+    assert (
+        "must match the account of the parent asset"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.fixture

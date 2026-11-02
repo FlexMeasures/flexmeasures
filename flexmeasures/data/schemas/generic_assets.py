@@ -575,7 +575,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         parent = db.session.get(GenericAsset, parent_id)
         if parent and parent.account_id != data.get("account_id"):
             raise ValidationError(
-                "Parent asset must belong to the same account as the child asset.",
+                f"account_id must match the account of the parent asset ({parent.account_id}).",
                 "parent_asset_id",
             )
 
