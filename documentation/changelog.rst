@@ -113,6 +113,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Scheduling workers no longer print the HiGHS solver's banner and log to the console, unless ``LOGGING_LEVEL`` is ``DEBUG``; setting ``output_flag`` in ``FLEXMEASURES_LP_SOLVER_OPTIONS`` now also suppresses the banner [see `PR #2794 <https://www.github.com/FlexMeasures/flexmeasures/pull/2794>`_]
 * Allow consultants to create assets in client organisations, and reject attempts to change an asset’s organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_]
 * The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
