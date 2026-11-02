@@ -396,6 +396,56 @@ def test_dynamic_tariff_template_adds_taxes_and_vat(
     assert report.values.T[0] == pytest.approx([193.6, 217.8, 48.4, 72.6])
 
 
+def test_meter_readings_to_flow_template_takes_the_difference_between_readings(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """Each flow is what the meter counted until its next reading, recorded at the interval's start, and implausible flows are left out."""
+    template = get_report_template("meter-readings-to-flow")
+    assert template["reporter"] == "PandasReporter"
+    assert find_placeholders(template["config"]) == [
+        "transformations[2].args[0]",
+        "transformations[3].args[0]",
+    ]
+    config = deepcopy(template["config"])
+    config["transformations"][2]["args"] = [0]
+    config["transformations"][3]["args"] = [5]
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    reporter_class._config_schema.load(config)
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    quarter = timedelta(minutes=15)
+    readings = Sensor(
+        "meter readings", generic_asset=asset, event_resolution=quarter, unit="kWh"
+    )
+    flow = Sensor(
+        "energy per interval", generic_asset=asset, event_resolution=quarter, unit="kWh"
+    )
+    fresh_db.session.add_all([readings, flow])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    # the meter runs backwards once, between 00:30 and 00:45
+    _save_values(fresh_db, readings, start, [10, 11, 13, 12, 14], quarter)
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(template["parameters"], [readings.id], [flow.id])
+    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+    # the window ends one reading after midnight, so the day's last interval has the reading at its end
+    assert prepared_parameters["end"].endswith("T00:15:00+00:00")
+
+    report = PandasReporter(config=config).compute(
+        parameters={
+            "input": parameters["input"],
+            "output": parameters["output"],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T01:15:00+00:00",
+        }
+    )[0]["data"]
+
+    starts = [t.strftime("%H:%M") for t in report.index.get_level_values("event_start")]
+    assert dict(zip(starts, report.values.T[0])) == {"00:00": 1, "00:15": 2, "00:45": 2}
+
+
 def test_show_report_templates(app):
     """The show command lists all packaged templates, and prints a single template in full."""
     from flexmeasures.cli.data_show import show_report_templates
@@ -410,6 +460,7 @@ def test_show_report_templates(app):
         ("daily-energy", "PandasReporter"),
         ("dynamic-tariff", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
+        ("meter-readings-to-flow", "PandasReporter"),
         ("self-consumption", "PandasReporter"),
         ("valid-range", "PandasReporter"),
     ]:

@@ -1,0 +1,55 @@
+# Prepared report template: meter readings to flow.
+#
+# Computes the flow per interval (such as energy, heat or volume) from the readings of a cumulative meter,
+# leaving out any implausible flow, using the PandasReporter.
+# Replace each FILL_IN placeholder: the bounds of a plausible flow, and your own sensor IDs.
+name: meter-readings-to-flow
+description: Flow per interval from the readings of a cumulative meter, with implausible flows left out.
+reporter: PandasReporter
+config:
+  required_input:
+    # The meter readings should be recorded at the resolution of the output sensor, such as every 15 minutes.
+    # For irregular readings, put them on a regular grid first, with the regularise template.
+    - name: readings
+  required_output:
+    - name: flow
+  transformations:
+    # What flowed between each reading and the next ...
+    - df_input: readings
+      df_output: flow
+      method: diff
+    # ... recorded at the start of the interval in which it flowed, rather than at its end.
+    - method: shift
+      args: [-1]
+    # The lowest plausible flow per interval, such as 0, as a meter that is reset or replaced appears to run backwards.
+    - df_input: flow
+      df_output: above-lower
+      method: ge
+      args: [FILL_IN]
+    # The highest plausible flow per interval, such as the most the connection can deliver in one interval.
+    - df_input: flow
+      df_output: below-upper
+      method: le
+      args: [FILL_IN]
+    - df_input: flow
+      method: where
+      args: ["@above-lower"]
+    - method: where
+      args: ["@below-upper"]
+    - method: dropna
+parameters:
+  input:
+    # The sensor recording the meter readings.
+    - name: readings
+      sensor: FILL_IN
+  output:
+    # The sensor to store the flow per interval, in the unit of the meter readings.
+    - name: flow
+      sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # The window ends one reading after midnight (edit "15min" to match the event resolution of the output sensor),
+  # because the flow in the last interval of the day takes the reading at its end.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB,15min
