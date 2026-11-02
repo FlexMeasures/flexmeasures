@@ -26,10 +26,11 @@
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
+    import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -69,6 +70,8 @@
     let toggle;
     let stepTriggered = false;
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
+    let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
+    let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
     // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
@@ -206,13 +209,149 @@
         return chartType === 'bar_chart' || chartType === 'chart_for_multiple_sensors';
     }
 
-    {% if event_starts_after and event_ends_before %}
-    sessionStart = new Date('{{ event_starts_after }}');
-    sessionEnd = new Date('{{ event_ends_before }}');
-    sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-    sessionStart.setHours(0, 0, 0, 0); // get start of first day
-    sessionEnd.setHours(0, 0, 0, 0); // get start of last day
+    {% if active_page == "sensors" and user_can_create_children_sensor %}
+    function visibleRange() {
+        if (!storeStartDate || !storeEndDate) return null;
+        let range = null;
+        if (chartType === 'bar_chart') {
+            if (fastRenderActive()) {
+                range = getFastChartVisibleTimeRange(fastChartElementId);
+            } else if (vegaView) {
+                try {
+                    const domain = vegaView.scale('x').domain();
+                    range = { start: new Date(domain[0]), end: new Date(domain[1]) };
+                } catch (error) {
+                    // A chart without a time x-axis uses the date picker interval.
+                }
+            }
+        }
+        if (range && isFinite(range.start.getTime()) && isFinite(range.end.getTime()) && range.start < range.end) {
+            return range;
+        }
+        return { start: storeStartDate, end: storeEndDate };
+    }
+
+    // The Annotate panel's From/Until fields follow the range shown in the chart,
+    // until a range is selected on the chart or typed in.
+    const annotationStartInput = document.getElementById('annotationStart');
+    const annotationEndInput = document.getElementById('annotationEnd');
+    const annotationRangeInfo = document.getElementById('annotationRangeInfo');
+    const annotationClearSelection = document.getElementById('annotationClearSelection');
+    const sensorResolutionMs = {{ (sensor.event_resolution.total_seconds() * 1000) | int }};
+    let annotationRangeFollowsView = true;
+
+    function toDatetimeLocalValue(date, withSeconds) {
+        const pad = n => String(n).padStart(2, '0');
+        const seconds = withSeconds ? `:${pad(date.getSeconds())}` : '';
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}${seconds}`;
+    }
+
+    function visibleSelectionStepMs() {
+        const view = visibleRange();
+        return selectionStepMs(view ? view.end.getTime() - view.start.getTime() : NaN);
+    }
+
+    // The From and Until fields offer seconds only when zoomed in far enough to select them,
+    // or when they already hold seconds, which a whole-minute step would make invalid.
+    function annotationFieldsShowSeconds(range) {
+        return visibleSelectionStepMs() < 60 * 1000 || (!!range && (range.start.getSeconds() !== 0 || range.end.getSeconds() !== 0));
+    }
+
+    function setAnnotationFieldPrecision(withSeconds) {
+        [annotationStartInput, annotationEndInput].forEach(function (input) {
+            const date = input.value ? new Date(input.value) : null;
+            input.step = withSeconds ? 1 : 60;
+            if (date && isFinite(date.getTime())) input.value = toDatetimeLocalValue(date, withSeconds);
+        });
+    }
+
+    // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
+    // or, for an instant or an instantaneous sensor, whole minutes (whole seconds when zoomed in to 10 minutes or less).
+    function snapToSensorEvents(range) {
+        const data = previousResult && previousResult.data;
+        const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
+        return snapSelection(range, sensorResolutionMs, anchor, visibleSelectionStepMs());
+    }
+
+    function showAnnotationRange(range, info, isSelection) {
+        const withSeconds = annotationFieldsShowSeconds(range);
+        annotationStartInput.step = annotationEndInput.step = withSeconds ? 1 : 60;
+        annotationStartInput.value = toDatetimeLocalValue(range.start, withSeconds);
+        annotationEndInput.value = toDatetimeLocalValue(range.end, withSeconds);
+        annotationRangeInfo.textContent = info;
+        annotationClearSelection.classList.toggle('d-none', !isSelection);
+    }
+
+    function syncAnnotationRangeWithView() {
+        if (!annotationRangeFollowsView) return;
+        const range = visibleRange();
+        if (range) {
+            showAnnotationRange(snapToSensorEvents(range), 'The range shown in the chart.', false);
+        }
+    }
+
+    function clearAnnotationSelection() {
+        annotationRangeFollowsView = true;
+        setFastChartSelection(fastChartElementId, null);
+        syncAnnotationRangeWithView();
+    }
+
+    document.addEventListener('chartvisiblerangechanged', function () {
+        syncAnnotationRangeWithView();
+        // A selection or typed range stays put, but zooming in or out still changes whether seconds are offered
+        if (!annotationRangeFollowsView) setAnnotationFieldPrecision(annotationFieldsShowSeconds(annotationRangeFromInputs()));
+    });
+    // The Vega-Lite chart reports no zoom, so pick up its visible range when the user starts labelling.
+    document.getElementById('annotationLabel').addEventListener('focus', syncAnnotationRangeWithView);
+
+    document.addEventListener('chartrangeselected', function (event) {
+        if (!event.detail) {
+            clearAnnotationSelection();
+            return;
+        }
+        const range = snapToSensorEvents(event.detail);
+        annotationRangeFollowsView = false;
+        setFastChartSelection(fastChartElementId, range);
+        const isInstant = range.start.getTime() === range.end.getTime();
+        showAnnotationRange(range, isInstant ? 'An instant, selected on the chart.' : 'Selected on the chart.', true);
+    });
+
+    function annotationRangeFromInputs() {
+        const start = new Date(annotationStartInput.value);
+        const end = new Date(annotationEndInput.value);
+        // An equal start and end make an instantaneous annotation
+        if (!isFinite(start.getTime()) || !isFinite(end.getTime()) || start > end) return null;
+        return { start: start, end: end };
+    }
+
+    [annotationStartInput, annotationEndInput].forEach(function (input) {
+        input.addEventListener('change', function () {
+            const range = annotationRangeFromInputs();
+            if (!range) return;
+            annotationRangeFollowsView = false;
+            setFastChartSelection(fastChartElementId, range);
+            annotationRangeInfo.textContent = 'Entered by hand.';
+            annotationClearSelection.classList.remove('d-none');
+        });
+    });
+
+    annotationClearSelection.addEventListener('click', function (event) {
+        event.preventDefault();
+        clearAnnotationSelection();
+    });
     {% endif %}
+
+    const initialRange = restoreChartDateRange(
+        window.location.search, {{ event_starts_after | tojson }}, {{ event_ends_before | tojson }}
+    );
+    if (initialRange) {
+        sessionStart = new Date(initialRange.start);
+        sessionEnd = new Date(initialRange.end);
+        sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+        sessionStart.setHours(0, 0, 0, 0); // get start of first day
+        sessionEnd.setHours(0, 0, 0, 0); // get start of last day
+        rememberChartDateRange(initialRange.start, initialRange.end);
+    }
 
     {% if active_page == "sensors" and sensor.event_resolution.days > 0 %}
     minRes = "day";
@@ -228,6 +367,27 @@
 
         // Set up the fast chart (canvas-based) toggle
         const fastChartToggle = document.getElementById('fastChartToggle');
+        const fullBeliefInfoToggle = document.getElementById('fullBeliefInfoToggle');
+        const fullBeliefInfoToggleContainer = document.getElementById('fullBeliefInfoToggleContainer');
+        const beliefTooltipSupported = () => {
+            if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
+            if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
+            return (fastChartGroupSpec || []).some((group) =>
+                ['Power flow by type', 'Prices'].includes(group.title)
+            );
+        };
+        syncFullBeliefInfoToggle = () => {
+            if (!fullBeliefInfoToggleContainer) { return; }
+            fullBeliefInfoToggleContainer.classList.toggle('d-none', !fastMode || !beliefTooltipSupported());
+        };
+        if (fullBeliefInfoToggle) {
+            fullBeliefInfoToggle.checked = fullBeliefInfo;
+            fullBeliefInfoToggle.addEventListener('change', function () {
+                fullBeliefInfo = this.checked;
+                localStorage.setItem('fm-full-belief-info', fullBeliefInfo ? '1' : '0');
+                setFastChartFullBeliefInfo(fastChartElementId, fullBeliefInfo);
+            });
+        }
         if (fastChartToggle) {
             fastChartToggle.checked = fastMode;
             if (fastMode) {
@@ -236,6 +396,7 @@
             fastChartToggle.addEventListener('change', async function () {
                 fastMode = this.checked;
                 localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
+                syncFullBeliefInfoToggle();
                 if (fastMode) {
                     stopReplay();
                 }
@@ -244,6 +405,7 @@
         } else {
             fastMode = false;  // no toggle on this page, so always use Vega-Lite
         }
+        syncFullBeliefInfoToggle();
 
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
@@ -252,12 +414,12 @@
             toggleReplay();
         });
 
-        {% if event_starts_after and event_ends_before %}
-        storeStartDate = new Date('{{ event_starts_after }}');
-        storeEndDate = new Date('{{ event_ends_before }}');
-        fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
-        checkDSTTransitions(storeStartDate, storeEndDate);
-        {% endif %}
+        if (initialRange) {
+            storeStartDate = new Date(initialRange.start);
+            storeEndDate = new Date(initialRange.end);
+            fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
+            checkDSTTransitions(storeStartDate, storeEndDate);
+        }
 
         // Initialize Picker
         const date = Date();
@@ -283,6 +445,7 @@
             dropdownItems[i].addEventListener('click', function (e) {
                 e.preventDefault();
                 chartType = this.getAttribute('data-chart-type');
+                syncFullBeliefInfoToggle();
                 // Update the active state of the dropdown items
                 var dropdownItems = document.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
@@ -320,11 +483,40 @@
             uploadSpinner.classList.add('d-none');
             upload.disabled = false;
         }
+        let beliefTimeCustomContainer = document.querySelector('#beliefTimeCustomContainer');
+        let beliefTimeCustom = document.querySelector('#beliefTimeCustom');
+        // The picker has no timezone, so its value is read in the browser's timezone
+        document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
+        document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                const isCustom = document.querySelector('#belief-time-mode-custom').checked;
+                beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
+            });
+        });
         upload.addEventListener('click', function (e) {
+            var formData = new FormData(document.getElementById('uploadForm'));
+            const beliefTimeMode = formData.get('belief-time-mode');
+            formData.delete('belief-time-mode');
+            formData.set('belief-time-measured-instantly', beliefTimeMode === 'instantly' ? 'on' : 'off');
+            if (beliefTimeMode === 'custom') {
+                if (!beliefTimeCustom.value) {
+                    showToast("Pick a belief time, or choose another option.", "error");
+                    return;
+                }
+                const beliefTime = new Date(beliefTimeCustom.value);
+                // The API takes a future belief time, but in the picker it is more likely a wrong pick,
+                // and until then, later uploads for the same period would not show over these values.
+                if (beliefTime > new Date() && !confirm(
+                    "The belief time you picked, " + beliefTime.toLocaleString() + ", lies in the future. "
+                    + "Until then, data you upload later for the same period will not show over these values. Upload anyway?"
+                )) {
+                    return;
+                }
+                formData.set('prior', beliefTime.toISOString());
+            }
             upload.disabled = true;
             uploadSpinner.classList.remove('d-none');
             showToast("Uploading data...", "info");
-            var formData = new FormData(document.getElementById('uploadForm'));
             fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
             method: 'POST',
             body: formData,
@@ -332,9 +524,9 @@
             .then(async function (response) {
                 if (response.ok) {
                     const data = await response.json();
-                    if (response.status === 202 && data.job_id) {
+                    if (response.status === 202 && data.job) {
                         // Track the background ingestion job and refresh when done.
-                        pollJobStatus(data.job_id, {
+                        pollJobStatus(data.job, {
                             processingMessage: "Upload received. Processing data in the background\u2026",
                             successMessage: "Data processed successfully.",
                             onFinished: () => {
@@ -403,6 +595,54 @@
         });
     {% endif %}
 
+    {% if active_page == "sensors" and user_can_create_children_sensor %}
+    document.getElementById('annotateForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const input = document.getElementById('annotationLabel');
+        const button = document.getElementById('annotateButton');
+        const content = input.value.trim();
+        if (!content) {
+            input.value = '';
+            input.reportValidity();
+            return;
+        }
+        const range = annotationRangeFromInputs();
+        if (!range) {
+            showToast("Choose a 'From' time no later than the 'Until' time.", 'error');
+            return;
+        }
+        button.disabled = true;
+        try {
+            const response = await fetch(apiBasePath + '/api/v3_0/sensors/{{ sensor.id }}/annotations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    start: range.start.toISOString(),
+                    end: range.end.toISOString(),
+                }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const message = typeof errorData.message === 'string' ? errorData.message : response.statusText;
+                throw new Error(message);
+            }
+            input.value = '';
+            clearAnnotationSelection();
+            showToast('Annotation saved.', 'success');
+            try {
+                await refreshChartAnnotations();
+            } catch (error) {
+                showToast('Annotation saved, but the chart could not refresh: ' + error.message, 'error');
+            }
+        } catch (error) {
+            showToast('Could not save annotation: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
+    {% endif %}
+
 
 
     // Toggle Stats Checkbox Listener
@@ -434,6 +674,23 @@
         }
     }, false);
 
+    {% if active_page == "sensors" %}
+    async function refreshChartAnnotations() {
+        if (!storeStartDate || !storeEndDate || !previousResult) return;
+        const currentWindow = shownWindowGeneration;
+        const annotations = await fetchChartAnnotations(dataPath, {
+            start: storeStartDate, end: storeEndDate, signal: signal,
+        });
+        if (currentWindow !== shownWindowGeneration || !previousResult) return;
+        previousResult.annotations = annotations;
+        if (fastRenderActive()) {
+            refreshFastChartAnnotations(fastChartElementId, annotations);
+        } else if (vegaView && chartSupportsAnnotations()) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(annotations)).resize().run();
+        }
+    }
+    {% endif %}
+
     // Sensors To Show Updated / New Data Available Listener
     async function reloadChartData(event) {
         if (!storeStartDate || !storeEndDate) { return; }
@@ -446,6 +703,7 @@
             // Rebuild the fast chart's groupSpec so the just-saved titles, groupings
             // and per-sub-chart y-axis modes take effect without a page reload.
             fastChartGroupSpec = rebuildFastChartGroupSpec(event.detail.sensorsToShow);
+            syncFullBeliefInfoToggle();
         }
         {% endif %}
         $("#spinner").show();
@@ -455,12 +713,14 @@
         // This reload supersedes any selection still in flight, whose answer is now out of date,
         // and claims a count of its own, so that a selection made while it runs supersedes it in turn.
         const thisReload = ++shownWindowGeneration;
-        let newData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
-        newData = await Promise.all([
-            newData,
+        const reloaded = await Promise.all([
+            chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
+            fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
-        ]).then(function (result) { return result[0] }).catch(console.error);
+        ]).catch(console.error);
         $("#spinner").hide();
+        if (!reloaded) return;
+        const [newData, annotations] = reloaded;
         // A window has been shown since this reload was started, so its answer is stale.
         if (thisReload !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
@@ -469,9 +729,16 @@
         previousResult = {
             start: storeStartDate,
             end: storeEndDate,
-            data: newData
+            data: newData,
+            annotations: annotations,
         };
         updateFastChart();
+        if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(annotations)).resize().run();
+        }
+        {% if active_page == "sensors" and user_can_create_children_sensor %}
+        syncAnnotationRangeWithView();
+        {% endif %}
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(newData, sensorsToShowForYAxisCheck);
         {% endif %}
@@ -496,45 +763,56 @@
         reloadChartData();
         reloadSensorStats();
     });
+    document.addEventListener('annotationsDeleted', function() {
+        refreshChartAnnotations().catch(function (error) {
+            showToast('The chart could not refresh its annotations: ' + error.message, 'error');
+        });
+    });
     {% endif %}
 
-    {% if event_starts_after and event_ends_before %}
-    $("#spinner").show();
-    {% if active_subpage == "asset_graph" and has_kpis %}
-    // Copies, because getAssetKPIs advances the end date it is given, and these two are the
-    // chart's own window: the cache would then record a span a day wider than it holds.
-    // PR #2434 removes that advance, after which the copies are merely belt and braces.
-    getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
-    {% endif %}
-    // The picker is already on the page, so a range can be selected while this first load is still running.
-    const thisInitialLoad = ++shownWindowGeneration;
-    // Through the cache, so that the very first date change already only fetches the days it adds.
-    const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
-    let fetchedInitialData = await Promise.all([
-        initialData,
-        embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
-    ]).then(function (result) { return result[0] }).catch(console.error);
-    $("#spinner").hide();
-    // A window has been selected while this was loading, so it is already on screen and this answer is stale.
-    if (thisInitialLoad === shownWindowGeneration) {
-        if (!fastRenderActive() && vegaView) {
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-        }
-        previousResult = {
-            start: new Date('{{ event_starts_after }}'),
-            end: new Date('{{ event_ends_before }}'),
-            data: fetchedInitialData
-        };
-        updateFastChart();
-        checkSourceMasking(previousResult.data);
-        {% if active_page == "assets" %}
-        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+    if (initialRange) {
+        $("#spinner").show();
+        {% if active_subpage == "asset_graph" and has_kpis %}
+        // Copies, because getAssetKPIs advances the end date it is given, and these two are the
+        // chart's own window: the cache would then record a span a day wider than it holds.
+        // PR #2434 removes that advance, after which the copies are merely belt and braces.
+        getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
         {% endif %}
+        // The picker is already on the page, so a range can be selected while this first load is still running.
+        const thisInitialLoad = ++shownWindowGeneration;
+        // Through the cache, so that the very first date change already only fetches the days it adds.
+        const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
+        const initialResult = await Promise.all([
+            initialData,
+            fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + initialRange.start.toISOString() + '&event_ends_before=' + initialRange.end.toISOString() + '&', elementId, datasetName, previousResult, initialRange.start, initialRange.end),
+        ]).catch(console.error);
+        $("#spinner").hide();
+        // A window has been selected while this was loading, so it is already on screen and this answer is stale.
+        if (initialResult && thisInitialLoad === shownWindowGeneration) {
+            const [fetchedInitialData, initialAnnotations] = initialResult;
+            if (!fastRenderActive() && vegaView) {
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+            }
+            previousResult = {
+                start: new Date(initialRange.start),
+                end: new Date(initialRange.end),
+                data: fetchedInitialData,
+                annotations: initialAnnotations,
+            };
+            updateFastChart();
+            if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(initialAnnotations)).resize().run();
+            }
+            {% if active_page == "sensors" and user_can_create_children_sensor %}
+            syncAnnotationRangeWithView();
+            {% endif %}
+            checkSourceMasking(previousResult.data);
+            {% if active_page == "assets" %}
+            checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+            {% endif %}
+        }
     }
-    var timerangeNotSetYet = false;
-    {% else %}
-    var timerangeNotSetYet = true;
-    {% endif %}
     fetch(chartAttributesPath, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -578,12 +856,6 @@
                 var timerangeVar = 'timerange';
                 {% endif %}
 
-                // Detect if URL already specifies a range
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlStartTimeRaw = urlParams.get('start_time');
-                const urlEndTimeRaw = urlParams.get('end_time');
-                const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
-
                 picker.setOptions({
                     dropdowns: {
                         minYear: start.getFullYear(),
@@ -591,40 +863,23 @@
                     },
                 });
 
-                if (urlHasRange) {
-                    const urlStartTime = urlStartTimeRaw.replace(' ', '+');
-                    const urlEndTime = urlEndTimeRaw.replace(' ', '+');
-
-                    const urlStartDate = new Date(urlStartTime);
-                    const urlEndDateExclusive = new Date(urlEndTime);
-
-                    if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
-                        // picker end date is inclusive → subtract 1 day
-                        urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
-
-                        // This fires the 'selected' event and load graphs
-                        picker.setDateRange(urlStartDate, urlEndDateExclusive);
-                        picker.gotoDate(urlEndDateExclusive);
-                    }
+                // Use the current selection: a user may have changed it while attributes loaded.
+                // This also keeps a restored browser range from being replaced by the older server session.
+                let newStartDate;
+                let newEndDate;
+                if (storeStartDate && storeEndDate) {
+                    newStartDate = new Date(storeStartDate);
+                    newEndDate = new Date(storeEndDate);
                 } else {
-                    // Original behaviour when there is no URL range
-
-                    if (timerangeNotSetYet) {
-                        // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end);
-                        nearEnd.setDate(nearEnd.getDate() - 2);
-                        var new_start_date = nearEnd;
-                        var new_end_date = end;
-                    } else {
-                        var new_start_date = new Date('{{ event_starts_after }}');
-                        var new_end_date = new Date('{{ event_ends_before }}');
-                    }
-
-                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
-                    picker.setDateRange(new_start_date, new_end_date);
-                    picker.gotoDate(new_end_date);
+                    // Initialize picker to the last 2 days of sensor data.
+                    newStartDate = new Date(end);
+                    newStartDate.setDate(newStartDate.getDate() - 2);
+                    newEndDate = new Date(end);
                 }
+                // Persist the range on the datepicker UI so it is shown when the user opens it.
+                newEndDate.setDate(newEndDate.getDate() - 1); // inclusive picker end
+                picker.setDateRange(newStartDate, newEndDate);
+                picker.gotoDate(newEndDate);
             }
         });
     });
@@ -669,6 +924,7 @@
             {% endif %}
 
             endDate.setDate(endDate.getDate() + 1);
+            rememberChartDateRange(startDate, endDate);
 
             // Update current url without reloading the page
             var base_url = window.location.href.split("?")[0];
@@ -785,11 +1041,14 @@
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
+            fullBeliefInfo: fullBeliefInfo,
             datasetName: datasetName,
             annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
             // The requested query window, so the x-axis spans the whole selected
             // range even when data only covers part of it (matches Vega-Lite).
             timeWindow: fastChartWindow,
+            // The sensor page lets users who can annotate select a time range on the chart.
+            selectable: {{ 'true' if active_page == "sensors" and user_can_create_children_sensor else 'false' }},
         };
     }
 

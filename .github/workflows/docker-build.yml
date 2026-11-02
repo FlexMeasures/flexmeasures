@@ -53,6 +53,9 @@ jobs:
           >> .env
       - name: Keep running flexmeasures container in background
         run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
+      - name: Check that the image serves the UI's libraries itself
+        run: docker exec fm-container python -c
+          "from flexmeasures.ui.utils.vendor_assets import missing_files; assert not missing_files(), missing_files()"
       - name: Execute database upgrade
         run: docker exec --env-file .env fm-container flexmeasures
           db upgrade

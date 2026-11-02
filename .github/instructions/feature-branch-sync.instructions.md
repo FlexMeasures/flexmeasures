@@ -48,7 +48,62 @@ A pull request's review history is anchored to its commits,
 so rewriting them discards the conversation and asks every reviewer to start again.
 A merge commit is the cost of keeping that history, and it is worth it.
 
+## Before deleting a merged branch, check who depends on it
+
+Merging a pull request retargets open pull requests that were based on its head branch.
+Deleting that head branch in the same command can race ahead of that retarget and close those pull requests.
+Never pass `--delete-branch` in the merge command for a branch that may have dependents.
+Merge first, then confirm no open pull requests still target the branch:
+
+```bash
+gh pr list --base <branch> --state open
+```
+
+If this lists any pull requests, retarget or restack them first.
+Delete the branch only after this command is empty, or let repository auto-delete run after retargeting has happened.
+
 ## A stacked branch, after its base was squash-merged
+
+### Before the squash: merge `main` into A, then A into B
+
+If you control the order, do both before A is merged:
+
+```bash
+git switch A && git merge origin/main   # main then contributes nothing beyond A's own diff
+git switch B && git merge A             # B then holds A's tip exactly
+```
+
+Neither prevents the conflicts.
+Both make them cheap to settle, and the first makes the settlement provably lossless.
+
+**What "duplication" means here.**
+After A is squash-merged, `main` holds A's whole diff as a single commit sharing no history with A's own commits,
+while B still holds those commits.
+Git's three-way merge therefore sees *both* sides adding A's content relative to the merge base,
+and where the two additions land next to each other it cannot tell they are the same change, so it conflicts.
+Nothing ends up duplicated in the result; the duplication is in what the merge has to reconcile.
+
+**Why merging `main` into A first matters.**
+Not because it avoids the conflict -- it does not.
+Because afterwards, everything `main` has gained since B's merge base *is* A's diff and nothing else,
+so settling every conflict in B's favour cannot discard anything:
+
+```bash
+git switch B && git merge origin/main -X ours
+```
+
+B already contains every line that resolution passes over.
+Do this promptly.
+If other work lands on `main` between the squash and this merge,
+`-X ours` would take B's side over that work too,
+and the staged recipe below is then the safe form.
+
+**Why merging A into B first matters.**
+B then holds A's tip exactly, so steps 1 to 3 below, which exist only to reconstruct that lineage, can be skipped.
+It also confines the conflicts to the files both branches appended to:
+on one stack of four branches it was the difference between one conflicted file and four.
+
+### After the squash
 
 When branch B is stacked on branch A and A is **squash-merged**, B conflicts almost everywhere:
 `main` now holds A's whole diff as a single commit with no shared history,
@@ -56,7 +111,18 @@ while B still carries A's original commits.
 Resolving those conflicts by hand means adjudicating A's entire diff a second time,
 which is how a regression slips in.
 
+If deleting A closed B because B targeted A as its base, recover in this order:
+
+1. Restore branch A.
+2. Reopen pull request B.
+
+Reopening alone is insufficient, because it leaves B based on a branch that still does not exist.
+Restoring the base branch is also what makes the restack flow below possible.
+
 Do this instead, which needs no force-push:
+
+If B already contains A's tip, because it was merged down before the squash,
+skip to step 4: steps 1 to 3 only reconstruct a lineage that is in that case already there.
 
 ```bash
 # 1. Restore A's branch from a tip you still have (a worktree keeps it after the remote ref goes;

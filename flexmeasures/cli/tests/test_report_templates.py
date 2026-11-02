@@ -43,12 +43,12 @@ def _fill_sensors(
     return parameters
 
 
-def test_energy_costs_template_validates(app, fresh_db, setup_dummy_asset):
+def test_energy_costs_template_validates(app, fresh_db, setup_dummy_asset_fresh_db):
     """The energy-costs template validates against the ProfitOrLossReporter schemas, once sensors are filled in."""
     template = get_report_template("energy-costs")
     assert template["reporter"] == "ProfitOrLossReporter"
 
-    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset)
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
     price_sensor = Sensor(
         "price",
         generic_asset=asset,
@@ -81,7 +81,7 @@ def test_energy_costs_template_validates(app, fresh_db, setup_dummy_asset):
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
-def test_self_consumption_template_validates(app, fresh_db, setup_dummy_data):
+def test_self_consumption_template_validates(app, fresh_db, setup_dummy_data_fresh_db):
     """The self-consumption template validates against the PandasReporter schemas, once sensors are filled in."""
     template = get_report_template("self-consumption")
     assert template["reporter"] == "PandasReporter"
@@ -92,7 +92,7 @@ def test_self_consumption_template_validates(app, fresh_db, setup_dummy_data):
     assert find_placeholders(template["config"]) == []
     reporter_class._config_schema.load(template["config"])
 
-    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
     parameters = _fill_sensors(
         template["parameters"], [sensor1_id, sensor2_id], [report_sensor_id]
     )
@@ -119,7 +119,9 @@ def test_every_template_is_well_formed(app):
             assert description["sensor"] == PLACEHOLDER
 
 
-def test_building_consumption_template_validates(app, fresh_db, setup_dummy_data):
+def test_building_consumption_template_validates(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
     """The building-consumption template validates against the AggregatorReporter schemas, once sensors are filled in."""
     template = get_report_template("building-consumption")
     assert template["reporter"] == "AggregatorReporter"
@@ -130,7 +132,7 @@ def test_building_consumption_template_validates(app, fresh_db, setup_dummy_data
     assert find_placeholders(template["config"]) == []
     reporter_class._config_schema.load(template["config"])
 
-    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
     parameters = _fill_sensors(
         template["parameters"], [sensor1_id, sensor2_id], [report_sensor_id]
     )
@@ -139,9 +141,11 @@ def test_building_consumption_template_validates(app, fresh_db, setup_dummy_data
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
-def test_building_consumption_sums_its_input_sensors(app, fresh_db, setup_dummy_data):
+def test_building_consumption_sums_its_input_sensors(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
     """The building-consumption template totals its input sensors event by event."""
-    sensor1_id, sensor2_id, _, _ = setup_dummy_data
+    sensor1_id, sensor2_id, _, _ = setup_dummy_data_fresh_db
     sensor1 = fresh_db.session.get(Sensor, sensor1_id)
     site_sensor = Sensor(
         "site consumption",
@@ -171,7 +175,9 @@ def test_building_consumption_sums_its_input_sensors(app, fresh_db, setup_dummy_
     assert (report.values.T == [0, 2, 4, 6]).all()
 
 
-def test_daily_energy_template_totals_a_power_sensor(app, fresh_db, setup_dummy_asset):
+def test_daily_energy_template_totals_a_power_sensor(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
     """The daily-energy template converts power to energy and totals it per day."""
     template = get_report_template("daily-energy")
     assert template["reporter"] == "PandasReporter"
@@ -180,7 +186,7 @@ def test_daily_energy_template_totals_a_power_sensor(app, fresh_db, setup_dummy_
     assert find_placeholders(template["config"]) == []
     reporter_class._config_schema.load(template["config"])
 
-    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset)
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
     power_sensor = Sensor(
         "power", generic_asset=asset, event_resolution=timedelta(hours=1), unit="kW"
     )
@@ -230,7 +236,9 @@ def test_daily_energy_template_totals_a_power_sensor(app, fresh_db, setup_dummy_
     assert report.values[0, 0] == pytest.approx(0.048)
 
 
-def test_clipped_values_template_bounds_its_input(app, fresh_db, setup_dummy_data):
+def test_clipped_values_template_bounds_its_input(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
     """The clipped-values template pulls out-of-range values to the nearest bound."""
     template = get_report_template("clipped-values")
     assert template["reporter"] == "PandasReporter"
@@ -244,7 +252,7 @@ def test_clipped_values_template_bounds_its_input(app, fresh_db, setup_dummy_dat
     config["transformations"][0]["kwargs"] = {"lower": 1, "upper": 2}
     app.data_generators["reporter"][template["reporter"]]._config_schema.load(config)
 
-    sensor1_id, _, _, _ = setup_dummy_data
+    sensor1_id, _, _, _ = setup_dummy_data_fresh_db
     sensor1 = fresh_db.session.get(Sensor, sensor1_id)
     clipped_sensor = Sensor(
         "clipped measurements",
@@ -299,14 +307,14 @@ def test_show_report_templates(app):
 
 
 def test_add_and_run_report_automation_with_template(
-    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis, tmp_path, freeze_server_now
 ):
     """A report automation created from the self-consumption template computes a working report."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
     from flexmeasures.utils.job_utils import work_on_rq
 
-    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     daily_sensor = Sensor(
         "daily self-consumption",
@@ -377,7 +385,9 @@ def test_add_and_run_report_automation_with_template(
     assert (stored_report.values.T == [1.0, 1.0]).all()
 
 
-def test_report_template_placeholders_must_be_filled(app, fresh_db, setup_dummy_data):
+def test_report_template_placeholders_must_be_filled(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
     """Leaving template placeholders unfilled produces a clear validation error."""
     from flexmeasures.cli.data_add import add_automation, add_report
 
@@ -435,7 +445,7 @@ def test_report_template_placeholders_must_be_filled(app, fresh_db, setup_dummy_
 
 
 def test_report_template_cannot_be_combined_with_source(
-    app, fresh_db, setup_dummy_data
+    app, fresh_db, setup_dummy_data_fresh_db
 ):
     """A stored reporter source and a report template cannot both define the reporter configuration."""
     from flexmeasures.cli.data_add import add_automation, add_report
@@ -489,10 +499,10 @@ def test_add_report_template_rejects_non_mapping_override(
 
 
 def test_self_consumption_is_undefined_without_production(
-    app, fresh_db, setup_dummy_data
+    app, fresh_db, setup_dummy_data_fresh_db
 ):
     """The self-consumption ratio is missing when a reporting period has no production."""
-    production_id, consumption_id, report_sensor_id, _ = setup_dummy_data
+    production_id, consumption_id, report_sensor_id, _ = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     daily_sensor = Sensor(
         "daily self-consumption with zero production",
@@ -504,7 +514,7 @@ def test_self_consumption_is_undefined_without_production(
         update(TimedBelief)
         .where(
             TimedBelief.sensor_id == production_id,
-            TimedBelief.event_start < "2023-04-11T00:00:00+00:00",
+            TimedBelief.event_start < datetime(2023, 4, 11, tzinfo=timezone.utc),
         )
         .values(event_value=0)
     )

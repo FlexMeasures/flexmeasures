@@ -34,7 +34,7 @@ On Linux:
 
    $ # On Ubuntu and Debian, you can install postgres like this:
    $ sudo apt-get install postgresql-17  # replace 17 with the version available in your packages
-   $ pip install psycopg2-binary
+   $ pip install "psycopg[binary]"
 
    $ # On Fedora, you can install postgres like this:
    $ sudo dnf install postgresql postgresql-server
@@ -47,7 +47,7 @@ On Windows:
 * Download postgres here: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
 * Install and remember your ``postgres`` user password
 * Add the lib and bin directories to your Windows path: http://bobbyong.com/blog/installing-postgresql-on-windoes/
-* ``conda install psycopg2``
+* ``conda install psycopg``
 
 
 On Macos:

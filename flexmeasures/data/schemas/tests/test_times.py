@@ -1,13 +1,17 @@
+import re
 from datetime import datetime, timedelta
 
+import click
 import pytest
 import pytz
 import isodate
+from marshmallow import ValidationError
 
 from flexmeasures.data.schemas.times import (
     DurationField,
     DurationValidationError,
     ResolutionField,
+    TimezoneField,
 )
 
 
@@ -129,3 +133,56 @@ def test_resolution_field_still_validates_duration():
     with pytest.raises(DurationValidationError) as ve:
         rf.deserialize("PT40S", None, None)
     assert "FlexMeasures only support multiples of 1 minute." in str(ve)
+
+
+@pytest.mark.parametrize("timezone", ("UTC", "Europe/Amsterdam", "Etc/GMT+1"))
+def test_timezone_field_accepts_iana_names(timezone):
+    assert TimezoneField().deserialize(timezone) == timezone
+
+
+@pytest.mark.parametrize(
+    "timezone",
+    (
+        "Europe/NotAmsterdam",
+        # Only the exact IANA name counts, so neither a padded name ...
+        " Europe/Amsterdam",
+        # ... nor a UTC offset or an abbreviation, which are no IANA names.
+        "+02:00",
+        "CEST",
+        "",
+    ),
+)
+def test_timezone_field_rejects_anything_but_an_exact_iana_name(timezone):
+    with pytest.raises(ValidationError, match="does not exist") as exc_info:
+        TimezoneField().deserialize(timezone)
+    assert "Did you mean" not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "timezone, exact_name",
+    [
+        ("utc", "UTC"),
+        ("europe/amsterdam", "Europe/Amsterdam"),
+        ("EUROPE/AMSTERDAM", "Europe/Amsterdam"),
+    ],
+)
+def test_timezone_field_suggests_the_exact_name_for_a_name_in_the_wrong_case(
+    timezone, exact_name
+):
+    """pandas, pytz and zoneinfo accept such a name, so the field names the exact one it expects instead."""
+    with pytest.raises(
+        ValidationError,
+        match=re.escape(
+            f"Timezone '{timezone}' does not exist. Did you mean '{exact_name}'?"
+        ),
+    ):
+        TimezoneField().deserialize(timezone)
+
+
+def test_timezone_field_works_as_a_click_option_type():
+    """Click calls the field with the option's value, which gives the name back, or a usage error (rather than a traceback) for a bad name."""
+    assert TimezoneField()("Asia/Tokyo") == "Asia/Tokyo"
+    with pytest.raises(
+        click.BadParameter, match="Timezone 'Asia/Tokio' does not exist"
+    ):
+        TimezoneField()("Asia/Tokio")

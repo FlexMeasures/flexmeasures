@@ -11,6 +11,7 @@ from typing import Any, Type
 import numpy as np
 import pandas as pd
 from flask import current_app
+from marshmallow import ValidationError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator, DataSource
@@ -20,6 +21,7 @@ from flexmeasures.data.schemas.scheduling.config import (
     SchedulerConfigSchema,
     strip_momentary_flex_fields,
 )
+from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
 from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
@@ -74,6 +76,67 @@ def _shadow_inflexible_device_keys(
     ):
         for key in INFLEXIBLE_DEVICE_KEYS:
             db_flex_context.pop(key, None)
+
+
+_DROP = object()
+
+
+def _refuse_unset_sensor_references(value: Any, config_name: str) -> None:
+    """Refuse a sensor reference without a sensor in a passed flex-config.
+
+    Only sensor deletion leaves such a reference behind, in a stored flex-config, for its owner to pick a new sensor for.
+
+    :raises ValidationError: naming the flex-config the reference was passed in.
+    """
+    if is_unset_sensor_reference(value):
+        raise ValidationError(
+            f'A sensor reference in the {config_name} has no sensor (`"sensor": null`), which is how FlexMeasures marks a reference whose sensor was deleted.'
+            " Pick a sensor for it, or replace the reference with a fixed value."
+        )
+    if isinstance(value, dict):
+        for v in value.values():
+            _refuse_unset_sensor_references(v, config_name)
+    elif isinstance(value, list):
+        for v in value:
+            _refuse_unset_sensor_references(v, config_name)
+
+
+def _resolve_unset_sensor_references(value: Any, path: str) -> Any:
+    """Stand in for each sensor reference whose sensor was deleted, until its owner picks a new sensor for it.
+
+    A reference with a default is replaced by its default, as a fixed value.
+    A reference without one is dropped, so the field is treated as unset.
+    Either way, a warning names the field, as the schedule no longer follows the sensor its owner picked.
+
+    :param value:   A serialized flex-config, or a part of it.
+    :param path:    Where in the flex-config the value is, for the warning.
+    :returns:       The value with each such reference resolved, or `_DROP` for a reference to drop.
+    """
+    if is_unset_sensor_reference(value):
+        if "default" in value:
+            current_app.logger.warning(
+                f"The sensor referenced at `{path}` was deleted, so its default ({value['default']}) is used as a fixed value until a new sensor is picked."
+            )
+            return value["default"]
+        current_app.logger.warning(
+            f"The sensor referenced at `{path}` was deleted, and the reference has no default, so it is ignored until a new sensor is picked."
+        )
+        return _DROP
+    if isinstance(value, dict):
+        resolved_dict = {}
+        for k, v in value.items():
+            resolved = _resolve_unset_sensor_references(v, f"{path} > {k}")
+            if resolved is not _DROP:
+                resolved_dict[k] = resolved
+        return resolved_dict
+    if isinstance(value, list):
+        resolved_list = []
+        for i, v in enumerate(value):
+            resolved = _resolve_unset_sensor_references(v, f"{path} > {i}")
+            if resolved is not _DROP:
+                resolved_list.append(resolved)
+        return resolved_list
+    return value
 
 
 class Scheduler(DataGenerator):
@@ -336,8 +399,24 @@ class Scheduler(DataGenerator):
                         "config": _json_safe(self._config_schema.dump(self._config))
                     }
                 },
+                account=self.source_account,
             )
         return self._data_source
+
+    @property
+    def source_account(self):
+        """The organisation whose asset is being scheduled, which the schedule is computed for.
+
+        A scheduler is always handed an asset or a sensor, so it knows this without being told,
+        where a reporter or a forecaster goes by the sensors it writes to.
+        """
+        if self._source_account is not None:
+            return self._source_account
+        scheduled = self.asset if self.asset is not None else self.sensor
+        if scheduled is None:
+            return None
+        asset = scheduled if self.asset is not None else scheduled.generic_asset
+        return asset.owner
 
     def persist_flex_model(self):
         """
@@ -359,10 +438,15 @@ class Scheduler(DataGenerator):
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
         Merging twice would be wrong rather than merely wasteful, so this returns early when it already ran.
+
+        A stored sensor reference whose sensor was deleted is resolved here (see `_resolve_unset_sensor_references`),
+        while a passed one is refused.
         """
         # Tolerate a subclass which does not call this class's __init__, as plugins may not.
         if getattr(self, "_flex_config_collected", False):
             return
+        _refuse_unset_sensor_references(self.flex_context, "flex-context")
+        _refuse_unset_sensor_references(self.flex_model, "flex-model")
         self._flex_config_collected = True
         if self.asset is not None:
             asset = self.asset
@@ -430,6 +514,13 @@ class Scheduler(DataGenerator):
         else:
             # Multi-asset case
             self.flex_model = combined_flex_model
+
+        self.flex_context = _resolve_unset_sensor_references(
+            self.flex_context, "flex-context"
+        )
+        self.flex_model = _resolve_unset_sensor_references(
+            self.flex_model, "flex-model"
+        )
 
     def deserialize_config(self):
         """

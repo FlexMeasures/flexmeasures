@@ -1,13 +1,13 @@
 Welcome to the FlexMeasures documentation!
 ===================================================================
 
-*FlexMeasures* is an intelligent EMS to optimize behind-the-meter energy flexibility.
-Build your smart energy apps & services with FlexMeasures as backend for real-time orchestration! 
+*FlexMeasures* is an energy scheduling and optimization engine for powerful energy management systems.
+With FlexMeasures, you can integrate complex, multi-asset, multi-commodity optimization capabilities into your EMS.
 
 The problem FlexMeasures helps you to solve is: **What are the best times to power flexible assets, such as batteries or heat pumps?**
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
-*Why?* Planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to more optimal times. For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives).
+FlexMeasures turns data into optimized schedules for flexible assets.
+*Why?* Planning ahead allows flexible assets to serve the whole system by shifting energy consumption to more optimal times. For the asset owners, this reduces CO₂ footprints while also reducing energy costs (e.g. by increasing consumption of locally produced power, dynamic tariffs and grid incentives).
 
 
 .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png 
@@ -203,6 +203,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     concepts/flexibility
     concepts/data-model
     concepts/time-series-and-beliefs
+    concepts/data-pipelining
     concepts/flexibility-configuration
     concepts/security_auth
     concepts/commitments

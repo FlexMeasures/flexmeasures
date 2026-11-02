@@ -36,17 +36,23 @@ from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
+from flexmeasures.data.services.automations import record_outcome_on_automation_run
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.services.generator_results import (
+    check_generator_results,
+    describe_generator,
+    save_generator_results,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
     get_scheduler_instance,
+    store_job_exception,
 )
 
 
@@ -138,8 +144,7 @@ def success_callback(job, connection, result, *args, **kwargs):
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
-    job.meta["exception"] = value
-    job.save_meta()
+    store_job_exception(job, type, value)
 
     if type is InfeasibleProblemException:
         asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
@@ -204,7 +209,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             job.save_meta()
             current_app.queues["scheduling"].enqueue_job(fallback_job)
             asset_or_sensor_ref = get_asset_or_sensor_ref(asset_or_sensor)
-            current_app.job_cache.add(
+            current_app.job_map.add(
                 asset_or_sensor_ref["id"],
                 fallback_job.id,
                 queue="scheduling",
@@ -242,6 +247,7 @@ def create_scheduling_job(
     Arguments:
     :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
     :param job_id:                  Optionally, set a job id explicitly.
+                                    A job that already exists under this id is returned as it is, rather than created again.
     :param enqueue:                 If True, enqueues the job in case it is new.
     :param requeue:                 If True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator).
@@ -253,6 +259,12 @@ def create_scheduling_job(
     :returns:                       The job.
 
     """
+    connection = current_app.queues["scheduling"].connection
+    if job_id is not None and Job.exists(job_id, connection=connection):
+        # An earlier attempt at the same work already created this job, so leave it as it is:
+        # creating it again would overwrite the meta its worker recorded, such as the data source of its schedule.
+        return Job.fetch(job_id, connection=connection)
+
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We should put only serializable scheduler_kwargs into the job!
@@ -337,7 +349,7 @@ def create_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset_or_sensor["id"],
             job.id,
             queue="scheduling",
@@ -347,6 +359,7 @@ def create_scheduling_job(
     return job
 
 
+@record_outcome_on_automation_run
 def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     """
     TODO: maybe check if any of the subjobs used a fallback scheduler or accrued a relaxation penalty.
@@ -388,10 +401,58 @@ def _add_inflexible_devices(flex_context: dict, sensors: list[Sensor]) -> None:
             )
 
 
+def resolve_sequential_flex_model(
+    asset: Asset, scheduler_kwargs: dict, scheduler_class: Type[Scheduler]
+) -> list[dict]:
+    """Work out which device each job of a sequential schedule computes for.
+
+    A trigger may name the devices itself, or leave them to be collected from the asset tree,
+    in which case each device's output sensor is read off its stored flex-model.
+    The flex-model and flex-context in `scheduler_kwargs` are filled in as they are resolved,
+    so that a caller which resolves first and schedules afterwards resolves only once.
+
+    :returns: the flex-model entries, each naming the sensor its job computes for.
+    """
+    if not scheduler_kwargs["flex_model"]:
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=asset,
+            scheduler_params=scheduler_kwargs,
+        )
+        scheduler.collect_flex_config()
+        collected_flex_model = deepcopy(scheduler.flex_model)
+        scheduler_kwargs["flex_context"] = scheduler.flex_context
+        scheduler.deserialize_config()
+        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
+            collected_flex_model
+        )
+
+    flex_model = scheduler_kwargs["flex_model"]
+    for child_flex_model in flex_model:
+        if child_flex_model.get("sensor") is not None:
+            continue
+        sensor_ids = {
+            sensor_reference["sensor"]
+            for field in ("consumption", "production")
+            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
+            is not None
+        }
+        if len(sensor_ids) != 1:
+            device_asset = child_flex_model.get("asset")
+            raise ValidationError(
+                "Sequential scheduling requires each stored device flex-model to "
+                "reference exactly one output sensor through 'consumption' or "
+                f"'production' (asset {device_asset.id if device_asset else 'unknown'})."
+            )
+        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+    return flex_model
+
+
 @job_cache("scheduling")
 def create_sequential_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
+    job_id_prefix: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
     force_new_job_creation: bool = False,
@@ -404,7 +465,12 @@ def create_sequential_scheduling_job(
     """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
 
     :param asset:                   Asset (e.g. a site) for which the schedule is computed.
-    :param job_id:                  Optionally, set a job id explicitly.
+    :param job_id:                  Optionally, set the id of the wrap-up job explicitly, which is the job this returns.
+                                    Ignored where `job_id_prefix` is given, which names every job in the chain.
+    :param job_id_prefix:           Optionally, derive the id of every job in the chain from this prefix:
+                                    `<prefix>-device-<sensor id>` per device, and `<prefix>-wrap-up` for the job that wraps up.
+                                    Derived ids let a second attempt at the same work recognise the jobs the first one queued,
+                                    which is what lets an automation run be dispatched again without scheduling a device twice.
     :param enqueue:                 If True, enqueues the job in case it is new.
     :param requeue:                 If True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator).
@@ -440,38 +506,7 @@ def create_sequential_scheduling_job(
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
     else:
         scheduler_class = find_scheduler_class(asset)
-    if not scheduler_kwargs["flex_model"]:
-        scheduler = get_scheduler_instance(
-            scheduler_class=scheduler_class,
-            asset_or_sensor=asset,
-            scheduler_params=scheduler_kwargs,
-        )
-        scheduler.collect_flex_config()
-        collected_flex_model = deepcopy(scheduler.flex_model)
-        scheduler_kwargs["flex_context"] = scheduler.flex_context
-        scheduler.deserialize_config()
-        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
-            collected_flex_model
-        )
-
-    flex_model = scheduler_kwargs["flex_model"]
-    for child_flex_model in flex_model:
-        if child_flex_model.get("sensor") is not None:
-            continue
-        sensor_ids = {
-            sensor_reference["sensor"]
-            for field in ("consumption", "production")
-            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
-            is not None
-        }
-        if len(sensor_ids) != 1:
-            asset = child_flex_model.get("asset")
-            raise ValidationError(
-                "Sequential scheduling requires each stored device flex-model to "
-                "reference exactly one output sensor through 'consumption' or "
-                f"'production' (asset {asset.id if asset else 'unknown'})."
-            )
-        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+    flex_model = resolve_sequential_flex_model(asset, scheduler_kwargs, scheduler_class)
 
     # A scheduling request is one run of one generator,
     # so all of its device jobs record their schedules under one data source, describing the request's own configuration.
@@ -511,7 +546,12 @@ def create_sequential_scheduling_job(
             data_source_config=data_source_config,
             scheduler_specs=scheduler_specs,
             requeue=requeue,
-            job_id=job_id,
+            # One id per device: a single id shared by the chain would have each device job overwrite the last.
+            job_id=(
+                f"{job_id_prefix}-device-{sensor.id}"
+                if job_id_prefix is not None
+                else None
+            ),
             enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
@@ -522,9 +562,15 @@ def create_sequential_scheduling_job(
         previous_job = job
 
     # create job that triggers when the last job is done
+    wrap_up_job_id = f"{job_id_prefix}-wrap-up" if job_id_prefix is not None else job_id
+    connection = current_app.queues["scheduling"].connection
+    if wrap_up_job_id is not None and Job.exists(wrap_up_job_id, connection=connection):
+        # An earlier attempt at the same work already created the wrap-up job, so leave it as it is.
+        return Job.fetch(wrap_up_job_id, connection=connection)
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
+        id=wrap_up_job_id,
         depends_on=previous_job,
         ttl=int(
             current_app.config.get(
@@ -552,7 +598,7 @@ def create_sequential_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
@@ -631,7 +677,7 @@ def create_simultaneous_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
@@ -865,10 +911,8 @@ def _set_output_sensor_consumption_is_positive(
             f"(expected `consumption_is_positive={intended}`). "
             f"Remove or correct the attribute before re-running the scheduler."
         )
-    # Direct attribute assignment works for both new and existing attributes.
-    # set_attribute() is intentionally not used here because it silently
-    # no-ops when the attribute does not yet exist.
-    result_sensor.attributes["consumption_is_positive"] = intended
+
+    result_sensor.set_attribute("consumption_is_positive", intended)
 
 
 def _resolve_schedule_output_sign(
@@ -910,10 +954,7 @@ def _resolve_schedule_output_sign(
     return 1
 
 
-class ScheduleWritesUncheckedSensor(PermissionError):
-    """Raised when a scheduler returns results for a sensor that nobody's permissions were checked against."""
-
-
+@record_outcome_on_automation_run
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -1045,31 +1086,20 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     from flexmeasures.data.services.automations import (
+        automation_id_of_job,
         sensors_automation_job_may_record_on,
     )
 
-    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
-    if permitted_output_sensor_ids is not None:
-        # Judge the whole set before writing any of it.
-        # The job's transaction would roll an interrupted write back, since `save_to_db` only flushes,
-        # but a refusal should not depend on the caller's transaction discipline,
-        # and `make_schedule` is also called directly.
-        refused = sorted(
-            {
-                result["sensor"].id
-                for result in consumption_schedule
-                if "sensor" in result
-                and result["sensor"].id not in permitted_output_sensor_ids
-            }
-        )
-        if refused:
-            raise ScheduleWritesUncheckedSensor(
-                f"This schedule would record data on sensor(s) {', '.join(str(i) for i in refused)},"
-                f" which are not among the sensors automation {rq_job.meta['trigger']['automation_id']}"
-                " was checked against when it was created."
-            )
+    # Judge the whole set before writing any of it, as for every data generator.
+    # A refusal should not depend on the caller's transaction discipline, and `make_schedule` is also called directly.
+    check_generator_results(
+        consumption_schedule,
+        sensors_automation_job_may_record_on(rq_job),
+        describe_generator(scheduler),
+        automation_id_of_job(rq_job),
+    )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
-    num_beliefs_created = 0
+    to_save = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1113,8 +1143,7 @@ def make_schedule(  # noqa: C901
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
         if not dry_run:
-            save_to_db(bdf)
-            num_beliefs_created += len(bdf)
+            to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
             # Report what would have been saved, in the same terms as a forecast dry run does:
             # the sensor, the number of beliefs, and the events they cover.
@@ -1128,8 +1157,10 @@ def make_schedule(  # noqa: C901
                 f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
 
-    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
-    scheduling_result_dict["num-beliefs"] = num_beliefs_created
+    # Saved the way every data generator's results are: all or nothing, and counting the beliefs actually saved,
+    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so the count is 0.
+    saved = save_generator_results(to_save) if to_save else []
+    scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
 
     if not dry_run:
         scheduler.persist_flex_model()
@@ -1174,8 +1205,7 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     )
 
     print_tb(traceback)
-    job.meta["exception"] = exc_value
-    job.save_meta()
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:

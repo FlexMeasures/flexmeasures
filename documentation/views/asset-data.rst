@@ -254,3 +254,19 @@ This is how the audit log looks for the history of actions taken on an asset:
 ..    :scale: 40%
 
 |
+
+.. _view_asset_automations:
+
+Automations page
+----------------
+
+The automations page lists the recurring tasks that compute forecasts, schedules or reports for the asset, one tab per kind.
+By default, it includes the automations of the asset's sub-assets, and names the asset each automation belongs to.
+From here, you can create a new automation, and view, run, edit, deactivate or delete an existing one.
+See :ref:`automations` for how they work.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_automations.png
+    :align: center
+..    :scale: 40%
+
+|

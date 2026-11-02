@@ -71,13 +71,18 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         "GenericAsset",
         foreign_keys=[generic_asset_id],
         backref=db.backref(
-            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "sensors",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Sensor.id",  # creation order, so that sensors[0] does not depend on the physical row order the database returns
         ),
     )
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_sensors",
-        backref=db.backref("sensors", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("sensors", lazy="dynamic", order_by="Sensor.id"),
     )
 
     def get_path(self, separator: str = ">"):
@@ -154,50 +159,48 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def __acl__(self):
         """
         We allow reading to whoever can read the asset.
-        Editing as well as deletion is left to account admins.
+        Editing is left to account admins and consultants.
+        Members may delete a sensor that holds no data; deleting data is left to account admins and consultants.
         Everyone in the account and its consultant can add beliefs.
         """
-        return {
-            "create-children": [
+        post_data_access = [
+            f"account:{self.generic_asset.account_id}",
+            (
+                (
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        manage_sensor_access = [
+            (
                 f"account:{self.generic_asset.account_id}",
+                f"role:{ACCOUNT_ADMIN_ROLE}",
+            ),
+            (
                 (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        return {
             "read": self.generic_asset.__acl__()["read"],
-            "update": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+            "post-data": post_data_access,
+            "trigger-schedules": post_data_access,
+            "trigger-forecasts": post_data_access,
+            "annotate": post_data_access,
+            # PATCH can change units and resolution, so field editing remains limited to account admins and consultants.
+            "edit-sensors": manage_sensor_access,
+            "delete-data": manage_sensor_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": post_data_access,
+            "update": manage_sensor_access,
+            "delete": manage_sensor_access,
         }
 
     @property
@@ -284,8 +287,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        """Sets the attribute on the Sensor itself, creating it if it does not exist yet.
+
+        If the GenericAsset has the same attribute, the Sensor's value takes precedence over it from then on.
+        Note that :meth:`get_attribute` first looks for a Sensor property or column of that name,
+        so an attribute named like one (e.g. ``name`` or ``unit``) is stored, but never read back.
+        """
+        self.attributes[attribute] = value
 
     def check_required_attributes(
         self,
@@ -928,7 +936,11 @@ def _select_latest_version_and_belief_per_event(
     Sources are therefore grouped into families sharing a name, type and model,
     and versions are only ever compared inside a family.
 
-    Within a family, the latest version wins, then the most recent belief, then the highest source id.
+    Within a family, the latest version wins, then the most recent belief,
+    then a source that left nothing out over one that names the members it was missing (see `DataSource.missing_members`),
+    then the highest source id.
+    Two sources of one family differ that way when an `AggregatorReporter` recorded a partial aggregate before the complete one,
+    and a complete aggregate recorded with the same belief time as the partial one should replace it.
 
     Between families, the order the caller named its sources in wins, for a caller that named any,
     then the most recent belief, then the highest source id.
@@ -962,6 +974,9 @@ def _select_latest_version_and_belief_per_event(
     id_per_source = np.array(
         [source.id if source.id is not None else -1 for source in unique_sources]
     )
+    incomplete_per_source = np.array(
+        [bool(getattr(source, "missing_members", None)) for source in unique_sources]
+    )
     # Sources the caller did not name rank behind the ones it did, in the order it gave them.
     # An entry that named nothing this database knows still holds its place,
     # so the rank for the unnamed has to clear every entry, not merely the ones that matched.
@@ -983,11 +998,12 @@ def _select_latest_version_and_belief_per_event(
     family = family_per_source[source_codes]
     version = version_per_source[source_codes]
     source_id = id_per_source[source_codes]
+    incomplete = incomplete_per_source[source_codes]
     position = position_per_source[source_codes]
 
     # np.lexsort takes its keys least significant first.
     within_family = _first_of_each_group(
-        np.lexsort((-source_id, -recency, -version, family, events)),
+        np.lexsort((-source_id, incomplete, -recency, -version, family, events)),
         (events, family),
     )
     between_families = _first_of_each_group(

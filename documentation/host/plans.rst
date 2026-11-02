@@ -25,13 +25,70 @@ The settings themselves are documented under :ref:`rate-limiting-config`.
 How the two limits count
 -------------------------
 
-- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
-  authentication, so requests without valid credentials are counted, too (per IP address, as there is no user
-  to count them against). This is what bounds a client who keeps sending requests we refuse.
-- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
-  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
-  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
-  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+- The **default limit** counts *every* request, including the ones we refuse.
+  The limiter runs before authentication, so requests without valid credentials are counted, too (per IP address, as there is no account to count them against).
+  This is what bounds a client who keeps sending requests we refuse.
+- The **trigger limit** only counts triggers we *accepted*.
+  It exists to protect the expensive computation which a trigger sets in motion,
+  and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
+  In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+
+The default limit is counted per account: all users and integrations of an account share one budget, which is the budget the account's plan sets.
+By an integration, we mean anything which calls the API with an auth token rather than through the UI, such as a customer's EMS connector, a gateway pushing meter data, or a script built on the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_.
+FlexMeasures has no such entity: every token belongs to a user, so to the server, an integration is a user's token being used by a machine.
+The UI is the exception. UI pages fetch their data from the API using the session of the logged-in user rather than with an API token.
+Those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``, see :ref:`rate-limiting-config`), which is not part of the account plan.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Triggers count against the trigger limit, whether they come from the UI or from an integration.
+A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
+as it is the consultancy's integration which makes those requests.
+
+The trigger limit is counted per account: all users and assets of an account share one budget.
+A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
+
+.. _rate-limiting-reset:
+
+Resetting an account's rate limits
+-----------------------------------
+
+When an account ran into a rate limit, and its integration has since been fixed, it need not wait out the rest of the window.
+Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
+
+.. code-block:: bash
+
+    $ flexmeasures edit reset-rate-limit --account 3
+
+This resets the account's default limit and its trigger limit (see above).
+Pass ``--limit default`` or ``--limit trigger`` to reset just the one.
+Each limit is counted per account, so a reset gives the account a fresh budget.
+
+A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
+
+Finding out who hit a limit
+----------------------------
+
+A budget is shared by everyone it counts (an account's users and integrations, for instance),
+so a ``429`` alone does not tell you which of them used it up.
+That is why each refused request is logged as a warning, saying which limit was hit (and what it allows),
+who made the request (their account and user, or their IP address if they were not logged in),
+and which endpoint they called (and, for the trigger limit, about which asset).
+For example:
+
+.. code-block:: text
+
+    Refused a request for hitting the trigger rate limit (10 per 5 minute): account 3, user 12, asset 41, POST /api/v3_0/assets/41/schedules/trigger (AssetAPI:trigger_schedule).
+
+These warnings only show up when ``LOGGING_LEVEL`` is ``"WARNING"`` or lower (see :ref:`configuration`).
+Note that a production server only logs errors by default, so you need to set it explicitly there.
+
+To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"``:
+each trigger which counts against the trigger limit is then logged, with the same details.
+
+.. note:: The recurring runs of automations queue their jobs from within FlexMeasures, rather than calling the API,
+          so they are not rate-limited, and do not show up in these logs.
+          Running an automation on demand (``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger``) is a trigger like any other,
+          and is logged as one.
 
 .. _rate-limiting-plans:
 
@@ -46,7 +103,7 @@ Create a plan with ``flexmeasures add plan``:
 
 .. code-block:: bash
 
-    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
+    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes"
 
 List the plans you created, with the limits each of them sets, using ``flexmeasures show plans``:
 
@@ -54,10 +111,11 @@ List the plans you created, with the limits each of them sets, using ``flexmeasu
 
     $ flexmeasures show plans
 
-A plan's ``default_rate_limit``, ``trigger_rate_limit`` and ``rate_limit_key`` override the server-wide settings
+A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-wide settings
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
+Each field holds one limit, like ``"60 per 5 minutes"``, as do the server-wide settings.
 
 Edit a plan with ``flexmeasures edit plan``, which identifies the plan by its ID (so that ``--name`` can rename it),
 and changes only the fields you pass:
@@ -103,6 +161,7 @@ Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``, the 
 accounts a consultancy account may manage). These are not enforced yet, which is why ``flexmeasures show plans``
 leaves them out for now.
 
-.. note:: Changing an account's ``rate_limit_key`` orphans the counters it has in Redis (the old keys simply expire),
-          so the account may get a fresh budget for the remainder of the current window. Harmless, but worth knowing
-          when you wonder why a plan change handed someone a clean slate.
+.. note:: Changing an account's limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
+          because the limit's amount is part of their key (the old keys simply expire).
+          So the account may get a fresh budget for the remainder of the current window.
+          Harmless, but worth knowing when you wonder why a plan change handed someone a clean slate.

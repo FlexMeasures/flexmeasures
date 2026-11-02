@@ -202,6 +202,18 @@ def query_assets_by_search_terms(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> Select:
+    """Build an asset query with optional search terms and deterministic ordering.
+
+    Append ascending asset ID as a tie-breaker when sorting by a supported field;
+    order by ascending asset ID if either sorting argument is omitted or ``sort_by`` is unsupported.
+    This gives a total order for stable LIMIT/OFFSET pagination while the result set is unchanged.
+
+    :param search_terms:     Terms matched against asset names, account names, or numeric asset ID prefixes; None disables searching.
+    :param filter_statement: Additional filter applied to the selected assets.
+    :param sort_by:          Sort field: ``id``, ``name``, or ``owner``.
+    :param sort_dir:         Sort direction: ``asc`` or ``desc``.
+    :returns:                A SQLAlchemy ``Select`` statement with deterministic ordering.
+    """
     select_statement = select(GenericAsset)
 
     # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
@@ -275,10 +287,17 @@ def query_assets_by_search_terms(
                 order_by_column = None
             if order_by_column is not None:
                 query = query.order_by(
-                    order_by_column.asc()
-                    if sort_dir == "asc"
-                    else order_by_column.desc()
+                    (
+                        order_by_column.asc()
+                        if sort_dir == "asc"
+                        else order_by_column.desc()
+                    ),
+                    asset_alias.id,
                 )
+            else:
+                query = query.order_by(asset_alias.id)
+        else:
+            query = query.order_by(asset_alias.id)
 
     else:
         query = query.where(filter_statement)
@@ -290,11 +309,18 @@ def query_assets_by_search_terms(
                     if sort_dir == "asc"
                     else valid_sort_columns[sort_by].desc()
                 )
-                query = query.order_by(order_by_clause)
+                query = query.order_by(
+                    order_by_clause,
+                    GenericAsset.id,
+                )
+            else:
+                query = query.order_by(GenericAsset.id)
+        else:
+            query = query.order_by(GenericAsset.id)
     return query
 
 
-def descendants_cte(root_asset_id: int, max_depth: int):
+def descendants_cte(root_asset_id: int, max_depth: int | None):
     """
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
@@ -308,6 +334,7 @@ def descendants_cte(root_asset_id: int, max_depth: int):
     -   Combining hierarchy constraints with search, sorting, or pagination
 
     :param root_asset_id:   ID of the asset that acts as the root of the subtree.
+    :param max_depth:       How many levels below the root to include, or None for all of them.
     :returns:               A recursive SQLAlchemy CTE yielding asset IDs and parent IDs for the entire subtree.
     """
     asset = GenericAsset.__table__

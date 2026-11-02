@@ -248,6 +248,97 @@ def test_get_assets_sort_with_search_filter(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_paging_without_sort_sees_all_assets(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Paging through the asset list without a sort order must not skip assets.
+
+    Regression test: without a sort order (or when sorting ties on e.g. owner),
+    the query had no total order, so Postgres was free to return rows in
+    whatever order each query plan produced. Walking LIMIT/OFFSET pages then
+    showed some assets twice and never showed others (#2572).
+    """
+    account = setup_accounts["Prosumer"]
+    asset_type = db.session.query(GenericAssetType).first()
+    for i in range(30):
+        db.session.add(
+            GenericAsset(
+                name=f"paging-test asset {i:02d}",
+                generic_asset_type_id=asset_type.id,
+                account_id=account.id,
+            )
+        )
+    db.session.commit()
+
+    per_page = 3
+    seen_ids: list[int] = []
+    page = 1
+    total_pages = None
+    while total_pages is None or page <= total_pages:
+        response = client.get(
+            url_for("AssetAPI:index"),
+            query_string={"page": page, "per_page": per_page, "all_accessible": True},
+        )
+        assert response.status_code == 200
+        seen_ids.extend(asset["id"] for asset in response.json["data"])
+        total_pages = -(-response.json["filtered-records"] // per_page)
+        page += 1
+        assert page <= 100  # pagination terminates
+
+    duplicates = len(seen_ids) - len(set(seen_ids))
+    assert duplicates == 0, f"unsorted paging duplicated {duplicates} rows"
+    num_assets = db.session.query(GenericAsset).count()
+    assert (
+        len(set(seen_ids)) == num_assets
+    ), f"unsorted paging skipped {num_assets - len(set(seen_ids))} assets"
+
+    # Clean up: later tests count the assets the fixtures seeded.
+    db.session.query(GenericAsset).filter(
+        GenericAsset.name.like("paging-test asset%")
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_unsupported_sort_by_still_orders_by_id(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """An unsupported sort_by must not silently drop the ordering.
+
+    The public API validates sort_by, but query_assets_by_search_terms is a utility other callers
+    may use; an unsupported field used to leave the query unordered, which reintroduces the unstable
+    paging from #2572. We assert the ordering on the compiled statement rather than on observed row
+    order, since an unordered query may happen to return ascending ids.
+    """
+    from flexmeasures.data.queries.generic_assets import (
+        query_assets_by_search_terms,
+    )
+
+    for search_terms, filter_statement in (
+        (None, True),
+        (["e"], GenericAsset.account_id.isnot(None)),
+    ):
+        for sort_dir in ("asc", "desc"):
+            query = query_assets_by_search_terms(
+                search_terms=search_terms,
+                filter_statement=filter_statement,
+                sort_by="unsupported_field",
+                sort_dir=sort_dir,
+            )
+            compiled = query.compile(compile_kwargs={"literal_binds": False})
+            compiled_str = str(compiled)
+            assert "ORDER BY" in compiled_str, compiled_str[-200:]
+            order_by_clause = compiled_str.split("ORDER BY")[-1]
+            # exactly one ordering expression: the asset id, ascending
+            assert order_by_clause.strip() in (
+                "anon_1.id ASC",
+                "anon_1.id",
+                "generic_asset.id ASC",
+                "generic_asset.id",
+            ), order_by_clause
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
@@ -564,14 +655,7 @@ def test_alter_an_asset(
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
-    # ... or deleted ...
-    asset_delete_response = client.delete(
-        url_for("AssetAPI:delete", id=prosumer_asset.id),
-        json={},
-    )
-    print(f"Deletion Response: {asset_delete_response.json}")
-    assert asset_delete_response.status_code == 403
-    # ... but editing is allowed.
+    # Editing is allowed. Deletion of an empty asset is tested separately.
     latitude, name = prosumer_asset.latitude, prosumer_asset.name
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
@@ -582,6 +666,7 @@ def test_alter_an_asset(
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
+    assert asset_edit_response.json["account_id"] == prosumer_id
 
     # Resetting changes to keep other tests clean here
     asset_edit_response = client.patch(
@@ -685,11 +770,7 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data, requestin
         json=post_data,
     )
     print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "not allowed to create assets for this account"
-        in asset_creation_response.json["message"]["json"]["account_id"][0]
-    )
+    assert asset_creation_response.status_code == 403
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -934,7 +1015,9 @@ def test_post_an_asset_with_existing_name(
         parent = get_asset_by_name(parent_name)
 
     post_data["name"] = child_name
-    post_data["account_id"] = requesting_user.account_id
+    post_data["account_id"] = (
+        parent.account_id if parent else requesting_user.account_id
+    )
 
     if parent:
         post_data["parent_asset_id"] = parent.id
@@ -1614,7 +1697,7 @@ def test_regular_user_cannot_create_child_of_public_asset(
     client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
 ):
     """A plain account member must not be able to create a child asset under a public
-    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    (account-less) parent because the parent and child have different owners.
     """
     epex_asset = setup_markets["epex_da"].generic_asset
     assert epex_asset.account_id is None, "epex must be a public asset"
@@ -1630,7 +1713,34 @@ def test_regular_user_cannot_create_child_of_public_asset(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "must match the account of the parent asset"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
+
+
+@pytest.mark.parametrize("with_parent", [False, True])
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
+def test_consultant_can_create_client_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db, with_parent
+):
+    """A consultant can create both top-level and child assets for a client."""
+    account = setup_accounts["ConsultancyClient"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=account.id)
+    ).first()
+    assert parent is not None
+    post_data = get_asset_post_data()
+    post_data.update(
+        name="Consultant-created asset",
+        account_id=account.id,
+        parent_asset_id=parent.id if with_parent else None,
+    )
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    assert response.status_code == 201
+    assert response.json["account_id"] == account.id
+    assert response.json["parent_asset_id"] == post_data["parent_asset_id"]
 
 
 @pytest.mark.parametrize(
@@ -1676,9 +1786,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
-    ``GenericAsset.create-children`` only allows members of the account that
-    owns the parent asset. A Prosumer account-admin is not a Supplier account
-    member, so the request must be rejected.
+    The parent and child must belong to the same account, so the request is rejected.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")
@@ -1689,7 +1797,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
 
     # account_id is set to the user's own account – the schema requires non-site-admins
     # to only create assets for their own account, so this is the only valid value.
-    # The security hole is that the parent belongs to a *different* account.
+    # The parent belongs to a different account.
     post_data = {
         "name": "Cross-account child (auth-fix test 2)",
         "latitude": 30.1,
@@ -1700,7 +1808,11 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "must match the account of the parent asset"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.fixture
@@ -1860,14 +1972,20 @@ def test_get_asset_chart_with_annotation_layers(
     annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
     subcharts = chart_specs["vconcat"]
     assert len(subcharts) > 0
-    for subchart in subcharts:
+    for row_index, subchart in enumerate(subcharts):
         annotation_layers = [
             layer
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker + text layers
-        assert len(annotation_layers) == 4
+        # band, rule, invisible hit area for pointing at the rule, marker and text layers
+        assert [layer["name"] for layer in annotation_layers] == [
+            f"annotation_band_{row_index}",
+            f"annotation_rule_{row_index}",
+            f"annotation_rule_hit_{row_index}",
+            f"annotation_marker_{row_index}",
+            f"annotation_text_{row_index}",
+        ]
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [
@@ -2370,7 +2488,7 @@ def test_get_jobs_of_child_assets(
     parent = add_asset_with_children["parent"]
     child = add_asset_with_children["child_1"]
     child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
-    app.job_cache.add(
+    app.job_map.add(
         child.id,
         child_job.id,
         queue="scheduling",
@@ -2399,3 +2517,126 @@ def test_get_jobs_of_child_assets(
     assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Paged jobs are newest first, while requests without a page stay compatible."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    jobs = [app.queues["scheduling"].enqueue(sum, [n]) for n in range(4)]
+    for job in jobs:
+        app.job_map.add(
+            child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
+        )
+
+    url = url_for("AssetAPI:get_jobs", id=parent.id)
+    legacy = client.get(url)
+    assert legacy.status_code == 200
+    assert set(legacy.json) == {"jobs", "redis-connection-err", "status"}
+    assert {job["job_id"] for job in legacy.json["jobs"]} == {job.id for job in jobs}
+
+    first = client.get(url, query_string={"page": 1, "per-page": 2})
+    second = client.get(url, query_string={"page": 2, "per-page": 2})
+    empty = client.get(url, query_string={"page": 3, "per-page": 2})
+    for response in (first, second, empty):
+        assert response.status_code == 200
+        assert response.json["num-records"] == 4
+        assert response.json["filtered-records"] == 4
+    assert [job["job_id"] for job in first.json["jobs"]] == [
+        job.id for job in reversed(jobs[2:])
+    ]
+    assert [job["job_id"] for job in second.json["jobs"]] == [
+        job.id for job in reversed(jobs[:2])
+    ]
+    assert empty.json["jobs"] == []
+
+    excluded = client.get(
+        url, query_string={"page": 1, "include-child-assets": "false"}
+    )
+    assert excluded.json["num-records"] == 0
+    assert excluded.json["jobs"] == []
+    assert client.get(url, query_string={"page": 0}).status_code == 422
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination_sorts_across_pages(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Queue and time ordering apply to all jobs before selecting a page."""
+    # Use a new cache key without reattaching module-scoped ORM objects.
+    existing_asset = add_asset_with_children["child_1"]
+    asset = GenericAsset(
+        name="job sorting asset",
+        account_id=existing_asset.account_id,
+        generic_asset_type_id=existing_asset.generic_asset_type_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="job sorting sensor",
+        generic_asset_id=asset.id,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    jobs_by_queue = {}
+    for queue in ("scheduling", "forecasting"):
+        jobs_by_queue[queue] = [
+            app.queues[queue].enqueue(sum, [number]) for number in range(2)
+        ]
+        for job in jobs_by_queue[queue]:
+            app.job_map.add(sensor.id, job.id, queue, "sensor")
+
+    url = url_for("AssetAPI:get_jobs", id=asset.id)
+    ascending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "asc",
+        },
+    )
+    descending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "desc",
+        },
+    )
+    oldest_jobs = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "enqueued_at",
+            "sort-dir": "asc",
+        },
+    )
+
+    assert [job["queue"] for job in ascending_queues.json["jobs"]] == [
+        "forecasting",
+        "forecasting",
+    ]
+    assert [job["queue"] for job in descending_queues.json["jobs"]] == [
+        "scheduling",
+        "scheduling",
+    ]
+    assert [job["job_id"] for job in oldest_jobs.json["jobs"]] == [
+        job.id for job in jobs_by_queue["scheduling"]
+    ]
+    assert (
+        client.get(url, query_string={"page": 1, "sort-by": "status"}).status_code
+        == 422
+    )
+
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()

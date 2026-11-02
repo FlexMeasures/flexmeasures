@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -23,7 +23,7 @@ from marshmallow import Schema
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.models.user import User
+    from flexmeasures.data.models.user import Account, User
 
 
 class DataGenerator:
@@ -33,6 +33,8 @@ class DataGenerator:
     _config: dict = None
     _parameters: dict = None
     _job_trigger: dict | None = None
+    # The organisation this data generator computes for, which its data source belongs to. See `set_source_account`.
+    _source_account: Account | None = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
@@ -99,6 +101,16 @@ class DataGenerator:
             self._config = self._config_schema.load(config)
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
+
+    def set_source_account(self, account: Account | None) -> None:
+        """Say which organisation this data generator computes for, so that its data source belongs to that organisation.
+
+        Two organisations running the same data generator under the same configuration would otherwise record under one source,
+        because a source is looked up by what it is rather than by who it runs for.
+        Call this wherever the organisation is known, which is wherever the asset or the sensor is known.
+        Leaving it unset means the source belongs to no organisation, which is what a generator the host runs for everyone looks like.
+        """
+        self._source_account = account
 
     def set_job_trigger(
         self,
@@ -261,23 +273,58 @@ class DataGenerator:
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
 
-            attributes = {"data_generator": {}}
+            data_source_info["attributes"] = self.get_data_source_attributes()
 
-            if self._save_config:
-                attributes["data_generator"]["config"] = self._config_schema.dump(
-                    self._config
-                )
-
-            if self._save_parameters:
-                attributes["data_generator"]["parameters"] = self._clean_parameters(
-                    self._parameters_schema.dump(self._parameters)
-                )
-
-            data_source_info["attributes"] = attributes
-
-            self._data_source = get_or_create_source(**data_source_info)
+            self._data_source = get_or_create_source(
+                **data_source_info, account=self.source_account
+            )
 
         return self._data_source
+
+    @property
+    def source_account(self) -> Account | None:
+        """The organisation this data generator's source belongs to.
+
+        It is whatever `set_source_account` was told, and otherwise the organisation of the sensors this generator writes to.
+        Sensors of several organisations, or none to go by, leave the source belonging to no organisation in particular.
+        """
+        if self._source_account is not None:
+            return self._source_account
+        # A public asset has no organisation, and writing to one does not make a generator the host's,
+        # so public outputs are passed over rather than counted as a second answer.
+        accounts = {
+            sensor.generic_asset.owner
+            for sensor in self.output_sensors
+            if sensor.generic_asset is not None
+            and sensor.generic_asset.owner is not None
+        }
+        if len(accounts) == 1:
+            return accounts.pop()
+        if len(accounts) > 1:
+            # Refusing here would fail a schedule or a report over a question of provenance, so the source is left without an organisation.
+            # It is said out loud because this is the only path on which newly computed data lands on a source belonging to none.
+            # Migration c5e1a7b94d20 applies the same rule to the sources that predate it.
+            current_app.logger.warning(
+                "%s writes to sensors of %d organisations (%s), so its data source belongs to none of them."
+                " Tell it which organisation it computes for, with `set_source_account`, to record under that organisation's own source.",
+                self.__class__.__name__,
+                len(accounts),
+                sorted(account.id for account in accounts),
+            )
+        return None
+
+    def get_data_source_attributes(self) -> dict:
+        """Describe this generator's source without creating a database record."""
+        attributes = {"data_generator": {}}
+        if self._save_config:
+            attributes["data_generator"]["config"] = self._config_schema.dump(
+                self._config
+            )
+        if self._save_parameters:
+            attributes["data_generator"]["parameters"] = self._clean_parameters(
+                self._parameters_schema.dump(self._parameters)
+            )
+        return attributes
 
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the
@@ -367,13 +414,33 @@ class SensorDataSource(db.Model):
         return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
 
 
+# The unique index that refuses identical data sources.
+DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
+# What identifies a data source.
+# A unique constraint on these columns would treat NULLs as distinct, and so never refuse a second identical source without a user or account.
+# PostgreSQL can be told otherwise, with NULLS NOT DISTINCT, but only from version 15, which FlexMeasures does not require.
+# Indexing expressions that replace NULLs needs no such minimum: it makes NULLs count as equal whatever the version,
+# where they also count as equal to an empty string (or to -1, or to an empty hash).
+DATA_SOURCE_IDENTITY_EXPRESSIONS = (
+    "name",
+    "coalesce(type, '')",
+    "coalesce(user_id, -1)",
+    "coalesce(account_id, -1)",
+    "coalesce(model, '')",
+    "coalesce(version, '')",
+    "coalesce(attributes_hash, '\\x'::bytea)",
+)
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        db.Index(
+            DATA_SOURCE_UNIQUE_INDEX,
+            *(text(expression) for expression in DATA_SOURCE_IDENTITY_EXPRESSIONS),
+            unique=True,
         ),
     )
 
@@ -388,7 +455,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "User",
         primaryjoin="DataSource.user_id == User.id",
         foreign_keys="[DataSource.user_id]",
-        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_source", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -399,7 +468,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Account",
         primaryjoin="DataSource.account_id == Account.id",
         foreign_keys="[DataSource.account_id]",
-        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_sources", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -511,6 +582,22 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return self._data_generator
 
     @property
+    def missing_members(self) -> list[int]:
+        """The sensors that a data generator says it had to leave out of the data recorded under this source.
+
+        An `AggregatorReporter` records an event that some of its group's members did not report under a source naming them,
+        so its data can be told apart from a complete aggregate, which names none.
+
+            >>> DataSource("Seita", type="reporter", attributes={"data_generator": {"config": {"missing-members": [3]}}}).missing_members
+            [3]
+            >>> DataSource("Seita", type="reporter").missing_members
+            []
+
+        """
+        config = (self.attributes or {}).get("data_generator", {}).get("config") or {}
+        return list(config.get("missing-members") or [])
+
+    @property
     def label(self):
         """Human-readable label (preferably not starting with a capital letter, so it can be used in a sentence)."""
         if self.type == "user":
@@ -612,14 +699,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def source_priorities(sources) -> dict:
-    """Rank sources by version (then by id), with a higher rank meaning a more recent version.
+    """Rank sources by version, then complete over partial, then by id, with a higher rank meaning a more recent version.
 
     Sources without a version are assumed to have version 0.0.0.
+    A source that names no missing members outranks one that does (see `DataSource.missing_members`),
+    so a complete aggregate replaces a partial one recorded with the same belief time, as `_select_latest_version_and_belief_per_event` also has it.
     """
     priority_order = sorted(
         sources,
         key=lambda s: (
             Version(s.version or "0.0.0"),
+            not getattr(s, "missing_members", None),
             s.id if s.id is not None else -1,
         ),
     )
@@ -633,7 +723,7 @@ def keep_latest_version(
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     Sources are grouped by (name, type, model); within each group, only data from
-    the latest version (breaking ties by highest id) is kept, per event or per belief.
+    the latest version (breaking ties in favour of a source naming no missing members, and then by highest id) is kept, per event or per belief.
     Probabilistic beliefs are kept intact.
 
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.

@@ -15,7 +15,7 @@ from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
     simplify_index,
 )
-from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.tests.utils import get_power_sensor, get_test_sensor
 
 
 @pytest.mark.parametrize(
@@ -44,7 +44,7 @@ from flexmeasures.tests.utils import get_test_sensor
 )
 def test_collect_power(db, app, query_start, query_end, num_values, setup_test_data):
     # asset has only 1 power sensor
-    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
+    wind_device_1: Sensor = get_power_sensor(setup_test_data["wind-asset-1"])
     data = db.session.scalars(
         select(TimedBelief).filter(TimedBelief.sensor_id == wind_device_1.id)
     ).all()
@@ -101,7 +101,7 @@ def test_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     # asset has only 1 power sensor
-    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
+    wind_device_1: Sensor = get_power_sensor(setup_test_data["wind-asset-1"])
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1.name,
         event_starts_after=query_start,
@@ -215,7 +215,7 @@ def test_multiplication_with_both_empty_dataframe():
 def test_simplify_index(setup_test_data, check_empty_frame):
     """Check whether simplify_index retains the event resolution."""
     # asset has only 1 power sensor
-    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
+    wind_device_1: Sensor = get_power_sensor(setup_test_data["wind-asset-1"])
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1.name,
         event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),
@@ -301,8 +301,8 @@ def test_search_sources(db, setup_multiple_sources):
     # time window filter
     assert get_sources_names(
         test_sensor.search_data_sources(
-            event_starts_after="2024-01-01T00:00:00+01:00",
-            event_ends_before="2024-01-02T00:00:00+01:00",
+            event_starts_after=pd.Timestamp("2024-01-01T00:00:00+01:00"),
+            event_ends_before=pd.Timestamp("2024-01-02T00:00:00+01:00"),
         )
     ) == ["S1", "S2"]
 

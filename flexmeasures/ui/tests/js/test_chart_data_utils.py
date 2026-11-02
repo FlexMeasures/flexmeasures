@@ -115,3 +115,88 @@ def test_strict_y_axis_ranges(assert_js):
         checkStrictYAxisRanges([datum(1, 150)], undefined);
         eq("without graphs to check, nothing is said", toasts.length, 3);
         """)
+
+
+def test_snap_range_to_events_rounds_out_to_whole_events(assert_js):
+    """A range drawn across 15-minute events covers the whole events it touches (the case reported in PR #2570)."""
+    assert_js("""
+        import { snapRangeToEvents } from "/js/chart-data-utils.js";
+        const quarter = 15 * 60 * 1000;
+        const anchor = Date.parse("2030-01-15T00:00:00Z");
+        const snapped = snapRangeToEvents(
+            {start: new Date("2030-01-15T14:21:37Z"), end: new Date("2030-01-15T14:51:02Z")}, quarter, anchor
+        );
+        eq("the start is rounded down", snapped.start.toISOString(), "2030-01-15T14:15:00.000Z");
+        eq("the end is rounded up", snapped.end.toISOString(), "2030-01-15T15:00:00.000Z");
+
+        const late = snapRangeToEvents(
+            {start: new Date("2030-01-15T14:29:00Z"), end: new Date("2030-01-15T14:31:00Z")}, quarter, anchor
+        );
+        eq("a start near the next event is still rounded down", late.start.toISOString(), "2030-01-15T14:15:00.000Z");
+        eq("an end just past an event is still rounded up", late.end.toISOString(), "2030-01-15T14:45:00.000Z");
+
+        const aligned = snapRangeToEvents(
+            {start: new Date("2030-01-15T14:15:00Z"), end: new Date("2030-01-15T15:00:00Z")}, quarter, anchor
+        );
+        eq("an aligned range is kept", [aligned.start.toISOString(), aligned.end.toISOString()],
+           ["2030-01-15T14:15:00.000Z", "2030-01-15T15:00:00.000Z"]);
+
+        const click = snapRangeToEvents(
+            {start: new Date("2030-01-15T14:20:00Z"), end: new Date("2030-01-15T14:20:00Z")}, quarter, anchor
+        );
+        eq("an empty range becomes the event it lies in", [click.start.toISOString(), click.end.toISOString()],
+           ["2030-01-15T14:15:00.000Z", "2030-01-15T14:30:00.000Z"]);
+
+        const instant = snapRangeToEvents(
+            {start: new Date("2030-01-15T14:21:37Z"), end: new Date("2030-01-15T14:51:02Z")}, 0, anchor
+        );
+        eq("an instantaneous sensor keeps the range", instant.end.toISOString(), "2030-01-15T14:51:02.000Z");
+        """)
+
+
+def test_snap_range_to_daily_events_across_dst(assert_js):
+    """Daily events keep their local midnights across the spring DST transition."""
+    assert_js(
+        """
+        import { snapRangeToEvents } from "/js/chart-data-utils.js";
+        const day = 24 * 60 * 60 * 1000;
+        const anchor = Date.parse("2030-03-01T00:00:00+01:00");
+        const snapped = snapRangeToEvents(
+            {start: new Date("2030-03-31T10:00:00+02:00"), end: new Date("2030-04-01T05:00:00+02:00")}, day, anchor
+        );
+        eq("the start is the local midnight before the transition", snapped.start.toISOString(), "2030-03-30T23:00:00.000Z");
+        eq("the end is a local midnight after the transition", snapped.end.toISOString(), "2030-04-01T22:00:00.000Z");
+        """,
+        timezone="Europe/Amsterdam",
+    )
+
+
+def test_snap_selection_rounds_instants_and_instantaneous_ranges(assert_js):
+    """An instant, or a range on an instantaneous sensor, is rounded to the nearest minute, and may become an instant."""
+    assert_js("""
+        import { snapSelection } from "/js/chart-data-utils.js";
+        const at = (s) => new Date(`2030-01-15T${s}Z`);
+        const iso = (r) => [r.start.toISOString().slice(11, 19), r.end.toISOString().slice(11, 19)];
+        eq("a range within one minute becomes a minute",
+           iso(snapSelection({start: at("09:03:25"), end: at("09:03:51")}, 0, 0)), ["09:03:00", "09:04:00"]);
+        eq("a range around a whole minute becomes an instant",
+           iso(snapSelection({start: at("09:02:59"), end: at("09:03:02")}, 0, 0)), ["09:03:00", "09:03:00"]);
+        eq("an instant on a sensor with a resolution is rounded to the nearest minute",
+           iso(snapSelection({start: at("09:07:31"), end: at("09:07:31")}, 900000, 0)), ["09:08:00", "09:08:00"]);
+        eq("a range on a sensor with a resolution covers whole events",
+           iso(snapSelection({start: at("09:07:31"), end: at("09:20:00")}, 900000, 0)), ["09:00:00", "09:30:00"]);
+        eq("a finer step keeps seconds",
+           iso(snapSelection({start: at("09:03:25.4"), end: at("09:03:51.6")}, 0, 0, 1000)), ["09:03:25", "09:03:52"]);
+        """)
+
+
+def test_selection_step_follows_the_zoom(assert_js):
+    """Selections round to a minute, unless the chart is zoomed in to 10 minutes or less."""
+    assert_js("""
+        import { selectionStepMs } from "/js/chart-data-utils.js";
+        const minute = 60 * 1000;
+        eq("a day in view rounds to minutes", selectionStepMs(24 * 60 * minute), minute);
+        eq("just over 10 minutes in view still rounds to minutes", selectionStepMs(10 * minute + 1), minute);
+        eq("10 minutes in view rounds to seconds", selectionStepMs(10 * minute), 1000);
+        eq("an unknown span rounds to minutes", selectionStepMs(NaN), minute);
+        """)

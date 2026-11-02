@@ -100,7 +100,7 @@ class Forecaster(DataGenerator):
 
         Other:
 
-        - model-save-dir:       used internally for the train and predict pipelines to save and load the model
+        - model-save-dir:       only says where trained models were kept as files, if asked for
         - output-path:          for exporting forecasts to file, more of a developer feature
         - as-job:               only indicates whether the computation was offloaded to a worker
         - dry-run:              only indicates whether the computation was allowed to save its results

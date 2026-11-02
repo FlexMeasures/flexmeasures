@@ -159,6 +159,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     normalize_trusted_hosts(app)
     pin_database_driver(app)
     normalize_security_durations(app)
+    check_rate_limit_settings(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -311,17 +312,16 @@ def normalize_trusted_hosts(app: Flask) -> None:
 
 
 def pin_database_driver(app: Flask) -> None:
-    """Connect through psycopg2 if the database URI names no driver.
+    """Connect through psycopg 3 if the database URI names no driver.
 
-    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, but SQLAlchemy 2.1 through psycopg 3.
-    Unlike psycopg2, psycopg 3 binds parameters on the server,
-    which rejects comparisons FlexMeasures still makes, such as an integer id with an id string from a URL.
-    An explicitly chosen driver (e.g. postgresql+psycopg://) is left alone.
+    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, and SQLAlchemy 2.1 through psycopg 3,
+    so without naming the driver, which one we get would depend on the SQLAlchemy version installed.
+    An explicitly chosen driver (e.g. postgresql+psycopg2://) is left alone.
     """
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     if isinstance(uri, str) and uri.startswith("postgresql://"):
         app.config["SQLALCHEMY_DATABASE_URI"] = (
-            "postgresql+psycopg2://" + uri.removeprefix("postgresql://")
+            "postgresql+psycopg://" + uri.removeprefix("postgresql://")
         )
 
 
@@ -380,6 +380,23 @@ def normalize_security_durations(app: Flask) -> None:
         app.config[setting] = (
             duration if reads_timedelta else f"{int(duration.total_seconds())} seconds"
         )
+
+
+def check_rate_limit_settings(app: Flask) -> None:
+    """Refuse a server-wide rate limit we cannot make sense of, or one which holds several limits.
+
+    Better to find out at startup than when the first request comes in.
+
+    :raises ValueError: naming the setting, when its value is not one rate limit.
+    """
+    from flexmeasures.api.common.rate_limiting import RATE_LIMIT_SETTINGS
+    from flexmeasures.utils.validation_utils import validate_rate_limit
+
+    for setting in RATE_LIMIT_SETTINGS.values():
+        try:
+            validate_rate_limit(app.config.get(setting))
+        except ValueError as exc:
+            raise ValueError(f"{setting}: {exc}") from exc
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

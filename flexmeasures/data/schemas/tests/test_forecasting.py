@@ -10,6 +10,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.forecasting.references import AutoSensorReference
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
@@ -998,6 +999,136 @@ def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
         assert isinstance(data["past_regressors"][0], Sensor)
 
 
+@pytest.mark.parametrize(
+    "entry, expected_message",
+    [
+        ({"sensor": "auto", "lowr": "0 kW"}, "did you mean `lower`?"),
+        ({"sensor": "auto", "sources": "garbage"}, "Not a valid list."),
+        ({"sensor": "auto", "lower": "banana"}, "parseable quantity"),
+    ],
+)
+def test_an_entry_naming_the_sensor_to_forecast_is_checked_when_its_config_is_accepted(
+    entry, expected_message
+):
+    """A qualifier that cannot be read is refused now, not on every run of a stored automation.
+
+    The sensor being forecast is not known while a config is loaded, so the unit a bound is read in has to wait for it.
+    Everything else — which keys a reference takes, and what shape their values have — does not.
+    """
+    with pytest.raises(ValidationError) as refusal:
+        TrainPredictPipelineConfigSchema().load(
+            {"train-start": "2025-01-01T00:00:00+00:00", "past-regressors": [entry]}
+        )
+
+    assert expected_message in str(refusal.value)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "past-regressors": ["auto"],
+            "future-regressors": [{"sensor": "auto", "lower": 0}],
+        },
+        {"regressors": ["auto", {"sensor": "auto", "lower": 0}]},
+    ],
+)
+def test_describing_the_sensor_to_forecast_twice_is_refused(config):
+    """Two entries for the sensor being forecast are two answers to one question, wherever they are written.
+
+    Taking the last one and dropping the rest would leave a config whose recorded text does not say what the forecast did,
+    which is the gap this whole feature exists to close.
+    """
+    with pytest.raises(ValidationError) as refusal:
+        TrainPredictPipelineConfigSchema().load(
+            {"train-start": "2025-01-01T00:00:00+00:00", **config}
+        )
+
+    assert "described 2 times" in str(refusal.value)
+
+
+def test_one_entry_for_the_sensor_to_forecast_under_regressors_is_one_statement():
+    """``regressors`` asks for both roles, so its single entry is not two descriptions of the target.
+
+    The entry is counted before the lists are merged, since merging would otherwise make one statement look like two.
+    """
+    data = TrainPredictPipelineConfigSchema().load(
+        {"train-start": "2025-01-01T00:00:00+00:00", "regressors": ["auto"]}
+    )
+
+    assert data["past_regressors"] == [AutoSensorReference({})]
+    assert data["future_regressors"] == [AutoSensorReference({})]
+
+
+def test_a_bound_on_the_sensor_to_forecast_is_read_in_its_unit_when_that_sensor_is_known():
+    """Whether a bound suits the sensor being forecast is the one check that cannot happen yet.
+
+    A config is written once for whichever sensor a forecast names,
+    so a bound in an unrelated dimension is held until the target is known rather than refused here, where there is nothing to compare it against.
+    """
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [{"sensor": "auto", "lower": "3 EUR"}],
+        }
+    )
+
+    assert data["past_regressors"] == [AutoSensorReference({"lower": "3 EUR"})]
+
+
+def test_an_entry_naming_the_sensor_to_forecast_by_its_id_stays_a_regressor(
+    setup_dummy_sensors,
+    db,
+):
+    """Naming the sensor being forecast by its ID keeps the meaning it has always had: a regressor of its own.
+
+    Only ``"auto"`` describes the training labels. The two are not the same thing said twice:
+    the labels leave out what forecasters recorded, while a regressor column of the same sensor does not,
+    so reading an ID entry as a description of the target would quietly drop a column a config asked for.
+    """
+    from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
+
+    *_, target_sensor = setup_dummy_sensors
+    db.session.flush()
+
+    config = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [target_sensor.id],
+        }
+    )
+    resolved, target = resolve_forecast_inputs(config, target_sensor)
+
+    assert resolved["past_regressors"] == [target_sensor]
+    assert (
+        target is target_sensor
+    ), "nothing described the target, so it is read as it was given"
+
+
+def test_an_auto_entry_describes_the_target_rather_than_adding_a_regressor(
+    setup_dummy_sensors,
+    db,
+):
+    """An ``"auto"`` entry leaves the regressor lists and describes the sensor being forecast."""
+    from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
+
+    *_, target_sensor = setup_dummy_sensors
+    db.session.flush()
+
+    config = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [{"sensor": "auto", "source-types": ["user"]}],
+        }
+    )
+    resolved, target = resolve_forecast_inputs(config, target_sensor)
+
+    assert resolved["past_regressors"] == []
+    assert isinstance(target, SensorReference)
+    assert target.sensor is target_sensor
+    assert target.source_types == ["user"]
+
+
 def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     setup_dummy_sensors,
     db,
@@ -1016,6 +1147,42 @@ def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     assert target.lower == "0 kW"
 
 
+def test_forecaster_config_schema_loads_an_auto_regressor_entry(setup_dummy_sensors):
+    """A config says "auto" where it means the sensor being forecast, which it cannot name by ID.
+
+    Bare and qualified are loaded separately, since one config may describe that sensor only once.
+    """
+    bare = TrainPredictPipelineConfigSchema().load({"past-regressors": ["auto"]})[
+        "past_regressors"
+    ][0]
+    assert isinstance(bare, AutoSensorReference)
+    assert bare.qualifiers == {}
+
+    qualified = TrainPredictPipelineConfigSchema().load(
+        {"past-regressors": [{"sensor": "auto", "lower": "0 kW"}]}
+    )["past_regressors"][0]
+    assert isinstance(qualified, AutoSensorReference)
+    assert qualified.qualifiers == {"lower": "0 kW"}
+
+
+def test_an_auto_regressor_entry_survives_the_round_trip_onto_a_data_source(
+    setup_dummy_sensors,
+):
+    """The config a data source records is dumped and loaded again, so "auto" has to survive both ways."""
+    schema = TrainPredictPipelineConfigSchema()
+
+    bare_dumped = schema.dump(schema.load({"past-regressors": ["auto"]}))
+    assert bare_dumped["past-regressors"] == ["auto"]
+    assert schema.load(bare_dumped)["past_regressors"][0].qualifiers == {}
+
+    qualified = {"past-regressors": [{"sensor": "auto", "snap": {"0 kW": [0, 1]}}]}
+    dumped = schema.dump(schema.load(qualified))
+    assert dumped["past-regressors"] == [{"sensor": "auto", "snap": {"0 kW": [0, 1]}}]
+    assert schema.load(dumped)["past_regressors"][0].qualifiers == {
+        "snap": {"0 kW": [0, 1]}
+    }
+
+
 def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
     setup_dummy_sensors,
 ):
@@ -1032,7 +1199,7 @@ def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
 def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors):
     """The bounds sit on the shared reference, so every sensor reference can carry them.
 
-    Only forecaster inputs act on them for now, so flex-model and flex-context references refuse them (see test_sensor.py).
+    Forecasters apply them to their inputs, and schedulers to the flex-model and flex-context references they read.
     """
     # The MW sensor, so that bounds given in kW can be read in its unit.
     *_, sensor = setup_dummy_sensors
