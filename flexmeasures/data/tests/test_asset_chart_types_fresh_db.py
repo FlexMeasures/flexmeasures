@@ -53,10 +53,10 @@ def _retitle(fresh_db, site, titles: dict[str, str]):
     ],
 )
 def test_charge_points_chart_draws_its_companion_graphs_whatever_the_title_case(
-    fresh_db, charge_hub: dict[str, Sensor], prices_title, power_flow_title
+    fresh_db, charge_hub_fresh_db: dict[str, Sensor], prices_title, power_flow_title
 ):
     """The Charge Points chart capitalizes graph titles, so a lowercase companion title still counts, and is restricted the same way."""
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     _retitle(
         fresh_db, site, {"Prices": prices_title, "Power flow by type": power_flow_title}
     )
@@ -70,7 +70,7 @@ def test_charge_points_chart_draws_its_companion_graphs_whatever_the_title_case(
     ]
     # Of the power flows, only the charge points power is drawn.
     assert _sensor_ids_drawn(chart_specs) == {
-        charge_hub[name].id
+        charge_hub_fresh_db[name].id
         for name in (
             "arrival",
             "departure",
@@ -82,12 +82,12 @@ def test_charge_points_chart_draws_its_companion_graphs_whatever_the_title_case(
 
 
 def test_charge_points_chart_leaves_the_sensors_to_show_it_is_given_alone(
-    charge_hub: dict[str, Sensor],
+    charge_hub_fresh_db: dict[str, Sensor],
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     sensors_to_show = site.validate_sensors_to_show()
     # As GenericAsset.chart does before calling a chart builder.
-    for sensor in charge_hub.values():
+    for sensor in charge_hub_fresh_db.values():
         sensor.sensor_type = sensor.name
     before = [
         [plot.get("sensors", plot.get("sensor")) for plot in entry["plots"]]
@@ -115,10 +115,10 @@ def test_charge_points_chart_leaves_the_sensors_to_show_it_is_given_alone(
     ],
 )
 def test_each_chart_type_draws_the_graphs_and_sensors_of_its_layout(
-    fresh_db, charge_hub: dict[str, Sensor], chart_type, titles
+    fresh_db, charge_hub_fresh_db: dict[str, Sensor], chart_type, titles
 ):
     """The registry's layout of a chart type is what its Vega-Lite chart draws, graph by graph."""
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     _retitle(fresh_db, site, titles)
     registered = get_asset_chart_type(chart_type)
     layout = registered.layout(site.validate_sensors_to_show())
@@ -161,8 +161,10 @@ def test_each_chart_type_draws_the_graphs_and_sensors_of_its_layout(
         ),
     ],
 )
-def test_chart_type_sensors(charge_hub: dict[str, Sensor], chart_type, expected_names):
-    site = charge_hub["arrival"].generic_asset
+def test_chart_type_sensors(
+    charge_hub_fresh_db: dict[str, Sensor], chart_type, expected_names
+):
+    site = charge_hub_fresh_db["arrival"].generic_asset
     sensors = get_asset_chart_type(chart_type).sensors(site.validate_sensors_to_show())
     assert [sensor.name for sensor in sensors] == expected_names
 
@@ -175,29 +177,29 @@ def test_chart_type_sensors(charge_hub: dict[str, Sensor], chart_type, expected_
     ],
 )
 def test_a_legacy_chart_type_name_draws_the_same_chart(
-    charge_hub: dict[str, Sensor], legacy_name, name
+    charge_hub_fresh_db: dict[str, Sensor], legacy_name, name
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     assert site.chart(chart_type=legacy_name) == site.chart(chart_type=name)
 
 
 def test_without_a_chart_type_an_asset_gets_the_default_chart(
-    charge_hub: dict[str, Sensor],
+    charge_hub_fresh_db: dict[str, Sensor],
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     assert site.chart() == site.chart(chart_type="default")
 
 
-def test_an_unknown_chart_type_is_refused(charge_hub: dict[str, Sensor]):
-    site = charge_hub["arrival"].generic_asset
+def test_an_unknown_chart_type_is_refused(charge_hub_fresh_db: dict[str, Sensor]):
+    site = charge_hub_fresh_db["arrival"].generic_asset
     with pytest.raises(UnknownAssetChartType, match="charge-point-sessions"):
         site.chart(chart_type="bar_chart")
 
 
 def test_the_charge_points_chart_applies_to_assets_with_a_charge_point(
-    charge_hub: dict[str, Sensor],
+    charge_hub_fresh_db: dict[str, Sensor],
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     (charge_point,) = site.child_assets
     assert [
         name

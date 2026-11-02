@@ -25,12 +25,12 @@ def _get_chart(client, site, query: dict):
 def test_chart_accepts_the_new_and_the_legacy_chart_type_names(
     client,
     setup_roles_users_fresh_db,
-    charge_hub: dict[str, Sensor],
+    charge_hub_fresh_db: dict[str, Sensor],
     requesting_user,
     legacy_name,
     name,
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     response = _get_chart(client, site, {"chart-type": name})
     legacy_response = _get_chart(client, site, {"chart-type": legacy_name})
     assert response.status_code == 200, response.data
@@ -45,9 +45,12 @@ def test_chart_accepts_the_new_and_the_legacy_chart_type_names(
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_chart_draws_the_default_chart_without_a_chart_type(
-    client, setup_roles_users_fresh_db, charge_hub: dict[str, Sensor], requesting_user
+    client,
+    setup_roles_users_fresh_db,
+    charge_hub_fresh_db: dict[str, Sensor],
+    requesting_user,
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     response = _get_chart(client, site, {})
     assert response.status_code == 200, response.data
     assert (
@@ -67,11 +70,11 @@ def test_chart_draws_the_default_chart_without_a_chart_type(
 def test_chart_refuses_an_unknown_chart_type(
     client,
     setup_roles_users_fresh_db,
-    charge_hub: dict[str, Sensor],
+    charge_hub_fresh_db: dict[str, Sensor],
     requesting_user,
     chart_type,
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     response = _get_chart(client, site, {"chart-type": chart_type})
     assert response.status_code == 422, response.data
     assert "default, charge-point-sessions" in response.get_data(as_text=True)

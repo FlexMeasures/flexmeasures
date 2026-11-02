@@ -2267,20 +2267,30 @@ def freeze_server_now():
 
 
 @pytest.fixture
-def charge_hub(fresh_db) -> dict[str, Sensor]:
-    """A site with a charge point, whose dashboard has the graphs a site with charge points gets.
+def charge_hub_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, Sensor]:
+    """A site with a charge point, owned by the Prosumer organisation, whose dashboard has the graphs a site with charge points gets.
 
     One belief per sensor (on 1 January 2015), so chart data shows which sensors were loaded.
     The departure sensor is also in a graph of its own,
     to check that the default chart keeps a session sensor it draws elsewhere.
+    The Prices graph also holds a price sensor of another organisation's (non-public) asset,
+    which the site's dashboard may not show, so its data should never be loaded or drawn.
 
-    :returns: the site's sensors, by name.
+    :returns: the site's sensors, by name (without the other organisation's sensor).
     """
+    from flexmeasures.data.models.charts.chart_types import (
+        CHARGE_POINT_ASSET_TYPE_NAME,
+    )
+
     site_type = GenericAssetType(name="test_site_type_for_chart_sensors")
-    charge_point_type = GenericAssetType(name="smartbuilding.chargepoint")
+    charge_point_type = fresh_db.session.scalar(
+        select(GenericAssetType).filter_by(name=CHARGE_POINT_ASSET_TYPE_NAME)
+    ) or GenericAssetType(name=CHARGE_POINT_ASSET_TYPE_NAME)
     fresh_db.session.add_all([site_type, charge_point_type])
     site = GenericAsset(
-        name="Test charge hub (chart sensors)", generic_asset_type=site_type
+        name="Test charge hub (chart sensors)",
+        generic_asset_type=site_type,
+        owner=setup_accounts_fresh_db["Prosumer"],
     )
     fresh_db.session.add(site)
     fresh_db.session.add(
@@ -2288,8 +2298,15 @@ def charge_hub(fresh_db) -> dict[str, Sensor]:
             name="Test charge point (chart sensors)",
             generic_asset_type=charge_point_type,
             parent_asset=site,
+            owner=setup_accounts_fresh_db["Prosumer"],
         )
     )
+    other_site = GenericAsset(
+        name="Another organisation's site (chart sensors)",
+        generic_asset_type=site_type,
+        owner=setup_accounts_fresh_db["Supplier"],
+    )
+    fresh_db.session.add(other_site)
     fresh_db.session.flush()
 
     units = {
@@ -2310,7 +2327,13 @@ def charge_hub(fresh_db) -> dict[str, Sensor]:
         )
         for name, unit in units.items()
     }
-    fresh_db.session.add_all(sensors.values())
+    other_price = Sensor(
+        name="other organisation's price",
+        unit="EUR/MWh",
+        event_resolution=timedelta(minutes=15),
+        generic_asset=other_site,
+    )
+    fresh_db.session.add_all([*sensors.values(), other_price])
     fresh_db.session.flush()
 
     site.sensors_to_show = [
@@ -2321,7 +2344,10 @@ def charge_hub(fresh_db) -> dict[str, Sensor]:
                 sensors["building power"].id,
             ],
         },
-        {"title": "Prices", "sensors": [sensors["consumption price"].id]},
+        {
+            "title": "Prices",
+            "sensors": [sensors["consumption price"].id, other_price.id],
+        },
         {"title": "Weather", "sensors": [sensors["temperature"].id]},
         {"title": "Departures", "sensors": [sensors["departure"].id]},
         {
@@ -2337,7 +2363,7 @@ def charge_hub(fresh_db) -> dict[str, Sensor]:
     source = DataSource(name="test script", type="demo script")
     fresh_db.session.add(source)
     fresh_db.session.flush()
-    for sensor in sensors.values():
+    for sensor in [*sensors.values(), other_price]:
         fresh_db.session.add(
             TimedBelief(
                 sensor=sensor,
