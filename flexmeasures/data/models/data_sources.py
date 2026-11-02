@@ -570,7 +570,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
                 f"Data source {self.id} names no data generator to set up."
             )
         generator_class = current_app.data_generators[self.type].get(self.model)
-        found_elsewhere = False
         if generator_class is None:
             # A data generator can be configured to save under a source of another type (see `Reporter.source_type`),
             # so it is looked for among the other kinds of data generator, too.
@@ -588,7 +587,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
                 generator_class = current_app.data_generators[generator_types[0]][
                     self.model
                 ]
-                found_elsewhere = True
         if generator_class is None:
             raise NotImplementedError(
                 f"Data generator '{self.type}/{self.model}' is unavailable. Install or enable its plugin on the server and worker."
@@ -601,7 +599,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         # create DataGenerator class and add the parameters
         data_generator = generator_class(config=config)
-        if found_elsewhere and data_generator.source_type != self.type:
+        if data_generator.source_type != self.type:
             # Only a data generator configured to save under this source's type can have made its data.
             raise NotImplementedError(
                 f"Data generator '{self.type}/{self.model}' is unavailable."

@@ -1008,6 +1008,21 @@ def test_a_source_of_another_type_than_its_generator_saves_under_has_no_generato
         source.data_generator
 
 
+def test_a_source_of_its_generators_own_kind_is_refused_if_the_config_names_another_type(
+    db, app
+):
+    """A reporter-type source whose config says to save under the forecaster type cannot have made its data either, so it is refused, too."""
+    source = _aggregator_source(
+        db,
+        "reporter",
+        {"method": "sum", "output-source-type": "forecaster"},
+        "reporter-typed aggregator configured as forecaster",
+    )
+
+    with pytest.raises(NotImplementedError, match="unavailable"):
+        source.data_generator
+
+
 def test_a_model_registered_as_two_other_kinds_of_data_generator_is_ambiguous(
     db, app, monkeypatch
 ):
