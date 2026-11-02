@@ -2,6 +2,7 @@
 
 The default chart leaves the graph of charging-session timestamps to the Charge Points chart,
 so loading those sensors for it only fetches data that is thrown away.
+The charge_hub_fresh_db fixture (in flexmeasures/conftest.py) is a site with the graphs a site with charge points gets.
 """
 
 from __future__ import annotations
@@ -14,94 +15,17 @@ import pytz
 from flask import url_for
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import TimedBelief
 
+# When the charge_hub_fresh_db fixture's beliefs are about.
 START = datetime(2015, 1, 1, tzinfo=pytz.utc)
-
-
-@pytest.fixture
-def charge_hub(fresh_db) -> dict[str, Sensor]:
-    """A public site whose dashboard has the graphs a site with charge points gets.
-
-    One belief per sensor, so the chart data shows which sensors were loaded.
-    The departure sensor is also in a graph of its own,
-    to check that the default chart keeps a session sensor it draws elsewhere.
-    """
-    site_type = GenericAssetType(name="test_site_type_for_chart_sensors")
-    fresh_db.session.add(site_type)
-    site = GenericAsset(
-        name="Test charge hub (chart sensors)", generic_asset_type=site_type
-    )
-    fresh_db.session.add(site)
-    fresh_db.session.flush()
-
-    units = {
-        "charge points power": "kW",
-        "building power": "kW",
-        "consumption price": "EUR/MWh",
-        "temperature": "°C",
-        "arrival": "s",
-        "departure": "s",
-        "plug in": "s",
-    }
-    sensors = {
-        name: Sensor(
-            name=name,
-            unit=unit,
-            event_resolution=timedelta(minutes=15),
-            generic_asset=site,
-        )
-        for name, unit in units.items()
-    }
-    fresh_db.session.add_all(sensors.values())
-    fresh_db.session.flush()
-
-    site.sensors_to_show = [
-        {
-            "title": "Power flow by type",
-            "sensors": [
-                sensors["charge points power"].id,
-                sensors["building power"].id,
-            ],
-        },
-        {"title": "Prices", "sensors": [sensors["consumption price"].id]},
-        {"title": "Weather", "sensors": [sensors["temperature"].id]},
-        {"title": "Departures", "sensors": [sensors["departure"].id]},
-        {
-            "title": "Charge Point sessions",
-            "sensors": [
-                sensors["arrival"].id,
-                sensors["departure"].id,
-                sensors["plug in"].id,
-            ],
-        },
-    ]
-
-    source = DataSource(name="test script", type="demo script")
-    fresh_db.session.add(source)
-    fresh_db.session.flush()
-    for sensor in sensors.values():
-        fresh_db.session.add(
-            TimedBelief(
-                sensor=sensor,
-                event_start=START,
-                event_value=1.0,
-                belief_horizon=timedelta(0),
-                source=source,
-            )
-        )
-    fresh_db.session.commit()
-    return sensors
 
 
 def _names(sensors: list[Sensor]) -> list[str]:
     return [sensor.name for sensor in sensors]
 
 
-def test_without_a_chart_type_all_sensors_are_loaded(charge_hub):
-    site = charge_hub["arrival"].generic_asset
+def test_without_a_chart_type_all_sensors_are_loaded(charge_hub_fresh_db):
+    site = charge_hub_fresh_db["arrival"].generic_asset
     assert _names(site.chart_sensors()) == [
         "charge points power",
         "building power",
@@ -113,9 +37,9 @@ def test_without_a_chart_type_all_sensors_are_loaded(charge_hub):
     ]
 
 
-def test_default_chart_skips_the_charge_point_sessions_graph(charge_hub):
-    site = charge_hub["arrival"].generic_asset
-    assert _names(site.chart_sensors("chart_for_multiple_sensors")) == [
+def test_default_chart_skips_the_charge_point_sessions_graph(charge_hub_fresh_db):
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    assert _names(site.chart_sensors("default")) == [
         "charge points power",
         "building power",
         "consumption price",
@@ -126,10 +50,10 @@ def test_default_chart_skips_the_charge_point_sessions_graph(charge_hub):
 
 
 def test_charge_points_chart_loads_its_sessions_and_two_companion_graphs(
-    charge_hub,
+    charge_hub_fresh_db,
 ):
-    site = charge_hub["arrival"].generic_asset
-    assert _names(site.chart_sensors("chart_for_chargepoint_sessions")) == [
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    assert _names(site.chart_sensors("charge-point-sessions")) == [
         "departure",
         "arrival",
         "plug in",
@@ -166,10 +90,10 @@ def _sensor_ids_drawn(chart_specs: dict | list) -> set[int]:
     ],
 )
 def test_charge_points_chart_loads_what_it_draws_whatever_the_title_case(
-    fresh_db, charge_hub, prices_title, power_flow_title
+    fresh_db, charge_hub_fresh_db, prices_title, power_flow_title
 ):
     """The Charge Points chart capitalizes graph titles, so a lowercase companion title still counts."""
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     titles = {"Prices": prices_title, "Power flow by type": power_flow_title}
     site.sensors_to_show = [
         {**entry, "title": titles.get(entry["title"], entry["title"])}
@@ -177,7 +101,7 @@ def test_charge_points_chart_loads_what_it_draws_whatever_the_title_case(
     ]
     fresh_db.session.commit()
 
-    loaded = site.chart_sensors("chart_for_chargepoint_sessions")
+    loaded = site.chart_sensors("charge-point-sessions")
     assert _names(loaded) == [
         "departure",
         "arrival",
@@ -185,69 +109,102 @@ def test_charge_points_chart_loads_what_it_draws_whatever_the_title_case(
         "charge points power",
         "consumption price",
     ]
-    chart_specs = site.chart(chart_type="chart_for_chargepoint_sessions")
+    chart_specs = site.chart(chart_type="charge-point-sessions")
     assert _sensor_ids_drawn(chart_specs) == {sensor.id for sensor in loaded}
 
 
+ALL_SENSORS = {
+    "charge points power",
+    "building power",
+    "consumption price",
+    "temperature",
+    "arrival",
+    "departure",
+    "plug in",
+}
+DEFAULT_CHART_SENSORS = {
+    "charge points power",
+    "building power",
+    "consumption price",
+    "temperature",
+    "departure",
+}
+CHARGE_POINTS_CHART_SENSORS = {
+    "charge points power",
+    "consumption price",
+    "arrival",
+    "departure",
+    "plug in",
+}
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+# The same parameter name as the chart endpoint takes, including its snake_case alias.
+@pytest.mark.parametrize("parameter", ["chart-type", "chart_type"])
 @pytest.mark.parametrize(
     "chart_type, expected_names",
     [
-        (
-            None,
-            {
-                "charge points power",
-                "building power",
-                "consumption price",
-                "temperature",
-                "arrival",
-                "departure",
-                "plug in",
-            },
-        ),
-        (
-            "chart_for_multiple_sensors",
-            {
-                "charge points power",
-                "building power",
-                "consumption price",
-                "temperature",
-                "departure",
-            },
-        ),
-        (
-            "chart_for_chargepoint_sessions",
-            {
-                "charge points power",
-                "consumption price",
-                "arrival",
-                "departure",
-                "plug in",
-            },
-        ),
+        (None, ALL_SENSORS),
+        # An empty value counts as none.
+        ("", ALL_SENSORS),
+        ("default", DEFAULT_CHART_SENSORS),
+        ("charge-point-sessions", CHARGE_POINTS_CHART_SENSORS),
+        # The legacy names, as the chart endpoint takes them.
+        ("chart_for_multiple_sensors", DEFAULT_CHART_SENSORS),
+        ("chart_for_chargepoint_sessions", CHARGE_POINTS_CHART_SENSORS),
     ],
 )
 def test_chart_data_holds_only_what_the_chart_type_draws(
     client,
     setup_roles_users_fresh_db,
-    charge_hub,
+    charge_hub_fresh_db,
     requesting_user,
+    parameter,
     chart_type,
     expected_names,
 ):
-    site = charge_hub["arrival"].generic_asset
+    site = charge_hub_fresh_db["arrival"].generic_asset
     query = {
         "event_starts_after": START.isoformat(),
         "event_ends_before": (START + timedelta(hours=1)).isoformat(),
         "compress_json": "true",
     }
     if chart_type is not None:
-        query["chart-type"] = chart_type
+        query[parameter] = chart_type
     response = client.get(
         url_for("AssetAPI:get_chart_data", id=site.id), query_string=query
     )
     assert response.status_code == 200, response.data
     # The endpoint sends the JSON as a string, so it is not parsed for us.
     loaded_ids = {record["sid"] for record in json.loads(response.data)["data"]}
-    id_by_name = {name: sensor.id for name, sensor in charge_hub.items()}
+    id_by_name = {name: sensor.id for name, sensor in charge_hub_fresh_db.items()}
     assert loaded_ids == {id_by_name[name] for name in expected_names}
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize(
+    "chart_type",
+    [
+        "bar_chart",
+        "Default",
+        "chart_for_chargepoint_session",
+    ],
+)
+def test_chart_data_refuses_an_unknown_chart_type(
+    client,
+    setup_roles_users_fresh_db,
+    charge_hub_fresh_db,
+    requesting_user,
+    chart_type,
+):
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    response = client.get(
+        url_for("AssetAPI:get_chart_data", id=site.id),
+        query_string={
+            "event_starts_after": START.isoformat(),
+            "event_ends_before": (START + timedelta(hours=1)).isoformat(),
+            "chart-type": chart_type,
+        },
+    )
+    assert response.status_code == 422, response.data
+    assert "default, charge-point-sessions" in response.get_data(as_text=True)

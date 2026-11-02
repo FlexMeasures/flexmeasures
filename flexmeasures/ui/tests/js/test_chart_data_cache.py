@@ -127,8 +127,8 @@ def test_build_chart_data_url(assert_js):
         check("the default leaves it to the API",
               !buildChartDataUrl("/x", {start, end, mostRecentBeliefsOnly: true}).includes("most_recent_beliefs_only"));
         check("a chart type asks for only the data that chart draws",
-              buildChartDataUrl("/x", {start, end, chartType: "chart_for_chargepoint_sessions"})
-                  .includes("&chart-type=chart_for_chargepoint_sessions"));
+              buildChartDataUrl("/x", {start, end, chartType: "charge-point-sessions"})
+                  .includes("&chart-type=charge-point-sessions"));
         check("without one, the API returns every sensor's data",
               !buildChartDataUrl("/x", {start, end}).includes("chart-type"));
         """)
@@ -139,12 +139,12 @@ def test_cache_does_not_reuse_records_loaded_for_another_chart_type(assert_js):
     assert_js(FAKE_API + """
         import { createChartDataCache } from "/js/chart-data-cache.js";
         const cache = createChartDataCache();
-        await cache.load("/a", {start: day(10), end: day(17), chartType: "chart_for_multiple_sensors"});
-        await cache.load("/a", {start: day(11), end: day(12), chartType: "chart_for_multiple_sensors"});
+        await cache.load("/a", {start: day(10), end: day(17), chartType: "default"});
+        await cache.load("/a", {start: day(11), end: day(12), chartType: "default"});
         eq("the same chart type is answered from memory", requests.length, 1);
-        await cache.load("/a", {start: day(11), end: day(12), chartType: "chart_for_chargepoint_sessions"});
+        await cache.load("/a", {start: day(11), end: day(12), chartType: "charge-point-sessions"});
         eq("another chart type fetches its own data", requests.length, 2);
-        check("naming that chart type", requests[1].includes("chart-type=chart_for_chargepoint_sessions"), requests[1]);
+        check("naming that chart type", requests[1].includes("chart-type=charge-point-sessions"), requests[1]);
         """)
 
 

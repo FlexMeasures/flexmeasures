@@ -265,6 +265,7 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         "use_latest_version_per_event": "use-latest-version-per-event",
         "most_recent_beliefs_only": "most-recent-beliefs-only",
         "compress_json": "compress-json",
+        "chart_type": "chart-type",
     }
 
     use_latest_version_per_event = fields.Boolean(
@@ -289,12 +290,15 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
-    chart_type = fields.Str(
+    chart_type = AssetChartTypeField(
         data_key="chart-type",
         required=False,
+        accept_legacy_names=True,
+        empty_means_absent=True,
         metadata=dict(
-            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
-            example="chart_for_multiple_sensors",
+            description=f"Return only the data of the sensors that this chart type draws: {describe_asset_chart_types(include_legacy_names=True)}. "
+            "Without it, or with an empty value, return the data of every sensor in the asset's sensors_to_show.",
+            example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )
 

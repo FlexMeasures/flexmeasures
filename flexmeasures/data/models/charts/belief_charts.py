@@ -92,27 +92,6 @@ def charge_point_companion_graph(entry: dict) -> dict | None:
     return graph if _extract_sensors_from_entry(graph) else None
 
 
-def charge_point_chart_sensors(
-    sensors_to_show: list[dict],
-) -> list["Sensor"]:  # noqa F821
-    """The sensors whose data the Charge Points chart draws.
-
-    These are the session timestamps in any graph,
-    followed by the sensors of the companion graphs it draws below them (see charge_point_companion_graph).
-
-    :param sensors_to_show: a validated sensors_to_show.
-    :returns: a unique list of sensors.
-    """
-    session_sensors = charge_point_session_sensors(sensors_to_show)
-    companion_sensors = [
-        sensor
-        for entry in sensors_to_show
-        if (graph := charge_point_companion_graph(entry)) is not None
-        for sensor in _extract_sensors_from_entry(graph)
-    ]
-    return list(dict.fromkeys(session_sensors + companion_sensors))
-
-
 def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
