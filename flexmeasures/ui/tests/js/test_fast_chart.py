@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from flexmeasures.data.models.charts.chart_types import CHARGE_POINT_CHART_NAMES
 
 
@@ -206,7 +208,7 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         const option = buildChargePointSessionsOption("sessions-chart", [
             {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
             {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
-        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
+        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false, chargePointChart: CHARGE_POINT_CHART_NAMES});
 
         check("the session chart renders", option.series.length >= 2);
         const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
@@ -214,7 +216,7 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         check("session start stays visible", tooltip.includes("Arrival"));
         check("session end stays visible", tooltip.includes("Departure"));
         check("session asset stays visible", tooltip.includes("Charger 4"));
-        """)
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
 
 
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
@@ -619,3 +621,42 @@ def test_the_charge_point_sessions_chart_type_draws_the_sessions(assert_js):
         disposeFastChart(container.id);
         container.remove();
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+@pytest.mark.parametrize("chart_type", ["line", "charge-point-sessions"])
+def test_an_asset_chart_without_the_charge_point_chart_names_fails_loudly(
+    assert_js, chart_type
+):
+    """Without the names, the fast chart cannot tell the asset's graphs apart, and should say so rather than draw the wrong graphs."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "nameless-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const rows = [{
+            sensor: {id: 1, name: "arrival", unit: "s", asset_id: 4, asset_description: "Charger 4"},
+            event_start: eventStart, event_value: eventStart,
+        }];
+        let error = null;
+        try {
+            renderFastChart(container.id, rows, {chartType: "CHART_TYPE", groupSpec: [], datasetName: "asset_4", isSensorPage: false});
+        } catch (e) {
+            error = e;
+        }
+        check("the chart refuses to render", error !== null);
+        check("and names what is missing", String(error).includes("chargePointChart"), String(error));
+        disposeFastChart(container.id);
+        container.remove();
+        """.replace("CHART_TYPE", chart_type))

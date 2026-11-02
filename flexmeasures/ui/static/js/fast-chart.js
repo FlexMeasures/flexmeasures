@@ -2168,8 +2168,24 @@ export function isChargePointCompanionTitle(title, chargePointChart) {
   return ((chargePointChart || {}).companionTitles || []).includes(capitalizeTitle(title));
 }
 
+/**
+ * The names the Charge Points chart goes by, which an asset chart needs to tell its graphs apart.
+ *
+ * Throws when they are missing, rather than drawing an untitled sessions chart, or a default chart that shows the session timestamps:
+ * includes/graphs.html always passes them, so their absence is a mistake in the caller, which should show.
+ *
+ * @param {Object} opts - The fast chart options.
+ * @returns {Object} - opts.chargePointChart.
+ */
+function requireChargePointChart(opts) {
+  if (!opts.chargePointChart) {
+    throw new Error("An asset chart needs opts.chargePointChart (CHARGE_POINT_CHART_NAMES in chart_types.py) to tell its graphs apart.");
+  }
+  return opts.chargePointChart;
+}
+
 export function buildChargePointSessionsOption(elementId, data, opts) {
-  const chargePointChart = opts.chargePointChart || {};
+  const chargePointChart = requireChargePointChart(opts);
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2459,7 +2475,8 @@ export function renderFastChart(elementId, data, options) {
   } else if (opts.chartType === "charge-point-sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
-    const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
+    // On the sensor page there is one sensor, and no sessions graph to leave out.
+    const sessionsTitle = opts.isSensorPage ? undefined : requireChargePointChart(opts).sessionsTitle;
     const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== sessionsTitle);
     const groups = groupData(data, groupSpec);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
