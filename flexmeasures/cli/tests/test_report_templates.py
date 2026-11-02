@@ -278,6 +278,45 @@ def test_clipped_values_template_bounds_its_input(
     assert (report.values.T == [1, 1, 2, 2]).all()
 
 
+def test_valid_range_template_leaves_out_values_outside_its_range(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """The valid-range template drops out-of-range values, rather than pulling them to a bound."""
+    template = get_report_template("valid-range")
+    assert template["reporter"] == "PandasReporter"
+    assert find_placeholders(template["config"]) == [
+        "transformations[0].args[0]",
+        "transformations[1].args[0]",
+    ]
+    config = deepcopy(template["config"])
+    config["transformations"][0]["args"] = [1]
+    config["transformations"][1]["args"] = [2]
+    app.data_generators["reporter"][template["reporter"]]._config_schema.load(config)
+
+    sensor1_id, _, _, _ = setup_dummy_data_fresh_db
+    sensor1 = fresh_db.session.get(Sensor, sensor1_id)
+    valid_sensor = Sensor(
+        "valid measurements",
+        generic_asset=sensor1.generic_asset,
+        event_resolution=timedelta(hours=1),
+    )
+    fresh_db.session.add(valid_sensor)
+    fresh_db.session.commit()
+
+    report = PandasReporter(config=config).compute(
+        parameters={
+            "input": [{"name": "measurements", "sensor": sensor1_id}],
+            "output": [{"name": "valid", "sensor": valid_sensor.id}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T04:00:00+00:00",
+        }
+    )[0]["data"]
+
+    # the sensor holds the hour index (0, 1, 2, 3), of which only 1 and 2 lie in the range [1, 2]
+    assert list(report.values.T[0]) == [1, 2]
+    assert [t.hour for t in report.index.get_level_values("event_start")] == [1, 2]
+
+
 def _save_values(db, sensor, start, values, resolution):
     """Record one belief per event on the sensor, known a day before the first event."""
     source = db.session.scalar(
@@ -372,6 +411,7 @@ def test_show_report_templates(app):
         ("dynamic-tariff", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
         ("self-consumption", "PandasReporter"),
+        ("valid-range", "PandasReporter"),
     ]:
         assert name in result.output
         assert reporter in result.output
