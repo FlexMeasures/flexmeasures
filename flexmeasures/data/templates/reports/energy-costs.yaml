@@ -6,6 +6,10 @@
 name: energy-costs
 description: Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
 reporter: ProfitOrLossReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "What your energy costs, from your usage and the energy price."
 config:
   # The sensor recording the price of consumed energy (e.g. in EUR/MWh).
   consumption_price_sensor: FILL_IN

@@ -122,3 +122,15 @@ def test_a_template_can_name_a_placeholder_label():
         p["label"] for p in describe_placeholders(get_report_template("valid-range"))
     ]
     assert labels[:2] == ["Lowest valid value", "Highest valid value"]
+
+
+@pytest.mark.parametrize(
+    "template", list_report_templates(), ids=lambda template: template["name"]
+)
+def test_every_template_has_a_short_summary_for_the_form(template):
+    """The form shows the summary when hovering over a template, so it is there, and short enough to read at a glance."""
+    summary = (template.get("form") or {}).get("summary")
+    assert summary, f"{template['name']} has no form.summary"
+    assert (
+        len(summary) <= 90
+    ), f"{template['name']}'s summary is {len(summary)} characters long"

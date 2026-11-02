@@ -8,6 +8,8 @@ description: Flow per interval from the readings of a cumulative meter, with imp
 reporter: PandasReporter
 # How the New automation form in the UI presents this template; the CLI does not use it.
 form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Turns the readings of a meter that counts up into the usage per interval."
   labels:
     config.transformations[2].args[0]: Lowest plausible flow per interval
     config.transformations[3].args[0]: Highest plausible flow per interval

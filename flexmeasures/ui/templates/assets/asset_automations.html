@@ -104,6 +104,18 @@
   .automation-source-results .list-group-item {
     cursor: pointer;
   }
+  /* The theme paints dropdown menus dark, which suits a navigation bar more than a form field, so the template list takes the form's colours. */
+  #automationTemplateMenu {
+    background-color: var(--bs-body-bg);
+  }
+  #automationTemplateMenu .dropdown-item {
+    color: var(--bs-body-color);
+    text-align: left;
+  }
+  #automationTemplateMenu .dropdown-item:hover,
+  #automationTemplateMenu .dropdown-item:focus {
+    background-color: var(--bs-tertiary-bg);
+  }
   .template-sensor-results {
     max-height: 12rem;
     overflow-y: auto;
@@ -191,9 +203,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Start from a prepared report, and fill in only its sensors and the values it leaves open. Choose none to write the reporter, its config and its parameters yourself." style="font-size: 16px"></i>
                   </label>
-                  <select class="form-select" id="automationTemplate">
+                  <!-- The list shows each template's summary when hovered over, which the options of a native select cannot,
+                       so the select only holds the choice, and the list sets it. -->
+                  <select class="d-none" id="automationTemplate" aria-hidden="true">
                     <option value="">None: write the report definition myself</option>
                   </select>
+                  <div class="dropdown">
+                    <button type="button" class="form-select text-start" id="automationTemplateMenuButton"
+                            data-bs-toggle="dropdown" aria-expanded="false">None: write the report definition myself</button>
+                    <ul class="dropdown-menu w-100" id="automationTemplateMenu">
+                      <li><button type="button" class="dropdown-item template-choice" data-template="">None: write the report definition myself</button></li>
+                    </ul>
+                  </div>
                   <div class="form-text" id="automationTemplateDescription"></div>
                 </div>
                 <div class="uses-template" id="automationTemplateFields" style="display: none"></div>
@@ -571,6 +592,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   function showFieldsForType() {
     const template = selectedReportTemplate();
     $(".picks-template").toggle($("#automationType").val() === "reporting");
+    $("#automationTemplateMenuButton").text(templateChoiceLabel($("#automationTemplate").val()));
     $(".uses-template").toggle(template !== null);
     if (template !== null && !("start-offset" in template.parameters || "end-offset" in template.parameters)) {
       $("#automationTemplateTiming").toggle(false);
@@ -597,10 +619,23 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#newAutomationErr").addClass("d-none").text("");
   }
 
-  // A template's name as an automation name, such as "Self consumption" for "self-consumption".
-  function templateAutomationName(template) {
+  // A template's name as people read it, such as "Self consumption" for "self-consumption", which also names the automation.
+  function templateDisplayName(template) {
     const words = template.name.replace(/-/g, " ");
     return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
+  // What the template list shows for a choice, for none as much as for a template.
+  function templateChoiceLabel(name) {
+    const template = reportTemplatesByName.get(name);
+    return template ? templateDisplayName(template) : "None: write the report definition myself";
+  }
+
+  // One choice in the template list, with the template's short summary on hover.
+  function templateChoiceHtml(template) {
+    const summary = template.form?.summary || template.description;
+    return `<li><button type="button" class="dropdown-item template-choice" data-template="${esc(template.name)}"
+              data-bs-toggle="tooltip" data-bs-placement="right" title="${esc(summary)}">${esc(templateDisplayName(template))}</button></li>`;
   }
 
   // The name of the input a placeholder fills the sensor of, or null for any other placeholder.
@@ -665,7 +700,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#automationTemplateStartOffset").val(template.parameters["start-offset"] || "");
       $("#automationTemplateEndOffset").val(template.parameters["end-offset"] || "");
       if (!$("#automationName").val()) {
-        $("#automationName").val(templateAutomationName(template));
+        $("#automationName").val(templateDisplayName(template));
       }
     }
     showFieldsForType();
@@ -1452,10 +1487,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         success: function (res) {
           for (const template of res["report-templates"]) {
             reportTemplatesByName.set(template.name, template);
-            $("#automationTemplate").append(
-              `<option value="${esc(template.name)}">${esc(template.name)}</option>`
-            );
+            $("#automationTemplate").append(`<option value="${esc(template.name)}"></option>`);
+            $("#automationTemplateMenu").append(templateChoiceHtml(template));
           }
+          // Tooltips sit in the modal, so they are painted above it rather than behind it.
+          document.querySelectorAll("#automationTemplateMenu [data-bs-toggle='tooltip']").forEach(function (el) {
+            new bootstrap.Tooltip(el, { container: el.closest(".modal") });
+          });
         },
         error: function (xhr) {
           $("#automationTemplateDescription").text(
@@ -1466,6 +1504,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
 
     $("#automationTemplate").on("change", () => showTemplateFields());
+    // Choosing from the list sets the select, whose change lays out the template's fields and makes the form a draft.
+    $(document).on("click", ".template-choice", function () {
+      bootstrap.Tooltip.getInstance(this)?.hide();
+      $("#automationTemplate").val(String($(this).data("template"))).trigger("change");
+    });
     $("#automationTemplateAddInput").on("click", function () {
       addTemplateInput();
       setNewAutomationDraft(true);

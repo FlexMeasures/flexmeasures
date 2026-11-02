@@ -257,3 +257,27 @@ def test_inputs_can_be_added_to_a_sum_and_weighed(assert_js):
         eq("choosing the template again starts from its own inputs", labels().length, 3);
     """
     )
+
+
+def test_the_template_list_reads_as_words_with_a_summary_on_hover(assert_js):
+    """A template is listed by its name without hyphens, with its short summary as the hover text."""
+    assert_js(
+        page_js("templateChoiceHtml, templateChoiceLabel, reportTemplatesByName") + f"""
+        const template = {json.dumps(dict(CLIPPED_VALUES, form={"summary": "Caps a sensor's values to a range."}))};
+        const list = document.createElement("ul");
+        list.innerHTML = page.templateChoiceHtml(template);
+        const choice = list.querySelector(".template-choice");
+        eq("the name reads as words", choice.textContent, "Clipped values");
+        eq("the summary shows on hover", choice.getAttribute("title"), "Caps a sensor's values to a range.");
+        eq("choosing it sets the template", choice.dataset.template, "clipped-values");
+
+        const without = {json.dumps(CLIPPED_VALUES)};
+        list.innerHTML = page.templateChoiceHtml(without);
+        eq("without a summary, the description shows instead",
+           list.querySelector(".template-choice").getAttribute("title"), without.description);
+
+        page.reportTemplatesByName.set(template.name, template);
+        eq("the list's button names the chosen template", page.templateChoiceLabel("clipped-values"), "Clipped values");
+        eq("or says that none is chosen", page.templateChoiceLabel(""), "None: write the report definition myself");
+    """
+    )

@@ -8,6 +8,8 @@ description: Sensor values clipped to a valid range, with out-of-range values pu
 reporter: PandasReporter
 # How the New automation form in the UI presents this template; the CLI does not use it.
 form:
+  # A short summary, shown when hovering over the template in the form's list.
+  summary: "Caps a sensor's values to a range, pulling outliers to the nearest limit."
   labels:
     config.transformations[0].kwargs.lower: Lowest valid value
     config.transformations[0].kwargs.upper: Highest valid value
