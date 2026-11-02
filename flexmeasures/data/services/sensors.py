@@ -665,6 +665,7 @@ def get_missing_members(
     now: datetime,
     max_staleness: timedelta,
     source_type: str = "reporter",
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> list[Sensor]:
     """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
 
@@ -678,8 +679,11 @@ def get_missing_members(
     A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
     Only the sources of the given type are judged, as the status is reported per source type,
     and a report may be saved under a source of another type than 'reporter' (see `Reporter.source_type`).
+    A caller judging several source types can pass the sensor's `sources_by_type`, so they are looked up once rather than once per type.
     """
-    sources = _sensor_sources_by_type(sensor, staleness_search).get(source_type, [])
+    if sources_by_type is None:
+        sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+    sources = sources_by_type.get(source_type, [])
     partial = [source for source in sources if source.missing_members]
     if not partial:
         return []
@@ -776,6 +780,10 @@ def get_statuses(
         now=now,
     )
 
+    # looked up once for all source types, which the missing members of each are judged from
+    sources_by_type = (
+        _sensor_sources_by_type(sensor, staleness_search) if stalenesses else {}
+    )
     statuses = list()
     for source_type, (has_relevant_data, staleness) in (
         stalenesses or {None: (True, None)}
@@ -816,7 +824,12 @@ def get_statuses(
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
         missing_members = get_missing_members(
-            sensor, staleness_search, now, max_staleness, source_type=source_type
+            sensor,
+            staleness_search,
+            now,
+            max_staleness,
+            source_type=source_type,
+            sources_by_type=sources_by_type,
         )
         if missing_members:
             # members are often all called "power", so the asset says which device it is
