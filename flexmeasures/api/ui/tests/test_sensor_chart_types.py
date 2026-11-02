@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from flexmeasures.data.models.charts import (
+    ASSET_CHART_BUILDERS,
     CHART_TYPES,
     SENSOR_CHART_TYPES,
     UnknownChartType,
@@ -192,3 +193,18 @@ def test_chart_defaults_are_applied_to_a_copy_of_the_specs(module_specs):
         dataset_name="other", include_annotations=True
     )
     assert defaults.REPLAY_RULER == module_specs["REPLAY_RULER"]
+
+
+def test_the_api_docs_name_no_asset_chart_types():
+    """The asset chart's chart-type is checked, but its current names are not published: public chart type names replace them in v1.2.0 (#2795)."""
+    from importlib.resources import files
+
+    specs = json.loads(
+        files("flexmeasures.ui").joinpath("static/openapi-specs.json").read_text()
+    )
+    parameters = specs["paths"]["/api/v3_0/assets/{id}/chart"]["get"]["parameters"]
+    (chart_type,) = [p for p in parameters if p["name"] == "chart-type"]
+    assert "enum" not in chart_type["schema"]
+    documented = json.dumps(chart_type)
+    for name in ASSET_CHART_BUILDERS:
+        assert name not in documented

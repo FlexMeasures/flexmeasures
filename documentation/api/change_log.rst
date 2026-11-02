@@ -21,7 +21,7 @@ v3.0-40 | October XX, 2026
 - Data sources returned by ``GET /api/v3_0/sources`` and ``GET /api/v3_0/sources/<id>`` now carry the ``account_id`` of the organisation they record for, where only sources of type ``user`` used to. Source filters that select by organisation, such as ``source-account`` on ``GET /api/v3_0/sensors/<id>/data`` and inside sensor references in a flex-model or flex-context, therefore match data computed by forecasters, schedulers and reporters, where they used to match user-recorded data only. A source belonging to no organisation is one the host runs for everyone.
 - ``POST /api/v3_0/assets/<id>/automations`` now also refuses a ``source`` which is not the caller's to work with for automation types registered by a plugin, where the refusal used to cover the built-in types only.
 - ``GET /api/v3_0/sensors/<id>/status`` now returns ``missing-members`` with the status of reporter data whose most recent aggregate of a device group, old enough to count as stale, had to leave out members, because they did not report: the ``id``, ``name`` and ``asset-name`` of each of those sensors. The field is left out where no member is missing, as for most sensors.
-- ``GET /api/v3_0/assets/<id>/chart`` now answers a ``chart-type`` other than ``chart_for_multiple_sensors`` and ``chart_for_chargepoint_sessions`` with a ``422``.
+- ``GET /api/v3_0/assets/<id>/chart`` now answers an unknown ``chart-type`` with a ``422``.
 
 v3.0-39 | September 22, 2026
 """"""""""""""""""""""""""""

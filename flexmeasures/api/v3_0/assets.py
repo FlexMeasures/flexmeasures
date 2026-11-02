@@ -182,6 +182,12 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
+def validate_asset_chart_type(chart_type: str):
+    """Refuse a chart type an asset cannot be drawn as."""
+    if chart_type not in ASSET_CHART_BUILDERS:
+        raise ValidationError(f"Unknown chart type '{chart_type}'.")
+
+
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     legacy_field_aliases = {
         **EventWindowSchema.legacy_field_aliases,
@@ -245,10 +251,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
-        validate=validate.OneOf(list(ASSET_CHART_BUILDERS)),
+        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
+        validate=validate_asset_chart_type,
         metadata=dict(
-            description=f"Chart type, one of {', '.join(repr(name) for name in ASSET_CHART_BUILDERS)}.",
-            example="chart_for_multiple_sensors",
+            description="The chart to draw; leave it out for the asset's default chart.",
         ),
     )
 
