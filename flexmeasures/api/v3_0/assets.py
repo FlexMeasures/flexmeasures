@@ -256,7 +256,6 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         "use_latest_version_per_event": "use-latest-version-per-event",
         "most_recent_beliefs_only": "most-recent-beliefs-only",
         "compress_json": "compress-json",
-        "chart_type": "chart-type",
     }
 
     use_latest_version_per_event = fields.Boolean(
