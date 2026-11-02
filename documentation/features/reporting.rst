@@ -224,6 +224,55 @@ anywhere on the site stops the report, even on a device outside the group — a 
 The error says so, and names the asset whose entry does not validate.
 
 
+Example: the forecast of a community, summed from its houses' forecasts
+-------------------------------------------------------------------------
+
+A report is saved under a data source of type ``reporter``.
+A sum of forecasts is still a forecast, though, so say so with ``output-source-type`` in the reporter's configuration:
+
+.. code-block:: json
+
+    {
+        "method" : "sum",
+        "output-source-type" : "forecaster"
+    }
+
+With parameters that read only the forecasts of each house:
+
+.. code-block:: json
+
+    {
+        "input": [
+            {"sensor": 11, "source_types": ["forecaster"]},
+            {"sensor": 12, "source_types": ["forecaster"]}
+        ],
+        "output": [
+            {"sensor": 10}
+        ],
+        "start" : "2026-11-01T00:00:00+01:00",
+        "end" : "2026-11-02T00:00:00+01:00"
+    }
+
+the community's forecast on sensor 10 is saved under a source of type ``forecaster``.
+It then counts as a forecast wherever data is filtered by source type:
+the UI labels it as a forecast, a ``"source-types": ["forecaster"]`` filter finds it,
+and a forecast of sensor 10 is not trained on it (see :ref:`forecasting`).
+
+.. note::
+
+   Set ``output-source-type`` only when the report is made of data of that type.
+   A report computed from day-ahead prices also holds values about the future, such as tomorrow's tariffs,
+   but those are known rather than forecast, so it stays a report.
+
+.. note::
+
+   A forecast of sensor 10 leaves out forecasters only when its config has no ``"auto"`` entry saying which sources of sensor 10 to train on.
+   Such an entry replaces that default, so add ``"exclude-source-types": ["forecaster"]`` to it, if its other filters would let the community's forecast in.
+
+Leaving ``output-source-type`` out keeps a reporter's source as it was, so adding it to an existing reporter starts a new source,
+and the sensor's earlier reports stay under the old one.
+
+
 Example: Profits & losses
 ---------------------------
 
