@@ -57,6 +57,8 @@ def charge_point_companion_graph(entry: dict) -> dict | None:
     so a graph titled "prices" counts as a Prices graph.
     Of a Power flow by type graph, only the charge points power is kept.
 
+    A graph left without sensors is not drawn.
+
     :param entry: a graph of a validated sensors_to_show.
     :returns: the graph (for Power flow by type, a copy holding only the charge points power), or None if the chart does not draw it.
     """
@@ -64,7 +66,7 @@ def charge_point_companion_graph(entry: dict) -> dict | None:
     if not title or capitalize(title) not in CHARGE_POINT_COMPANION_TITLES:
         return None
     if capitalize(title) != POWER_FLOW_BY_TYPE_TITLE:
-        return entry
+        return entry if _extract_sensors_from_entry(entry) else None
     plots = []
     for plot in entry.get("plots", []):
         if "sensors" in plot:
@@ -79,7 +81,8 @@ def charge_point_companion_graph(entry: dict) -> dict | None:
         elif "sensor" in plot and plot["sensor"].name != CHARGE_POINT_POWER_SENSOR_NAME:
             continue
         plots.append(plot)
-    return {**entry, "plots": plots}
+    graph = {**entry, "plots": plots}
+    return graph if _extract_sensors_from_entry(graph) else None
 
 
 def create_bar_chart_or_histogram_specs(
@@ -1496,11 +1499,19 @@ def chart_for_chargepoint_sessions(
             },
         ],
     }
-    # The companion graphs hold only what is drawn (see charge_point_companion_graph);
+    # The companion graphs hold only what is drawn (see charge_point_companion_graph),
+    # so a companion graph left without sensors is not built at all;
     # the other graphs are built too, but dropped from the vconcat below.
-    sensors_to_show_copy = [
-        charge_point_companion_graph(entry) or entry for entry in sensors_to_show
-    ]
+    sensors_to_show_copy = []
+    for entry in sensors_to_show:
+        graph = charge_point_companion_graph(entry)
+        if graph is not None:
+            sensors_to_show_copy.append(graph)
+        elif (
+            not entry.get("title")
+            or capitalize(entry["title"]) not in CHARGE_POINT_COMPANION_TITLES
+        ):
+            sensors_to_show_copy.append(entry)
     chart_specs = chart_for_multiple_sensors(
         sensors_to_show_copy,
         event_starts_after,

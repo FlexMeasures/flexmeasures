@@ -211,3 +211,29 @@ def test_the_charge_points_chart_applies_to_assets_with_a_charge_point(
         for name, chart_type in ASSET_CHART_TYPES.items()
         if chart_type.applies_to(charge_point)
     ] == ["default"]
+
+
+def test_a_companion_graph_left_without_sensors_is_not_in_the_layout(
+    fresh_db, charge_hub_fresh_db: dict[str, Sensor]
+):
+    """Of a Power flow by type graph without the charge points power, nothing is drawn, so the layout leaves it out."""
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    site.sensors_to_show = [
+        (
+            {**entry, "sensors": [charge_hub_fresh_db["building power"].id]}
+            if entry["title"] == "Power flow by type"
+            else entry
+        )
+        for entry in site.sensors_to_show
+    ]
+    fresh_db.session.commit()
+    layout = get_asset_chart_type("charge-point-sessions").layout(
+        site.validate_sensors_to_show()
+    )
+
+    chart_specs = site.chart(chart_type="charge-point-sessions")
+
+    assert [graph["title"] for graph in layout] == [
+        graph["title"] for graph in chart_specs["vconcat"]
+    ]
+    assert [graph["title"] for graph in layout] == ["Charge Point sessions", "Prices"]
