@@ -570,6 +570,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
                 f"Data source {self.id} names no data generator to set up."
             )
         generator_class = current_app.data_generators[self.type].get(self.model)
+        found_elsewhere = False
+        if generator_class is None:
+            # A data generator can be configured to save under a source of another type (see `Reporter.source_type`),
+            # so it is looked for among the other kinds of data generator, too.
+            generator_types = [
+                generator_type
+                for generator_type, generators in current_app.data_generators.items()
+                if generator_type != self.type and self.model in generators
+            ]
+            if len(generator_types) > 1:
+                raise NotImplementedError(
+                    f"Data source {self.id} is of type '{self.type}', and its data generator '{self.model}' is registered as more than one other kind of data generator"
+                    f" ({', '.join(sorted(generator_types))}), so which one made its data is unclear."
+                )
+            if generator_types:
+                generator_class = current_app.data_generators[generator_types[0]][
+                    self.model
+                ]
+                found_elsewhere = True
         if generator_class is None:
             raise NotImplementedError(
                 f"Data generator '{self.type}/{self.model}' is unavailable. Install or enable its plugin on the server and worker."
@@ -582,6 +601,12 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         # create DataGenerator class and add the parameters
         data_generator = generator_class(config=config)
+        if found_elsewhere and data_generator.source_type != self.type:
+            # Only a data generator configured to save under this source's type can have made its data.
+            raise NotImplementedError(
+                f"Data generator '{self.type}/{self.model}' is unavailable."
+                f" A '{self.model}' is installed, but as configured on data source {self.id}, it saves under a source of type '{data_generator.source_type}'."
+            )
         data_generator._parameters = parameters
 
         # assign the current DataSource (self) as its source
