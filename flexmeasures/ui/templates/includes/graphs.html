@@ -73,6 +73,8 @@
     let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
     let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
+    // The graph titles and sensor name the Charge Points chart goes by, as the Python chart builder names them.
+    const chargePointChartNames = {{ charge_point_chart_names | tojson }};
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
     // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
     // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
@@ -379,7 +381,7 @@
         const beliefTooltipSupported = () => {
             if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
             if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
-            return (fastChartGroupSpec || []).some((group) => isChargePointCompanionTitle(group.title));
+            return (fastChartGroupSpec || []).some((group) => isChargePointCompanionTitle(group.title, chargePointChartNames));
         };
         syncFullBeliefInfoToggle = () => {
             if (!fullBeliefInfoToggleContainer) { return; }
@@ -1046,6 +1048,7 @@
     function fastChartOptions() {
         return {
             groupSpec: fastChartGroupSpec,
+            chargePointChart: chargePointChartNames,
             // chart types (bar/histogram/heatmap) only apply on the sensor page; on
             // the asset page it's either the Charge Point sessions chart or the
             // default multi-sensor line chart.

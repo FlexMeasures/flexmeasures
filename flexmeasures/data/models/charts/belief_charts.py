@@ -33,6 +33,13 @@ POWER_FLOW_BY_TYPE_TITLE = "Power flow by type"
 CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
 # Of the power flows, the Charge Points chart shows only this one.
 CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
+# The same names, for the fast chart in the browser (handed to it by includes/graphs.html), so it matches what is drawn here.
+CHARGE_POINT_CHART_NAMES = {
+    "sessionsTitle": CHARGE_POINT_SESSIONS_TITLE,
+    "companionTitles": list(CHARGE_POINT_COMPANION_TITLES),
+    "powerFlowTitle": POWER_FLOW_BY_TYPE_TITLE,
+    "powerSensorName": CHARGE_POINT_POWER_SENSOR_NAME,
+}
 
 
 def _charge_point_session_sensors(
