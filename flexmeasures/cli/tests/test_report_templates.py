@@ -119,11 +119,9 @@ def test_every_template_is_well_formed(app):
             assert description["sensor"] == PLACEHOLDER
 
 
-def test_building_consumption_template_validates(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
-    """The building-consumption template validates against the AggregatorReporter schemas, once sensors are filled in."""
-    template = get_report_template("building-consumption")
+def test_aggregate_sensors_template_validates(app, fresh_db, setup_dummy_data_fresh_db):
+    """The aggregate-sensors template validates against the AggregatorReporter schemas, once sensors are filled in."""
+    template = get_report_template("aggregate-sensors")
     assert template["reporter"] == "AggregatorReporter"
 
     reporter_class = app.data_generators["reporter"][template["reporter"]]
@@ -141,10 +139,10 @@ def test_building_consumption_template_validates(
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
-def test_building_consumption_sums_its_input_sensors(
+def test_aggregate_sensors_sums_its_input_sensors(
     app, fresh_db, setup_dummy_data_fresh_db
 ):
-    """The building-consumption template totals its input sensors event by event."""
+    """The aggregate-sensors template totals its input sensors event by event, at the resolution of the output sensor."""
     sensor1_id, sensor2_id, _, _ = setup_dummy_data_fresh_db
     sensor1 = fresh_db.session.get(Sensor, sensor1_id)
     site_sensor = Sensor(
@@ -155,24 +153,28 @@ def test_building_consumption_sums_its_input_sensors(
     fresh_db.session.add(site_sensor)
     fresh_db.session.commit()
 
-    template = get_report_template("building-consumption")
+    template = get_report_template("aggregate-sensors")
+    parameters = {
+        "input": [
+            {"name": "part-1", "sensor": sensor1_id},
+            {"name": "part-2", "sensor": sensor2_id},
+        ],
+        "output": [{"sensor": site_sensor.id}],
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T04:00:00+00:00",
+    }
     report = AggregatorReporter(config=template["config"]).compute(
-        parameters={
-            "input": [
-                {"name": "part-1", "sensor": sensor1_id},
-                {"name": "part-2", "sensor": sensor2_id},
-            ],
-            "output": [{"sensor": site_sensor.id}],
-            "start": "2023-04-10T00:00:00+00:00",
-            "end": "2023-04-10T04:00:00+00:00",
-            # both sensors are hourly here, unlike the 15-minute default of the template
-            "resolution": "PT1H",
-        }
+        parameters=parameters
     )[0]["data"]
 
     # both sensors hold the hour index as their value, so the site total is twice that
     assert len(report) == 4
     assert (report.values.T == [0, 2, 4, 6]).all()
+
+    # weighing one input -1 subtracts it, which leaves nothing of two equal sensors
+    config = dict(template["config"], weights={"part-2": -1.0})
+    report = AggregatorReporter(config=config).compute(parameters=parameters)[0]["data"]
+    assert (report.values.T == [0, 0, 0, 0]).all()
 
 
 def test_daily_energy_template_totals_a_power_sensor(
@@ -285,7 +287,7 @@ def test_show_report_templates(app):
     result = runner.invoke(show_report_templates)
     assert result.exit_code == 0, result.output
     for name, reporter in [
-        ("building-consumption", "AggregatorReporter"),
+        ("aggregate-sensors", "AggregatorReporter"),
         ("clipped-values", "PandasReporter"),
         ("daily-energy", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
