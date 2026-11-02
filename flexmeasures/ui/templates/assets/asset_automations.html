@@ -218,14 +218,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter)." style="font-size: 16px"></i>
                   </label>
-                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <input type="text" class="form-control" id="automationGenerator">
                 </div>
                 <div class="mb-3 chooses-generator">
                   <label for="automationConfig" class="form-label">Data generator config (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. They cannot be changed afterwards." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
+                  <textarea class="form-control" id="automationConfig" rows="3"></textarea>
                   <div class="form-text">Leave empty for the generator's defaults.</div>
                 </div>
                 <div class="mb-3">
@@ -233,7 +233,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting). A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
+                  <textarea class="form-control" id="automationParameters" rows="4"></textarea>
                   <div class="form-text">
                     Say the period each run covers with two of "start-offset", "end-offset" and "duration",
                     such as <code>{"start-offset": "1D,DB", "duration": "P1D"}</code> for the whole of the next day.
@@ -485,8 +485,33 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return $("#automationType").val() !== "scheduling";
   }
 
-  function showGeneratorFields() {
+  /* An example of what each type expects, shown in its empty fields, so they hint at the shape of a report when making a report,
+     rather than at a forecast's whatever the type.
+     A plugin-defined type brings no example of its own, so its fields are left without one. */
+  const EXAMPLES_PER_TYPE = {
+    forecasting: {
+      generator: "TrainPredictPipeline",
+      config: '{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}',
+      parameters: '{"sensor": 2092}',
+    },
+    scheduling: {
+      parameters: '{"start-offset": "1D,DB", "duration": "P1D"}',
+    },
+    reporting: {
+      generator: "PandasReporter",
+      config: '{"required_input": [{"name": "energy"}], "required_output": [{"name": "daily-energy"}], '
+        + '"transformations": [{"df_input": "energy", "df_output": "daily-energy", "method": "resample_events", "args": ["1D"], "kwargs": {"method": "sum"}}]}',
+      parameters: '{"input": [{"name": "energy", "sensor": 2092}], "output": [{"name": "daily-energy", "sensor": 2093}], "start-offset": "-1D,DB", "end-offset": "DB"}',
+    },
+  };
+
+  // Show the fields the chosen type uses, each with that type's own example.
+  function showFieldsForType() {
     $(".chooses-generator").toggle(typeChoosesGenerator());
+    const examples = EXAMPLES_PER_TYPE[$("#automationType").val()] || {};
+    $("#automationGenerator").attr("placeholder", examples.generator || "");
+    $("#automationConfig").attr("placeholder", examples.config || "");
+    $("#automationParameters").attr("placeholder", examples.parameters || "");
   }
 
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
@@ -496,7 +521,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     document.getElementById("newAutomationForm").reset();
     // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
     clearSelectedSource();
-    showGeneratorFields();
+    showFieldsForType();
     $("#newAutomationErr").addClass("d-none").text("");
   }
 
@@ -505,7 +530,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationName").val(values.name);
     $("#automationType").val(values.type);
     // The type decides whether a data generator can be named at all, so the fields follow it before anything is filled in.
-    showGeneratorFields();
+    showFieldsForType();
     $("#automationCron").val(values.cron);
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
@@ -1080,11 +1105,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
 
     $("#automationType").on("change", function () {
-      showGeneratorFields();
+      showFieldsForType();
       // The sources offered are of the automation's own type, so a selection made for another type no longer applies.
       clearSelectedSource();
     });
-    showGeneratorFields();
+    showFieldsForType();
 
     // Search the data sources whose data generator a new automation can reuse
     let sourceSearchTimer = null;
