@@ -253,7 +253,8 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         accept_legacy_names=True,
         metadata=dict(
             description=f"Which chart to draw (default: '{DEFAULT_ASSET_CHART_TYPE}'): "
-            f"{describe_asset_chart_types(include_legacy_names=True)}.",
+            f"{describe_asset_chart_types(include_legacy_names=True)}. "
+            "Plugins may register more chart types.",
             example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )

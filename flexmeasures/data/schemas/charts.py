@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from marshmallow import fields, validate
+from marshmallow import ValidationError, fields, validate
 
 from flexmeasures.data.models.charts.chart_types import (
     ASSET_CHART_TYPES,
@@ -31,9 +31,33 @@ def describe_asset_chart_types(include_legacy_names: bool = False) -> str:
     return description
 
 
+class RegisteredAssetChartType(validate.Validator):
+    """Validate that a name is in the registry of asset chart types, reading the registry each time it validates.
+
+    Unlike validate.OneOf, which copies its choices when it is set up,
+    this validator also accepts the chart types that plugins register after the field was made.
+    """
+
+    error = "Must be one of: {choices}."
+
+    @property
+    def choices(self) -> list[str]:
+        """The names of the registered asset chart types (which the OpenAPI specs list as the field's enum)."""
+        return list(ASSET_CHART_TYPES)
+
+    def _repr_args(self) -> str:
+        return f"choices={self.choices!r}"
+
+    def __call__(self, value: str) -> str:
+        if value not in ASSET_CHART_TYPES:
+            raise ValidationError(self.error.format(choices=", ".join(self.choices)))
+        return value
+
+
 class AssetChartTypeField(fields.Str):
     """The name of an asset chart type, validated against the registry of asset chart types.
 
+    The registry is read when a name is validated, so the field also accepts chart types that plugins register.
     An unknown name fails validation, which the API answers with a 422.
     """
 
@@ -51,7 +75,7 @@ class AssetChartTypeField(fields.Str):
         if callable(extra_validators):
             extra_validators = [extra_validators]
         kwargs["validate"] = [
-            validate.OneOf(list(ASSET_CHART_TYPES)),
+            RegisteredAssetChartType(),
             *extra_validators,
         ]
         metadata = kwargs.setdefault("metadata", {})
