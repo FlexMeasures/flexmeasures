@@ -27,12 +27,21 @@ def automation_script(
 ) -> str:
     """Render inline JavaScript with representative registered automation types."""
     template = TEMPLATE.read_text()
-    match = re.search(r"<script>(.*?)</script>", template, re.DOTALL)
+    match = re.search(r'<script type="module">(.*?)</script>', template, re.DOTALL)
     assert match is not None
+    # These tests execute the script with new Function, which cannot parse imports.
+    # Remove the import after checking it exists; tests needing the helper pass it in.
+    source, import_count = re.subn(
+        r"^\s*import\s+\{\s*errorWithRetryAfter\s*\}\s+from\s+[^;]+;",
+        "",
+        match.group(1),
+        count=1,
+    )
+    assert import_count == 1
     environment = Environment(autoescape=True, undefined=StrictUndefined)
     # The page reads a configured value through a filter the app registers, so both are supplied here.
     environment.filters["naturalized_timedelta"] = naturaldelta
-    script = environment.from_string(match.group(1)).render(
+    script = environment.from_string(source).render(
         asset={"id": 3, "child_assets": [object()] if has_children else []},
         include_child_assets=include_children,
         user_can_manage_automations=can_manage,
@@ -60,12 +69,19 @@ def test_automation_actions_are_grouped_and_permission_gated(assert_js):
     runner_script = automation_script(can_manage=False, can_run=True)
     viewer_script = automation_script(can_manage=False, can_run=False)
     assert_js(f"""
+        import {{ errorWithRetryAfter }} from "/js/ui-utils.js";
         // Keep the page's ready callback from trying to fetch data; exercise its row builder directly.
         const style = document.createElement("style");
         style.textContent = {json.dumps(style_match.group(1))};
         document.head.appendChild(style);
         window.$ = () => ({{ready: () => {{}}}});
-        const manager = new Function({json.dumps(manager_script)} + "\\nreturn {{ AutomationRow }};")();
+        const manager = new Function("errorWithRetryAfter", {json.dumps(manager_script)}
+            + "\\nreturn {{ AutomationRow, automationAjaxErrorMessage }};")(errorWithRetryAfter);
+        const rateLimited = manager.automationAjaxErrorMessage({{
+            status: 429, responseJSON: {{message: "Rate limited."}}, getResponseHeader: () => "300",
+        }});
+        check("rate limits show the retry time", rateLimited.includes("Rate limited.")
+              && rateLimited.includes("Try again at"), rateLimited);
         const runner = new Function({json.dumps(runner_script)} + "\\nreturn {{ AutomationRow }};")();
         const viewer = new Function({json.dumps(viewer_script)} + "\\nreturn {{ AutomationRow }};")();
         const automation = {{

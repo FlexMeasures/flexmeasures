@@ -631,6 +631,17 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
   return fallbackMessage || "Unknown error";
 }
 
+/** Append the local retry time from an HTTP Retry-After header, if available. */
+export function errorWithRetryAfter(message, retryAfter) {
+  if (!retryAfter) return message;
+  const seconds = Number(retryAfter);
+  const retryTime = Number.isFinite(seconds)
+    ? new Date(Date.now() + seconds * 1000)
+    : new Date(retryAfter);
+  if (Number.isNaN(retryTime.getTime())) return message;
+  return `${message} Try again at ${retryTime.toLocaleString()}.`;
+}
+
 /**
  * Turn an error response into a rejection that carries the server's own message.
  *

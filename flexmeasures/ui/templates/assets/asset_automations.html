@@ -323,7 +323,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { errorWithRetryAfter } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
   const assetId = "{{ asset.id }}";
   // Jobs are counted from Redis, which keeps them for FLEXMEASURES_JOB_TTL and no longer.
   const jobRetention = "{{ config.FLEXMEASURES_JOB_TTL | naturalized_timedelta }}";
