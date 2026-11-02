@@ -28,6 +28,7 @@
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
+    import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
@@ -340,13 +341,17 @@
     });
     {% endif %}
 
-    {% if event_starts_after and event_ends_before %}
-    sessionStart = new Date('{{ event_starts_after }}');
-    sessionEnd = new Date('{{ event_ends_before }}');
-    sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-    sessionStart.setHours(0, 0, 0, 0); // get start of first day
-    sessionEnd.setHours(0, 0, 0, 0); // get start of last day
-    {% endif %}
+    const initialRange = restoreChartDateRange(
+        window.location.search, {{ event_starts_after | tojson }}, {{ event_ends_before | tojson }}
+    );
+    if (initialRange) {
+        sessionStart = new Date(initialRange.start);
+        sessionEnd = new Date(initialRange.end);
+        sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+        sessionStart.setHours(0, 0, 0, 0); // get start of first day
+        sessionEnd.setHours(0, 0, 0, 0); // get start of last day
+        rememberChartDateRange(initialRange.start, initialRange.end);
+    }
 
     {% if active_page == "sensors" and sensor.event_resolution.days > 0 %}
     minRes = "day";
@@ -409,12 +414,12 @@
             toggleReplay();
         });
 
-        {% if event_starts_after and event_ends_before %}
-        storeStartDate = new Date('{{ event_starts_after }}');
-        storeEndDate = new Date('{{ event_ends_before }}');
-        fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
-        checkDSTTransitions(storeStartDate, storeEndDate);
-        {% endif %}
+        if (initialRange) {
+            storeStartDate = new Date(initialRange.start);
+            storeEndDate = new Date(initialRange.end);
+            fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
+            checkDSTTransitions(storeStartDate, storeEndDate);
+        }
 
         // Initialize Picker
         const date = Date();
@@ -765,52 +770,49 @@
     });
     {% endif %}
 
-    {% if event_starts_after and event_ends_before %}
-    $("#spinner").show();
-    {% if active_subpage == "asset_graph" and has_kpis %}
-    // Copies, because getAssetKPIs advances the end date it is given, and these two are the
-    // chart's own window: the cache would then record a span a day wider than it holds.
-    // PR #2434 removes that advance, after which the copies are merely belt and braces.
-    getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
-    {% endif %}
-    // The picker is already on the page, so a range can be selected while this first load is still running.
-    const thisInitialLoad = ++shownWindowGeneration;
-    // Through the cache, so that the very first date change already only fetches the days it adds.
-    const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
-    const initialResult = await Promise.all([
-        initialData,
-        fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
-        embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
-    ]).catch(console.error);
-    $("#spinner").hide();
-    // A window has been selected while this was loading, so it is already on screen and this answer is stale.
-    if (initialResult && thisInitialLoad === shownWindowGeneration) {
-        const [fetchedInitialData, initialAnnotations] = initialResult;
-        if (!fastRenderActive() && vegaView) {
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-        }
-        previousResult = {
-            start: new Date('{{ event_starts_after }}'),
-            end: new Date('{{ event_ends_before }}'),
-            data: fetchedInitialData,
-            annotations: initialAnnotations,
-        };
-        updateFastChart();
-        if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
-            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(initialAnnotations)).resize().run();
-        }
-        {% if active_page == "sensors" and user_can_create_children_sensor %}
-        syncAnnotationRangeWithView();
+    if (initialRange) {
+        $("#spinner").show();
+        {% if active_subpage == "asset_graph" and has_kpis %}
+        // Copies, because getAssetKPIs advances the end date it is given, and these two are the
+        // chart's own window: the cache would then record a span a day wider than it holds.
+        // PR #2434 removes that advance, after which the copies are merely belt and braces.
+        getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
         {% endif %}
-        checkSourceMasking(previousResult.data);
-        {% if active_page == "assets" %}
-        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
-        {% endif %}
+        // The picker is already on the page, so a range can be selected while this first load is still running.
+        const thisInitialLoad = ++shownWindowGeneration;
+        // Through the cache, so that the very first date change already only fetches the days it adds.
+        const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
+        const initialResult = await Promise.all([
+            initialData,
+            fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + initialRange.start.toISOString() + '&event_ends_before=' + initialRange.end.toISOString() + '&', elementId, datasetName, previousResult, initialRange.start, initialRange.end),
+        ]).catch(console.error);
+        $("#spinner").hide();
+        // A window has been selected while this was loading, so it is already on screen and this answer is stale.
+        if (initialResult && thisInitialLoad === shownWindowGeneration) {
+            const [fetchedInitialData, initialAnnotations] = initialResult;
+            if (!fastRenderActive() && vegaView) {
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+            }
+            previousResult = {
+                start: new Date(initialRange.start),
+                end: new Date(initialRange.end),
+                data: fetchedInitialData,
+                annotations: initialAnnotations,
+            };
+            updateFastChart();
+            if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(initialAnnotations)).resize().run();
+            }
+            {% if active_page == "sensors" and user_can_create_children_sensor %}
+            syncAnnotationRangeWithView();
+            {% endif %}
+            checkSourceMasking(previousResult.data);
+            {% if active_page == "assets" %}
+            checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+            {% endif %}
+        }
     }
-    var timerangeNotSetYet = false;
-    {% else %}
-    var timerangeNotSetYet = true;
-    {% endif %}
     fetch(chartAttributesPath, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -854,12 +856,6 @@
                 var timerangeVar = 'timerange';
                 {% endif %}
 
-                // Detect if URL already specifies a range
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlStartTimeRaw = urlParams.get('start_time');
-                const urlEndTimeRaw = urlParams.get('end_time');
-                const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
-
                 picker.setOptions({
                     dropdowns: {
                         minYear: start.getFullYear(),
@@ -867,40 +863,23 @@
                     },
                 });
 
-                if (urlHasRange) {
-                    const urlStartTime = urlStartTimeRaw.replace(' ', '+');
-                    const urlEndTime = urlEndTimeRaw.replace(' ', '+');
-
-                    const urlStartDate = new Date(urlStartTime);
-                    const urlEndDateExclusive = new Date(urlEndTime);
-
-                    if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
-                        // picker end date is inclusive → subtract 1 day
-                        urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
-
-                        // This fires the 'selected' event and load graphs
-                        picker.setDateRange(urlStartDate, urlEndDateExclusive);
-                        picker.gotoDate(urlEndDateExclusive);
-                    }
+                // Use the current selection: a user may have changed it while attributes loaded.
+                // This also keeps a restored browser range from being replaced by the older server session.
+                let newStartDate;
+                let newEndDate;
+                if (storeStartDate && storeEndDate) {
+                    newStartDate = new Date(storeStartDate);
+                    newEndDate = new Date(storeEndDate);
                 } else {
-                    // Original behaviour when there is no URL range
-
-                    if (timerangeNotSetYet) {
-                        // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end);
-                        nearEnd.setDate(nearEnd.getDate() - 2);
-                        var new_start_date = nearEnd;
-                        var new_end_date = end;
-                    } else {
-                        var new_start_date = new Date('{{ event_starts_after }}');
-                        var new_end_date = new Date('{{ event_ends_before }}');
-                    }
-
-                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
-                    picker.setDateRange(new_start_date, new_end_date);
-                    picker.gotoDate(new_end_date);
+                    // Initialize picker to the last 2 days of sensor data.
+                    newStartDate = new Date(end);
+                    newStartDate.setDate(newStartDate.getDate() - 2);
+                    newEndDate = new Date(end);
                 }
+                // Persist the range on the datepicker UI so it is shown when the user opens it.
+                newEndDate.setDate(newEndDate.getDate() - 1); // inclusive picker end
+                picker.setDateRange(newStartDate, newEndDate);
+                picker.gotoDate(newEndDate);
             }
         });
     });
@@ -945,6 +924,7 @@
             {% endif %}
 
             endDate.setDate(endDate.getDate() + 1);
+            rememberChartDateRange(startDate, endDate);
 
             // Update current url without reloading the page
             var base_url = window.location.href.split("?")[0];
