@@ -15,7 +15,7 @@ form:
     config.transformations[3].args[0]: Highest plausible flow per interval
 config:
   required_input:
-    # The meter readings should be recorded at the resolution of the output sensor, such as every 15 minutes.
+    # The meter readings should be taken at the resolution of the output sensor, such as every 15 minutes.
     # For irregular readings, put them on a regular grid first, with the regularise template.
     - name: readings
   required_output:
@@ -50,9 +50,13 @@ parameters:
     - name: readings
       sensor: FILL_IN
   output:
-    # The sensor to store the flow per interval, in the unit of the meter readings.
+    # The sensor to store the flow per interval, in the unit of the meter readings, such as kWh rather than kW:
+    # the flow is stored as counted, without converting its unit.
     - name: flow
       sensor: FILL_IN
+  # Meter readings are usually instantaneous (an event resolution of 0), and so is the flow computed from them,
+  # so its resolution is not checked against the output sensor's.
+  check_output_resolution: false
   # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
   # each run reports on the previous day.
   # The window ends one reading after midnight (edit "15min" to match the event resolution of the output sensor),
