@@ -130,7 +130,7 @@ CLIPPED_VALUES = {
 
 
 def test_a_template_and_its_fields_add_up_to_a_report_definition(assert_js):
-    """Each field fills its placeholder, numbers stay numbers, the window can be edited, and an empty field is named."""
+    """Each field fills its placeholder, numbers stay numbers, the window can be edited but not left out, and an empty or non-numeric field is named."""
     assert_js(
         page_js(
             "startNewAutomation, showTemplateFields, filledInTemplate, reportTemplatesByName"
@@ -173,14 +173,23 @@ def test_a_template_and_its_fields_add_up_to_a_report_definition(assert_js):
         const draft = page.filledInTemplate(template, {{allowUnfilled: true}});
         eq("allowing unfilled fields keeps their placeholders", draft.config.transformations[0].kwargs.upper, "FILL_IN");
 
-        field("automationTemplatePlaceholder-1").value = "15.5";
+        field("automationTemplatePlaceholder-1").value = "abc";
         field("automationTemplatePlaceholder-3").dataset.sensorId = "45";
+        refusal = null;
+        try {{ page.filledInTemplate(template); }} catch (error) {{ refusal = error.message; }}
+        check("text in place of a number is refused by its label", refusal !== null && refusal.includes("number") && refusal.includes("Upper"), refusal);
+
+        field("automationTemplatePlaceholder-1").value = "15,5";
         field("automationTemplateEndOffset").value = "";
+        refusal = null;
+        try {{ page.filledInTemplate(template); }} catch (error) {{ refusal = error.message; }}
+        check("a cleared offset is refused by its label", refusal !== null && refusal.includes("End offset"), refusal);
+
+        field("automationTemplateEndOffset").value = "DB,1h";
         const definition = page.filledInTemplate(template);
-        eq("the bounds become numbers", definition.config.transformations[0].kwargs, {{lower: 0, upper: 15.5}});
+        eq("the bounds become numbers, reading a decimal comma as a point", definition.config.transformations[0].kwargs, {{lower: 0, upper: 15.5}});
         eq("the sensors become IDs", [definition.parameters.input[0].sensor, definition.parameters.output[0].sensor], [37, 45]);
-        eq("the edited window is used", definition.parameters["start-offset"], "-1D,DB");
-        check("and a cleared offset is left out", !("end-offset" in definition.parameters), JSON.stringify(definition.parameters));
+        eq("the edited window is used", [definition.parameters["start-offset"], definition.parameters["end-offset"]], ["-1D,DB", "DB,1h"]);
         eq("the template itself is left as it was", template.parameters.input[0].sensor, "FILL_IN");
     """
     )

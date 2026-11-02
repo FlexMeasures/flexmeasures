@@ -672,7 +672,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
     return `<div class="mb-3 template-placeholder" data-index="${index}">
         ${label}
-        <input type="text" class="form-control template-value" id="${id}" placeholder="A value, such as 0">
+        <input type="text" inputmode="decimal" class="form-control template-value" id="${id}" placeholder="A number, such as 0 or 37.5">
       </div>`;
   }
 
@@ -747,17 +747,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTemplateRemoveInput").toggle(Boolean(template.placeholders[template.placeholders.length - 1]?.added));
   }
 
-  // A value typed into a template field, as a number or boolean where it reads as one, and as text otherwise.
-  function parseTemplateValue(text) {
-    try {
-      const value = JSON.parse(text);
-      if (typeof value === "number" || typeof value === "boolean") {
-        return value;
-      }
-    } catch (e) {
-      // not a number or a boolean, so it is kept as text
-    }
-    return text;
+  /* A number typed into a template field, or null if it does not read as one.
+     A decimal comma, as in 37,5, counts as a decimal point.
+     Every value a template leaves open is a number, such as a bound, and text in its place would only fail once the report runs. */
+  function parseTemplateNumber(text) {
+    const normalised = /^-?\d*,\d+$/.test(text) ? text.replace(",", ".") : text;
+    const value = Number(normalised);
+    return normalised !== "" && Number.isFinite(value) ? value : null;
   }
 
   function setAtLocation(content, location, value) {
@@ -775,19 +771,41 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       parameters: JSON.parse(JSON.stringify(template.parameters || {})),
     };
     const unfilled = [];
+    const notNumbers = [];
     template.placeholders.forEach((placeholder, index) => {
       const input = document.getElementById(`automationTemplatePlaceholder-${index}`);
-      const value = placeholder.kind === "sensor"
-        ? (input?.dataset.sensorId ? Number(input.dataset.sensorId) : null)
-        : (input?.value.trim() ? parseTemplateValue(input.value.trim()) : null);
+      const text = input?.value.trim() ?? "";
+      let value = null;
+      if (placeholder.kind === "sensor") {
+        value = input?.dataset.sensorId ? Number(input.dataset.sensorId) : null;
+      } else if (text) {
+        value = parseTemplateNumber(text);
+        if (value === null) {
+          notNumbers.push(placeholder.label);
+        }
+      }
       if (value === null) {
-        unfilled.push(placeholder.label);
+        if (placeholder.kind === "sensor" || !text) {
+          unfilled.push(placeholder.label);
+        }
       } else {
         setAtLocation(definition[placeholder.section], placeholder.location, value);
       }
     });
-    if (unfilled.length && !allowUnfilled) {
-      throw new Error(`Fill in every field of the template: ${unfilled.join(", ")}.`);
+    // A report automation runs over a rolling window, so it cannot do without either end of it.
+    const offsets = [["start-offset", "#automationTemplateStartOffset", "Start offset"], ["end-offset", "#automationTemplateEndOffset", "End offset"]];
+    offsets.forEach(([field, selector, label]) => {
+      if (!$(selector).val().trim()) {
+        unfilled.push(label);
+      }
+    });
+    if (!allowUnfilled) {
+      if (unfilled.length) {
+        throw new Error(`Fill in every field of the template: ${unfilled.join(", ")}.`);
+      }
+      if (notNumbers.length) {
+        throw new Error(`Type a number, such as 37.5, in: ${notNumbers.join(", ")}.`);
+      }
     }
     // Only weights other than 1 are stored, as 1 is what an input without a weight counts for.
     if (template.form?.input_weights) {
@@ -805,7 +823,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         definition.config.weights = weights;
       }
     }
-    for (const [field, selector] of [["start-offset", "#automationTemplateStartOffset"], ["end-offset", "#automationTemplateEndOffset"]]) {
+    for (const [field, selector] of offsets) {
       const offset = $(selector).val().trim();
       if (offset) {
         definition.parameters[field] = offset;
