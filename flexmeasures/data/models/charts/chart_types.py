@@ -125,36 +125,63 @@ def has_charge_points(asset: "GenericAsset") -> bool:  # noqa F821
 
 DEFAULT_ASSET_CHART_TYPE = "default"
 
-ASSET_CHART_TYPES: dict[str, AssetChartType] = {
-    chart_type.name: chart_type
-    for chart_type in (
-        AssetChartType(
-            name=DEFAULT_ASSET_CHART_TYPE,
-            label="Default",
-            description="a graph for each entry in the asset's sensors_to_show, except the charging sessions, which only 'charge-point-sessions' draws",
-            applies_to=lambda asset: True,
-            layout=default_layout,
-            builder=chart_for_multiple_sensors,
-            legacy_name="chart_for_multiple_sensors",
-        ),
-        AssetChartType(
-            name="charge-point-sessions",
-            label="Charge Points",
-            description="the charging sessions of the asset's charge points, with its prices and charge points power below them",
-            applies_to=has_charge_points,
-            layout=charge_point_sessions_layout,
-            builder=chart_for_chargepoint_sessions,
-            legacy_name="chart_for_chargepoint_sessions",
-        ),
-    )
-}
+# The registry: the asset chart types by their public names.
+ASSET_CHART_TYPES: dict[str, AssetChartType] = {}
 
 # The names the chart endpoint took before the chart types had public names, mapped to those public names.
-LEGACY_ASSET_CHART_TYPE_NAMES: dict[str, str] = {
-    chart_type.legacy_name: chart_type.name
-    for chart_type in ASSET_CHART_TYPES.values()
-    if chart_type.legacy_name
-}
+LEGACY_ASSET_CHART_TYPE_NAMES: dict[str, str] = {}
+
+
+def register_asset_chart_type(chart_type: AssetChartType) -> AssetChartType:
+    """Add a chart type to the registry of asset chart types.
+
+    Plugins call this when they are set up (e.g. in their ``__init__``),
+    after which the chart API accepts the chart type's name and the asset page offers it on the assets it applies to.
+    To avoid clashing with chart types FlexMeasures may add later,
+    prefix the name with the plugin's name (e.g. ``"my-plugin-heat-pumps"``).
+
+    :param chart_type: the chart type to register.
+    :returns: the registered chart type.
+    :raises ValueError: if its name or legacy name is already taken, as a name or legacy name of a registered chart type.
+    """
+    taken = set(ASSET_CHART_TYPES) | set(LEGACY_ASSET_CHART_TYPE_NAMES)
+    for name in (chart_type.name, chart_type.legacy_name):
+        if name in taken:
+            raise ValueError(
+                f"Cannot register asset chart type '{chart_type.name}': the name '{name}' is already taken by a registered asset chart type."
+            )
+    if chart_type.name == chart_type.legacy_name:
+        raise ValueError(
+            f"Cannot register asset chart type '{chart_type.name}': its legacy name should differ from its name."
+        )
+    ASSET_CHART_TYPES[chart_type.name] = chart_type
+    if chart_type.legacy_name:
+        LEGACY_ASSET_CHART_TYPE_NAMES[chart_type.legacy_name] = chart_type.name
+    return chart_type
+
+
+register_asset_chart_type(
+    AssetChartType(
+        name=DEFAULT_ASSET_CHART_TYPE,
+        label="Default",
+        description="a graph for each entry in the asset's sensors_to_show, except the charging sessions, which only 'charge-point-sessions' draws",
+        applies_to=lambda asset: True,
+        layout=default_layout,
+        builder=chart_for_multiple_sensors,
+        legacy_name="chart_for_multiple_sensors",
+    )
+)
+register_asset_chart_type(
+    AssetChartType(
+        name="charge-point-sessions",
+        label="Charge Points",
+        description="the charging sessions of the asset's charge points, with its prices and charge points power below them",
+        applies_to=has_charge_points,
+        layout=charge_point_sessions_layout,
+        builder=chart_for_chargepoint_sessions,
+        legacy_name="chart_for_chargepoint_sessions",
+    )
+)
 
 
 def get_asset_chart_type(name: str, accept_legacy_name: bool = True) -> AssetChartType:
