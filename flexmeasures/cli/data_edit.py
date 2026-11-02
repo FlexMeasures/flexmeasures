@@ -36,6 +36,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     abort,
     validate_rate_limit_cli,
+    warn_plan_quota_restrictions,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
@@ -230,6 +231,17 @@ def edit_plan(
         updates[field_attr] = None
     if not updates:
         abort("Nothing to edit. Pass at least one field to change.")
+    tightened_quotas = {
+        field: updates[field]
+        for field in ("max_users", "max_assets", "max_clients")
+        if field in updates
+        and updates[field] is not None
+        and (getattr(plan, field) is None or updates[field] < getattr(plan, field))
+    }
+    if tightened_quotas:
+        warn_plan_quota_restrictions(
+            editing=True, zero_clients=tightened_quotas.get("max_clients") == 0
+        )
     for field, value in updates.items():
         setattr(plan, field, value)
     db.session.commit()

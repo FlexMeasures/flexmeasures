@@ -41,6 +41,26 @@ class MsgStyle(object):
     ERROR: dict[str, Any] = {"fg": "red"}
 
 
+def warn_plan_quota_restrictions(*, editing: bool, zero_clients: bool) -> None:
+    """Explain the effect of assigning or tightening a plan's quotas."""
+    prefix = (
+        "Tightening this plan affects organisations already on it immediately."
+        if editing
+        else "Assigning this plan can put an organisation at or above its quotas."
+    )
+    click.secho(
+        f"Warning: {prefix} Existing users, assets (including sub-assets) and client "
+        "organisations remain, but additions or user reactivations are blocked "
+        "if they would exceed a quota.",
+        **MsgStyle.WARN,
+    )
+    if zero_clients:
+        click.secho(
+            "Existing consultancy roles remain, but new consultant roles cannot be granted.",
+            **MsgStyle.WARN,
+        )
+
+
 class LogsClickExceptions:
     """Mixin that logs a Click error before Click reports it on stderr.
 

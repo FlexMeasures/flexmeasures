@@ -44,6 +44,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     LoggedClickExceptionGroup,
+    warn_plan_quota_restrictions,
     add_cli_options_from_schema,
     split_commas,
 )
@@ -296,6 +297,8 @@ def new_plan(
         f"Plan '{name}' (ID: {plan.id}) successfully created.",
         **MsgStyle.SUCCESS,
     )
+    if any(limit is not None for limit in (max_users, max_assets, max_clients)):
+        warn_plan_quota_restrictions(editing=False, zero_clients=max_clients == 0)
 
 
 @fm_add_data.command("account")

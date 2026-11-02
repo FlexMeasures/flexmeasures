@@ -65,6 +65,7 @@ def test_user_quota_rejects_creation_at_boundary(
 
     assert response.status_code == 422, response.json
     assert "at most 3 active users" in response.json["message"]
+    assert "Deactivate another user" in response.json["message"]
     fresh_db.session.rollback()
     assert (
         fresh_db.session.scalar(

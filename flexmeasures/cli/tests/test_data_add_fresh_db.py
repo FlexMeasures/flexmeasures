@@ -85,6 +85,10 @@ def test_add_plan(app, fresh_db):
 
     check_command_ran_without_error(result)
     assert "successfully created" in result.output
+    assert (
+        "Assigning this plan can put an organisation at or above its quotas"
+        in result.output
+    )
 
     plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
     assert plan.trigger_rate_limit == "60 per 5 minutes"
@@ -92,6 +96,10 @@ def test_add_plan(app, fresh_db):
     # Fields we did not set fall back on the server-wide config settings
     assert plan.default_rate_limit is None
     assert plan.legacy is False
+
+    unlimited = runner.invoke(new_plan, to_flags({"name": "Unlimited"}))
+    check_command_ran_without_error(unlimited)
+    assert "Warning:" not in unlimited.output
 
 
 def test_add_plan_with_invalid_rate_limit(app, fresh_db):
@@ -195,6 +203,17 @@ def test_edit_plan_clear_field(app, fresh_db):
         db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().max_users
         == 10
     )
+
+    result = runner.invoke(
+        edit_plan, ["--id", str(plan.id), "--max-users", "5", "--max-clients", "0"]
+    )
+    check_command_ran_without_error(result)
+    assert "organisations already on it immediately" in result.output
+    assert "new consultant roles cannot be granted" in result.output
+
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--max-users", "10"])
+    check_command_ran_without_error(result)
+    assert "Warning:" not in result.output
 
 
 def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):

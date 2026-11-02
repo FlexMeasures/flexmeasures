@@ -19,6 +19,22 @@ class PlanQuotaExceeded(Exception):
     """An organisation's plan prevents an operation."""
 
 
+def _quota_error(label: str, limit: int, current: int) -> PlanQuotaExceeded:
+    resource = label.removesuffix("s") if limit == 1 else label
+    if limit == 0:
+        remedy = "Ask an administrator to change the plan."
+    else:
+        remedy = {
+            "active users": "Deactivate another user or ask an administrator to change the plan.",
+            "assets": "Remove or transfer assets, or ask an administrator to change the plan.",
+            "client organisations": "Ask an administrator to unlink clients or change the plan.",
+        }[label]
+    return PlanQuotaExceeded(
+        f"This organisation's plan allows at most {limit} {resource}. "
+        f"It currently has {current}. {remedy}"
+    )
+
+
 def _target_id(obj, field: str) -> int | None:
     """Resolve a target even when an ORM relationship set its foreign key later."""
     relationship = _relationship_for(obj, field)
@@ -84,7 +100,8 @@ def _enforce_consultancy_roles(session: Session) -> None:
             plan = _plan_for(account, session) if account is not None else None
         if plan is not None and plan.max_clients == 0:
             raise PlanQuotaExceeded(
-                "This organisation's plan does not allow consultancy privileges."
+                "This organisation's plan does not allow consultancy privileges. "
+                "Ask an administrator to change the plan."
             )
 
 
@@ -189,10 +206,7 @@ def _enforce_new_account_quotas(session: Session, new_account_additions) -> None
         limit_field = next(field for name, _, _, field in QUOTAS if name == label)
         limit = getattr(plan, limit_field) if plan is not None else None
         if limit is not None and added > limit:
-            raise PlanQuotaExceeded(
-                f"This organisation's plan allows at most {limit} {label}. "
-                "It currently has 0."
-            )
+            raise _quota_error(label, limit, 0)
 
 
 def _enforce_existing_account_quotas(session: Session, additions, removals) -> None:
@@ -238,11 +252,7 @@ def _enforce_existing_account_quotas(session: Session, additions, removals) -> N
                 query = query.where(User.active.is_(True))
             current = session.scalar(query) or 0
             if current + added - removals[(account_id, label)] > limit:
-                resource = label.removesuffix("s") if limit == 1 else label
-                raise PlanQuotaExceeded(
-                    f"This organisation's plan allows at most {limit} {resource}. "
-                    f"It currently has {current}."
-                )
+                raise _quota_error(label, limit, current)
 
 
 @event.listens_for(Session, "before_flush")
