@@ -46,6 +46,7 @@ from flexmeasures.data.queries.generic_assets import (
     asset_is_in_subtree,
     descendants_cte,
 )
+from flexmeasures.data.services.report_templates import refuse_unfilled_placeholders
 from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.services.data_generators import (
     check_sensor_access,
@@ -2166,6 +2167,8 @@ def _create_builtin_automation(
         input_sensors = schedule_sensors["input_sensors"]
         output_sensors = schedule_sensors["output_sensors"]
     elif automation_type == "reporting":
+        # A report started from a template names what is still missing, rather than failing on the placeholder later.
+        refuse_unfilled_placeholders(config, parameters)
         reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
             parameters, cronstr, timezone, generator_class, config, source
         )
