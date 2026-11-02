@@ -5,6 +5,18 @@ FlexMeasures Changelog
 
 
 
+v1.2.0 | XX, 2026
+=================
+
+New features
+-------------
+* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far; plugins can register their own chart types [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+
+Bugfixes
+-----------
+* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+
+
 v1.1.0 | September XX, 2026
 ============================
 
@@ -52,7 +64,6 @@ New features
 * The audit log of a device group's asset now notes which devices join or leave the group, and when a member moves to another site, or the group moves away from its members, so the history of a group's membership can be read in one place; a device whose group is deleted gets a note, too [see `PR #2723 <https://www.github.com/FlexMeasures/flexmeasures/pull/2723>`_ and `PR #2769 <https://www.github.com/FlexMeasures/flexmeasures/pull/2769>`_]
 * When a report automation aggregates only one asset type of a device group, the group's audit log notes which members it starts with, and which members enter or leave that selection as their asset type changes [see `PR #2724 <https://www.github.com/FlexMeasures/flexmeasures/pull/2724>`_]
 * Graph and flex-config sensor searches now hide public assets by default unless "Include public assets" is checked and  wait for a keyword, unit, or an explicit request before loading results [see `PR #2775 <https://www.github.com/FlexMeasures/flexmeasures/pull/2775>`_]
-* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far; plugins can register their own chart types [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 Infrastructure / Support
 -------------------------
@@ -159,7 +170,6 @@ Bugfixes
 * Several FlexMeasures processes starting at once right after a database migration, such as the web server's workers and a CLI command, no longer fail to start because each tried to create the same starter templates [see `PR #2600 <https://www.github.com/FlexMeasures/flexmeasures/pull/2600>`_]
 * Deleting a sensor now unsets it in the flex-model and flex-context references to it that carry a default, bounds or source filters, which used to stay behind pointing at the deleted sensor; the rest of such a reference is kept for when a new sensor is picked, and until then, schedules use its default as a fixed value, or, without a default, ignore the field, so that an ancestor asset's value for it applies; the flex-config editors mark such fields, the asset's pages show a toast linking to them, and deleting a sensor lists the fields that will need a new one [see `PR #2726 <https://www.github.com/FlexMeasures/flexmeasures/pull/2726>`_, `PR #2767 <https://www.github.com/FlexMeasures/flexmeasures/pull/2767>`_ and `PR #2783 <https://www.github.com/FlexMeasures/flexmeasures/pull/2783>`_]
 * Offset chains, as in an automation's window or ``flexmeasures add report --start-offset``, now count days as calendar days across a DST transition, so a window no longer collapses or skips a day when run in the hour around midnight on such a weekend, and ``HB`` and ``DB`` no longer raise an error in the repeated hour or in a DST gap [see `PR #2771 <https://www.github.com/FlexMeasures/flexmeasures/pull/2771>`_]
-* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 Automations, in detail
