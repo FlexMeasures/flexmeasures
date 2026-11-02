@@ -6,6 +6,11 @@
 name: meter-readings-to-flow
 description: Flow per interval from the readings of a cumulative meter, with implausible flows left out.
 reporter: PandasReporter
+# How the New automation form in the UI presents this template; the CLI does not use it.
+form:
+  labels:
+    config.transformations[2].args[0]: Lowest plausible flow per interval
+    config.transformations[3].args[0]: Highest plausible flow per interval
 config:
   required_input:
     # The meter readings should be recorded at the resolution of the output sensor, such as every 15 minutes.

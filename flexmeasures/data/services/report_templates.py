@@ -156,18 +156,23 @@ def describe_placeholders(template: dict) -> list[dict]:
     where in that part it sits (as a path and as the list of keys and indexes leading to it),
     whether it takes a sensor ID (``kind`` is ``sensor``) or another value (``kind`` is ``value``),
     and a label for the field.
+    A template can name the label itself, under ``form.labels``, keyed by section and path,
+    which it does where the key alone says too little, such as for the bounds passed to a method as its first argument.
     """
+    labels = (template.get("form") or {}).get("labels") or {}
     descriptions = []
     for section in ("config", "parameters"):
         content = template.get(section) or {}
         for location in _placeholder_locations(content):
+            path = _location_path(location)
             descriptions.append(
                 {
                     "section": section,
-                    "path": _location_path(location),
+                    "path": path,
                     "location": list(location),
                     "kind": "sensor" if _is_sensor_key(location[-1]) else "value",
-                    "label": _placeholder_label(content, location),
+                    "label": labels.get(f"{section}.{path}")
+                    or _placeholder_label(content, location),
                 }
             )
     return descriptions

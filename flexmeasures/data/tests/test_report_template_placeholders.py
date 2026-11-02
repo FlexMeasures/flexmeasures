@@ -15,7 +15,7 @@ from flexmeasures.data.services.report_templates import (
 
 
 def test_clipped_values_placeholders_are_told_apart_by_kind():
-    """The bounds in the config take plain values, and the input and output take sensors, each labelled by its name."""
+    """The bounds in the config take plain values, labelled by the template, and the input and output take sensors, each labelled by its name."""
     placeholders = describe_placeholders(get_report_template("clipped-values"))
 
     assert placeholders == [
@@ -24,14 +24,14 @@ def test_clipped_values_placeholders_are_told_apart_by_kind():
             "path": "transformations[0].kwargs.lower",
             "location": ["transformations", 0, "kwargs", "lower"],
             "kind": "value",
-            "label": "Lower",
+            "label": "Lowest valid value",
         },
         {
             "section": "config",
             "path": "transformations[0].kwargs.upper",
             "location": ["transformations", 0, "kwargs", "upper"],
             "kind": "value",
-            "label": "Upper",
+            "label": "Highest valid value",
         },
         {
             "section": "parameters",
@@ -102,3 +102,23 @@ def test_a_filled_in_definition_is_not_refused():
         {"method": "sum"}, {"input": [{"sensor": 1}], "output": [{"sensor": 2}]}
     )
     refuse_unfilled_placeholders(None, None)
+
+
+@pytest.mark.parametrize(
+    "template", list_report_templates(), ids=lambda template: template["name"]
+)
+def test_every_placeholder_has_a_label_that_says_what_to_fill_in(template):
+    """A placeholder passed as a method's first argument would otherwise be labelled by its index, such as "0"."""
+    for placeholder in describe_placeholders(template):
+        label = placeholder["label"]
+        assert (
+            not label.strip().isdigit()
+        ), f"{placeholder['path']} is labelled {label!r}"
+
+
+def test_a_template_can_name_a_placeholder_label():
+    """The bounds of the valid-range template are passed to `ge` and `le`, so the template names them."""
+    labels = [
+        p["label"] for p in describe_placeholders(get_report_template("valid-range"))
+    ]
+    assert labels[:2] == ["Lowest valid value", "Highest valid value"]
