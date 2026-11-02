@@ -278,6 +278,85 @@ def test_clipped_values_template_bounds_its_input(
     assert (report.values.T == [1, 1, 2, 2]).all()
 
 
+def _save_values(db, sensor, start, values, resolution):
+    """Record one belief per event on the sensor, known a day before the first event."""
+    source = db.session.scalar(
+        select(DataSource).filter_by(name="template test source")
+    )
+    if source is None:
+        source = DataSource("template test source")
+        db.session.add(source)
+        db.session.flush()
+    db.session.add_all(
+        [
+            TimedBelief(
+                event_start=start + i * resolution,
+                belief_time=start - timedelta(days=1),
+                event_value=value,
+                sensor=sensor,
+                source=source,
+            )
+            for i, value in enumerate(values)
+        ]
+    )
+
+
+def test_dynamic_tariff_template_adds_taxes_and_vat(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """The dynamic-tariff template adds the energy tax and the surcharge to the day-ahead price, and then the VAT, across resolutions."""
+    template = get_report_template("dynamic-tariff")
+    assert template["reporter"] == "PandasReporter"
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    assert find_placeholders(template["config"]) == []
+    reporter_class._config_schema.load(template["config"])
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    quarter, day = timedelta(minutes=15), timedelta(days=1)
+    day_ahead = Sensor(
+        "day-ahead", generic_asset=asset, event_resolution=quarter, unit="EUR/MWh"
+    )
+    energy_tax = Sensor(
+        "energy tax", generic_asset=asset, event_resolution=day, unit="EUR/MWh"
+    )
+    surcharge = Sensor(
+        "surcharge", generic_asset=asset, event_resolution=day, unit="EUR/MWh"
+    )
+    vat = Sensor("VAT", generic_asset=asset, event_resolution=day, unit="%")
+    tariff = Sensor(
+        "tariff", generic_asset=asset, event_resolution=quarter, unit="EUR/MWh"
+    )
+    fresh_db.session.add_all([day_ahead, energy_tax, surcharge, vat, tariff])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    _save_values(fresh_db, day_ahead, start, [100, 120, -20, 0], quarter)
+    _save_values(fresh_db, energy_tax, start, [50], day)
+    _save_values(fresh_db, surcharge, start, [10], day)
+    _save_values(fresh_db, vat, start, [21], day)
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(
+        template["parameters"],
+        [day_ahead.id, energy_tax.id, surcharge.id, vat.id],
+        [tariff.id],
+    )
+    assert find_placeholders(parameters) == []
+    prepared_parameters = prepare_report_parameters(parameters, "0 14 * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+
+    report = PandasReporter(config=template["config"]).compute(
+        parameters={
+            "input": parameters["input"],
+            "output": parameters["output"],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T01:00:00+00:00",
+        }
+    )[0]["data"]
+
+    # (day-ahead + 50 + 10) * 1.21, also for a negative day-ahead price
+    assert report.values.T[0] == pytest.approx([193.6, 217.8, 48.4, 72.6])
+
+
 def test_show_report_templates(app):
     """The show command lists all packaged templates, and prints a single template in full."""
     from flexmeasures.cli.data_show import show_report_templates
@@ -290,6 +369,7 @@ def test_show_report_templates(app):
         ("aggregate-sensors", "AggregatorReporter"),
         ("clipped-values", "PandasReporter"),
         ("daily-energy", "PandasReporter"),
+        ("dynamic-tariff", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
         ("self-consumption", "PandasReporter"),
     ]:

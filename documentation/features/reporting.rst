@@ -295,6 +295,7 @@ so you don't have to author a report definition from scratch. List them with:
     aggregate-sensors  AggregatorReporter    Aggregate several power or energy sensors into one total, summing them, or subtracting those weighted -1.
     clipped-values     PandasReporter        Sensor values clipped to a valid range, with out-of-range values pulled to the nearest bound.
     daily-energy       PandasReporter        Daily energy total from a single power or energy sensor.
+    dynamic-tariff     PandasReporter        Dynamic electricity tariff, from the day-ahead price plus the energy tax and a supplier surcharge, with VAT added.
     energy-costs       ProfitOrLossReporter  Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
     self-consumption   PandasReporter        Share of produced energy consumed on-site, from a production and a consumption sensor.
 
