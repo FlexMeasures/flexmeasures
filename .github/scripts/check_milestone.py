@@ -25,7 +25,7 @@ import re
 import subprocess
 import sys
 
-DEFAULT_CHANGELOGS = ("CHANGELOG.rst", "CHANGELOG-S2.rst")
+DEFAULT_CHANGELOGS = ("documentation/changelog.rst",)
 
 # A section heading is a line underlined by a row of "=" characters.
 UNDERLINE = re.compile(r"^=+\s*$")

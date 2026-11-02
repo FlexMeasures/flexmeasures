@@ -30,7 +30,7 @@ jobs:
       - name: Check milestone
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/check_milestone.py "${{ github.repository }}" "${{ github.event.pull_request.number }}" documentation/changelog.rst
+        run: python .github/scripts/check_milestone.py "${{ github.repository }}" "${{ github.event.pull_request.number }}"
 
   recheck:
     if: github.event_name == 'milestone'
