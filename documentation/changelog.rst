@@ -10,11 +10,11 @@ v1.2.0 | XX, 2026
 
 New features
 -------------
-* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far; plugins can register their own chart types [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far; plugins can register their own chart types [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
 
 Bugfixes
 -----------
-* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
 
 
 v1.1.0 | September XX, 2026
