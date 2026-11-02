@@ -1,6 +1,7 @@
 import json
 import warnings
 
+from flask import session
 from flask_classful import FlaskView, route
 from flask_security import current_user
 from marshmallow import fields, validate
@@ -188,13 +189,15 @@ class SensorAPI(FlaskView):
         set_session_variables(
             "event_starts_after",
             "event_ends_before",
-            "chart_type",
             aliases={
                 "event_starts_after": "start",
                 "event_ends_before": "end",
-                "chart_type": "chart-type",
             },
         )
+        # Store the validated chart type, rather than a raw request value:
+        # a request may send both spellings, and only the canonical one is validated.
+        if "chart_type" in kwargs:
+            session["chart_type"] = kwargs["chart_type"]
         return json.dumps(sensor.chart(**kwargs))
 
     @route("/<id>/chart_data", strict_slashes=False)

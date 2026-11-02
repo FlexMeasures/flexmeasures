@@ -71,6 +71,36 @@ def test_sensor_chart_refuses_what_is_not_a_chart_type(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+@pytest.mark.parametrize("prefix", ["/api/ui", "/api/dev"])
+def test_the_session_keeps_only_a_validated_chart_type(
+    client, setup_api_test_data, requesting_user, db, prefix
+):
+    """A request sending both spellings is validated on the canonical one, so only that one may reach the session."""
+    sensor = _gas_sensor(db)
+    url = f"{prefix}/sensor/{sensor.id}/chart"
+    response = client.get(
+        url,
+        query_string={
+            **WINDOW,
+            "chart-type": "bar_chart",
+            "chart_type": "REPLAY_RULER",
+        },
+    )
+    assert response.status_code == 200, response.data
+    with client.session_transaction() as session:
+        assert session["chart_type"] == "bar_chart"
+
+    # The sensor page and its own chart request keep working.
+    page = client.get(f"/sensors/{sensor.id}")
+    assert page.status_code == 200
+    assert "let chartType = 'bar_chart';" in page.data.decode()
+    response = client.get(url, query_string={**WINDOW, "chart_type": "bar_chart"})
+    assert response.status_code == 200, response.data
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 @pytest.mark.parametrize("chart_type", NOT_CHART_TYPES)
 def test_asset_chart_refuses_what_is_not_a_chart_type(
     client, setup_api_test_data, requesting_user, db, module_specs, chart_type
