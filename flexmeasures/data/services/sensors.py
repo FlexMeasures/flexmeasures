@@ -660,7 +660,11 @@ def get_stalenesses(
 
 
 def get_missing_members(
-    sensor: Sensor, staleness_search: dict, now: datetime, max_staleness: timedelta
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    max_staleness: timedelta,
+    source_type: str = "reporter",
 ) -> list[Sensor]:
     """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
 
@@ -672,9 +676,11 @@ def get_missing_members(
     A member that reports a little later than the report runs leaves the newest events partial every time, and the next run completes them,
     so judging the newest event would flag such a group all the time.
     A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
+    Only the sources of the given type are judged, as the status is reported per source type,
+    and a report may be saved under a source of another type than 'reporter' (see `Reporter.source_type`).
     """
-    reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
-    partial = [source for source in reporters if source.missing_members]
+    sources = _sensor_sources_by_type(sensor, staleness_search).get(source_type, [])
+    partial = [source for source in sources if source.missing_members]
     if not partial:
         return []
     belief_search = {
@@ -701,7 +707,7 @@ def get_missing_members(
     latest = TimedBelief.search(
         sensors=sensor,
         most_recent_only=True,
-        source=reporters,
+        source=sources,
         **belief_search,
     )
     if latest.empty:
@@ -714,7 +720,7 @@ def get_missing_members(
         event_ends_before=event_start + sensor.event_resolution,
         one_deterministic_belief_per_event=True,
     )
-    bdf = TimedBelief.search(sensors=sensor, source=reporters, **belief_search)
+    bdf = TimedBelief.search(sensors=sensor, source=sources, **belief_search)
     if bdf.empty:
         return []
     source = bdf.index.get_level_values("source")[0]
@@ -755,7 +761,7 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
-    For reporter data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
+    For aggregated data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
     and is left out where it left out none, which is the case for most sensors.
     """
     if status_specs is None:
@@ -809,18 +815,16 @@ def get_statuses(
             staleness = staleness if staleness > timedelta(0) else -staleness
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
-        missing_members = []
-        if source_type == "reporter":
-            missing_members = get_missing_members(
-                sensor, staleness_search, now, max_staleness
+        missing_members = get_missing_members(
+            sensor, staleness_search, now, max_staleness, source_type=source_type
+        )
+        if missing_members:
+            # members are often all called "power", so the asset says which device it is
+            left_out = ", ".join(
+                f"'{member.generic_asset.name}' / {member.name} ({member.id})"
+                for member in missing_members
             )
-            if missing_members:
-                # members are often all called "power", so the asset says which device it is
-                left_out = ", ".join(
-                    f"'{member.generic_asset.name}' / {member.name} ({member.id})"
-                    for member in missing_members
-                )
-                reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
+            reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
 
         status = dict(
             staleness=staleness,
