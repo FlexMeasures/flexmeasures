@@ -1080,7 +1080,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(

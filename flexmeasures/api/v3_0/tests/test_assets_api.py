@@ -666,6 +666,7 @@ def test_alter_an_asset(
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
+    assert asset_edit_response.json["account_id"] == prosumer_id
 
     # Resetting changes to keep other tests clean here
     asset_edit_response = client.patch(
