@@ -39,11 +39,15 @@ def test_list_report_templates(app, setup_roles_users, requesting_user):
     assert response.status_code == 200, response.json
     templates = {t["name"]: t for t in response.json["report-templates"]}
     assert sorted(templates) == [
-        "building-consumption",
+        "aggregate-sensors",
         "clipped-values",
         "daily-energy",
+        "dynamic-tariff",
         "energy-costs",
+        "meter-readings-to-flow",
+        "regularise",
         "self-consumption",
+        "valid-range",
     ]
     self_consumption = templates["self-consumption"]
     assert self_consumption["reporter"] == "PandasReporter"
