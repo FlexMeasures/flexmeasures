@@ -91,6 +91,11 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetTypeSchema as AssetTypeSchema,
     SensorsToShowSchema,
 )
+from flexmeasures.data.models.charts.chart_types import DEFAULT_ASSET_CHART_TYPE
+from flexmeasures.data.schemas.charts import (
+    AssetChartTypeField,
+    describe_asset_chart_types,
+)
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.services.scheduling import (
@@ -241,11 +246,15 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="Chart width in pixels; without it, the chart is scaled to the full width of its container.",
         ),
     )
-    chart_type = fields.Str(
+    chart_type = AssetChartTypeField(
         data_key="chart-type",
         required=False,
+        load_default=DEFAULT_ASSET_CHART_TYPE,
+        accept_legacy_names=True,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description=f"Which chart to draw (default: '{DEFAULT_ASSET_CHART_TYPE}'): "
+            f"{describe_asset_chart_types(include_legacy_names=True)}.",
+            example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )
 
