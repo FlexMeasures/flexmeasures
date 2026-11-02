@@ -341,6 +341,7 @@ In the UI, the same report can be set up from the *New automation* form on the a
 Choose the type ``reporting`` and a report template, and the form lays out one field per placeholder:
 a sensor search for each sensor, listing the sensors on that asset first, and a plain input for any other value.
 The recommended rolling window is filled in, and can be changed.
+For ``aggregate-sensors``, *Add input* adds another sensor to the sum, and each input has a weight next to it: 1 adds the sensor, and -1 subtracts it.
 The form refuses to create the automation while a field is still empty, and so does the API (``POST /api/v3_0/assets/<id>/automations``).
 To edit a template beyond its placeholders, *Edit as JSON instead* copies it, as filled in so far, into the fields that define a report by hand.
 The templates themselves can be listed with ``GET /api/v3_0/report-templates``, which also describes each placeholder.
