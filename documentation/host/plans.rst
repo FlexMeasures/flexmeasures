@@ -158,7 +158,8 @@ Quotas
 -------
 
 Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``, the latter capping the number of client
-organisations a consultancy organisation may manage). An empty quota means unlimited. New users, assets and client
+organisations a consultancy organisation may manage). An empty quota means unlimited. Only active users count towards
+``max_users``: deactivation frees a seat, while creating or reactivating an active user requires a free seat. New assets and client
 organisations are refused when their organisation has reached its quota. A plan with ``max_clients=0`` also prevents
 granting consultancy roles. Existing resources remain in place if an administrator lowers a quota below current usage;
 further additions are refused until usage falls below the quota.

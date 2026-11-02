@@ -161,7 +161,9 @@ class AccountCrudUI(FlaskView):
         )
         plan_usage = {
             "users": db.session.scalar(
-                select(func.count(User.id)).where(User.account_id == account.id)
+                select(func.count(User.id)).where(
+                    User.account_id == account.id, User.active.is_(True)
+                )
             ),
             "assets": db.session.scalar(
                 select(func.count(GenericAsset.id)).where(

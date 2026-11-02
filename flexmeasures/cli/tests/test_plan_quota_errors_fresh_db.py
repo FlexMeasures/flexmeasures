@@ -40,7 +40,9 @@ def test_add_user_reports_quota_error(
         ]
     )
 
-    _assert_quota_error(result, "This organisation's plan allows at most 0 users.")
+    _assert_quota_error(
+        result, "This organisation's plan allows at most 0 active users."
+    )
 
 
 def test_add_asset_reports_quota_error(

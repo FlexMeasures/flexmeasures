@@ -9,7 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.user import Account, Plan, User
 
 QUOTAS = (
-    ("users", User, "account_id", "max_users"),
+    ("active users", User, "account_id", "max_users"),
     ("assets", GenericAsset, "account_id", "max_assets"),
     ("client organisations", Account, "consultancy_account_id", "max_clients"),
 )
@@ -105,6 +105,8 @@ def _count_new(session, label, model, field, additions, new_account_additions):
     for obj in session.new:
         if not isinstance(obj, model):
             continue
+        if isinstance(obj, User) and obj.active is not True:
+            continue
         if (target := _target_id(obj, field)) is not None:
             additions[(target, label)] += 1
         elif (owner := _new_owner(obj)) is not None and owner in session.new:
@@ -129,6 +131,37 @@ def _count_dirty(session, label, model, field, additions, removals):
             removals[(old_target, label)] += 1
 
 
+def _count_changed_users(session, additions, removals, new_account_additions):
+    """Compare each user's persisted and pending active-seat contribution."""
+    label = "active users"
+    for user in session.dirty.union(session.deleted):
+        if not isinstance(user, User):
+            continue
+        state = inspect(user)
+        if user not in session.deleted and not any(
+            state.attrs[name].history.has_changes()
+            for name in ("active", "account", "account_id")
+        ):
+            continue
+        old = session.execute(
+            select(User.account_id, User.active).where(User.id == user.id)
+        ).one_or_none()
+        if old is None:
+            continue
+        old_account_id, old_active = old
+        new_account_id = _target_id(user, "account_id")
+        new_active = user not in session.deleted and user.active is True
+        old_seat = old_account_id if old_active is True else None
+        new_seat = new_account_id if new_active else None
+        if old_seat != new_seat:
+            if old_seat is not None:
+                removals[(old_seat, label)] += 1
+            if new_seat is not None:
+                additions[(new_seat, label)] += 1
+        if new_active and new_account_id is None and user.account in session.new:
+            new_account_additions[(user.account, label)] += 1
+
+
 def _pending_changes(session: Session):
     """Count rows entering and leaving each organisation in this flush."""
     additions: dict[tuple[int, str], int] = defaultdict(int)
@@ -136,6 +169,9 @@ def _pending_changes(session: Session):
     new_account_additions: dict[tuple[Account, str], int] = defaultdict(int)
     for label, model, field, _ in QUOTAS:
         _count_new(session, label, model, field, additions, new_account_additions)
+        if model is User:
+            _count_changed_users(session, additions, removals, new_account_additions)
+            continue
         for obj in session.deleted:
             if (
                 isinstance(obj, model)
@@ -193,14 +229,14 @@ def _enforce_existing_account_quotas(session: Session, additions, removals) -> N
             limit = getattr(plan, limit_field) if plan is not None else None
             if limit is None:
                 continue
-            current = (
-                session.scalar(
-                    select(func.count())
-                    .select_from(model)
-                    .where(getattr(model, field) == account_id)
-                )
-                or 0
+            query = (
+                select(func.count())
+                .select_from(model)
+                .where(getattr(model, field) == account_id)
             )
+            if model is User:
+                query = query.where(User.active.is_(True))
+            current = session.scalar(query) or 0
             if current + added - removals[(account_id, label)] > limit:
                 resource = label.removesuffix("s") if limit == 1 else label
                 raise PlanQuotaExceeded(

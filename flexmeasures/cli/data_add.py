@@ -251,7 +251,7 @@ def new_account_role(name: str, description: str):
 @click.option(
     "--max-users",
     type=click.IntRange(min=0),
-    help="How many users an account on this plan may have.",
+    help="How many active users an account on this plan may have.",
 )
 @click.option(
     "--max-assets",

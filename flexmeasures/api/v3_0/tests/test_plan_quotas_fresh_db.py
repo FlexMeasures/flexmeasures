@@ -1,8 +1,12 @@
 """Plan quota and consultancy restrictions through public API paths."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
 from flask import url_for
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
 
 from flexmeasures.api.common.utils.api_utils import copy_asset
@@ -27,12 +31,13 @@ def test_new_organisation_enforces_zero_user_quota_before_first_flush(fresh_db):
         email="initial@example.com",
         username="initial",
         password="test",
+        active=True,
         fs_uniquifier="initial-test-user",
         account=account,
     )
     fresh_db.session.add_all([account, user])
 
-    with pytest.raises(PlanQuotaExceeded, match="at most 0 users"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 0 active users"):
         fresh_db.session.flush()
 
 
@@ -59,11 +64,176 @@ def test_user_quota_rejects_creation_at_boundary(
     )
 
     assert response.status_code == 422, response.json
-    assert "at most 3 users" in response.json["message"]
+    assert "at most 3 active users" in response.json["message"]
     fresh_db.session.rollback()
     assert (
         fresh_db.session.scalar(
             select(func.count(User.id)).where(User.account_id == account.id)
+        )
+        == 3
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_deactivation_frees_seat_and_reactivation_requires_one(
+    fresh_db,
+    client,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    requesting_user,
+):
+    account = setup_accounts_fresh_db["Prosumer"]
+    _assign_plan(fresh_db, account, max_users=3)
+    colleague = find_user_by_email("test_prosumer_user@seita.nl")
+    colleague_id = colleague.id
+
+    response = client.patch(
+        url_for("UserAPI:patch", id=colleague_id), json={"active": False}
+    )
+    assert response.status_code == 200, response.json
+    response = client.post(
+        url_for("UserAPI:post"),
+        json={
+            "email": "replacement@example.com",
+            "username": "replacement",
+            "account_id": account.id,
+        },
+    )
+    assert response.status_code == 201, response.json
+    replacement_id = find_user_by_email("replacement@example.com").id
+
+    response = client.patch(
+        url_for("UserAPI:patch", id=colleague_id), json={"active": True}
+    )
+    assert response.status_code == 422, response.json
+    assert "at most 3 active users" in response.json["message"]
+    fresh_db.session.rollback()
+    assert fresh_db.session.get(User, colleague_id).active is False
+
+    response = client.patch(
+        url_for("UserAPI:patch", id=replacement_id), json={"active": False}
+    )
+    assert response.status_code == 200, response.json
+    response = client.patch(
+        url_for("UserAPI:patch", id=colleague_id), json={"active": True}
+    )
+    assert response.status_code == 200, response.json
+    assert fresh_db.session.get(User, colleague_id).active is True
+
+
+def test_swapping_active_users_in_one_flush(
+    fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db
+):
+    account = setup_accounts_fresh_db["Prosumer"]
+    existing = find_user_by_email("test_prosumer_user@seita.nl")
+    inactive = User(
+        email="inactive@example.com",
+        username="inactive",
+        password="test",
+        fs_uniquifier="inactive-quota-test",
+        active=False,
+        account=account,
+    )
+    fresh_db.session.add(inactive)
+    fresh_db.session.commit()
+    _assign_plan(fresh_db, account, max_users=3)
+    existing.active = False
+    inactive.active = True
+    fresh_db.session.commit()
+    assert existing.active is False
+    assert inactive.active is True
+
+
+def test_inactive_users_do_not_consume_seats_when_created_or_transferred(
+    fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db
+):
+    account = setup_accounts_fresh_db["Prosumer"]
+    _assign_plan(fresh_db, account, max_users=3)
+    inactive = User(
+        email="inactive@example.com",
+        username="inactive",
+        password="test",
+        fs_uniquifier="inactive-quota-test",
+        active=False,
+        account=account,
+    )
+    unset = User(
+        email="unset@example.com",
+        username="unset",
+        password="test",
+        fs_uniquifier="unset-quota-test",
+        account=account,
+    )
+    fresh_db.session.add_all([inactive, unset])
+    fresh_db.session.commit()
+    inactive.account = setup_accounts_fresh_db["Supplier"]
+    fresh_db.session.commit()
+    inactive.account = account
+    fresh_db.session.commit()
+    with pytest.raises(PlanQuotaExceeded, match="at most 3 active users"):
+        inactive.active = True
+        fresh_db.session.flush()
+    fresh_db.session.rollback()
+    inactive.account = setup_accounts_fresh_db["Supplier"]
+    fresh_db.session.commit()
+    colleague = find_user_by_email("test_prosumer_user@seita.nl")
+    # Expired values must not prevent a same-flush seat swap.
+    fresh_db.session.expire(inactive, ["active", "account_id", "account"])
+    colleague.active = False
+    inactive.account = account
+    inactive.active = True
+    fresh_db.session.commit()
+    assert inactive.account_id == account.id
+    assert inactive.active is True
+
+
+def test_concurrent_reactivations_share_one_remaining_seat(
+    fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db
+):
+    account = setup_accounts_fresh_db["Prosumer"]
+    users = [
+        User(
+            email=f"inactive-{i}@example.com",
+            username=f"inactive-{i}",
+            password="test",
+            fs_uniquifier=f"inactive-concurrent-{i}",
+            active=False,
+            account=account,
+        )
+        for i in range(2)
+    ]
+    fresh_db.session.add_all(users)
+    find_user_by_email("test_prosumer_user@seita.nl").active = False
+    fresh_db.session.commit()
+    _assign_plan(fresh_db, account, max_users=3)
+    user_ids = [user.id for user in users]
+    account_id = account.id
+    engine = fresh_db.engine
+    barrier = Barrier(2)
+
+    def activate(user_id):
+        with Session(engine) as session:
+            user = session.get(User, user_id)
+            user.active = True
+            barrier.wait(timeout=10)
+            try:
+                session.commit()
+                return "activated"
+            except PlanQuotaExceeded:
+                session.rollback()
+                return "quota"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(activate, user_ids))
+    assert sorted(outcomes) == ["activated", "quota"]
+    fresh_db.session.expire_all()
+    assert (
+        fresh_db.session.scalar(
+            select(func.count(User.id)).where(
+                User.account_id == account_id, User.active.is_(True)
+            )
         )
         == 3
     )
@@ -209,7 +379,7 @@ def test_relationship_transfers_cannot_bypass_destination_quotas(
 
     supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
     supplier_user.account = prosumer
-    with pytest.raises(PlanQuotaExceeded, match="at most 3 users"):
+    with pytest.raises(PlanQuotaExceeded, match="at most 3 active users"):
         fresh_db.session.flush()
     fresh_db.session.rollback()
 

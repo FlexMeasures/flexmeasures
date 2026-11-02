@@ -65,7 +65,7 @@ class Plan(db.Model):
     an account may create) are enforced through separate code paths, but share this table because
     they are both first-class properties of a commercial plan rather than ad hoc account attributes.
 
-    Quotas are enforced when users, assets or client organisations are added.
+    Quotas are enforced when active users, assets or client organisations are added.
     """
 
     __tablename__ = "plan"

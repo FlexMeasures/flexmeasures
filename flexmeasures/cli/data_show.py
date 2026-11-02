@@ -126,7 +126,7 @@ def list_plans():
                 "Name",
                 "Default rate limit",
                 "Trigger rate limit",
-                "Max users",
+                "Max active users",
                 "Max assets",
                 "Max clients",
                 "Legacy",

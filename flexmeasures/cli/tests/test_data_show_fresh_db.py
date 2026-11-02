@@ -23,6 +23,7 @@ def test_list_plans(app, fresh_db):
     assert "All plans on this" in result.output
     for expected in ("Pro", "60 per 5 minutes"):
         assert expected in result.output
+    assert "Max active users" in result.output
     assert "Max assets" in result.output
     assert "200" in result.output
 
