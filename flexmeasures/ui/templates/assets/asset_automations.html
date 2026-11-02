@@ -104,6 +104,13 @@
   .automation-source-results .list-group-item {
     cursor: pointer;
   }
+  .template-sensor-results {
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+  .template-sensor-results .list-group-item {
+    cursor: pointer;
+  }
   /* A data generator config can be wide, so it wraps rather than scrolling the modal sideways. */
   #automationSourceConfig {
     white-space: pre-wrap;
@@ -178,6 +185,38 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <option value="reporting">reporting</option>
                   </select>
                 </div>
+                <!-- A report can start from a prepared template, which leaves only its sensors and a few values to fill in. -->
+                <div class="mb-3 picks-template" style="display: none">
+                  <label for="automationTemplate" class="form-label">Report template
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Start from a prepared report, and fill in only its sensors and the values it leaves open. Choose none to write the reporter, its config and its parameters yourself." style="font-size: 16px"></i>
+                  </label>
+                  <select class="form-select" id="automationTemplate">
+                    <option value="">None: write the report definition myself</option>
+                  </select>
+                  <div class="form-text" id="automationTemplateDescription"></div>
+                </div>
+                <div class="uses-template" id="automationTemplateFields" style="display: none"></div>
+                <div class="mb-3 uses-template" id="automationTemplateTiming" style="display: none">
+                  <div class="row">
+                    <div class="col">
+                      <label for="automationTemplateStartOffset" class="form-label">Start offset</label>
+                      <input type="text" class="form-control" id="automationTemplateStartOffset">
+                    </div>
+                    <div class="col">
+                      <label for="automationTemplateEndOffset" class="form-label">End offset</label>
+                      <input type="text" class="form-control" id="automationTemplateEndOffset">
+                    </div>
+                  </div>
+                  <div class="form-text">
+                    The period each run reports on, relative to the time the run was due:
+                    <code>-1D,DB</code> to <code>DB</code> is the whole of the previous day.
+                  </div>
+                </div>
+                <div class="mb-3 uses-template" style="display: none">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="automationTemplateToJson"
+                          title="Copy the template, as filled in so far, into the data generator, config and parameters fields, to edit it there.">Edit as JSON instead</button>
+                </div>
                 <div class="mb-3">
                   <label for="automationCron" class="form-label">Schedule (cron expression)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
@@ -228,7 +267,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <textarea class="form-control" id="automationConfig" rows="3"></textarea>
                   <div class="form-text">Leave empty for the generator's defaults.</div>
                 </div>
-                <div class="mb-3">
+                <div class="mb-3" id="automationParametersField">
                   <label for="automationParameters" class="form-label">Parameters (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting). A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
@@ -246,7 +285,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="alert alert-danger d-none" id="newAutomationErr"></div>
               </div>
               <div class="modal-footer">
-                <button type="button" class="btn btn-link me-auto d-none" id="newAutomationClear"
+                <button type="button" class="btn btn-outline-secondary me-auto d-none" id="newAutomationClear"
                         title="Empty the form, to start a new automation from the defaults.">Clear form</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create</button>
@@ -507,9 +546,29 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     },
   };
 
-  // Show the fields the chosen type uses, each with that type's own example.
+  // The prepared report templates, by name, once they are loaded.
+  const reportTemplatesByName = new Map();
+
+  // The template the new report starts from, or null while none is chosen, or while the type is not reporting.
+  function selectedReportTemplate() {
+    if ($("#automationType").val() !== "reporting") {
+      return null;
+    }
+    return reportTemplatesByName.get($("#automationTemplate").val()) || null;
+  }
+
+  /* Show the fields the chosen type uses, each with that type's own example.
+     A report started from a template is defined by the template and the fields filling it in,
+     so it hides the fields that define a report by hand. */
   function showFieldsForType() {
-    $(".chooses-generator").toggle(typeChoosesGenerator());
+    const template = selectedReportTemplate();
+    $(".picks-template").toggle($("#automationType").val() === "reporting");
+    $(".uses-template").toggle(template !== null);
+    if (template !== null && !("start-offset" in template.parameters || "end-offset" in template.parameters)) {
+      $("#automationTemplateTiming").toggle(false);
+    }
+    $(".chooses-generator").toggle(typeChoosesGenerator() && template === null);
+    $("#automationParametersField").toggle(template === null);
     const examples = EXAMPLES_PER_TYPE[$("#automationType").val()] || {};
     $("#automationGenerator").attr("placeholder", examples.generator || "");
     $("#automationConfig").attr("placeholder", examples.config || "");
@@ -524,8 +583,146 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     setNewAutomationDraft(false);
     // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
     clearSelectedSource();
+    clearTemplateFields();
     showFieldsForType();
     $("#newAutomationErr").addClass("d-none").text("");
+  }
+
+  // A template's name as an automation name, such as "Self consumption" for "self-consumption".
+  function templateAutomationName(template) {
+    const words = template.name.replace(/-/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
+  function templatePlaceholderHtml(placeholder, index) {
+    const id = `automationTemplatePlaceholder-${index}`;
+    const label = `<label for="${id}" class="form-label">${esc(placeholder.label)}</label>`;
+    if (placeholder.kind === "sensor") {
+      return `<div class="mb-3 template-placeholder" data-index="${index}">
+          ${label}
+          <input type="text" class="form-control template-sensor-search" id="${id}" autocomplete="off"
+                 placeholder="Search sensors by name or ID ...">
+          <div class="list-group template-sensor-results d-none"></div>
+        </div>`;
+    }
+    return `<div class="mb-3 template-placeholder" data-index="${index}">
+        ${label}
+        <input type="text" class="form-control template-value" id="${id}" placeholder="A value, such as 0">
+      </div>`;
+  }
+
+  function clearTemplateFields() {
+    $("#automationTemplateFields").empty();
+    $("#automationTemplateDescription").text("");
+    $("#automationTemplateStartOffset").val("");
+    $("#automationTemplateEndOffset").val("");
+  }
+
+  // Lay out one field per placeholder of the chosen template, and the rolling window it recommends.
+  function showTemplateFields() {
+    clearTemplateFields();
+    const template = selectedReportTemplate();
+    if (template !== null) {
+      $("#automationTemplateDescription").text(`${template.description} Reporter: ${template.reporter}.`);
+      document.getElementById("automationTemplateFields").innerHTML = template.placeholders.map(templatePlaceholderHtml).join("");
+      $("#automationTemplateStartOffset").val(template.parameters["start-offset"] || "");
+      $("#automationTemplateEndOffset").val(template.parameters["end-offset"] || "");
+      if (!$("#automationName").val()) {
+        $("#automationName").val(templateAutomationName(template));
+      }
+    }
+    showFieldsForType();
+  }
+
+  // A value typed into a template field, as a number or boolean where it reads as one, and as text otherwise.
+  function parseTemplateValue(text) {
+    try {
+      const value = JSON.parse(text);
+      if (typeof value === "number" || typeof value === "boolean") {
+        return value;
+      }
+    } catch (e) {
+      // not a number or a boolean, so it is kept as text
+    }
+    return text;
+  }
+
+  function setAtLocation(content, location, value) {
+    let parent = content;
+    location.slice(0, -1).forEach(step => { parent = parent[step]; });
+    parent[location[location.length - 1]] = value;
+  }
+
+  /* The report definition the template and its fields add up to.
+     Unless allowUnfilled is set, a field left empty is refused, naming each one;
+     with it set, an empty field keeps the template's placeholder, for the server to name when the report is created. */
+  function filledInTemplate(template, { allowUnfilled = false } = {}) {
+    const definition = {
+      config: JSON.parse(JSON.stringify(template.config || {})),
+      parameters: JSON.parse(JSON.stringify(template.parameters || {})),
+    };
+    const unfilled = [];
+    template.placeholders.forEach((placeholder, index) => {
+      const input = document.getElementById(`automationTemplatePlaceholder-${index}`);
+      const value = placeholder.kind === "sensor"
+        ? (input?.dataset.sensorId ? Number(input.dataset.sensorId) : null)
+        : (input?.value.trim() ? parseTemplateValue(input.value.trim()) : null);
+      if (value === null) {
+        unfilled.push(placeholder.label);
+      } else {
+        setAtLocation(definition[placeholder.section], placeholder.location, value);
+      }
+    });
+    if (unfilled.length && !allowUnfilled) {
+      throw new Error(`Fill in every field of the template: ${unfilled.join(", ")}.`);
+    }
+    for (const [field, selector] of [["start-offset", "#automationTemplateStartOffset"], ["end-offset", "#automationTemplateEndOffset"]]) {
+      const offset = $(selector).val().trim();
+      if (offset) {
+        definition.parameters[field] = offset;
+      } else {
+        delete definition.parameters[field];
+      }
+    }
+    return definition;
+  }
+
+  // How many sensors each sensor search lists at once.
+  const MAX_SENSOR_RESULTS = 10;
+
+  function sensorSearchUrl(searchTerm, onThisAsset) {
+    const parameters = new URLSearchParams({ page: "1", "per-page": String(MAX_SENSOR_RESULTS) });
+    if (onThisAsset) {
+      parameters.append("asset", assetId);
+    } else {
+      parameters.append("include_public_assets", "true");
+    }
+    if (searchTerm) {
+      parameters.append("filter", searchTerm);
+    }
+    return `/api/v3_0/sensors?${parameters.toString()}`;
+  }
+
+  function sensorLabel(sensor) {
+    return `${sensor.name} (sensor ${sensor.id}${sensor.unit ? `, ${sensor.unit}` : ""})`;
+  }
+
+  /* The sensors on this asset and below come first, as a report mostly reads and writes those,
+     followed by the others the user may read, such as a public price sensor. */
+  function sensorResultsHtml(onThisAsset, elsewhere) {
+    const seen = new Set(onThisAsset.map(sensor => sensor.id));
+    const sensors = onThisAsset.map(sensor => [sensor, true])
+      .concat(elsewhere.filter(sensor => !seen.has(sensor.id)).map(sensor => [sensor, false]))
+      .slice(0, MAX_SENSOR_RESULTS);
+    if (!sensors.length) {
+      return '<div class="list-group-item text-muted">No matching sensors.</div>';
+    }
+    return sensors.map(([sensor, isOnThisAsset]) =>
+      `<button type="button" class="list-group-item list-group-item-action template-sensor-option"
+               data-sensor-id="${sensor.id}" data-label="${esc(sensorLabel(sensor))}">
+        ${esc(sensorLabel(sensor))}${isOnThisAsset ? ' <small class="text-muted">on this asset</small>' : ""}
+      </button>`
+    ).join("");
   }
 
   /* Whether the creation form holds something typed into it since it was last emptied.
@@ -1093,10 +1290,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#newAutomationClear").on("click", () => startNewAutomation());
 
     // Typing into the form makes it a draft; choosing only a type does not, so the next tab's type can still replace it.
+    // An error about what was submitted no longer applies once the form is changed, so it makes way.
     $("#newAutomationForm").on("input change", "input, textarea, select", function () {
       if (this.id !== "automationType") {
         setNewAutomationDraft(true);
       }
+      $("#newAutomationErr").addClass("d-none");
     });
 
     $("#editAutomationForm").submit(function (event) {
@@ -1152,6 +1351,90 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       clearSelectedSource();
     });
     showFieldsForType();
+
+    // Offer the prepared report templates, which only someone who may create an automation gets to use.
+    if (userCanManage) {
+      $.ajax({
+        url: "/api/v3_0/report-templates",
+        method: "GET",
+        success: function (res) {
+          for (const template of res["report-templates"]) {
+            reportTemplatesByName.set(template.name, template);
+            $("#automationTemplate").append(
+              `<option value="${esc(template.name)}">${esc(template.name)}</option>`
+            );
+          }
+        },
+        error: function (xhr) {
+          $("#automationTemplateDescription").text(
+            `Could not load the report templates: ${automationAjaxErrorMessage(xhr)}. The report can still be defined below.`
+          );
+        },
+      });
+    }
+
+    $("#automationTemplate").on("change", () => showTemplateFields());
+
+    // Copy the template, as filled in so far, into the fields that define a report by hand, and leave the template behind.
+    $("#automationTemplateToJson").on("click", function () {
+      const template = selectedReportTemplate();
+      const definition = filledInTemplate(template, { allowUnfilled: true });
+      $("#automationGenerator").val(template.reporter);
+      $("#automationConfig").val(JSON.stringify(definition.config, null, 2));
+      $("#automationParameters").val(JSON.stringify(definition.parameters, null, 2));
+      $("#automationTemplate").val("");
+      clearTemplateFields();
+      showFieldsForType();
+    });
+
+    // Search the sensors to fill a template field with
+    let sensorSearchTimer = null;
+    function searchSensors(input, delayMs) {
+      window.clearTimeout(sensorSearchTimer);
+      sensorSearchTimer = window.setTimeout(function () {
+        const searchTerm = input.value.trim();
+        const results = $(input).siblings(".template-sensor-results");
+        $.when(
+          $.ajax({ url: sensorSearchUrl(searchTerm, true), method: "GET" }),
+          $.ajax({ url: sensorSearchUrl(searchTerm, false), method: "GET" }),
+        ).then(
+          (onThisAsset, elsewhere) => results.html(sensorResultsHtml(onThisAsset[0].data, elsewhere[0].data)).removeClass("d-none"),
+          (xhr) => results
+            .html(`<div class="list-group-item text-danger">Could not search sensors: ${esc(automationAjaxErrorMessage(xhr))}.</div>`)
+            .removeClass("d-none"),
+        );
+      }, delayMs);
+    }
+
+    $(document).on("input", ".template-sensor-search", function () {
+      // Typing over a picked sensor starts a new search, so the field holds no sensor until one is picked again.
+      delete this.dataset.sensorId;
+      searchSensors(this, 250);
+    });
+
+    // Clicking into an empty field lists sensors to pick from, starting with those on this asset.
+    $(document).on("focus", ".template-sensor-search", function () {
+      if (!this.dataset.sensorId) {
+        searchSensors(this, 0);
+      }
+    });
+
+    $(document).on("click", ".template-sensor-option", function () {
+      const input = $(this).closest(".template-placeholder").find(".template-sensor-search")[0];
+      input.value = $(this).data("label");
+      input.dataset.sensorId = $(this).data("sensor-id");
+      $(this).closest(".template-sensor-results").addClass("d-none").empty();
+      // Picking a sensor fills a field as much as typing does, so it makes the form a draft.
+      setNewAutomationDraft(true);
+      $("#newAutomationErr").addClass("d-none");
+    });
+
+    // Clicking away closes the sensor results, which are otherwise left hanging over the rest of the form.
+    $(document).on("click", function (event) {
+      if (!$(event.target).closest(".template-sensor-search, .template-sensor-results").length) {
+        $(".template-sensor-results").addClass("d-none");
+      }
+    });
 
     // Search the data sources whose data generator a new automation can reuse
     let sourceSearchTimer = null;
@@ -1235,17 +1518,25 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#newAutomationForm").submit(function (event) {
       event.preventDefault();
       const choosesGenerator = typeChoosesGenerator();
+      // A report started from a template takes its reporter, config and parameters from the template and the fields filling it in.
+      const template = selectedReportTemplate();
       // A picked data source already stores the generator and its config, which is why those two fields are disabled while it is picked.
-      const reusesSource = choosesGenerator && selectedAutomationSource !== null;
+      const reusesSource = choosesGenerator && template === null && selectedAutomationSource !== null;
       let parameters, config;
       try {
-        parameters = readJsonField("#automationParameters", "Parameters");
-        config = choosesGenerator && !reusesSource ? readJsonField("#automationConfig", "Data generator config") : {};
+        if (template !== null) {
+          ({ config, parameters } = filledInTemplate(template));
+        } else {
+          parameters = readJsonField("#automationParameters", "Parameters");
+          config = choosesGenerator && !reusesSource ? readJsonField("#automationConfig", "Data generator config") : {};
+        }
       } catch (error) {
         $("#newAutomationErr").removeClass("d-none").text(error.message);
         return;
       }
-      const generator = choosesGenerator && !reusesSource ? $("#automationGenerator").val().trim() : "";
+      const generator = template !== null
+        ? template.reporter
+        : (choosesGenerator && !reusesSource ? $("#automationGenerator").val().trim() : "");
       const automationData = {
         name: $("#automationName").val(),
         type: $("#automationType").val(),

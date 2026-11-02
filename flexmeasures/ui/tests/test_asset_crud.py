@@ -184,7 +184,8 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         )
         # A schedule automation's generator follows from the asset, so it is not offered one.
         assert (
-            b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data
+            b'$(".chooses-generator").toggle(typeChoosesGenerator() && template === null)'
+            in asset_page.data
         )
         assert b'$("#automationType").val() !== "scheduling"' in asset_page.data
         # The per-automation panel is called Info, and reports the data source's configuration.
