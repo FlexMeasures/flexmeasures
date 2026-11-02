@@ -146,6 +146,20 @@ def test_a_template_and_its_fields_add_up_to_a_report_definition(assert_js):
         page.showTemplateFields();
 
         eq("the name is taken from the template", field("automationName").value, "Clipped values");
+        const other = {{...template, name: "valid-range"}};
+        page.reportTemplatesByName.set(other.name, other);
+        const otherOption = document.createElement("option");
+        otherOption.value = other.name;
+        field("automationTemplate").appendChild(otherOption);
+        field("automationTemplate").value = other.name;
+        page.showTemplateFields();
+        eq("a name taken from a template follows the next template chosen", field("automationName").value, "Valid range");
+        field("automationName").value = "My own name";
+        field("automationTemplate").value = template.name;
+        page.showTemplateFields();
+        eq("a typed name stays", field("automationName").value, "My own name");
+        field("automationName").value = "";
+        page.showTemplateFields();
         eq("the window is pre-filled", field("automationTemplateStartOffset").value, "-1D,DB");
         check("the hand-written parameters are hidden", field("automationParametersField").style.display === "none", "shown");
 

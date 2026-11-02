@@ -699,7 +699,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         .map((placeholder, index) => templatePlaceholderHtml(placeholder, index, template)).join("");
       $("#automationTemplateStartOffset").val(template.parameters["start-offset"] || "");
       $("#automationTemplateEndOffset").val(template.parameters["end-offset"] || "");
-      if (!$("#automationName").val()) {
+      // A name filled in from an earlier choice of template follows the new one, while a name the user typed stays.
+      const name = $("#automationName").val();
+      if (!name || [...reportTemplatesByName.values()].some(other => templateDisplayName(other) === name)) {
         $("#automationName").val(templateDisplayName(template));
       }
     }
