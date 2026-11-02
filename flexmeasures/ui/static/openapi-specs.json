@@ -5708,6 +5708,150 @@
         ]
       }
     },
+    "/api/v3_0/report-templates/{name}": {
+      "get": {
+        "summary": "Get one prepared report template.",
+        "description": "Returns one of the report templates packaged with FlexMeasures,\nin the same shape as each template in the listing, including the description of its placeholders.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "description": "Name of the report template, such as <code>self-consumption</code>.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v3_0/report-templates": {
+      "get": {
+        "summary": "List the prepared report templates.",
+        "description": "Returns the report templates packaged with FlexMeasures, sorted by name.\nEach template is a ready-made report definition: a reporter, its config and a parameters skeleton.\nThe values to fill in, mostly sensor IDs, are left as <code>FILL_IN</code> placeholders,\nand the <code>placeholders</code> list describes each of them, so that a form can offer one field per placeholder:\n\n- <code>section</code>: whether the placeholder is in the <code>config</code> or in the <code>parameters</code>.\n- <code>path</code> and <code>location</code>: where it sits in that section, as a path and as the keys and indexes leading to it.\n- <code>kind</code>: <code>sensor</code> for a placeholder taking a sensor ID, <code>value</code> for any other.\n- <code>label</code>: a short label for the field.\n\nFill in every placeholder before creating a reporting automation from a template;\nan automation with a placeholder left in is refused.\nThe templates are the same for every user, so any logged-in user may list them.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "report-templates": [
+                    {
+                      "name": "daily-energy",
+                      "description": "Daily energy total from a single power or energy sensor.",
+                      "reporter": "PandasReporter",
+                      "config": {
+                        "required_input": [
+                          {
+                            "name": "energy",
+                            "unit": "kWh"
+                          }
+                        ],
+                        "required_output": [
+                          {
+                            "name": "daily-energy",
+                            "unit": "kWh"
+                          }
+                        ],
+                        "transformations": [
+                          {
+                            "df_input": "energy",
+                            "df_output": "daily-energy",
+                            "method": "resample_events",
+                            "args": [
+                              "1D"
+                            ],
+                            "kwargs": {
+                              "method": "sum"
+                            }
+                          }
+                        ]
+                      },
+                      "parameters": {
+                        "input": [
+                          {
+                            "name": "energy",
+                            "sensor": "FILL_IN"
+                          }
+                        ],
+                        "output": [
+                          {
+                            "name": "daily-energy",
+                            "sensor": "FILL_IN"
+                          }
+                        ],
+                        "start-offset": "-1D,DB",
+                        "end-offset": "DB"
+                      },
+                      "placeholders": [
+                        {
+                          "section": "parameters",
+                          "path": "input[0].sensor",
+                          "location": [
+                            "input",
+                            0,
+                            "sensor"
+                          ],
+                          "kind": "sensor",
+                          "label": "Input sensor: energy"
+                        },
+                        {
+                          "section": "parameters",
+                          "path": "output[0].sensor",
+                          "location": [
+                            "output",
+                            0,
+                            "sensor"
+                          ],
+                          "kind": "sensor",
+                          "label": "Output sensor: daily-energy"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
     "/api/v3_0/docs/{path}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
