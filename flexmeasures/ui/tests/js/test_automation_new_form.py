@@ -170,3 +170,90 @@ def test_a_template_and_its_fields_add_up_to_a_report_definition(assert_js):
         eq("the template itself is left as it was", template.parameters.input[0].sensor, "FILL_IN");
     """
     )
+
+
+# The aggregate-sensors template as the API describes it, which lets inputs be added and weighed.
+AGGREGATE_SENSORS = {
+    "name": "aggregate-sensors",
+    "description": "Aggregate several sensors.",
+    "reporter": "AggregatorReporter",
+    "form": {"add_inputs": "part", "input_weights": True},
+    "config": {"method": "sum"},
+    "parameters": {
+        "input": [
+            {"name": "part-1", "sensor": "FILL_IN"},
+            {"name": "part-2", "sensor": "FILL_IN"},
+        ],
+        "output": [{"sensor": "FILL_IN"}],
+        "start-offset": "-1D,DB",
+        "end-offset": "DB",
+    },
+    "placeholders": [
+        {
+            "section": "parameters",
+            "location": ["input", 0, "sensor"],
+            "kind": "sensor",
+            "label": "Input sensor: part-1",
+        },
+        {
+            "section": "parameters",
+            "location": ["input", 1, "sensor"],
+            "kind": "sensor",
+            "label": "Input sensor: part-2",
+        },
+        {
+            "section": "parameters",
+            "location": ["output", 0, "sensor"],
+            "kind": "sensor",
+            "label": "Output sensor",
+        },
+    ],
+}
+
+
+def test_inputs_can_be_added_to_a_sum_and_weighed(assert_js):
+    """More sensors can be added to a sum, each before the output, and a weight of -1 subtracts one."""
+    assert_js(
+        page_js(
+            "startNewAutomation, showTemplateFields, addTemplateInput, removeTemplateInput, filledInTemplate, selectedReportTemplate, reportTemplatesByName"
+        )
+        + f"""
+        const loaded = {json.dumps(AGGREGATE_SENSORS)};
+        page.reportTemplatesByName.set(loaded.name, loaded);
+        page.startNewAutomation();
+        const option = document.createElement("option");
+        option.value = loaded.name;
+        field("automationTemplate").appendChild(option);
+        field("automationTemplate").value = loaded.name;
+        page.showTemplateFields();
+
+        const labels = () => [...document.querySelectorAll("#automationTemplateFields label")].map(label => label.textContent);
+        eq("each input gets a weight", document.querySelectorAll(".template-weight").length, 2);
+
+        page.addTemplateInput();
+        page.addTemplateInput();
+        eq("added inputs go before the output",
+           labels(), ["Input sensor: part-1", "Input sensor: part-2", "Input sensor: part-3", "Input sensor: part-4", "Output sensor"]);
+        page.removeTemplateInput();
+        eq("the last added input can be removed again",
+           labels(), ["Input sensor: part-1", "Input sensor: part-2", "Input sensor: part-3", "Output sensor"]);
+
+        const template = page.selectedReportTemplate();
+        // The placeholders keep their order, so the output's field is the third and the added input's the fourth.
+        field("automationTemplatePlaceholder-0").dataset.sensorId = "11";
+        field("automationTemplatePlaceholder-1").dataset.sensorId = "12";
+        field("automationTemplatePlaceholder-2").dataset.sensorId = "20";
+        field("automationTemplatePlaceholder-3").dataset.sensorId = "13";
+        document.querySelector('.template-weight[data-input-name="part-3"]').value = "-1";
+        const definition = page.filledInTemplate(template);
+
+        eq("the added input is read", definition.parameters.input,
+           [{{name: "part-1", sensor: 11}}, {{name: "part-2", sensor: 12}}, {{name: "part-3", sensor: 13}}]);
+        eq("the output is still the output", definition.parameters.output, [{{sensor: 20}}]);
+        eq("only a weight other than 1 is stored", definition.config.weights, {{"part-3": -1}});
+        eq("the template as loaded is left as it was", loaded.parameters.input.length, 2);
+
+        page.showTemplateFields();
+        eq("choosing the template again starts from its own inputs", labels().length, 3);
+    """
+    )
