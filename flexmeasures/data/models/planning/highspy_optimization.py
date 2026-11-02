@@ -667,6 +667,13 @@ def device_scheduler_highspy(  # noqa C901
     # ---------------------------------------------------------------
     h = highspy.Highs()
 
+    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches on "highs"),
+    # so the two backends cannot disagree on tolerances.
+    # Apply them before building the model: HiGHS prints its banner as soon as the model is first changed,
+    # so an output_flag set any later would not suppress it.
+    for option_name, option_value in solver_options("highspy").items():
+        h.setOptionValue(option_name, option_value)
+
     h.addVars(ncol, lower, upper)
     h.changeColsCost(ncol, np.arange(ncol, dtype=np.int32), cost)
 
@@ -689,11 +696,6 @@ def device_scheduler_highspy(  # noqa C901
     nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value = rows.build()
     if nrow > 0:
         h.addRows(nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value)
-
-    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches on "highs"),
-    # so the two backends cannot disagree on tolerances.
-    for option_name, option_value in solver_options("highspy").items():
-        h.setOptionValue(option_name, option_value)
 
     h.run()
 

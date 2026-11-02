@@ -977,15 +977,11 @@ def chart(
     help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
 )
 @click.option(
-    "--export-timezone",
     "--timezone",
     "timezone",
     type=TimezoneField(),
     required=False,
-    cls=DeprecatedOption,
-    preferred="--export-timezone",
-    deprecated=["--timezone"],
-    help="Timezone of the data, when exported with --to-file (the terminal plot always shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
+    help="Timezone of the data, when exported with --to-file (the terminal plot shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -1128,14 +1124,14 @@ def get_export_timezone(
 ) -> str:
     """Find the timezone to export beliefs in, warning when one was given without a file to export to.
 
-    :param timezone:    The timezone given with --export-timezone, if any.
+    :param timezone:    The timezone given with --timezone, if any.
     :param filepath:    The file given with --to-file, if any.
     :param sensors:     The sensors with data, the first of which gives the default timezone.
     :returns:           The given timezone, or else the timezone of the first sensor.
     """
     if timezone is not None and filepath is None:
         click.secho(
-            "--export-timezone only applies to the file written with --to-file, as the plot always shows UTC.",
+            "--timezone only applies to the file written with --to-file, as the plot shows UTC.",
             **MsgStyle.WARN,
         )
     if timezone is None:
