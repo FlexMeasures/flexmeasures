@@ -68,6 +68,7 @@ from flexmeasures.data.services.automations import (
     run_automation,
     update_automation,
 )
+from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -244,8 +245,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        validate=validate.OneOf(list(ASSET_CHART_BUILDERS)),
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description=f"Chart type, one of {', '.join(repr(name) for name in ASSET_CHART_BUILDERS)}.",
+            example="chart_for_multiple_sensors",
         ),
     )
 

@@ -4037,9 +4037,14 @@
           {
             "in": "query",
             "name": "chart-type",
-            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            "description": "Chart type, one of 'chart_for_multiple_sensors', 'chart_for_chargepoint_sessions'.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "chart_for_multiple_sensors",
+                "chart_for_chargepoint_sessions"
+              ],
+              "example": "chart_for_multiple_sensors"
             },
             "required": false
           }
