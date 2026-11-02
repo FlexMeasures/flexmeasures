@@ -1,6 +1,7 @@
 """Tests for the registry of asset chart types (issue #2795)."""
 
 import pytest
+from marshmallow import ValidationError, validate
 
 from flexmeasures.data.models.charts.chart_types import (
     ASSET_CHART_TYPES,
@@ -9,6 +10,7 @@ from flexmeasures.data.models.charts.chart_types import (
     UnknownAssetChartType,
     get_asset_chart_type,
 )
+from flexmeasures.data.schemas.charts import AssetChartTypeField
 
 
 def test_the_registry_lists_the_asset_chart_types():
@@ -37,3 +39,17 @@ def test_looking_up_a_chart_type():
         get_asset_chart_type("chart_for_chargepoint_sessions", accept_legacy_name=False)
     with pytest.raises(UnknownAssetChartType, match="default, charge-point-sessions"):
         get_asset_chart_type("daily_heatmap")
+
+
+def test_a_chart_type_field_checks_the_registry_before_its_own_validators():
+    field = AssetChartTypeField(
+        accept_legacy_names=True,
+        validate=validate.NoneOf(["charge-point-sessions"]),
+    )
+    assert field.deserialize("default") == "default"
+    assert field.deserialize("chart_for_multiple_sensors") == "default"
+    with pytest.raises(ValidationError, match="Must be one of"):
+        field.deserialize("bar_chart")
+    # The extra validator sees the mapped name.
+    with pytest.raises(ValidationError, match="Invalid input"):
+        field.deserialize("chart_for_chargepoint_sessions")

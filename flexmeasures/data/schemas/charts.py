@@ -25,7 +25,9 @@ def describe_asset_chart_types(include_legacy_names: bool = False) -> str:
             f"'{legacy_name}' (for '{name}')"
             for legacy_name, name in LEGACY_ASSET_CHART_TYPE_NAMES.items()
         )
-        description += f". The legacy values {legacy_names} are still accepted"
+        description += (
+            f". The legacy values {legacy_names} are deprecated, but still accepted"
+        )
     return description
 
 
@@ -38,11 +40,20 @@ class AssetChartTypeField(fields.Str):
     def __init__(self, accept_legacy_names: bool = False, **kwargs):
         """Set up the field.
 
+        The name is checked against the registry first, and then by any validators passed as validate.
+        The legacy names, if accepted, are mapped before that check, so they are not among the allowed values (the enum, in OpenAPI).
+
         :param accept_legacy_names: whether to also accept the names the chart endpoint took before the chart types had public names,
                                     mapping them to the public names.
         """
         self.accept_legacy_names = accept_legacy_names
-        kwargs["validate"] = validate.OneOf(list(ASSET_CHART_TYPES))
+        extra_validators = kwargs.pop("validate", None) or []
+        if callable(extra_validators):
+            extra_validators = [extra_validators]
+        kwargs["validate"] = [
+            validate.OneOf(list(ASSET_CHART_TYPES)),
+            *extra_validators,
+        ]
         metadata = kwargs.setdefault("metadata", {})
         metadata.setdefault("example", DEFAULT_ASSET_CHART_TYPE)
         super().__init__(**kwargs)
