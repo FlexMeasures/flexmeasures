@@ -411,7 +411,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     parameters.append("only_latest", "false");
     const generatorType = GENERATOR_TYPE_PER_AUTOMATION_TYPE[automationType];
     if (generatorType) {
-      parameters.append("generator_type", generatorType);
+      parameters.append("generator-type", generatorType);
     }
     if (searchTerm) {
       parameters.append("filter", searchTerm);

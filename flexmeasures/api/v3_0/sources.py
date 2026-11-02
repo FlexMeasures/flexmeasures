@@ -4,7 +4,7 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
-from marshmallow import fields, Schema, validate
+from marshmallow import fields, Schema, validate, validates, ValidationError
 from packaging.version import Version, InvalidVersion
 from sqlalchemy import select, or_
 from webargs.flaskparser import use_kwargs
@@ -52,12 +52,22 @@ class SourceQuerySchema(Schema):
     )
     generator_type = fields.Str(
         required=False,
+        data_key="generator-type",
         metadata={
             "description": "Only return sources whose data generator is of this kind, such as forecaster, scheduler or reporter, whatever type of source it saves under."
             " A reporter can save under a source of another type (see its `output-source-type`), so this tells which sources can set up a report, for instance.",
             "example": "reporter",
         },
     )
+
+    @validates("generator_type")
+    def validate_generator_type(self, value: str, **kwargs):
+        generator_types = sorted(current_app.data_generators)
+        if value not in generator_types:
+            raise ValidationError(
+                f"Unknown kind of data generator '{value}'. Choose one of: {', '.join(generator_types)}."
+            )
+
     limit = fields.Int(
         required=False,
         validate=validate.Range(min=1),
@@ -147,7 +157,7 @@ class SourceAPI(FlaskView):
 
             The ``filter`` parameter searches the sources by name, by model and by id prefix,
             the ``type`` parameter narrows the list to one source type, such as ``forecaster``,
-            the ``generator_type`` parameter to the sources whose data generator is of one kind, such as ``reporter``,
+            the ``generator-type`` parameter to the sources whose data generator is of one kind, such as ``reporter``,
             and the ``limit`` parameter returns only the most recently created ones.
 
             The ``types`` in the response are those of every source this listing can hold,
@@ -211,9 +221,7 @@ class SourceAPI(FlaskView):
         if generator_type is not None:
             # Which sources a data generator of this kind made is told by their model, as their type can be configured (see `Reporter.source_type`).
             query = query.where(
-                DataSource.model.in_(
-                    list(current_app.data_generators.get(generator_type, {}))
-                )
+                DataSource.model.in_(list(current_app.data_generators[generator_type]))
             )
         if filter is not None:
             query = query.where(
