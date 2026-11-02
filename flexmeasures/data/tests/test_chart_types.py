@@ -37,8 +37,15 @@ def test_looking_up_a_chart_type():
     )
     with pytest.raises(UnknownAssetChartType):
         get_asset_chart_type("chart_for_chargepoint_sessions", accept_legacy_name=False)
-    with pytest.raises(UnknownAssetChartType, match="default, charge-point-sessions"):
+    with pytest.raises(
+        UnknownAssetChartType,
+        match="default, charge-point-sessions \\(or the deprecated",
+    ):
         get_asset_chart_type("daily_heatmap")
+    with pytest.raises(
+        UnknownAssetChartType, match="default, charge-point-sessions\\.$"
+    ):
+        get_asset_chart_type("daily_heatmap", accept_legacy_name=False)
 
 
 def test_a_chart_type_field_checks_the_registry_before_its_own_validators():

@@ -170,6 +170,9 @@ def get_asset_chart_type(name: str, accept_legacy_name: bool = True) -> AssetCha
     try:
         return ASSET_CHART_TYPES[name]
     except KeyError:
-        raise UnknownAssetChartType(
-            f"Unknown asset chart type '{name}'; choose from {', '.join(ASSET_CHART_TYPES)}."
-        ) from None
+        message = f"Unknown asset chart type '{name}'; choose from {', '.join(ASSET_CHART_TYPES)}"
+        if accept_legacy_name:
+            message += (
+                f" (or the deprecated {', '.join(LEGACY_ASSET_CHART_TYPE_NAMES)})"
+            )
+        raise UnknownAssetChartType(message + ".") from None
