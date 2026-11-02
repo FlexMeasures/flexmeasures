@@ -90,6 +90,11 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
+from flexmeasures.data.models.charts.chart_types import DEFAULT_ASSET_CHART_TYPE
+from flexmeasures.data.schemas.charts import (
+    AssetChartTypeField,
+    describe_asset_chart_types,
+)
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.services.scheduling import (
@@ -240,11 +245,15 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="Chart width in pixels; without it, the chart is scaled to the full width of its container.",
         ),
     )
-    chart_type = fields.Str(
+    chart_type = AssetChartTypeField(
         data_key="chart-type",
         required=False,
+        load_default=DEFAULT_ASSET_CHART_TYPE,
+        accept_legacy_names=True,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description=f"Which chart to draw (default: '{DEFAULT_ASSET_CHART_TYPE}'): "
+            f"{describe_asset_chart_types(include_legacy_names=True)}.",
+            example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )
 
@@ -1070,7 +1079,7 @@ class AssetAPI(FlaskView):
         if {"flex_context", "flex_model"} & asset_data.keys():
             check_access(db_asset, "edit-flex-config")
 
-        asset_schema = AssetSchema(partial=True)
+        asset_schema = AssetSchema(partial=True, exclude=["account_id"])
         asset_schema.context = {
             "asset": db_asset
         }  # context for validating fields like parent_asset_id
@@ -1087,7 +1096,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(

@@ -51,6 +51,8 @@ New features
 * The asset lists on an organisation's page and on the asset overview now show only top-level assets per default, so the sites you are looking for are no longer buried among their sub-assets, and both offer the same two checkboxes to widen the list again: untick *Top-level only* for the whole tree, or tick *Include public assets*, which is off per default [see `PR #2523 <https://www.github.com/FlexMeasures/flexmeasures/pull/2523>`_]
 * The audit log of a device group's asset now notes which devices join or leave the group, and when a member moves to another site, or the group moves away from its members, so the history of a group's membership can be read in one place; a device whose group is deleted gets a note, too [see `PR #2723 <https://www.github.com/FlexMeasures/flexmeasures/pull/2723>`_ and `PR #2769 <https://www.github.com/FlexMeasures/flexmeasures/pull/2769>`_]
 * When a report automation aggregates only one asset type of a device group, the group's audit log notes which members it starts with, and which members enter or leave that selection as their asset type changes [see `PR #2724 <https://www.github.com/FlexMeasures/flexmeasures/pull/2724>`_]
+* Graph and flex-config sensor searches now hide public assets by default unless "Include public assets" is checked and  wait for a keyword, unit, or an explicit request before loading results [see `PR #2775 <https://www.github.com/FlexMeasures/flexmeasures/pull/2775>`_]
+* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 Infrastructure / Support
 -------------------------
@@ -113,10 +115,12 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Scheduling workers no longer print the HiGHS solver's banner and log to the console, unless ``LOGGING_LEVEL`` is ``DEBUG``; setting ``output_flag`` in ``FLEXMEASURES_LP_SOLVER_OPTIONS`` now also suppresses the banner [see `PR #2794 <https://www.github.com/FlexMeasures/flexmeasures/pull/2794>`_]
+* Allow consultants to create assets in client organisations, and reject attempts to change an asset’s organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_]
+* The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
-
 * An ``AggregatorReporter`` input that holds more than one belief about an event, such as one read with ``most-recent-beliefs-only: false``, is now refused with a message naming the sensor and the event, where it used to fail with a ``KeyError`` [see `PR #2741 <https://www.github.com/FlexMeasures/flexmeasures/pull/2741>`_]
-* Fix ``flexmeasures show beliefs`` ignoring its ``--timezone`` option (now ``--export-timezone``); by default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, instead of in UTC without an offset [see `PR #2695 <https://www.github.com/FlexMeasures/flexmeasures/pull/2695>`_]
+* Fix ``flexmeasures show beliefs`` using the timezone of the first sensor instead of the one given with ``--timezone``; by default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, instead of in UTC without an offset [see `PR #2695 <https://www.github.com/FlexMeasures/flexmeasures/pull/2695>`_ and `PR #2793 <https://www.github.com/FlexMeasures/flexmeasures/pull/2793>`_]
 * ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
@@ -156,6 +160,7 @@ Bugfixes
 * Several FlexMeasures processes starting at once right after a database migration, such as the web server's workers and a CLI command, no longer fail to start because each tried to create the same starter templates [see `PR #2600 <https://www.github.com/FlexMeasures/flexmeasures/pull/2600>`_]
 * Deleting a sensor now unsets it in the flex-model and flex-context references to it that carry a default, bounds or source filters, which used to stay behind pointing at the deleted sensor; the rest of such a reference is kept for when a new sensor is picked, and until then, schedules use its default as a fixed value, or, without a default, ignore the field, so that an ancestor asset's value for it applies; the flex-config editors mark such fields, the asset's pages show a toast linking to them, and deleting a sensor lists the fields that will need a new one [see `PR #2726 <https://www.github.com/FlexMeasures/flexmeasures/pull/2726>`_, `PR #2767 <https://www.github.com/FlexMeasures/flexmeasures/pull/2767>`_ and `PR #2783 <https://www.github.com/FlexMeasures/flexmeasures/pull/2783>`_]
 * Offset chains, as in an automation's window or ``flexmeasures add report --start-offset``, now count days as calendar days across a DST transition, so a window no longer collapses or skips a day when run in the hour around midnight on such a weekend, and ``HB`` and ``DB`` no longer raise an error in the repeated hour or in a DST gap [see `PR #2771 <https://www.github.com/FlexMeasures/flexmeasures/pull/2771>`_]
+* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 Automations, in detail

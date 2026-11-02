@@ -4037,9 +4037,15 @@
           {
             "in": "query",
             "name": "chart-type",
-            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            "description": "Which chart to draw (default: 'default'): 'default' (a graph for each entry in the asset's sensors_to_show, except the charging sessions, which only 'charge-point-sessions' draws); 'charge-point-sessions' (the charging sessions of the asset's charge points, with its prices and charge points power below them). The legacy values 'chart_for_multiple_sensors' (for 'default') and 'chart_for_chargepoint_sessions' (for 'charge-point-sessions') are deprecated, but still accepted.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": "default",
+              "enum": [
+                "default",
+                "charge-point-sessions"
+              ],
+              "example": "default"
             },
             "required": false
           }

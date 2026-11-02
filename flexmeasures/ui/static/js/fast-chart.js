@@ -2404,7 +2404,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
  * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName,
  *   fullBeliefInfo }.
  *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
- *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
+ *   "weekly_heatmap" or "charge-point-sessions".
  */
 export function renderFastChart(elementId, data, options) {
   const container = document.getElementById(elementId);
@@ -2456,7 +2456,7 @@ export function renderFastChart(elementId, data, options) {
     option = buildHistogramOption(elementId, data, opts);
   } else if (opts.chartType === "daily_heatmap" || opts.chartType === "weekly_heatmap") {
     option = buildHeatmapOption(elementId, data, opts);
-  } else if (opts.chartType === "chart_for_chargepoint_sessions") {
+  } else if (opts.chartType === "charge-point-sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
     const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
@@ -2863,7 +2863,7 @@ function wireSessionTooltipRedirect(instance, opts) {
     chart.off("mouseover", instance.onSessionHitHover);
     instance.onSessionHitHover = null;
   }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
+  if (opts.chartType !== "charge-point-sessions") {
     return;
   }
   instance.onSessionHitHover = (ev) => {

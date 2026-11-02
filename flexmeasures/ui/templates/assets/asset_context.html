@@ -553,6 +553,7 @@
 
     /* This search function is tied to the FlexContext Form */
     async function searchSensorsFlexContextForm() {
+        document.querySelectorAll('.flex-context-sensor-search-prompt').forEach(prompt => prompt.classList.add('d-none'));
         const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
         spinnerElement.style.display = 'flex';
         senSearchResEle.style.display = 'none';
@@ -565,9 +566,7 @@
             params.append('filter', searchValue);
         }
 
-        if (flexCheckBox.checked) {
-            params.append('include_public_assets', true);
-        }
+        params.set('include_public_assets', flexCheckBox.checked);
 
         if (flexUnitsSelectValue != "null") {
             params.append('unit', flexUnitsSelectValue);
@@ -1172,6 +1171,20 @@ Make sure that the sensor data will be available consistently, though, so schedu
         row.appendChild(col8);
         row.appendChild(col4);
         group.appendChild(row);
+
+        const prompt = document.createElement("p");
+        prompt.className = "text-muted mt-2 mb-0 flex-context-sensor-search-prompt";
+        prompt.appendChild(document.createTextNode("Start searching by keyword or unit. Or "));
+        const searchNow = document.createElement("a");
+        searchNow.href = "#";
+        searchNow.textContent = "search right now";
+        searchNow.onclick = function (event) {
+            event.preventDefault();
+            searchSensorsFlexContextForm();
+        };
+        prompt.appendChild(searchNow);
+        prompt.appendChild(document.createTextNode("."));
+        group.appendChild(prompt);
 
         return group;
     }
