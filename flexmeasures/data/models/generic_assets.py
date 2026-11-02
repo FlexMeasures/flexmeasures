@@ -1002,8 +1002,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         loading the rest would be loading data that is thrown away.
         Any other chart type, or none, gets all sensors.
 
-        :param chart_type: "chart_for_multiple_sensors", "chart_for_chargepoint_sessions" or None
-        :returns: a unique list of sensors, in the order of sensors_to_show
+        :param chart_type: "chart_for_multiple_sensors", "chart_for_chargepoint_sessions" or None.
+        :returns: a unique list of sensors, in the order of sensors_to_show (for the Charge Points chart, its session sensors first).
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
