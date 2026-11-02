@@ -52,6 +52,7 @@ New features
 * The audit log of a device group's asset now notes which devices join or leave the group, and when a member moves to another site, or the group moves away from its members, so the history of a group's membership can be read in one place; a device whose group is deleted gets a note, too [see `PR #2723 <https://www.github.com/FlexMeasures/flexmeasures/pull/2723>`_ and `PR #2769 <https://www.github.com/FlexMeasures/flexmeasures/pull/2769>`_]
 * When a report automation aggregates only one asset type of a device group, the group's audit log notes which members it starts with, and which members enter or leave that selection as their asset type changes [see `PR #2724 <https://www.github.com/FlexMeasures/flexmeasures/pull/2724>`_]
 * Graph and flex-config sensor searches now hide public assets by default unless "Include public assets" is checked and  wait for a keyword, unit, or an explicit request before loading results [see `PR #2775 <https://www.github.com/FlexMeasures/flexmeasures/pull/2775>`_]
+* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 Infrastructure / Support
 -------------------------
