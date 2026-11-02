@@ -49,10 +49,10 @@
                     Select chart
                 </button>
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    <li><a class="dropdown-item" href="#" data-chart-type="default">Default</a></li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
-                            data-chart-type="chart_for_chargepoint_sessions">
+                            data-chart-type="charge-point-sessions">
                             <span>Charge Points</span>
                             <i class="bi bi-info-circle" style="margin-left: 8px;" tabindex="0" data-bs-toggle="tooltip"
                                 data-bs-placement="right" data-bs-html="true" title="<div style='max-width: 300px;'>
@@ -210,7 +210,7 @@
                 document.querySelectorAll("[data-chart-type]").forEach((el) => {
                     el.addEventListener("click", (e) => {
                         const chartType = el.getAttribute("data-chart-type");
-                        if (chartType === "chart_for_chargepoint_sessions") {
+                        if (chartType === "charge-point-sessions") {
                             note.style.display = "block";
                         } else {
                             note.style.display = "none";
@@ -1636,7 +1636,7 @@
 
                 // 5. Toggle the help note (Existing logic)
                 const note = document.getElementById("chartInfoNote");
-                if (chartType === "chart_for_chargepoint_sessions") {
+                if (chartType === "charge-point-sessions") {
                     note.style.display = "block";
                 } else {
                     note.style.display = "none";

@@ -84,7 +84,7 @@
     let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
-        chartType = 'chart_for_multiple_sensors';
+        chartType = 'default';
     }
 
     // Initialize Jinja variables
@@ -206,7 +206,7 @@
 
     // Chart types whose specs include annotation layers bound to the <datasetName>_annotations dataset
     function chartSupportsAnnotations() {
-        return chartType === 'bar_chart' || chartType === 'chart_for_multiple_sensors';
+        return chartType === 'bar_chart' || chartType === 'default';
     }
 
     {% if active_page == "sensors" and user_can_create_children_sensor %}
@@ -371,7 +371,7 @@
         const fullBeliefInfoToggleContainer = document.getElementById('fullBeliefInfoToggleContainer');
         const beliefTooltipSupported = () => {
             if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
-            if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
+            if (chartType !== 'charge-point-sessions') { return true; }
             return (fastChartGroupSpec || []).some((group) =>
                 ['Power flow by type', 'Prices'].includes(group.title)
             );
@@ -1036,7 +1036,7 @@
             // the asset page it's either the Charge Point sessions chart or the
             // default multi-sensor line chart.
             chartType: ('{{ active_page }}' === 'sensors') ? chartType
-                : (chartType === 'chart_for_chargepoint_sessions') ? chartType
+                : (chartType === 'charge-point-sessions') ? chartType
                 : 'line',
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)

@@ -10,6 +10,10 @@ import re
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.charts.chart_types import (
+    ASSET_CHART_TYPES,
+    LEGACY_ASSET_CHART_TYPE_NAMES,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -305,6 +309,24 @@ def test_graphs_page_preserves_saved_y_axis_setting_in_editor(
     assert page.status_code == 200
     assert b'"y-axis": "data"' in page.data
     assert b'item["y-axis"] = graph["y-axis"];' in page.data
+
+
+def test_graphs_page_offers_the_chart_types_by_their_public_names(
+    db, client, setup_assets, as_admin
+):
+    """The chart picker sends the names of the registry of asset chart types, not the legacy names."""
+    asset = setup_assets["wind-asset-1"]
+
+    page = client.get(
+        url_for("AssetCrudUI:graphs", id=asset.id),
+        follow_redirects=True,
+    )
+
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert re.findall(r'data-chart-type="([^"]+)"', html) == list(ASSET_CHART_TYPES)
+    for legacy_name in LEGACY_ASSET_CHART_TYPE_NAMES:
+        assert legacy_name not in html
 
 
 def test_add_asset(db, client, setup_assets, as_admin):

@@ -556,3 +556,45 @@ def test_replay_ruler_survives_empty_data(assert_js):
         disposeFastChart(container.id);
         container.remove();
         """)
+
+
+def test_the_charge_point_sessions_chart_type_draws_the_sessions(assert_js):
+    """The asset page asks for the Charge Points chart by its public name (issue #2795)."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "charge-point-sessions-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const handlers = [];
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on(name) { handlers.push(name); }, off() {}, dispatchAction() {},
+        })};
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const sensor = (name) => ({
+            id: name === "arrival" ? 1 : 2,
+            name,
+            unit: "s",
+            asset_id: 4,
+            asset_description: "Charger 4",
+        });
+        const rows = [
+            {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
+            {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
+        ];
+        renderFastChart(container.id, rows, {
+            chartType: "charge-point-sessions", groupSpec: [], datasetName: "asset_4", isSensorPage: false,
+        });
+        const titles = [].concat(option.title || []).map((title) => title.text);
+        check("the sessions are drawn", titles.includes("Charge Point sessions"), JSON.stringify(titles));
+        check("hovering a session shows its tooltip", handlers.includes("mouseover"));
+        disposeFastChart(container.id);
+        container.remove();
+        """)
