@@ -446,6 +446,65 @@ def test_meter_readings_to_flow_template_takes_the_difference_between_readings(
     assert dict(zip(starts, report.values.T[0])) == {"00:00": 1, "00:15": 2, "00:45": 2}
 
 
+def test_regularise_template_interpolates_onto_a_grid(
+    app, fresh_db, setup_dummy_asset_fresh_db
+):
+    """The regularise template interpolates irregular readings onto the grid of the output sensor."""
+    template = get_report_template("regularise")
+    assert template["reporter"] == "PandasReporter"
+    reporter_class = app.data_generators["reporter"][template["reporter"]]
+    assert find_placeholders(template["config"]) == []
+    reporter_class._config_schema.load(template["config"])
+
+    asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
+    irregular = Sensor(
+        "irregular readings",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="kWh",
+    )
+    regular = Sensor(
+        "regular readings",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="kWh",
+    )
+    fresh_db.session.add_all([irregular, regular])
+    fresh_db.session.flush()
+    start = datetime(2023, 4, 10, tzinfo=timezone.utc)
+    for minutes, value in [(5, 10), (20, 40), (50, 70)]:
+        _save_values(
+            fresh_db,
+            irregular,
+            start + timedelta(minutes=minutes),
+            [value],
+            timedelta(0),
+        )
+    fresh_db.session.commit()
+
+    parameters = _fill_sensors(template["parameters"], [irregular.id], [regular.id])
+    prepared_parameters = prepare_report_parameters(parameters, "5 * * * *", "UTC")
+    reporter_class._parameters_schema.load(prepared_parameters)
+
+    # the template's own parameters, which store the values as moments, over a fixed window
+    window = {
+        k: v for k, v in parameters.items() if k not in ("start-offset", "end-offset")
+    }
+    report = PandasReporter(config=template["config"]).compute(
+        parameters=dict(
+            window,
+            start="2023-04-10T00:00:00+00:00",
+            end="2023-04-10T01:00:00+00:00",
+        )
+    )[0]["data"]
+
+    starts = [t.strftime("%H:%M") for t in report.index.get_level_values("event_start")]
+    # 00:00 lies before the first reading, so it takes that one; the others are interpolated in time
+    assert dict(zip(starts, report.values.T[0])) == pytest.approx(
+        {"00:00": 10, "00:15": 30, "00:30": 50, "00:45": 65}
+    )
+
+
 def test_show_report_templates(app):
     """The show command lists all packaged templates, and prints a single template in full."""
     from flexmeasures.cli.data_show import show_report_templates
@@ -461,6 +520,7 @@ def test_show_report_templates(app):
         ("dynamic-tariff", "PandasReporter"),
         ("energy-costs", "ProfitOrLossReporter"),
         ("meter-readings-to-flow", "PandasReporter"),
+        ("regularise", "PandasReporter"),
         ("self-consumption", "PandasReporter"),
         ("valid-range", "PandasReporter"),
     ]:

@@ -298,6 +298,7 @@ so you don't have to author a report definition from scratch. List them with:
     dynamic-tariff          PandasReporter        Dynamic electricity tariff, from the day-ahead price plus the energy tax and a supplier surcharge, with VAT added.
     energy-costs            ProfitOrLossReporter  Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
     meter-readings-to-flow  PandasReporter        Flow per interval from the readings of a cumulative meter, with implausible flows left out.
+    regularise              PandasReporter        Irregular sensor readings put on a regular grid, interpolating between the readings around each grid point.
     self-consumption        PandasReporter        Share of produced energy consumed on-site, from a production and a consumption sensor.
     valid-range             PandasReporter        Sensor values within a valid range, with out-of-range values left out.
 
