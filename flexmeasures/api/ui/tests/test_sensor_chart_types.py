@@ -137,3 +137,11 @@ def test_the_chart_types():
         "chart_for_multiple_sensors",
         "chart_for_chargepoint_sessions",
     }
+
+
+def test_chart_defaults_are_applied_to_a_copy_of_the_specs(module_specs):
+    """Even a chart builder that hands back a module-level spec itself does not get it changed."""
+    defaults.apply_chart_defaults(lambda: defaults.REPLAY_RULER)(
+        dataset_name="other", include_annotations=True
+    )
+    assert defaults.REPLAY_RULER == module_specs["REPLAY_RULER"]
