@@ -14,7 +14,7 @@ from typing import Callable
 
 from flexmeasures.data.models.charts.belief_charts import (
     CHARGE_POINT_SESSIONS_TITLE,
-    _charge_point_session_sensors,
+    charge_point_session_sensors,
     charge_point_companion_graph,
     chart_for_chargepoint_sessions,
     chart_for_multiple_sensors,
@@ -85,7 +85,7 @@ def charge_point_sessions_layout(sensors_to_show: list[dict]) -> list[dict]:
     """
     sessions_graph = {
         "title": CHARGE_POINT_SESSIONS_TITLE,
-        "plots": [{"sensors": _charge_point_session_sensors(sensors_to_show)}],
+        "plots": [{"sensors": charge_point_session_sensors(sensors_to_show)}],
     }
     companion_graphs = [
         graph

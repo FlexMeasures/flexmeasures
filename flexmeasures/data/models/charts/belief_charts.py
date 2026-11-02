@@ -35,7 +35,7 @@ CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
 CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
 
 
-def _charge_point_session_sensors(
+def charge_point_session_sensors(
     sensors_to_show: list[dict],
 ) -> list["Sensor"]:  # noqa F821
     """The sensors in any graph that record charging-session timestamps, which the Charge Points chart draws as sessions."""
@@ -1219,7 +1219,7 @@ def chart_for_chargepoint_sessions(
     **override_chart_specs,
 ) -> dict:
 
-    all_sensors = _charge_point_session_sensors(sensors_to_show)
+    all_sensors = charge_point_session_sensors(sensors_to_show)
 
     sensor_ids = [s.id for s in all_sensors]
 
