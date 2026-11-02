@@ -149,6 +149,23 @@ def test_building_a_chart_leaves_the_module_level_specs_alone(db, module_specs):
         assert getattr(defaults, name) == module_specs[name], name
 
 
+@pytest.mark.parametrize("heatmap", ["daily_heatmap", "weekly_heatmap"])
+def test_a_heatmap_leaves_the_legend_of_later_charts_alone(
+    setup_api_test_data, db, module_specs, heatmap
+):
+    """A heatmap without annotations sets its own legend position, which must not become the default for later charts."""
+    sensor = _gas_sensor(db)
+    sensor.sensor_type = sensor.name
+    chart_type_to_chart_specs(
+        heatmap, sensor=sensor, dataset_name="sensor", include_annotations=False
+    )
+    bar_chart = chart_type_to_chart_specs(
+        "bar_chart", sensor=sensor, dataset_name="sensor", include_annotations=False
+    )
+    assert bar_chart["config"]["legend"]["orient"] == "bottom"
+    assert defaults.LEGIBILITY_DEFAULTS == module_specs["LEGIBILITY_DEFAULTS"]
+
+
 @pytest.mark.parametrize("chart_type", NOT_CHART_TYPES)
 def test_chart_type_to_chart_specs_builds_only_chart_types(chart_type):
     with pytest.raises(UnknownChartType):
