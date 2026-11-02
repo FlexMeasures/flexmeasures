@@ -15,6 +15,8 @@ def _get_chart(client, site, query: dict):
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+# The asset page's Vega-Lite chart still sends the snake_case alias.
+@pytest.mark.parametrize("parameter", ["chart-type", "chart_type"])
 @pytest.mark.parametrize(
     "legacy_name, name",
     [
@@ -27,12 +29,13 @@ def test_chart_accepts_the_new_and_the_legacy_chart_type_names(
     setup_roles_users_fresh_db,
     charge_hub_fresh_db: dict[str, Sensor],
     requesting_user,
+    parameter,
     legacy_name,
     name,
 ):
     site = charge_hub_fresh_db["arrival"].generic_asset
-    response = _get_chart(client, site, {"chart-type": name})
-    legacy_response = _get_chart(client, site, {"chart-type": legacy_name})
+    response = _get_chart(client, site, {parameter: name})
+    legacy_response = _get_chart(client, site, {parameter: legacy_name})
     assert response.status_code == 200, response.data
     assert legacy_response.status_code == 200, legacy_response.data
     chart_specs = json.loads(response.data)
