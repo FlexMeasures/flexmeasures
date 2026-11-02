@@ -12,6 +12,7 @@ Each `<topic>.instructions.md` file covers a cross-cutting convention that appli
 | `changelog.instructions.md` | `**` | Changelog entry format and location |
 | `docstrings.instructions.md` | `**/*.py` | RST docstring format, doctests |
 | `error-handling.instructions.md` | `**/*.py` | Catching specific exceptions |
+| `milestones.instructions.md` | `**` | Milestone per pull request: set, re-check before merging, move when backporting |
 | `marshmallow-schemas.instructions.md` | `flexmeasures/data/schemas/**/*.py` | `data_key`, field naming, `load_default` |
 | `pre-commit-hooks.instructions.md` | `**` | Running hooks before every commit |
 | `testing.instructions.md` | `flexmeasures/**/tests/**/*.py` | Full suite, `db` vs `fresh_db`, `requesting_user` |
