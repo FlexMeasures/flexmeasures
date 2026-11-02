@@ -1,14 +1,9 @@
-from flask import current_app
-from marshmallow import (
-    Schema,
-    ValidationError,
-    fields,
-    pre_load,
-    validate,
-    validates,
-)
+from marshmallow import Schema, fields, pre_load, validate
 
-from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.sources import (
+    DataSourceIdField,
+    validate_data_generator_kind,
+)
 from flexmeasures.data.schemas.account import AccountIdOrListField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
@@ -26,6 +21,7 @@ class ReporterConfigSchema(Schema):
     output_source_type = fields.Str(
         required=False,
         data_key="output-source-type",
+        validate=validate_data_generator_kind,
         metadata=dict(
             description="The type of data source to save the report under, if not 'reporter'."
             " Set it only when the report is made of data of that type, such as 'forecaster' for a sum of forecasts,"
@@ -33,14 +29,6 @@ class ReporterConfigSchema(Schema):
             examples=["forecaster"],
         ),
     )
-
-    @validates("output_source_type")
-    def validate_output_source_type(self, value: str, **kwargs):
-        generator_types = sorted(current_app.data_generators)
-        if value not in generator_types:
-            raise ValidationError(
-                f"Unknown source type '{value}'. Choose one of: {', '.join(generator_types)}."
-            )
 
 
 class ReporterParametersSchema(Schema):

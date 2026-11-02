@@ -4,7 +4,7 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
-from marshmallow import fields, Schema, validate, validates, ValidationError
+from marshmallow import fields, Schema, validate
 from packaging.version import Version, InvalidVersion
 from sqlalchemy import select, or_
 from webargs.flaskparser import use_kwargs
@@ -13,6 +13,7 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.queries.utils import id_prefix_filter
+from flexmeasures.data.schemas.sources import validate_data_generator_kind
 from flexmeasures.data.services.data_sources import (
     usable_source_filter,
     user_may_read_source,
@@ -53,20 +54,13 @@ class SourceQuerySchema(Schema):
     generator_type = fields.Str(
         required=False,
         data_key="generator-type",
+        validate=validate_data_generator_kind,
         metadata={
             "description": "Only return sources whose data generator is of this kind, such as forecaster, scheduler or reporter, whatever type of source it saves under."
             " A reporter can save under a source of another type (see its `output-source-type`), so this tells which sources can set up a report, for instance.",
             "example": "reporter",
         },
     )
-
-    @validates("generator_type")
-    def validate_generator_type(self, value: str, **kwargs):
-        generator_types = sorted(current_app.data_generators)
-        if value not in generator_types:
-            raise ValidationError(
-                f"Unknown kind of data generator '{value}'. Choose one of: {', '.join(generator_types)}."
-            )
 
     limit = fields.Int(
         required=False,
