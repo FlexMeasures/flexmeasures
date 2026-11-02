@@ -65,13 +65,32 @@ class AssetChartType:
         return SensorsToShowSchema.flatten(self.layout(sensors_to_show))
 
 
+def _as_graph(entry: dict) -> dict:
+    """The entry in the layout format, i.e. with its sensors in plots.
+
+    Validated entries have that format already,
+    except those suggested for an asset without sensors_to_show, which hold a top-level sensor or sensors.
+    """
+    if "plots" in entry:
+        return entry
+    graph = {
+        key: value for key, value in entry.items() if key not in ("sensor", "sensors")
+    }
+    plots = []
+    if "sensor" in entry:
+        plots.append({"sensor": entry["sensor"]})
+    if "sensors" in entry:
+        plots.append({"sensors": entry["sensors"]})
+    return {**graph, "plots": plots}
+
+
 def default_layout(sensors_to_show: list[dict]) -> list[dict]:
     """A graph per entry in the asset's sensors_to_show, except the graph of charging-session timestamps.
 
     Those timestamps are not plottable quantities, so only the Charge Points chart draws them.
     """
     return [
-        entry
+        _as_graph(entry)
         for entry in sensors_to_show
         if entry.get("title") != CHARGE_POINT_SESSIONS_TITLE
     ]
@@ -83,6 +102,7 @@ def charge_point_sessions_layout(sensors_to_show: list[dict]) -> list[dict]:
     The sessions graph holds the charging-session timestamps found in any graph.
     Below it come the Prices graph and, of the Power flow by type graph, the charge points power (see charge_point_companion_graph).
     """
+    sensors_to_show = [_as_graph(entry) for entry in sensors_to_show]
     sessions_graph = {
         "title": CHARGE_POINT_SESSIONS_TITLE,
         "plots": [{"sensors": charge_point_session_sensors(sensors_to_show)}],

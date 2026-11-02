@@ -13,6 +13,7 @@ from flexmeasures.data.models.charts.chart_types import (
     UnknownAssetChartType,
     get_asset_chart_type,
 )
+from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
@@ -237,3 +238,23 @@ def test_a_companion_graph_left_without_sensors_is_not_in_the_layout(
         graph["title"] for graph in chart_specs["vconcat"]
     ]
     assert [graph["title"] for graph in layout] == ["Charge Point sessions", "Prices"]
+
+
+@pytest.mark.parametrize("chart_type", ["default", "charge-point-sessions"])
+def test_a_layout_holds_its_sensors_in_plots_also_for_suggested_graphs(
+    fresh_db, charge_hub_fresh_db: dict[str, Sensor], chart_type
+):
+    """Without sensors_to_show, an asset gets suggested graphs, which hold their sensors outside plots."""
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    site.sensors_to_show = []
+    fresh_db.session.commit()
+    suggested = site.validate_sensors_to_show()
+    assert suggested and any("plots" not in entry for entry in suggested)
+
+    layout = get_asset_chart_type(chart_type).layout(suggested)
+
+    assert all(set(graph) >= {"title", "plots"} for graph in layout)
+    if chart_type == "default":
+        assert get_asset_chart_type(chart_type).sensors(
+            suggested
+        ) == SensorsToShowSchema.flatten(suggested)
