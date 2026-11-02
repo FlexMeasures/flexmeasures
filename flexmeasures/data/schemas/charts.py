@@ -50,7 +50,7 @@ class AssetChartTypeField(fields.Str):
 
         :param accept_legacy_names: whether to also accept the names the chart endpoint took before the chart types had public names,
                                     mapping them to the public names.
-        :param empty_means_absent:  whether to read an empty value as no chart type (None), rather than refuse it.
+        :param empty_means_absent: whether to read an empty value as no chart type (None), rather than refuse it.
         """
         self.accept_legacy_names = accept_legacy_names
         self.empty_means_absent = empty_means_absent
