@@ -4,6 +4,7 @@ import sys
 import builtins
 import warnings
 import pytest
+import pytz
 from random import random, seed
 from datetime import datetime, timedelta
 from sqlalchemy import Integer, delete, func, or_, select, text
@@ -2263,3 +2264,88 @@ def freeze_server_now():
                 setattr(module, "server_now", original_server_now)
             except Exception:
                 pass
+
+
+@pytest.fixture
+def charge_hub(fresh_db) -> dict[str, Sensor]:
+    """A site with a charge point, whose dashboard has the graphs a site with charge points gets.
+
+    One belief per sensor (on 1 January 2015), so chart data shows which sensors were loaded.
+    The departure sensor is also in a graph of its own,
+    to check that the default chart keeps a session sensor it draws elsewhere.
+
+    :returns: the site's sensors, by name.
+    """
+    site_type = GenericAssetType(name="test_site_type_for_chart_sensors")
+    charge_point_type = GenericAssetType(name="smartbuilding.chargepoint")
+    fresh_db.session.add_all([site_type, charge_point_type])
+    site = GenericAsset(
+        name="Test charge hub (chart sensors)", generic_asset_type=site_type
+    )
+    fresh_db.session.add(site)
+    fresh_db.session.add(
+        GenericAsset(
+            name="Test charge point (chart sensors)",
+            generic_asset_type=charge_point_type,
+            parent_asset=site,
+        )
+    )
+    fresh_db.session.flush()
+
+    units = {
+        "charge points power": "kW",
+        "building power": "kW",
+        "consumption price": "EUR/MWh",
+        "temperature": "°C",
+        "arrival": "s",
+        "departure": "s",
+        "plug in": "s",
+    }
+    sensors = {
+        name: Sensor(
+            name=name,
+            unit=unit,
+            event_resolution=timedelta(minutes=15),
+            generic_asset=site,
+        )
+        for name, unit in units.items()
+    }
+    fresh_db.session.add_all(sensors.values())
+    fresh_db.session.flush()
+
+    site.sensors_to_show = [
+        {
+            "title": "Power flow by type",
+            "sensors": [
+                sensors["charge points power"].id,
+                sensors["building power"].id,
+            ],
+        },
+        {"title": "Prices", "sensors": [sensors["consumption price"].id]},
+        {"title": "Weather", "sensors": [sensors["temperature"].id]},
+        {"title": "Departures", "sensors": [sensors["departure"].id]},
+        {
+            "title": "Charge Point sessions",
+            "sensors": [
+                sensors["arrival"].id,
+                sensors["departure"].id,
+                sensors["plug in"].id,
+            ],
+        },
+    ]
+
+    source = DataSource(name="test script", type="demo script")
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+    for sensor in sensors.values():
+        fresh_db.session.add(
+            TimedBelief(
+                sensor=sensor,
+                event_start=datetime(2015, 1, 1, tzinfo=pytz.utc),
+                event_value=1.0,
+                belief_horizon=timedelta(0),
+                source=source,
+            )
+        )
+    fresh_db.session.commit()
+    return sensors
