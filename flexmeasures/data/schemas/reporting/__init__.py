@@ -1,4 +1,12 @@
-from marshmallow import Schema, fields, pre_load, validate
+from flask import current_app
+from marshmallow import (
+    Schema,
+    ValidationError,
+    fields,
+    pre_load,
+    validate,
+    validates,
+)
 
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.account import AccountIdOrListField
@@ -13,7 +21,26 @@ class ReporterConfigSchema(Schema):
     Inherit from this class to extend this schema with your own parameters.
     """
 
-    pass
+    # No default on purpose: a config that leaves this out dumps without it,
+    # so the attributes hash of every existing reporter source, and with it the source, stays the same.
+    output_source_type = fields.Str(
+        required=False,
+        data_key="output-source-type",
+        metadata=dict(
+            description="The type of data source to save the report under, if not 'reporter'."
+            " Set it only when the report is made of data of that type, such as 'forecaster' for a sum of forecasts,"
+            " so that the report counts as such wherever data is filtered by source type (e.g. a forecast is not trained on forecasts).",
+            examples=["forecaster"],
+        ),
+    )
+
+    @validates("output_source_type")
+    def validate_output_source_type(self, value: str, **kwargs):
+        generator_types = sorted(current_app.data_generators)
+        if value not in generator_types:
+            raise ValidationError(
+                f"Unknown source type '{value}'. Choose one of: {', '.join(generator_types)}."
+            )
 
 
 class ReporterParametersSchema(Schema):

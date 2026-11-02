@@ -1,4 +1,4 @@
-from marshmallow import fields, validate, validates_schema, ValidationError
+from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
@@ -9,7 +9,7 @@ from flexmeasures.data.schemas.io import Input, Output
 from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
 
 
-class MemberFilterSchema(ReporterConfigSchema):
+class MemberFilterSchema(Schema):
     """Narrows a group down to some of its members.
 
     A group is a piece of shared equipment, so it holds everything behind that equipment.
