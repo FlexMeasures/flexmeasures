@@ -33,6 +33,9 @@ class UnknownAssetChartType(ValueError):
 class AssetChartType:
     """A chart an asset can be drawn as.
 
+    Plugins can add their own, using register_asset_chart_type.
+    These fields are provisional: they may still change before plugins can rely on them.
+
     :param name: the public, kebab-case name, as API users pass it in ``chart-type``.
     :param label: the name shown in the UI.
     :param description: what the chart shows, for the API documentation.
