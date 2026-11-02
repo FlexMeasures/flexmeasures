@@ -280,6 +280,8 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
+    # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
+    # its values are the names of the chart functions, which public chart type names replace in v1.2.0 (see issue #2795).
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
@@ -317,10 +319,16 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
 
 
 class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
-    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`.
+
+    It also hides `chart_type`, which only the asset page uses for now.
+    """
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + [
+            "beliefs_after",
+            "chart_type",
+        ]
         super().__init__(*args, **kwargs)
 
 

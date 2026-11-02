@@ -251,3 +251,16 @@ def test_chart_data_holds_only_what_the_chart_type_draws(
     loaded_ids = {record["sid"] for record in json.loads(response.data)["data"]}
     id_by_name = {name: sensor.id for name, sensor in charge_hub.items()}
     assert loaded_ids == {id_by_name[name] for name in expected_names}
+
+
+def test_chart_type_is_left_out_of_the_chart_data_docs():
+    """Only the asset page uses chart-type on chart_data, so the published specs leave it out, until public chart type names replace its values (issue #2795)."""
+    from importlib.resources import files
+
+    specs = json.loads(
+        files("flexmeasures.ui").joinpath("static/openapi-specs.json").read_text()
+    )
+    parameters = specs["paths"]["/api/v3_0/assets/{id}/chart_data"]["get"]["parameters"]
+    names = [parameter["name"] for parameter in parameters]
+    assert "start" in names
+    assert "chart-type" not in names
