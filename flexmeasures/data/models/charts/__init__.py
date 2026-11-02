@@ -6,12 +6,12 @@ from . import belief_charts
 from .defaults import apply_chart_defaults
 
 # The chart types of a sensor chart, by the name a request gives them.
+# The generic heatmap helper is left out: it is how daily_heatmap and weekly_heatmap are built.
 SENSOR_CHART_TYPES: dict[str, Callable[..., dict]] = {
     "bar_chart": belief_charts.bar_chart,
     "histogram": belief_charts.histogram,
     "daily_heatmap": belief_charts.daily_heatmap,
     "weekly_heatmap": belief_charts.weekly_heatmap,
-    "heatmap": belief_charts.heatmap,
 }
 
 # The chart builders of an asset chart, by the name a request gives them.

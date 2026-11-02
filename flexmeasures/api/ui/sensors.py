@@ -181,7 +181,7 @@ class SensorAPI(FlaskView):
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/ui/sensor/(id)/chart_data <../api/ui.html#get--api-ui-sensor-(id)-chart_data>`_ endpoint to fetch data)
-        - "chart-type" (legacy alias: "chart_type"; one of 'bar_chart', 'histogram', 'daily_heatmap', 'weekly_heatmap' and 'heatmap', and anything else gets a 422)
+        - "chart-type" (legacy alias: "chart_type"; one of 'bar_chart', 'histogram', 'daily_heatmap' and 'weekly_heatmap', and anything else gets a 422)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """

@@ -27,6 +27,7 @@ NOT_CHART_TYPES = [
     "capitalize",
     "create_bar_chart_or_histogram_specs",
     "determine_shared_unit",
+    "heatmap",
     "",
 ]
 
@@ -178,7 +179,6 @@ def test_the_chart_types():
         "histogram",
         "daily_heatmap",
         "weekly_heatmap",
-        "heatmap",
     ]
     assert set(CHART_TYPES) == set(SENSOR_CHART_TYPES) | {
         "chart_for_multiple_sensors",
