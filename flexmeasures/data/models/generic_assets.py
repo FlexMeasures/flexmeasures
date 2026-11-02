@@ -1061,7 +1061,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_starts_after"] = event_starts_after
         if event_ends_before:
             kwargs["event_ends_before"] = event_ends_before
-        chart_specs = get_asset_chart_type(chart_type).chart_specs(
+        registered_chart_type = get_asset_chart_type(chart_type)
+        chart_specs = registered_chart_type.chart_specs(
             sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
             combine_legend=combine_legend,
@@ -1071,9 +1072,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         if include_data:
-            # Get data
+            # Get the data of the sensors the chart draws, as chart_data does for this chart type
             data = self.chart_data_json(
-                sensors=sensors,
+                sensors=registered_chart_type.sensors(processed_sensors_to_show),
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,

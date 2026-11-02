@@ -208,3 +208,27 @@ def test_chart_data_refuses_an_unknown_chart_type(
     )
     assert response.status_code == 422, response.data
     assert "default, charge-point-sessions" in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "chart_type, expected_names",
+    [
+        ("default", DEFAULT_CHART_SENSORS),
+        ("charge-point-sessions", CHARGE_POINTS_CHART_SENSORS),
+    ],
+)
+def test_a_chart_with_its_data_holds_only_what_it_draws(
+    charge_hub_fresh_db, chart_type, expected_names
+):
+    """As chart_data does, the data inlined in a chart covers only the sensors the chart type draws."""
+    site = charge_hub_fresh_db["arrival"].generic_asset
+    chart_specs = site.chart(
+        chart_type=chart_type,
+        include_data=True,
+        event_starts_after=START,
+        event_ends_before=START + timedelta(hours=1),
+        dataset_name="chart",
+    )
+    loaded_ids = {record["sensor"]["id"] for record in chart_specs["datasets"]["chart"]}
+    id_by_name = {name: sensor.id for name, sensor in charge_hub_fresh_db.items()}
+    assert loaded_ids == {id_by_name[name] for name in expected_names}
