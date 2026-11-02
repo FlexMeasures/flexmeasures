@@ -111,7 +111,7 @@ ASSET_CHART_TYPES: dict[str, AssetChartType] = {
         AssetChartType(
             name=DEFAULT_ASSET_CHART_TYPE,
             label="Default",
-            description="a graph for each entry in the asset's sensors_to_show",
+            description="a graph for each entry in the asset's sensors_to_show, except the charging sessions, which only 'charge-point-sessions' draws",
             applies_to=lambda asset: True,
             layout=default_layout,
             builder=chart_for_multiple_sensors,
