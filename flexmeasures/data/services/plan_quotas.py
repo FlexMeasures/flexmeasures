@@ -1,6 +1,7 @@
 """Enforce organisation plan quotas for all ORM creation paths."""
 
 from collections import defaultdict
+from collections.abc import Mapping
 
 from sqlalchemy import event, func, inspect, select
 from sqlalchemy.orm import Session
@@ -209,38 +210,84 @@ def _enforce_new_account_quotas(session: Session, new_account_additions) -> None
             raise _quota_error(label, limit, 0)
 
 
-def _enforce_existing_account_quotas(session: Session, additions, removals) -> None:
-    """Serialize additions per account, then count persisted and pending rows."""
-    account_ids = sorted({account_id for account_id, _ in additions})
-    locked_plan_ids = dict(
-        session.execute(
-            select(Account.id, Account.plan_id)
-            .where(Account.id.in_(account_ids))
-            .order_by(Account.id)
-            .with_for_update()
-        ).all()
+def _effective_quota_limits(session: Session, account_ids: list[int]):
+    """Read persisted limits, preserving plan changes pending in this flush."""
+    limit_fields = [field for _, _, _, field in QUOTAS]
+    rows = session.execute(
+        select(Account.id, Account.plan_id, *(getattr(Plan, f) for f in limit_fields))
+        .outerjoin(Plan, Account.plan_id == Plan.id)
+        .where(Account.id.in_(account_ids))
     )
+    result = {}
+    for account_id, plan_id, *values in rows:
+        limits = dict(zip(limit_fields, values))
+        account = session.identity_map.get(session.identity_key(Account, account_id))
+        if account is not None and (
+            inspect(account).attrs.plan.history.has_changes()
+            or inspect(account).attrs.plan_id.history.has_changes()
+        ):
+            plan = _plan_for(account, session)
+            limits = {
+                field: getattr(plan, field) if plan else None for field in limit_fields
+            }
+        elif plan_id is not None:
+            plan = session.identity_map.get(session.identity_key(Plan, plan_id))
+            if plan is not None:
+                for field in limit_fields:
+                    if inspect(plan).attrs[field].history.has_changes():
+                        limits[field] = getattr(plan, field)
+        result[account_id] = limits
+    return result
+
+
+def _enforce_existing_account_quotas(
+    session: Session,
+    additions: Mapping[tuple[int, str], int],
+    removals: Mapping[tuple[int, str], int],
+) -> None:
+    """Lock account rows to serialize concurrent additions subject to a quota.
+
+    SELECT FOR UPDATE holds each account row until the transaction ends, so
+    another quota-limited addition to that organisation waits before counting
+    its usage. Ordinary reads are not blocked.
+
+    Additions and removals map ``(account_id, resource_label)`` to the number
+    of resources entering or leaving that account in this flush. Resource labels
+    are the first entries in ``QUOTAS``; an absent key means zero. Removals are
+    subtracted from persisted usage when checking the additions in the same flush.
+    """
+    account_ids = sorted(
+        {account_id for (account_id, _), added in additions.items() if added}
+    )
+    # An addition that sees no quota can overlap a plan downgrade; like existing
+    # resources on a downgrade, it may remain above the new limit.
+    limits = _effective_quota_limits(session, account_ids)
+    account_ids = [
+        account_id
+        for account_id in account_ids
+        if account_id in limits
+        and any(
+            additions.get((account_id, label), 0)
+            and limits[account_id][limit_field] is not None
+            for label, _, _, limit_field in QUOTAS
+        )
+    ]
+    if not account_ids:
+        return
+    locked_ids = session.scalars(
+        select(Account.id)
+        .where(Account.id.in_(account_ids))
+        .order_by(Account.id)
+        .with_for_update()
+    ).all()
+    # Re-read the plan after waiting for the lock, since it may have changed.
+    limits = _effective_quota_limits(session, locked_ids)
     for label, model, field, limit_field in QUOTAS:
-        for account_id in account_ids:
-            added = additions[(account_id, label)]
-            if not added or account_id not in locked_plan_ids:
+        for account_id in locked_ids:
+            added = additions.get((account_id, label), 0)
+            if not added or account_id not in limits:
                 continue
-            account = session.get(Account, account_id)
-            assert account is not None
-            plan_changed = (
-                inspect(account).attrs.plan.history.has_changes()
-                or inspect(account).attrs.plan_id.history.has_changes()
-            )
-            plan = (
-                _plan_for(account, session)
-                if plan_changed
-                else (
-                    session.get(Plan, locked_plan_ids[account_id])
-                    if locked_plan_ids[account_id] is not None
-                    else None
-                )
-            )
-            limit = getattr(plan, limit_field) if plan is not None else None
+            limit = limits[account_id][limit_field]
             if limit is None:
                 continue
             query = (
@@ -251,7 +298,7 @@ def _enforce_existing_account_quotas(session: Session, additions, removals) -> N
             if model is User:
                 query = query.where(User.active.is_(True))
             current = session.scalar(query) or 0
-            if current + added - removals[(account_id, label)] > limit:
+            if current + added - removals.get((account_id, label), 0) > limit:
                 raise _quota_error(label, limit, current)
 
 

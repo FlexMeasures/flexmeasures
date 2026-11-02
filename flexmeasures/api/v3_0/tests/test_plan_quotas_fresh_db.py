@@ -5,9 +5,12 @@ from threading import Barrier
 
 import pytest
 from flask import url_for
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
-from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
+from flexmeasures.data.services.plan_quotas import (
+    PlanQuotaExceeded,
+    _enforce_existing_account_quotas,
+)
 
 from flexmeasures.api.common.utils.api_utils import copy_asset
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
@@ -19,6 +22,91 @@ from flexmeasures.data.services.users import find_user_by_email
 def _assign_plan(db, account: Account, **limits) -> None:
     account.plan = Plan(name="Free", **limits)
     db.session.commit()
+
+
+def test_lock_only_organisations_with_relevant_quotas(
+    fresh_db, setup_accounts_fresh_db, setup_generic_asset_types_fresh_db
+):
+    no_plan = setup_accounts_fresh_db["Prosumer"]
+    unrelated_quota = setup_accounts_fresh_db["Supplier"]
+    limited = setup_accounts_fresh_db["Dummy"]
+    unrelated_quota.plan = Plan(name="Users only", max_users=1)
+    limited.plan = Plan(name="Asset limit", max_assets=1)
+    fresh_db.session.commit()
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    account_ids = [no_plan.id, unrelated_quota.id, limited.id]
+    asset_type_id = asset_type.id
+    locks = []
+
+    def capture_lock(connection, cursor, statement, parameters, context, executemany):
+        if "FOR UPDATE" in statement.upper():
+            locks.append((statement, parameters))
+
+    engine = fresh_db.engine
+    event.listen(engine, "before_cursor_execute", capture_lock)
+    try:
+        for index, account_id in enumerate(account_ids[:2]):
+            fresh_db.session.add(
+                GenericAsset(
+                    name=f"Unlimited asset {index}",
+                    account_id=account_id,
+                    generic_asset_type_id=asset_type_id,
+                )
+            )
+        fresh_db.session.flush()
+        assert not locks
+
+        fresh_db.session.add(
+            GenericAsset(
+                name="Limited asset",
+                account_id=account_ids[2],
+                generic_asset_type_id=asset_type_id,
+            )
+        )
+        fresh_db.session.add(
+            GenericAsset(
+                name="Another unlimited asset",
+                account_id=account_ids[0],
+                generic_asset_type_id=asset_type_id,
+            )
+        )
+        fresh_db.session.flush()
+        assert len(locks) == 1
+        assert set(locks[0][1].values()) == {account_ids[2]}
+
+        # A quota changed in the same flush must be considered before selecting locks.
+        unrelated_quota.plan.max_assets = 1
+        fresh_db.session.add(
+            GenericAsset(
+                name="Over limit",
+                account_id=account_ids[1],
+                generic_asset_type_id=asset_type_id,
+            )
+        )
+        with pytest.raises(PlanQuotaExceeded, match="at most 1 asset"):
+            fresh_db.session.flush()
+        fresh_db.session.rollback()
+
+        # Assigning a limited plan in the same flush must also take the lock.
+        no_plan.plan = Plan(name="No assets", max_assets=0)
+        fresh_db.session.add(
+            GenericAsset(
+                name="Forbidden asset",
+                account_id=account_ids[0],
+                generic_asset_type_id=asset_type_id,
+            )
+        )
+        with pytest.raises(PlanQuotaExceeded, match="at most 0 assets"):
+            fresh_db.session.flush()
+        fresh_db.session.rollback()
+
+        # Callers can use ordinary dictionaries: missing resources and removals
+        # represent zero and must not raise KeyError when a quota is checked.
+        _enforce_existing_account_quotas(
+            fresh_db.session, {(account_ids[2], "assets"): 1}, {}
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_lock)
 
 
 def test_new_organisation_enforces_zero_user_quota_before_first_flush(fresh_db):
