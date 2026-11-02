@@ -414,8 +414,12 @@ def test_meter_readings_to_flow_template_takes_the_difference_between_readings(
 
     asset = fresh_db.session.get(GenericAsset, setup_dummy_asset_fresh_db)
     quarter = timedelta(minutes=15)
+    # like a real meter, the readings are instantaneous, while the flow has the resolution of an interval
     readings = Sensor(
-        "meter readings", generic_asset=asset, event_resolution=quarter, unit="kWh"
+        "meter readings",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="kWh",
     )
     flow = Sensor(
         "energy per interval", generic_asset=asset, event_resolution=quarter, unit="kWh"
@@ -433,10 +437,14 @@ def test_meter_readings_to_flow_template_takes_the_difference_between_readings(
     # the window ends one reading after midnight, so the day's last interval has the reading at its end
     assert prepared_parameters["end"].endswith("T00:15:00+00:00")
 
+    # the template's own parameters, with a fixed period instead of its rolling window
     report = PandasReporter(config=config).compute(
         parameters={
-            "input": parameters["input"],
-            "output": parameters["output"],
+            **{
+                field: value
+                for field, value in parameters.items()
+                if field not in ("start-offset", "end-offset")
+            },
             "start": "2023-04-10T00:00:00+00:00",
             "end": "2023-04-10T01:15:00+00:00",
         }
