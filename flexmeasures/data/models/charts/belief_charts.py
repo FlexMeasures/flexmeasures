@@ -35,6 +35,74 @@ CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
 CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
 
 
+def _charge_point_session_sensors(
+    sensors_to_show: list[dict],
+) -> list["Sensor"]:  # noqa F821
+    """The sensors in any graph that record charging-session timestamps, which the Charge Points chart draws as sessions."""
+    return list(
+        dict.fromkeys(
+            sensor
+            for entry in sensors_to_show
+            for sensor in _extract_sensors_from_entry(entry)
+            if getattr(sensor, "unit", None) == "s"
+            and sensor.name in CHARGE_POINT_SESSION_SENSOR_NAMES
+        )
+    )
+
+
+def charge_point_companion_graph(entry: dict) -> dict | None:
+    """The part of this sensors_to_show graph that the Charge Points chart draws below its sessions, if any.
+
+    Graph titles are matched as the chart shows them, i.e. capitalized,
+    so a graph titled "prices" counts as a Prices graph.
+    Of a Power flow by type graph, only the charge points power is kept.
+
+    :param entry: a graph of a validated sensors_to_show.
+    :returns: the graph (for Power flow by type, a copy holding only the charge points power), or None if the chart does not draw it.
+    """
+    title = entry.get("title")
+    if not title or capitalize(title) not in CHARGE_POINT_COMPANION_TITLES:
+        return None
+    if capitalize(title) != POWER_FLOW_BY_TYPE_TITLE:
+        return entry
+    plots = []
+    for plot in entry.get("plots", []):
+        if "sensors" in plot:
+            plot = {
+                **plot,
+                "sensors": [
+                    sensor
+                    for sensor in plot["sensors"]
+                    if sensor.name == CHARGE_POINT_POWER_SENSOR_NAME
+                ],
+            }
+        elif "sensor" in plot and plot["sensor"].name != CHARGE_POINT_POWER_SENSOR_NAME:
+            continue
+        plots.append(plot)
+    return {**entry, "plots": plots}
+
+
+def charge_point_chart_sensors(
+    sensors_to_show: list[dict],
+) -> list["Sensor"]:  # noqa F821
+    """The sensors whose data the Charge Points chart draws.
+
+    These are the session timestamps in any graph,
+    followed by the sensors of the companion graphs it draws below them (see charge_point_companion_graph).
+
+    :param sensors_to_show: a validated sensors_to_show.
+    :returns: a unique list of sensors.
+    """
+    session_sensors = _charge_point_session_sensors(sensors_to_show)
+    companion_sensors = [
+        sensor
+        for entry in sensors_to_show
+        if (graph := charge_point_companion_graph(entry)) is not None
+        for sensor in _extract_sensors_from_entry(graph)
+    ]
+    return list(dict.fromkeys(session_sensors + companion_sensors))
+
+
 def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
@@ -1172,17 +1240,7 @@ def chart_for_chargepoint_sessions(
     **override_chart_specs,
 ) -> dict:
 
-    all_sensors = []
-    sensors_to_show_copy = sensors_to_show.copy()
-    for entry in sensors_to_show_copy:
-        sensors = _extract_sensors_from_entry(entry)
-        all_sensors.extend(
-            [
-                s
-                for s in sensors
-                if s.unit == "s" and s.name in CHARGE_POINT_SESSION_SENSOR_NAMES
-            ]
-        )
+    all_sensors = _charge_point_session_sensors(sensors_to_show)
 
     sensor_ids = [s.id for s in all_sensors]
 
@@ -1459,16 +1517,11 @@ def chart_for_chargepoint_sessions(
             },
         ],
     }
-    for idx, entry in enumerate(sensors_to_show_copy):
-        title = entry.get("title")
-        if title == POWER_FLOW_BY_TYPE_TITLE:
-            for plot in entry.get("plots", []):
-                if "sensors" in plot:
-                    plot["sensors"] = [
-                        sensor
-                        for sensor in plot["sensors"]
-                        if sensor.name == CHARGE_POINT_POWER_SENSOR_NAME
-                    ]
+    # The companion graphs hold only what is drawn (see charge_point_companion_graph);
+    # the other graphs are built too, but dropped from the vconcat below.
+    sensors_to_show_copy = [
+        charge_point_companion_graph(entry) or entry for entry in sensors_to_show
+    ]
     chart_specs = chart_for_multiple_sensors(
         sensors_to_show_copy,
         event_starts_after,

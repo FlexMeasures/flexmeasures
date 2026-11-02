@@ -138,6 +138,57 @@ def test_charge_points_chart_loads_its_sessions_and_two_companion_graphs(
     ]
 
 
+def _sensor_ids_drawn(chart_specs: dict | list) -> set[int]:
+    """The ids of the sensors that the filters in these chart specs let through."""
+    ids: set[int] = set()
+    if isinstance(chart_specs, dict):
+        sensor_filter = chart_specs.get("filter")
+        if (
+            isinstance(sensor_filter, dict)
+            and sensor_filter.get("field") == "sensor.id"
+        ):
+            ids.update(sensor_filter["oneOf"])
+        for value in chart_specs.values():
+            ids |= _sensor_ids_drawn(value)
+    elif isinstance(chart_specs, list):
+        for value in chart_specs:
+            ids |= _sensor_ids_drawn(value)
+    return ids
+
+
+@pytest.mark.parametrize(
+    "prices_title, power_flow_title",
+    [
+        ("Prices", "Power flow by type"),
+        ("prices", "Power flow by type"),
+        ("Prices", "power flow by type"),
+        ("prices", "power flow by type"),
+    ],
+)
+def test_charge_points_chart_loads_what_it_draws_whatever_the_title_case(
+    fresh_db, charge_hub, prices_title, power_flow_title
+):
+    """The Charge Points chart capitalizes graph titles, so a lowercase companion title still counts."""
+    site = charge_hub["arrival"].generic_asset
+    titles = {"Prices": prices_title, "Power flow by type": power_flow_title}
+    site.sensors_to_show = [
+        {**entry, "title": titles.get(entry["title"], entry["title"])}
+        for entry in site.sensors_to_show
+    ]
+    fresh_db.session.commit()
+
+    loaded = site.chart_sensors("chart_for_chargepoint_sessions")
+    assert _names(loaded) == [
+        "departure",
+        "arrival",
+        "plug in",
+        "charge points power",
+        "consumption price",
+    ]
+    chart_specs = site.chart(chart_type="chart_for_chargepoint_sessions")
+    assert _sensor_ids_drawn(chart_specs) == {sensor.id for sensor in loaded}
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 @pytest.mark.parametrize(
     "chart_type, expected_names",

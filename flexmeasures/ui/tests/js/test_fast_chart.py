@@ -556,3 +556,18 @@ def test_replay_ruler_survives_empty_data(assert_js):
         disposeFastChart(container.id);
         container.remove();
         """)
+
+
+def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_letter(
+    assert_js,
+):
+    """Like the Vega-Lite chart, the fast chart capitalizes a graph title before matching it."""
+    assert_js("""
+        import { isChargePointCompanionTitle } from "/js/fast-chart.js";
+        for (const title of ["Prices", "prices", "Power flow by type", "power flow by type"]) {
+            eq(`"${title}" is a companion graph`, isChargePointCompanionTitle(title), true);
+        }
+        for (const title of ["Weather", "Charge Point sessions", "PRICES", "", null, undefined]) {
+            eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title), false);
+        }
+        """)

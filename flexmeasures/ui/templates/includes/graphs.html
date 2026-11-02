@@ -30,7 +30,7 @@
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, isChargePointCompanionTitle } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -379,9 +379,7 @@
         const beliefTooltipSupported = () => {
             if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
             if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
-            return (fastChartGroupSpec || []).some((group) =>
-                ['Power flow by type', 'Prices'].includes(group.title)
-            );
+            return (fastChartGroupSpec || []).some((group) => isChargePointCompanionTitle(group.title));
         };
         syncFullBeliefInfoToggle = () => {
             if (!fullBeliefInfoToggleContainer) { return; }

@@ -2153,6 +2153,22 @@ const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
 // sessions chart type shows them; the default multi-sensor view hides this group.
 const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
 
+// Graph titles are matched as the Vega-Lite chart shows them, i.e. with a capital first letter,
+// so a graph titled "prices" counts as a Prices graph (see charge_point_companion_graph in belief_charts.py).
+function capitalizeTitle(title) {
+  return title ? title[0].toUpperCase() + title.slice(1) : title;
+}
+
+/**
+ * Whether the Charge Points chart shows this graph below its sessions.
+ *
+ * @param {string} title - The graph's title, as in sensors_to_show.
+ * @returns {boolean}
+ */
+export function isChargePointCompanionTitle(title) {
+  return CHARGEPOINT_COMPANION_TITLES.includes(capitalizeTitle(title));
+}
+
 export function buildChargePointSessionsOption(elementId, data, opts) {
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
@@ -2181,15 +2197,15 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
   // via the normal multi-sensor line-chart renderer and spliced in underneath.
-  const companionSpec = (opts.groupSpec || []).filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title));
+  const companionSpec = (opts.groupSpec || []).filter((g) => isChargePointCompanionTitle(g.title));
   let companionGroups = companionSpec.length > 0 ? groupData(data, companionSpec) : [];
   // groupData() falls back to grouping any row not covered by companionSpec's
   // sensorIds by unit, producing extra ad-hoc groups for the asset's other
   // sensors (soc, power, ...) — drop everything except the two intended titles.
   companionGroups = companionGroups
-    .filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title))
+    .filter((g) => isChargePointCompanionTitle(g.title))
     .map((g) =>
-      g.title === "Power flow by type"
+      capitalizeTitle(g.title) === "Power flow by type"
         ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === CHARGEPOINT_POWER_SENSOR_NAME) })
         : g
     )
