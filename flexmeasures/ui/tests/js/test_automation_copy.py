@@ -70,6 +70,10 @@ JQUERY_STUB = """
                 nodes.forEach(node => node.classList.toggle(name, on));
                 return self;
             },
+            filter: function (keep) {
+                const kept = nodes.filter((node, index) => keep(index, node));
+                return {length: kept.length};
+            },
             attr: function (name, value) {
                 if (value === undefined) return nodes.length ? nodes[0].getAttribute(name) : undefined;
                 nodes.forEach(node => node.setAttribute(name, value));

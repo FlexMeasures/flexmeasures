@@ -246,6 +246,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="alert alert-danger d-none" id="newAutomationErr"></div>
               </div>
               <div class="modal-footer">
+                <button type="button" class="btn btn-link me-auto d-none" id="newAutomationClear"
+                        title="Empty the form, to start a new automation from the defaults.">Clear form</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create</button>
               </div>
@@ -519,10 +521,38 @@ An active automation follows its cron recurrence in the timezone shown below. Th
      so opening it blank has to clear them rather than trust that they were never there. */
   function resetNewAutomationForm() {
     document.getElementById("newAutomationForm").reset();
+    setNewAutomationDraft(false);
     // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
     clearSelectedSource();
     showFieldsForType();
     $("#newAutomationErr").addClass("d-none").text("");
+  }
+
+  /* Whether the creation form holds something typed into it since it was last emptied.
+     Closing the form keeps what was typed, and opening it again from the New automation button carries on with that draft,
+     rather than throwing it away. Clear form empties it. */
+  let newAutomationDraft = false;
+
+  function setNewAutomationDraft(isDraft) {
+    newAutomationDraft = isDraft;
+    $("#newAutomationClear").toggleClass("d-none", !isDraft);
+  }
+
+  // The type of the automations tab in front, such as "reporting".
+  function activeTabType() {
+    return ($(".nav-tabs .nav-link.active").attr("id") || "").replace(/-tab$/, "");
+  }
+
+  /* Empty the creation form for a new automation of the type whose tab is in front,
+     so that New automation on the Reporting tab starts a report.
+     A plugin-defined type cannot be created from this form, so its tab leaves the type at the form's default. */
+  function startNewAutomation() {
+    resetNewAutomationForm();
+    const tabType = activeTabType();
+    if ($("#automationType option").filter((_, option) => option.value === tabType).length) {
+      $("#automationType").val(tabType);
+      showFieldsForType();
+    }
   }
 
   function prefillNewAutomationForm(values) {
@@ -1054,8 +1084,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
-    // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.
-    $("#newAutomationButton").on("click", () => resetNewAutomationForm());
+    // Opening the form from the New automation button carries on with a draft, and otherwise starts afresh, rather than from whatever a copy left in it.
+    $("#newAutomationButton").on("click", function () {
+      if (!newAutomationDraft) {
+        startNewAutomation();
+      }
+    });
+    $("#newAutomationClear").on("click", () => startNewAutomation());
+
+    // Typing into the form makes it a draft; choosing only a type does not, so the next tab's type can still replace it.
+    $("#newAutomationForm").on("input change", "input, textarea, select", function () {
+      if (this.id !== "automationType") {
+        setNewAutomationDraft(true);
+      }
+    });
 
     $("#editAutomationForm").submit(function (event) {
       event.preventDefault();
