@@ -641,7 +641,13 @@ def test_get_sources_filtered_by_generator_type(
         type="reporter",
         model="PandasReporter",
     )
-    db.session.add_all([forecaster, summed_forecasts, reporter])
+    # a script's source named after a reporter stores no data generator to set up
+    script = DataSource(
+        name="GeneratorTypeSeita",
+        type="demo script",
+        model="PandasReporter",
+    )
+    db.session.add_all([forecaster, summed_forecasts, reporter, script])
     db.session.flush()
 
     def ids(generator_type: str | None = None, **query):
@@ -654,6 +660,7 @@ def test_get_sources_filtered_by_generator_type(
     reporters = ids(generator_type="reporter", filter="GeneratorTypeSeita")
     assert {summed_forecasts.id, reporter.id} <= reporters
     assert forecaster.id not in reporters
+    assert script.id not in reporters
 
     forecasters = ids(generator_type="forecaster", filter="GeneratorTypeSeita")
     assert forecaster.id in forecasters

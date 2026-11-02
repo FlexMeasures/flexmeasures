@@ -220,8 +220,10 @@ class SourceAPI(FlaskView):
             query = query.where(DataSource.type == type)
         if generator_type is not None:
             # Which sources a data generator of this kind made is told by their model, as their type can be configured (see `Reporter.source_type`).
+            # The type still has to be a kind of data generator, as a source of another type (e.g. a script) can carry such a model name, too.
             query = query.where(
-                DataSource.model.in_(list(current_app.data_generators[generator_type]))
+                DataSource.model.in_(list(current_app.data_generators[generator_type])),
+                DataSource.type.in_(list(current_app.data_generators)),
             )
         if filter is not None:
             query = query.where(
