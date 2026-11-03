@@ -110,6 +110,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_templates"]
 
 # Todo: these are not mature enough yet for release, or should be removed
 exclude_patterns.append("int/*.rst")
+# Descriptions generated below for pages to include, rather than pages of their own.
+exclude_patterns.append("_autodoc/*.rst")
 exclude_patterns.append("concepts/assets.rst")
 exclude_patterns.append("concepts/markets.rst")
 exclude_patterns.append("concepts/users.rst")
@@ -297,8 +299,8 @@ for name in dir(metadata_module):
 
     # Create an autodoc file for the description, because the replace:: syntax does not support multi-line descriptions
     filename = os.path.join(output_dir, f"{name}.rst")
+    # The file holds no title, as pages include it in a table cell, which allows no section titles.
     with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"{name}\n{'=' * len(name)}\n\n")
         f.write(metadata.description)
 
 rst_epilog = "\n".join(sub_lines)
