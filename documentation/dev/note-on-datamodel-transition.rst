@@ -1,3 +1,5 @@
+:orphan:
+
 .. |check_| raw:: html
 
     <input checked=""  disabled="" type="checkbox">
