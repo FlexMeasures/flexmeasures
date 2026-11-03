@@ -255,16 +255,15 @@ def _enforce_existing_account_quotas(
     Ordinary reads are not blocked,
     and neither are inserts of rows that reference the account (which a plain FOR UPDATE would block).
 
-    Additions and removals map ``(account_id, resource_label)`` to the number
-    of resources entering or leaving that account in this flush. Resource labels
-    are the first entries in ``QUOTAS``; an absent key means zero. Removals are
-    subtracted from persisted usage when checking the additions in the same flush.
+    Additions and removals map ``(account_id, resource_label)`` to the number of resources entering or leaving that account in this flush.
+    Resource labels are the first entries in ``QUOTAS``; an absent key means zero.
+    Removals are subtracted from persisted usage when checking the additions in the same flush.
     """
     account_ids = sorted(
         {account_id for (account_id, _), added in additions.items() if added}
     )
-    # An addition that sees no quota can overlap a plan downgrade; like existing
-    # resources on a downgrade, it may remain above the new limit.
+    # An addition that sees no quota can overlap a plan downgrade;
+    # like existing resources on a downgrade, it may remain above the new limit.
     limits = _effective_quota_limits(session, account_ids)
     account_ids = [
         account_id

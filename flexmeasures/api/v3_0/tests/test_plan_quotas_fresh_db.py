@@ -100,8 +100,8 @@ def test_lock_only_organisations_with_relevant_quotas(
             fresh_db.session.flush()
         fresh_db.session.rollback()
 
-        # Callers can use ordinary dictionaries: missing resources and removals
-        # represent zero and must not raise KeyError when a quota is checked.
+        # Callers can use ordinary dictionaries:
+        # missing resources and removals represent zero, and must not raise KeyError when a quota is checked.
         _enforce_existing_account_quotas(
             fresh_db.session, {(account_ids[2], "assets"): 1}, {}
         )
