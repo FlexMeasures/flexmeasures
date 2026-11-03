@@ -2700,9 +2700,22 @@ export function getFastChartYAxisMax(elementId) {
 // While drawing, raise the first plot's y-axis to the scale to draw on, unless the data reach higher.
 function applyDrawScale(option, instance) {
   if (!instance._drawMode || instance._drawYMax === null || instance._drawYMax === undefined) return;
+  raiseYAxisToDraw(option, instance._drawYMax);
+}
+
+// Let the first plot's y-axis reach up to drawMax, unless its values reach higher.
+// ECharts only calls a function-valued bound for an axis that shows values, so a plot without any (no data and no draft values yet) gets fixed bounds instead.
+export function raiseYAxisToDraw(option, drawMax) {
   const yAxis = Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis;
   if (!yAxis || yAxis.type !== "value") return;
-  const drawMax = instance._drawYMax;
+  const hasValues = (option.series || []).some(
+    (s) => (s.yAxisIndex || 0) === 0 && Array.isArray(s.data) && s.data.some((p) => Array.isArray(p) && p[1] !== null && p[1] !== undefined)
+  );
+  if (!hasValues) {
+    yAxis.min = Math.min(0, drawMax);
+    yAxis.max = Math.max(0, drawMax);
+    return;
+  }
   const max = yAxis.max;
   yAxis.max = (extent) => Math.max(typeof max === "function" ? max(extent) : typeof max === "number" ? max : extent.max, drawMax);
 }
