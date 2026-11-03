@@ -17,7 +17,14 @@ from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
-from flexmeasures.data.models.charts.chart_types import get_asset_chart_type
+from flexmeasures.data.models.charts.chart_types import (
+    LEGACY_ASSET_CHART_TYPE_NAMES,
+    get_asset_chart_type,
+)
+from flexmeasures.data.models.charts.belief_charts import (
+    CHARGE_POINT_SESSIONS_TITLE,
+    charge_point_chart_sensors,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
@@ -987,6 +994,37 @@ class GenericAsset(db.Model, AuthModelMixin):
             annotation_type=annotation_type,
         )
         return db.session.scalar(select(func.count()).select_from(query.subquery()))
+
+    def chart_sensors(
+        self, chart_type: str | None = None
+    ) -> list["Sensor"]:  # noqa F821
+        """The sensors in this asset's sensors_to_show whose data the given chart type draws.
+
+        The default chart leaves the graph of charging-session timestamps to the Charge Points chart,
+        and the Charge Points chart draws only those timestamps and its two companion graphs;
+        loading the rest would be loading data that is thrown away.
+        Any other chart type, or none, gets all sensors.
+
+        :param chart_type: "default", "charge-point-sessions" (or their legacy names) or None.
+        :returns: a unique list of sensors, in the order of sensors_to_show (for the Charge Points chart, its session sensors first).
+        """
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensors_to_show = self.validate_sensors_to_show()
+        chart_type = LEGACY_ASSET_CHART_TYPE_NAMES.get(chart_type, chart_type)
+
+        if chart_type == "default":
+            # A sensor that is also in another graph is still drawn, so it stays.
+            return SensorsToShowSchema.flatten(
+                [
+                    entry
+                    for entry in sensors_to_show
+                    if entry.get("title") != CHARGE_POINT_SESSIONS_TITLE
+                ]
+            )
+        if chart_type == "charge-point-sessions":
+            return charge_point_chart_sensors(sensors_to_show)
+        return SensorsToShowSchema.flatten(sensors_to_show)
 
     def chart(
         self,

@@ -1,5 +1,9 @@
 """Tests for flexmeasures/ui/static/js/fast-chart.js."""
 
+import json
+
+from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):
     """The visible time range follows mouse zoom and resets to the full domain."""
@@ -591,13 +595,14 @@ def test_the_charge_point_sessions_chart_type_draws_the_sessions(assert_js):
         ];
         renderFastChart(container.id, rows, {
             chartType: "charge-point-sessions", groupSpec: [], datasetName: "asset_4", isSensorPage: false,
+            chargePointChart: CHARGE_POINT_CHART_NAMES,
         });
         const titles = [].concat(option.title || []).map((title) => title.text);
         check("the sessions are drawn", titles.includes("Charge Point sessions"), JSON.stringify(titles));
         check("hovering a session shows its tooltip", handlers.includes("mouseover"));
         disposeFastChart(container.id);
         container.remove();
-        """)
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
 
 
 def test_the_fast_chart_draws_the_built_in_chart_types_only(assert_js):
@@ -669,3 +674,19 @@ def test_the_sensor_chart_types_are_drawn_by_their_public_and_legacy_names(asser
         disposeFastChart(container.id);
         container.remove();
         """)
+
+
+def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_letter(
+    assert_js,
+):
+    """Like the Vega-Lite chart, the fast chart capitalizes a graph title before matching it."""
+    assert_js("""
+        import { isChargePointCompanionTitle } from "/js/fast-chart.js";
+        const names = CHARGE_POINT_CHART_NAMES;
+        for (const title of ["Prices", "prices", "Power flow by type", "power flow by type"]) {
+            eq(`"${title}" is a companion graph`, isChargePointCompanionTitle(title, names), true);
+        }
+        for (const title of ["Weather", "Charge Point sessions", "PRICES", "", null, undefined]) {
+            eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
+        }
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))

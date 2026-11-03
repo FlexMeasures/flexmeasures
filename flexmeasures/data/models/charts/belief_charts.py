@@ -33,6 +33,13 @@ POWER_FLOW_BY_TYPE_TITLE = "Power flow by type"
 CHARGE_POINT_COMPANION_TITLES = (PRICES_TITLE, POWER_FLOW_BY_TYPE_TITLE)
 # Of the power flows, the Charge Points chart shows only this one.
 CHARGE_POINT_POWER_SENSOR_NAME = "charge points power"
+# The same names, for the fast chart in the browser (handed to it by includes/graphs.html), so it matches what is drawn here.
+CHARGE_POINT_CHART_NAMES = {
+    "sessionsTitle": CHARGE_POINT_SESSIONS_TITLE,
+    "companionTitles": list(CHARGE_POINT_COMPANION_TITLES),
+    "powerFlowTitle": POWER_FLOW_BY_TYPE_TITLE,
+    "powerSensorName": CHARGE_POINT_POWER_SENSOR_NAME,
+}
 
 
 def charge_point_session_sensors(
@@ -83,6 +90,27 @@ def charge_point_companion_graph(entry: dict) -> dict | None:
         plots.append(plot)
     graph = {**entry, "plots": plots}
     return graph if _extract_sensors_from_entry(graph) else None
+
+
+def charge_point_chart_sensors(
+    sensors_to_show: list[dict],
+) -> list["Sensor"]:  # noqa F821
+    """The sensors whose data the Charge Points chart draws.
+
+    These are the session timestamps in any graph,
+    followed by the sensors of the companion graphs it draws below them (see charge_point_companion_graph).
+
+    :param sensors_to_show: a validated sensors_to_show.
+    :returns: a unique list of sensors.
+    """
+    session_sensors = charge_point_session_sensors(sensors_to_show)
+    companion_sensors = [
+        sensor
+        for entry in sensors_to_show
+        if (graph := charge_point_companion_graph(entry)) is not None
+        for sensor in _extract_sensors_from_entry(graph)
+    ]
+    return list(dict.fromkeys(session_sensors + companion_sensors))
 
 
 def create_bar_chart_or_histogram_specs(
