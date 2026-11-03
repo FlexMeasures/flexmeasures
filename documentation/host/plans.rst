@@ -124,6 +124,8 @@ and changes only the fields you pass:
 
     $ flexmeasures edit plan --id 2 --trigger-rate-limit "120 per 5 minutes"
 
+A lowered rate limit applies to new requests immediately, whether it comes from a plan or from the server-wide settings.
+
 To have accounts on a plan fall back on the server-wide setting again, clear the field rather than setting it:
 
 .. code-block:: bash
@@ -169,13 +171,11 @@ further additions are refused until usage falls below the quota.
              client links and consultancy roles remain in place. Adding or transferring assets or clients, and
              adding or reactivating users, can then be refused until usage falls below the relevant limit or the plan
              changes. With ``max_clients=0``, new clients and consultant roles are refused even if the organisation
-             had none before. Check the current usage in the plan tooltip before making the change.
+             had none before. The plan tooltip on the organisation's page shows its current usage against each quota.
 
              Creating a plan does not assign it to any organisation. Editing an existing plan applies its new limits
              immediately to **every** organisation on that plan. Plan assignments through the account UI or API are
              recorded in the organisation's audit log; changing a shared plan's limits does not add entries to those logs.
-             Lowering rate limits also affects new requests immediately, whether the limits come from a plan or the
-             server-wide defaults.
 
 .. note:: Changing an organisation's rate limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
           because the limit's amount is part of their key (the old keys simply expire).
