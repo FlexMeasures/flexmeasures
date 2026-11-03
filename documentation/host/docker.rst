@@ -64,7 +64,7 @@ To load a configuration file into the container when starting up, we make use of
 
     $ docker run -v $(pwd)/flexmeasures-instance:/app/instance:ro -d --net=host lfenergy/flexmeasures
 
-.. warning:: The location of the instance folder depends on how we serve FlexMeasures. The above works with gunicorn. See the compose file for an alternative (for the FlexMeasures CLI), and you can also read the above link about the instance folder.
+.. note:: The server and the FlexMeasures CLI in the container both read the instance folder at ``/app/instance``. Settings in ``flexmeasures.cfg`` take effect when the container starts, so restart the container after changing them; signalling gunicorn to reload (``kill -HUP``) restarts its workers but does not reload FlexMeasures, which gunicorn loads only once.
 
 Installing plugins within the container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
