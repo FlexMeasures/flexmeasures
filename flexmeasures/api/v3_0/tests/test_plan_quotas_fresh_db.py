@@ -39,7 +39,7 @@ def test_lock_only_organisations_with_relevant_quotas(
     locks = []
 
     def capture_lock(connection, cursor, statement, parameters, context, executemany):
-        if "FOR UPDATE" in statement.upper():
+        if "FOR NO KEY UPDATE" in statement.upper():
             locks.append((statement, parameters))
 
     engine = fresh_db.engine

@@ -247,9 +247,10 @@ def _enforce_existing_account_quotas(
 ) -> None:
     """Lock account rows to serialize concurrent additions subject to a quota.
 
-    SELECT FOR UPDATE holds each account row until the transaction ends, so
-    another quota-limited addition to that organisation waits before counting
-    its usage. Ordinary reads are not blocked.
+    SELECT FOR NO KEY UPDATE holds each account row until the transaction ends,
+    so another quota-limited addition to that organisation waits before counting its usage.
+    Ordinary reads are not blocked,
+    and neither are inserts of rows that reference the account (which a plain FOR UPDATE would block).
 
     Additions and removals map ``(account_id, resource_label)`` to the number
     of resources entering or leaving that account in this flush. Resource labels
@@ -278,7 +279,7 @@ def _enforce_existing_account_quotas(
         select(Account.id)
         .where(Account.id.in_(account_ids))
         .order_by(Account.id)
-        .with_for_update()
+        .with_for_update(key_share=True)
     ).all()
     # Re-read the plan after waiting for the lock, since it may have changed.
     limits = _effective_quota_limits(session, locked_ids)
