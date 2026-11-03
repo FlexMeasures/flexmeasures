@@ -288,3 +288,17 @@ def test_config_warnings_silent_when_trusted_hosts_is_set():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" not in missing_settings
     assert not any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_configure_logging_keeps_loggers_that_already_exist():
+    """Loggers created before FlexMeasures configures logging should keep logging.
+
+    Gunicorn creates its own before it preloads the app, and libraries such as RQ create theirs when they are imported.
+    """
+    import logging
+
+    from flexmeasures.utils.config_utils import configure_logging
+
+    existing_logger = logging.getLogger("test.created.before.configure_logging")
+    configure_logging()
+    assert not existing_logger.disabled
