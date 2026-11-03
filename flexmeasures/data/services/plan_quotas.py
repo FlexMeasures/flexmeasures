@@ -21,15 +21,18 @@ class PlanQuotaExceeded(Exception):
 
 
 def _quota_error(label: str, limit: int, current: int) -> PlanQuotaExceeded:
-    resource = label.removesuffix("s") if limit == 1 else label
     if limit == 0:
-        remedy = "Ask an administrator to change the plan."
-    else:
-        remedy = {
-            "active users": "Deactivate another user or ask an administrator to change the plan.",
-            "assets": "Remove or transfer assets, or ask an administrator to change the plan.",
-            "client organisations": "Ask an administrator to unlink clients or change the plan.",
-        }[label]
+        # "At most 0" reads oddly, and a usage of 0 is not worth reporting.
+        message = f"This organisation's plan allows no {label}."
+        if current:
+            message += f" It currently has {current}."
+        return PlanQuotaExceeded(f"{message} Ask an administrator to change the plan.")
+    resource = label.removesuffix("s") if limit == 1 else label
+    remedy = {
+        "active users": "Deactivate another user or ask an administrator to change the plan.",
+        "assets": "Remove or transfer assets, or ask an administrator to change the plan.",
+        "client organisations": "Ask an administrator to unlink clients or change the plan.",
+    }[label]
     return PlanQuotaExceeded(
         f"This organisation's plan allows at most {limit} {resource}. "
         f"It currently has {current}. {remedy}"

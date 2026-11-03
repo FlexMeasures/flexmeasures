@@ -40,9 +40,7 @@ def test_add_user_reports_quota_error(
         ]
     )
 
-    _assert_quota_error(
-        result, "This organisation's plan allows at most 0 active users."
-    )
+    _assert_quota_error(result, "This organisation's plan allows no active users.")
 
 
 def test_add_asset_reports_quota_error(
@@ -66,7 +64,7 @@ def test_add_asset_reports_quota_error(
         ]
     )
 
-    _assert_quota_error(result, "This organisation's plan allows at most 0 assets.")
+    _assert_quota_error(result, "This organisation's plan allows no assets.")
 
 
 def test_add_client_reports_quota_error(app, fresh_db, setup_accounts_fresh_db):
@@ -87,7 +85,7 @@ def test_add_client_reports_quota_error(app, fresh_db, setup_accounts_fresh_db):
     )
 
     _assert_quota_error(
-        result, "This organisation's plan allows at most 0 client organisations."
+        result, "This organisation's plan allows no client organisations."
     )
 
 
@@ -112,6 +110,6 @@ def test_transfer_asset_reports_quota_error(
         ]
     )
 
-    _assert_quota_error(result, "This organisation's plan allows at most 0 assets.")
+    _assert_quota_error(result, "This organisation's plan allows no assets.")
     fresh_db.session.rollback()
     assert asset.account_id == original_owner_id

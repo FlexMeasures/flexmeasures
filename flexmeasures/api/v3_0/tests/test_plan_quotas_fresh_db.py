@@ -96,7 +96,7 @@ def test_lock_only_organisations_with_relevant_quotas(
                 generic_asset_type_id=asset_type_id,
             )
         )
-        with pytest.raises(PlanQuotaExceeded, match="at most 0 assets"):
+        with pytest.raises(PlanQuotaExceeded, match="allows no assets"):
             fresh_db.session.flush()
         fresh_db.session.rollback()
 
@@ -125,7 +125,7 @@ def test_new_organisation_enforces_zero_user_quota_before_first_flush(fresh_db):
     )
     fresh_db.session.add_all([account, user])
 
-    with pytest.raises(PlanQuotaExceeded, match="at most 0 active users"):
+    with pytest.raises(PlanQuotaExceeded, match="allows no active users"):
         fresh_db.session.flush()
 
 
@@ -391,7 +391,7 @@ def test_zero_client_quota_rejects_client_creation(
     response = client.post(url_for("AccountAPI:post"), json={"name": "New client"})
 
     assert response.status_code == 422, response.json
-    assert "at most 0 client organisations" in response.json["message"]
+    assert "allows no client organisations" in response.json["message"]
     fresh_db.session.rollback()
     assert (
         fresh_db.session.scalar(select(Account.id).where(Account.name == "New client"))
@@ -474,7 +474,7 @@ def test_relationship_transfers_cannot_bypass_destination_quotas(
 
     client_account = setup_accounts_fresh_db["ConsultancyClient"]
     client_account.consultancy_account = prosumer
-    with pytest.raises(PlanQuotaExceeded, match="at most 0 client organisations"):
+    with pytest.raises(PlanQuotaExceeded, match="allows no client organisations"):
         fresh_db.session.flush()
     fresh_db.session.rollback()
 
