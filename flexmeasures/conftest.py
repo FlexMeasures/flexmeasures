@@ -2412,3 +2412,35 @@ def plugin_asset_chart_type(app):
     finally:
         ASSET_CHART_TYPES.pop(chart_type.name, None)
         LEGACY_ASSET_CHART_TYPE_NAMES.pop(chart_type.legacy_name, None)
+
+
+@pytest.fixture
+def plugin_sensor_chart_type(app):
+    """A sensor chart type registered after the app was created, as a plugin would register one.
+
+    It draws a bar chart, and applies to sensors named "power" only, so the sensor page offers it on those sensors only.
+    The registry is restored afterwards.
+    """
+    from flexmeasures.data.models.charts.belief_charts import bar_chart
+    from flexmeasures.data.models.charts.chart_types import (
+        LEGACY_SENSOR_CHART_TYPE_NAMES,
+        SENSOR_CHART_TYPES,
+        SensorChartType,
+        register_sensor_chart_type,
+    )
+
+    chart_type = register_sensor_chart_type(
+        SensorChartType(
+            name="test-plugin-sensor-chart",
+            label="Test plugin sensor chart",
+            description="a bar chart, registered by a test plugin",
+            applies_to=lambda sensor: sensor.name == "power",
+            builder=bar_chart,
+            legacy_name="test_plugin_sensor_chart",
+        )
+    )
+    try:
+        yield chart_type
+    finally:
+        SENSOR_CHART_TYPES.pop(chart_type.name, None)
+        LEGACY_SENSOR_CHART_TYPE_NAMES.pop(chart_type.legacy_name, None)

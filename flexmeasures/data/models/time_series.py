@@ -520,7 +520,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
     def chart(
         self,
-        chart_type: str = "bar_chart",
+        chart_type: str = "bar-chart",
         event_starts_after: datetime_type | None = None,
         event_ends_before: datetime_type | None = None,
         beliefs_after: datetime_type | None = None,
@@ -539,7 +539,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: one of the SENSOR_CHART_TYPES (see flexmeasures.data.models.charts), such as "bar_chart"
+        :param chart_type: name of a sensor chart type, as listed in the registry of sensor chart types (SENSOR_CHART_TYPES in flexmeasures.data.models.charts.chart_types), such as "bar-chart"; legacy names such as "bar_chart" are still accepted
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)

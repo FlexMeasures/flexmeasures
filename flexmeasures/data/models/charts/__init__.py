@@ -1,42 +1,34 @@
 from __future__ import annotations
 
-from typing import Callable
+from . import belief_charts, defaults  # noqa F401
+from .chart_types import (
+    SENSOR_CHART_TYPES,
+    SensorChartType,
+    UnknownChartType,
+    get_sensor_chart_type,
+)
 
-from . import belief_charts
-from .defaults import apply_chart_defaults
+# Every chart type that chart_type_to_chart_specs builds: the registry of sensor chart types (see chart_types.py),
+# which plugins can add to.
+# Asset charts are built through the registry of asset chart types instead.
+CHART_TYPES: dict[str, SensorChartType] = SENSOR_CHART_TYPES
 
-# The chart types of a sensor chart, by the name a request gives them.
-# The generic heatmap helper is left out: it is how daily_heatmap and weekly_heatmap are built.
-SENSOR_CHART_TYPES: dict[str, Callable[..., dict]] = {
-    "bar_chart": belief_charts.bar_chart,
-    "histogram": belief_charts.histogram,
-    "daily_heatmap": belief_charts.daily_heatmap,
-    "weekly_heatmap": belief_charts.weekly_heatmap,
-}
-
-# Every chart type that chart_type_to_chart_specs builds.
-# Asset charts are built through the registry of asset chart types instead (see chart_types.py).
-CHART_TYPES: dict[str, Callable[..., dict]] = SENSOR_CHART_TYPES
-
-
-class UnknownChartType(ValueError):
-    """Raised for a chart type that is not among the CHART_TYPES."""
+__all__ = [
+    "CHART_TYPES",
+    "SENSOR_CHART_TYPES",
+    "UnknownChartType",
+    "chart_type_to_chart_specs",
+]
 
 
 def chart_type_to_chart_specs(chart_type: str, **kwargs) -> dict:
     """Create chart specs of a given chart type, using FlexMeasures defaults for settings like width and height.
 
-    Only the chart types listed in CHART_TYPES are built,
+    Only the chart types in the registry of sensor chart types (CHART_TYPES) are built,
     so a request cannot reach other functions or data in the chart modules.
 
-    :param chart_type:  Name of a chart type in CHART_TYPES.
+    :param chart_type:  Name of a chart type in CHART_TYPES, or its legacy name (e.g. "bar_chart" for "bar-chart").
     :returns:           A dictionary containing a vega-lite chart specification
     :raises UnknownChartType: if the chart type is not in CHART_TYPES.
     """
-    try:
-        chart_builder = CHART_TYPES[chart_type]
-    except KeyError:
-        raise UnknownChartType(
-            f"Unknown chart type '{chart_type}'; choose from {', '.join(CHART_TYPES)}."
-        ) from None
-    return apply_chart_defaults(chart_builder)(**kwargs)
+    return get_sensor_chart_type(chart_type).chart_specs(**kwargs)

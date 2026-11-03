@@ -19,6 +19,7 @@ from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.charts.chart_types import DEFAULT_SENSOR_CHART_TYPE
 from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.color_defaults import get_color_settings
 
@@ -68,7 +69,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
             value = value.replace(" ", "+")
         variables[key] = value
 
-    variables["chart_type"] = session.get("chart_type", "bar_chart")
+    # The sensor page passes the chart type to start with (see initial_chart_type), checked against the chart types it offers.
+    variables.setdefault(
+        "chart_type", session.get("chart_type", DEFAULT_SENSOR_CHART_TYPE)
+    )
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
 
