@@ -408,8 +408,8 @@ export function wirePreviewStep(root, options) {
   // Busy previewing, which a new choice may interrupt; saving may not be interrupted.
   let busy = false;
   let saving = false;
-  // The window shown before the preview zoomed out, to go back to.
-  let draftsWindow = null;
+  // The window shown before the preview zoomed, to go back to.
+  let windowBefore = null;
   // Each run, and each change that makes a run out of date, takes a new number, so a late answer is ignored.
   let run = 0;
 
@@ -504,10 +504,17 @@ export function wirePreviewStep(root, options) {
     }
   }
 
+  // Show this range on the chart, remembering the window shown before the preview first zoomed, for Back.
+  function zoomTo(range) {
+    if (!range) return;
+    if (!windowBefore) windowBefore = opts.chart.getWindow();
+    opts.chart.setWindow(range);
+  }
+
   function close(restoreWindow) {
     invalidate();
-    if (restoreWindow && draftsWindow) opts.chart.setWindow(draftsWindow);
-    draftsWindow = null;
+    if (restoreWindow && windowBefore) opts.chart.setWindow(windowBefore);
+    windowBefore = null;
     open = false;
     opts.setVisible(false);
   }
@@ -592,8 +599,9 @@ export function wirePreviewStep(root, options) {
         };
         busy = false;
         showOnChart();
-        // The draft values themselves are in view already; repeats may reach far beyond it.
+        // Repeats may reach far beyond the window shown, and without them, the draft values are what will be saved.
         if (chosen !== "none") controller.showAll();
+        else controller.showDrafts();
         render();
       } catch (e) {
         if (e instanceof PreviewError) return fail(e.message);
@@ -603,12 +611,11 @@ export function wirePreviewStep(root, options) {
     // Zoom out to everything that would be saved.
     showAll() {
       if (!result) return;
-      if (!draftsWindow) draftsWindow = opts.chart.getWindow();
-      opts.chart.setWindow(rangeOfPoints(result.points));
+      zoomTo(rangeOfPoints(result.points));
     },
-    // Zoom back to the window shown before the preview.
+    // Zoom in to the draft values.
     showDrafts() {
-      if (draftsWindow) opts.chart.setWindow(draftsWindow);
+      zoomTo(rangeOfPoints(drafts));
     },
     // Go back to the draft step, with the draft values as they were.
     back() {

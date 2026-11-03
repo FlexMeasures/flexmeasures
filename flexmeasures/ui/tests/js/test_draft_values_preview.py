@@ -286,7 +286,8 @@ def test_previewing_without_repetition_saves_the_draft_values(assert_js):
            calls.fetchExisting.map((q) => q.toString()), ["start=2026-11-02T05%3A00%3A00Z&duration=PT1H&unit=kWh"]);
         eq("the draft values are to be created", part("create").textContent, "4");
         check("and shown on the chart", chart.previews.length === 1 && chart.previews[0].points.length === 4, JSON.stringify(chart.previews));
-        eq("which leaves the window alone, as the draft values are in view already", chart.windows.length, 0);
+        eq("and the chart zooms in to them, as they are all that will be saved",
+           chart.windows.map((w) => [w.start.getTime(), w.end.getTime()]), [[T0, T0 + 4 * QUARTER]]);
         check("they can be confirmed", !part("confirm").disabled, "");
         await click("confirm");
         eq("confirming posts them", calls.save, [{ start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }]);
@@ -354,7 +355,9 @@ def test_previewing_daily_repeats_and_confirming_them(assert_js):
         const whole = chart.windows[chart.windows.length - 1];
         eq("the chart shows the whole range", [whole.start.getTime(), whole.end.getTime()], [T0, T0 + 25 * HOUR]);
         await click("show-drafts");
-        eq("and can go back to the window shown before", chart.window.start.getTime(), T0 - 2 * 24 * HOUR);
+        eq("and can zoom in to the draft values", [chart.window.start.getTime(), chart.window.end.getTime()], [T0, T0 + 4 * QUARTER]);
+        await click("show-all");
+        eq("and out again", [chart.window.start.getTime(), chart.window.end.getTime()], [T0, T0 + 25 * HOUR]);
         await click("confirm");
         eq("confirming posts the pattern and its repeats in one body", calls.save.length, 1);
         eq("with the repeats unchanged at the end", calls.save[0].values.slice(-4), repeats.values);
