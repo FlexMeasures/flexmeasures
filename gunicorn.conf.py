@@ -12,6 +12,16 @@ which would also end them for the parent process that still holds them.
 """
 
 
+def when_ready(_server):
+    # Gunicorn calls this before forking the first workers.
+    # With --preload, the app has used the database by now, and the master would keep those connections for its whole lifetime without ever using them again.
+    from flexmeasures.data.config import db
+    from wsgi import application
+
+    with application.app_context():
+        db.engine.dispose()
+
+
 def post_fork(_server, _worker):
     # Imported here, not at module level:
     # gunicorn loads this config file before --preload loads the app,
