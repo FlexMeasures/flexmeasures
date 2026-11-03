@@ -55,6 +55,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Job workers now also log RQ's own messages, such as when each job starts and how it ended, naming each job by its ID [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
 * ``flexmeasures add report`` saves the reporter's config on its data source by default, as the API and automations do, so that reports computed under different configs no longer share one data source; its first run after upgrading saves all of its beliefs once more, under the new data source [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
 * Upgrade certifi and Werkzeug for security reasons; hosts running the Docker image should pull the new image to get certifi's corrected certificate bundle, and hosts listing an IPv6 address in ``TRUSTED_HOSTS`` should know that this version of Werkzeug rejects requests to it (see `Werkzeug issue #3312 <https://github.com/pallets/werkzeug/issues/3312>`_) [see `PR #2750 <https://www.github.com/FlexMeasures/flexmeasures/pull/2750>`_]
 * A forecast hands its trained model to the prediction in memory, instead of writing it to a file and reading it back. A model is kept as a file only when ``model-save-dir`` is given, where each cycle used to leave one behind, often hundreds of MB, under ``flexmeasures/data/models/forecasting/artifacts/models`` relative to the worker's working directory. Hosts can delete that folder after upgrading [see `PR #2701 <https://www.github.com/FlexMeasures/flexmeasures/pull/2701>`_]
@@ -114,6 +115,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* In the Docker image, ``pip install``, which our docs and the compose stack use to add plugins and their requirements, now installs into the environment FlexMeasures runs from, rather than where FlexMeasures could not import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
 * Scheduling workers no longer print the HiGHS solver's banner and log to the console, unless ``LOGGING_LEVEL`` is ``DEBUG``; setting ``output_flag`` in ``FLEXMEASURES_LP_SOLVER_OPTIONS`` now also suppresses the banner [see `PR #2794 <https://www.github.com/FlexMeasures/flexmeasures/pull/2794>`_]
 * Allow consultants to create assets in client organisations, and reject attempts to change an asset’s organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_]
 * The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
