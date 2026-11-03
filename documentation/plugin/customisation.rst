@@ -457,8 +457,8 @@ Run a worker for the handler's queue and invoke ``flexmeasures jobs run-automati
 The execution user's permissions and the output sensors' asset scope are checked again when queueing and computing a run.
 
 
-Adding your own asset chart type
---------------------------------
+Adding your own chart types
+---------------------------
 
 An asset's graphs can be drawn as different chart types, which the asset page offers in a picker, and which the chart API takes as ``chart-type``.
 A plugin can add its own chart type by registering it when the plugin is set up, for instance in its ``__init__.py``:
@@ -491,4 +491,31 @@ A plugin can add its own chart type by registering it when the plugin is set up,
 
 Prefix the name with your plugin's name, so it does not clash with chart types FlexMeasures may add later; a name that is already taken is refused.
 
-.. note:: The fields of ``AssetChartType`` are provisional, and may still change before plugins can rely on them.
+A sensor's data can likewise be drawn as different chart types, which the sensor page offers in a picker, and which the sensor chart endpoint (``/api/ui/sensor/<id>/chart``) takes as ``chart-type``.
+The built-in ones are ``bar-chart``, ``histogram``, ``daily-heatmap`` and ``weekly-heatmap``.
+A plugin registers its own sensor chart type in the same way:
+
+.. code-block:: python
+
+    from flexmeasures.data.models.charts.chart_types import SensorChartType, register_sensor_chart_type
+
+
+    def duration_curve(sensor, event_starts_after=None, event_ends_before=None, **kwargs) -> dict:
+        """Return the Vega-Lite specs of the chart."""
+        ...
+
+
+    register_sensor_chart_type(
+        SensorChartType(
+            name="my-plugin-duration-curve",
+            label="Duration curve",
+            description="the sensor's values, sorted from high to low",
+            applies_to=lambda sensor: sensor.unit in ("kW", "MW"),
+            builder=duration_curve,
+        )
+    )
+
+The sensor page offers it on the sensors it applies to.
+The fast chart (the "Fast chart" toggle) only draws the built-in chart types, so the asset and sensor pages draw your chart types with Vega-Lite.
+
+.. note:: The fields of ``AssetChartType`` and ``SensorChartType`` are provisional, and may still change before plugins can rely on them.

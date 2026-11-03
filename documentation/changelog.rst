@@ -10,7 +10,7 @@ v1.2.0 | XX, 2026
 
 New features
 -------------
-* Asset charts have public chart type names, ``default`` and ``charge-point-sessions``, which the chart API documents and checks, while it still accepts the names it took so far; plugins can register their own chart types [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
+* Asset and sensor charts have public chart type names (``default`` and ``charge-point-sessions`` for assets; ``bar-chart``, ``histogram``, ``daily-heatmap`` and ``weekly-heatmap`` for sensors), which the chart endpoints document and check, while they still accept the names they took so far; plugins can register their own asset and sensor chart types, which the asset and sensor pages offer where they apply [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
 
 Bugfixes
 -----------
