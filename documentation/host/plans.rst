@@ -179,5 +179,5 @@ further additions are refused until usage falls below the quota.
 
 .. note:: Changing an organisation's rate limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
           because the limit's amount is part of their key (the old keys simply expire).
-          So the account may get a fresh budget for the remainder of the current window.
+          So the organisation may get a fresh budget for the remainder of the current window.
           Harmless, but worth knowing when you wonder why a plan change handed someone a clean slate.
