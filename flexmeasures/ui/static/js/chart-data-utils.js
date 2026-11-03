@@ -91,7 +91,7 @@ export function checkDSTTransitions(startDate, endDate) {
 
 export function checkSourceMasking(data, chartType) {
   var uniqueSourceIds = getUniqueValues(data, "source.id");
-  if (chartType == "daily_heatmap" && uniqueSourceIds.length > 1) {
+  if (["daily-heatmap", "daily_heatmap"].includes(chartType) && uniqueSourceIds.length > 1) {
     showToast(
       "Please note that only data from the most prevalent source is shown."
     );
