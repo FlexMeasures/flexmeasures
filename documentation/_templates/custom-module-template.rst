@@ -26,7 +26,7 @@
 
 
    {% for item in attributes %}
-   .. autoattribute::
+   .. autodata::
       {{ item }}
    {%- endfor %}
    {% endif %}
