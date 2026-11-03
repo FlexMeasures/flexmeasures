@@ -8,7 +8,7 @@ document.body.insertAdjacentHTML("beforeend", `
     <div data-draft-unavailable class="d-none"></div>
     <div data-draft-controls>
       <a href="#" data-draft-draw><span data-draft-draw-text>Draw on chart</span></a>
-      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /></div>
+      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /><input data-draft-draw-min type="number" /></div>
       <a href="#" data-draft-record><span data-draft-record-text>Select on chart</span></a>
       <div data-draft-typed>
       <input data-draft-start type="datetime-local" />
@@ -37,7 +37,8 @@ chart.scales = [];
 chart.startDrawing = () => { chart.drawing = true; };
 chart.stopDrawing = () => { chart.drawing = false; };
 chart.getYAxisMax = () => 10;
-chart.setDrawScale = (yMax) => chart.scales.push(yMax);
+chart.getYAxisMin = () => -3;
+chart.setDrawScale = (yMax, yMin) => chart.scales.push([yMax, yMin]);
 const confirmations = [];
 let confirmAnswer = true;
 const target = new EventTarget();
@@ -214,10 +215,11 @@ def test_record_select_add_and_stop(assert_js):
         check("which has the value, its unit and the count", button("list").children[0].textContent.includes("3.5 kWh · 4 values"), button("list").children[0].textContent);
         eq("and counts them", [button("count").textContent, button("count").classList.contains("d-none")], ["4", false]);
         check("they can be discarded", !button("cancel").classList.contains("d-none"), "");
-        eq("the selection is cleared", chart.selection, null);
-        eq("the value stays for the next selection", button("value").value, "3.5");
+        eq("the next range is proposed, starting where this one ended and as long",
+           [chart.selection.start.getTime(), chart.selection.end.getTime()], [T0 + 3600000, T0 + 2 * 3600000]);
+        eq("the value stays for the next range", button("value").value, "3.5");
         check("Add stays green, showing values were added", button("add").classList.contains("btn-success"), "");
-        eq("not faded, though there is nothing to add for now", [button("add").disabled, button("add").style.opacity], [true, "1"]);
+        eq("and can add the proposed range right away", [button("add").disabled, button("add").style.opacity], [false, "1"]);
 
         selectOnChart(T0 + 3600000, T0 + 3600000 + 2 * QUARTER - 60000);
         typeValue("5");
@@ -355,20 +357,21 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
     assert_js(PANEL + """
         import { toDatetimeLocalValue } from "/js/draft-values.js";
         const start = new Date(T0 + 2 * 3600000 + 7 * 60000);
+        eq("the duration starts out as two hours, as the sensor's resolution is shorter", button("duration").value, "PT2H");
         await typeIn("start", toDatetimeLocalValue(start));
-        eq("a start alone selects nothing", panel.slots.length, 0);
-        check("nor starts recording", !panel.recording, "");
+        eq("so a start alone selects two hours from it", panel.slots.length, 9);
+        check("and starts recording", panel.recording, "");
         await typeIn("duration", "PT1H");
         check("start and duration start recording, without pressing Select on chart", panel.recording && chart.selecting, "");
-        eq("start and duration select the slots they touch", panel.slots.length, 5);
+        eq("start and duration select the slots they touch, from the start as snapped to a slot", panel.slots.length, 4);
         eq("from the slot the start lies in", panel.slots[0].start.getTime(), T0 + 2 * 3600000);
         check("which shows on the chart", chart.selection && chart.selection.start.getTime() === T0 + 2 * 3600000, "");
         eq("the fields show the snapped start", button("start").value, toDatetimeLocalValue(new Date(T0 + 2 * 3600000)));
-        eq("and the duration it covers", button("duration").value, "PT1H15M");
+        eq("and the duration it covers", button("duration").value, "PT1H");
 
         await typeIn("duration", "two hours");
         check("an unreadable duration is pointed out", button("duration").classList.contains("is-invalid"), "");
-        eq("and keeps the previous selection", panel.slots.length, 5);
+        eq("and keeps the previous selection", panel.slots.length, 4);
 
         selectOnChart(T0, T0 + 30 * 60000);
         eq("a selection on the chart fills in the start", button("start").value, toDatetimeLocalValue(new Date(T0)));
@@ -378,7 +381,48 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         typeValue("4");
         panel.add();
         eq("adding fills the slots", panel.drafts.length, 2);
-        eq("and clears the fields for the next range", [button("start").value, button("duration").value], ["", ""]);
+        eq("and moves the fields on to the next range, keeping the duration",
+           [button("start").value, button("duration").value], [toDatetimeLocalValue(new Date(T0 + 30 * 60000)), "PT30M"]);
+        eq("and the value", button("value").value, "4");
+        typeValue("6");
+        panel.add();
+        eq("so a run of different values is a value and Add each", panel.drafts.map((d) => d.value), [4, 4, 6, 6]);
+        """)
+
+
+def test_the_range_proposed_after_add_is_not_handed_over_unless_given_a_value(
+    assert_js,
+):
+    """Save and Preview leave out the range proposed after Add, unless the user typed a value for it."""
+    assert_js(PANEL + """
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("7");
+        panel.add();
+        eq("a range is proposed after adding", panel.slots.length, 4);
+        panel.handOver("save");
+        eq("handing over leaves the proposed range out", handedOver[0].drafts.length, 4);
+
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("7");
+        panel.add();
+        typeValue("8");
+        panel.handOver("preview");
+        eq("but adds it once a value is typed for it", handedOver[1].drafts.map((d) => d.value), [7, 7, 7, 7, 8, 8, 8, 8]);
+        """)
+
+
+def test_the_proposed_duration_follows_the_sensor_resolution(assert_js):
+    assert_js("""
+        import { defaultDraftDuration } from "/js/draft-values.js";
+        const MIN = 60 * 1000;
+        const HOUR = 60 * MIN;
+        eq("two hours for a 15-minute sensor", defaultDraftDuration(15 * MIN), 2 * HOUR);
+        eq("two hours for an hourly sensor", defaultDraftDuration(HOUR), 2 * HOUR);
+        eq("the resolution when it is longer than two hours", defaultDraftDuration(3 * HOUR), 3 * HOUR);
+        eq("one day for a daily sensor", defaultDraftDuration(24 * HOUR), 24 * HOUR);
+        eq("one week for a weekly sensor", defaultDraftDuration(7 * 24 * HOUR), 7 * 24 * HOUR);
         """)
 
 
@@ -438,10 +482,12 @@ def test_a_stroke_becomes_draft_values(assert_js):
 
 def test_the_scale_to_draw_on(assert_js):
     assert_js("""
-        import { proposedDrawScale } from "/js/draft-values.js";
+        import { proposedDrawScale, proposedDrawFloor } from "/js/draft-values.js";
         import { drawnValueStep } from "/js/fast-chart.js";
         eq("twice the axis, rounded up to one significant digit", [proposedDrawScale(10), proposedDrawScale(37), proposedDrawScale(0.3)], [20, 80, 1]);
         eq("an empty chart still gets room", proposedDrawScale(null), 1);
+        eq("the lowest value is 0 for an axis that does not go below it", [proposedDrawFloor(0), proposedDrawFloor(5), proposedDrawFloor(null)], [0, 0, 0]);
+        eq("and mirrors the highest for one that does", [proposedDrawFloor(-10), proposedDrawFloor(-37)], [-20, -80]);
         eq("values are worth a power of ten no finer than a pixel", [drawnValueStep(0.27), drawnValueStep(0.004), drawnValueStep(3)], [1, 0.01, 10]);
         """)
 
@@ -462,10 +508,13 @@ def test_drawing_on_the_chart_makes_draft_values(assert_js):
         check("ending selecting", !panel.recording && !chart.selecting, "");
         eq("and offers to stop", button("draw").textContent, "Stop drawing");
         check("explaining how, and hiding the typed fields", !button("drawing").classList.contains("d-none") && button("typed").classList.contains("d-none"), "");
-        eq("proposing a scale above the data", [button("draw-max").value, chart.scales], ["20", [20]]);
+        eq("proposing room above the data, and below it as the chart goes below zero",
+           [button("draw-max").value, button("draw-min").value, chart.scales], ["20", "-6", [[20, -6]]]);
         button("draw-max").value = "50";
         button("draw-max").dispatchEvent(new Event("change"));
-        eq("which can be changed", chart.scales, [20, 50]);
+        button("draw-min").value = "-40";
+        button("draw-min").dispatchEvent(new Event("change"));
+        eq("which can be changed", chart.scales, [[20, -6], [50, -6], [50, -40]]);
 
         stroke(0, 59, 20);
         eq("a stroke adds a draft value per slot", panel.drafts.map((d) => d.value), [20, 20, 20, 20]);

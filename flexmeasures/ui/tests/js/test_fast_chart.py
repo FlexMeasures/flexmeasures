@@ -555,18 +555,46 @@ def test_a_preview_overlays_the_values_to_save_and_rings_what_they_supersede(ass
         """)
 
 
-def test_drawing_scale_reaches_an_empty_plot(assert_js):
-    """The scale to draw on raises the y-axis, also on a plot without any values yet, where ECharts ignores function-valued bounds."""
+def test_drawing_room_reaches_an_empty_plot(assert_js):
+    """The room to draw in stretches the y-axis, also on a plot without any values yet, where ECharts ignores function-valued bounds."""
     assert_js("""
-        import { raiseYAxisToDraw } from "/js/fast-chart.js";
+        import { fitYAxisToDraw } from "/js/fast-chart.js";
         const empty = { yAxis: [{ type: "value" }], series: [{ yAxisIndex: 0, data: [] }] };
-        raiseYAxisToDraw(empty, 50);
-        eq("an empty plot gets fixed bounds from 0 up to the scale", [empty.yAxis[0].min, empty.yAxis[0].max], [0, 50]);
+        fitYAxisToDraw(empty, 50, null);
+        eq("an empty plot gets fixed bounds from 0 up to the highest value", [empty.yAxis[0].min, empty.yAxis[0].max], [0, 50]);
         const negative = { yAxis: [{ type: "value" }], series: [] };
-        raiseYAxisToDraw(negative, -20);
-        eq("and down to a negative one", [negative.yAxis[0].min, negative.yAxis[0].max], [-20, 0]);
-        const withData = { yAxis: [{ type: "value", min: 0 }], series: [{ yAxisIndex: 0, data: [[0, 70]] }] };
-        raiseYAxisToDraw(withData, 50);
-        eq("with values, the axis still follows them where they reach higher", withData.yAxis[0].max({ min: 0, max: 70 }), 70);
-        eq("and reaches up to the scale where they do not", withData.yAxis[0].max({ min: 0, max: 10 }), 50);
+        fitYAxisToDraw(negative, null, -20);
+        eq("and from the lowest value up to 0", [negative.yAxis[0].min, negative.yAxis[0].max], [-20, 0]);
+        const both = { yAxis: [{ type: "value" }], series: [] };
+        fitYAxisToDraw(both, 30, -10);
+        eq("or between both", [both.yAxis[0].min, both.yAxis[0].max], [-10, 30]);
+        const swapped = { yAxis: [{ type: "value" }], series: [] };
+        fitYAxisToDraw(swapped, -10, 30);
+        eq("a lowest value above the highest is read the other way round", [swapped.yAxis[0].min, swapped.yAxis[0].max], [-10, 30]);
+        """)
+
+
+def test_drawing_room_stretches_a_plot_with_values(assert_js):
+    """With values, the axis follows them where they reach further, and the room to draw in where they do not."""
+    assert_js("""
+        import { fitYAxisToDraw } from "/js/fast-chart.js";
+        const withData = () => ({ yAxis: [{ type: "value" }], series: [{ yAxisIndex: 0, data: [[0, 70]] }] });
+        const up = withData();
+        fitYAxisToDraw(up, 50, null);
+        eq("the values reach higher", up.yAxis[0].max({ min: 5, max: 70 }), 70);
+        eq("they do not", up.yAxis[0].max({ min: 5, max: 10 }), 50);
+        eq("the bottom is left to the axis", up.yAxis[0].min, undefined);
+        const down = withData();
+        fitYAxisToDraw(down, null, -40);
+        eq("the room reaches lower", down.yAxis[0].min({ min: 5, max: 70 }), -40);
+        eq("the values reach lower", down.yAxis[0].min({ min: -90, max: 70 }), -90);
+        const zero = withData();
+        fitYAxisToDraw(zero, null, 10);
+        eq("an axis that includes zero keeps it", zero.yAxis[0].min({ min: 20, max: 70 }), 0);
+        const fitted = { yAxis: [{ type: "value", scale: true }], series: [{ yAxisIndex: 0, data: [[0, 70]] }] };
+        fitYAxisToDraw(fitted, null, 10);
+        eq("one fitted to the data need not", fitted.yAxis[0].min({ min: 20, max: 70 }), 10);
+        const floor = { yAxis: [{ type: "value", min: (v) => Math.min(v.min, -5) }], series: [{ yAxisIndex: 0, data: [[0, 70]] }] };
+        fitYAxisToDraw(floor, null, -2);
+        eq("its own bound still applies", floor.yAxis[0].min({ min: 20, max: 70 }), -5);
         """)

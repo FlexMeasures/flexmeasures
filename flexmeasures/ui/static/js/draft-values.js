@@ -151,6 +151,29 @@ export function proposedDrawScale(yAxisMax) {
 }
 
 /**
+ * A lowest value to propose for drawing: 0 when the chart's y-axis does not go below it, and otherwise as far below as proposedDrawScale goes above.
+ *
+ * @param {number|null} yAxisMin - The bottom of the y-axis as shown.
+ * @returns {number} The lowest value, at most 0.
+ */
+export function proposedDrawFloor(yAxisMin) {
+  if (!(yAxisMin < 0) || !isFinite(yAxisMin)) return 0;
+  return -proposedDrawScale(-yAxisMin);
+}
+
+const TWO_HOURS_MS = 2 * 3600 * 1000;
+
+/**
+ * The duration to propose for a typed time range: two hours, or the sensor's resolution when that is longer (such as one day for a daily sensor).
+ *
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @returns {number} The duration, in milliseconds.
+ */
+export function defaultDraftDuration(resolutionMs) {
+  return resolutionMs > TWO_HOURS_MS ? resolutionMs : TWO_HOURS_MS;
+}
+
+/**
  * Remove the draft values within a time range, such as one group of groupDrafts.
  *
  * @param {Object[]} drafts - The current draft values.
@@ -295,7 +318,7 @@ function defaultFormatTime(date) {
  *
  * The panel's elements are found by their data attributes inside the root:
  * data-draft-draw (the Draw on chart toggle, with data-draft-draw-text for its label, data-draft-drawing explaining it
- * and holding data-draft-draw-max, the scale to draw on, and data-draft-typed, the fields hidden while drawing; all optional),
+ * and holding data-draft-draw-max and data-draft-draw-min, the highest and lowest values to draw, and data-draft-typed, the fields hidden while drawing; all optional),
  * data-draft-record (the Select on chart toggle, with data-draft-record-text for its label),
  * data-draft-start and data-draft-duration (a datetime-local and a text field), data-draft-value (the value field), data-draft-add,
  * data-draft-selection (describes the selection), data-draft-list (one row per group of draft values), data-draft-count,
@@ -316,7 +339,8 @@ function defaultFormatTime(date) {
  * @param {function(): number} options.getAnchorMs - Any event start of the sensor, in milliseconds since the epoch.
  * @param {Object} options.chart - How the panel drives the chart:
  *   startSelecting() turns on the select tool (it may return a promise, and false when that is not possible),
- *   stopSelecting(), startDrawing() and stopDrawing() likewise for the draw tool, showSelection(range|null) and showDrafts(drafts).
+ *   stopSelecting(), startDrawing() and stopDrawing() likewise for the draw tool, showSelection(range|null) and showDrafts(drafts),
+ *   and optionally getYAxisMax(), getYAxisMin() and setDrawScale(yMax, yMin) (either may be null) for the room to draw in.
  * @param {function(string): boolean} [options.confirm] - Asks the user to confirm (window.confirm by default).
  * @param {EventTarget} [options.target] - Where chart events arrive and the hand-off is dispatched (document by default).
  * @param {Window} [options.win] - Where leaving the page is guarded (window by default).
@@ -344,6 +368,7 @@ export function wireDraftValuesPanel(root, options) {
   const drawText = el("draw-text") || drawButton;
   const drawingNote = el("drawing");
   const drawMaxInput = el("draw-max");
+  const drawMinInput = el("draw-min");
   const typedFields = el("typed");
   const startInput = el("start");
   const durationInput = el("duration");
@@ -362,6 +387,10 @@ export function wireDraftValuesPanel(root, options) {
   let recording = false;
   let drawing = false;
   let slots = [];
+  // Whether the selection is the next range proposed after Add, rather than one the user chose.
+  let proposed = false;
+  const defaultDuration = formatIsoDuration(defaultDraftDuration(opts.resolutionMs));
+  if (!durationInput.value) durationInput.value = defaultDuration;
 
   const unavailable = draftValuesUnavailableReason(opts.resolutionMs, opts.isTouch);
   if (unavailable) {
@@ -448,11 +477,13 @@ export function wireDraftValuesPanel(root, options) {
     opts.chart.showDrafts(drafts.slice());
   }
 
+  // Clear the selection and its start, keeping a readable duration for the next range.
   function clearSelection() {
     slots = [];
+    proposed = false;
     opts.chart.showSelection(null);
     startInput.value = "";
-    durationInput.value = "";
+    if (parseIsoDuration(durationInput.value) === null) durationInput.value = defaultDuration;
     durationInput.classList.remove("is-invalid");
   }
 
@@ -473,18 +504,22 @@ export function wireDraftValuesPanel(root, options) {
       const started = await opts.chart.startDrawing();
       if (started === false) return;
       drawing = true;
-      // Propose room above what the chart shows, as the values to draw may lie above the data so far.
-      if (drawMaxInput && opts.chart.getYAxisMax) {
-        if (!drawMaxInput.value) drawMaxInput.value = String(proposedDrawScale(opts.chart.getYAxisMax()));
-        controller.setDrawScale(drawMaxInput.value);
+      // Propose room beyond what the chart shows, as the values to draw may lie above (or below) the data so far.
+      if (drawMaxInput && opts.chart.getYAxisMax && !drawMaxInput.value) {
+        drawMaxInput.value = String(proposedDrawScale(opts.chart.getYAxisMax()));
       }
+      if (drawMinInput && opts.chart.getYAxisMin && !drawMinInput.value) {
+        drawMinInput.value = String(proposedDrawFloor(opts.chart.getYAxisMin()));
+      }
+      controller.setDrawScale();
       render();
     },
-    // Let the chart reach up to this value while drawing.
-    setDrawScale(text) {
-      const yMax = parseDraftValue(text);
-      if (!drawing || yMax === null || !opts.chart.setDrawScale) return;
-      opts.chart.setDrawScale(yMax);
+    // Let the chart reach from the lowest to the highest value to draw, as typed, while drawing.
+    setDrawScale() {
+      const yMax = drawMaxInput ? parseDraftValue(drawMaxInput.value) : null;
+      const yMin = drawMinInput ? parseDraftValue(drawMinInput.value) : null;
+      if (!drawing || (yMax === null && yMin === null) || !opts.chart.setDrawScale) return;
+      opts.chart.setDrawScale(yMax, yMin);
     },
     stopDrawing() {
       if (!drawing) return;
@@ -533,7 +568,8 @@ export function wireDraftValuesPanel(root, options) {
     },
     // A selection with a value that was not added yet is added first, so it is not lost.
     handOver(action) {
-      controller.add();
+      // The next range proposed after Add was not chosen, so it is left out.
+      if (!proposed) controller.add();
       if (drafts.length === 0) return;
       controller.endRecording();
       controller.stopDrawing();
@@ -546,6 +582,7 @@ export function wireDraftValuesPanel(root, options) {
     // Select the slots a range on the chart covers (null clears the selection).
     select(range) {
       if (!recording) return;
+      proposed = false;
       if (!range) {
         clearSelection();
         render();
@@ -581,12 +618,20 @@ export function wireDraftValuesPanel(root, options) {
       await controller.record();
       controller.select(range);
     },
-    // Give the selected slots the typed value, then clear the selection (the value stays, to be used again).
+    // Give the selected slots the typed value, then propose the next range: it starts where this one ends, with the same duration, and the value stays.
+    // So drafting a run of different values is typing a value and pressing Add, again and again.
     add() {
       const value = parseDraftValue(valueInput.value);
       if (!recording || slots.length === 0 || value === null) return;
       setDrafts(fillSlots(drafts, slots, value));
+      const end = slots[slots.length - 1].end;
+      const duration = parseIsoDuration(durationInput.value);
       clearSelection();
+      if (duration !== null) {
+        startInput.value = toDatetimeLocalValue(end);
+        controller.select(rangeFromStartAndDuration(end, duration));
+        proposed = slots.length > 0;
+      }
       render();
     },
     remove(startMs) {
@@ -625,7 +670,11 @@ export function wireDraftValuesPanel(root, options) {
     event.preventDefault();
     controller.cancel();
   });
-  valueInput.addEventListener("input", render);
+  // Changing the value makes the proposed range one the user chose.
+  valueInput.addEventListener("input", () => {
+    proposed = false;
+    render();
+  });
   startInput.addEventListener("change", () => controller.selectTyped());
   durationInput.addEventListener("change", () => controller.selectTyped());
   valueInput.addEventListener("keydown", (event) => {
@@ -642,7 +691,8 @@ export function wireDraftValuesPanel(root, options) {
     });
   }
   opts.target.addEventListener("chartdrawn", (event) => controller.addStroke(event.detail));
-  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale(drawMaxInput.value));
+  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale());
+  if (drawMinInput) drawMinInput.addEventListener("change", () => controller.setDrawScale());
   // Another chart tool was picked, which ended drawing.
   opts.target.addEventListener("chartdrawmodeended", () => {
     drawing = false;
