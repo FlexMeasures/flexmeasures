@@ -110,9 +110,12 @@ RUN mkdir -p ${VIRTUAL_ENV}/var && \
 COPY --from=builder /app/.flaskenv /app/wsgi.py ./
 COPY gunicorn.conf.py ./
 
-# Set environment variables to optimize Python
+# Set environment variables to optimize Python.
+# PYTHONPATH lets a source tree mounted at /app/flexmeasures take precedence over the installed package, in every process,
+# so that the CLI, the job workers and the server all run the same code.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 EXPOSE 5000
 
