@@ -260,6 +260,12 @@ jobs:
             fi
           } > flexmeasures-instance/flexmeasures.cfg
           docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
+          # Fail here if the server did not load this config, rather than on the rate limits play mode lifts, halfway through HEMS.
+          mode=$(docker compose exec -T server python -c "from flexmeasures.app import create; print(create().config.get('FLEXMEASURES_MODE'))" 2>/dev/null | tail -n 1)
+          if [[ "$mode" != "play" ]]; then
+            echo "::error::The server runs in mode '$mode' instead of 'play', so it did not load flexmeasures-instance/flexmeasures.cfg."
+            exit 1
+          fi
 
       - name: Run the HEMS example against the running stack
         if: steps.client-qa.outputs.run_hems == 'true'
