@@ -266,6 +266,7 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         "use_latest_version_per_event": "use-latest-version-per-event",
         "most_recent_beliefs_only": "most-recent-beliefs-only",
         "compress_json": "compress-json",
+        "chart_type": "chart-type",
     }
 
     use_latest_version_per_event = fields.Boolean(
@@ -290,15 +291,15 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
-    # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
-    # it takes the public chart type names the asset page sends, and the names of the chart functions it sent in v1.1.0,
-    # but is not yet validated against the registry of asset chart types (see issue #2802).
-    chart_type = fields.Str(
+    chart_type = AssetChartTypeField(
         data_key="chart-type",
         required=False,
+        accept_legacy_names=True,
+        empty_means_absent=True,
         metadata=dict(
-            description="Return only the data that this chart type draws, e.g. 'default' or 'charge-point-sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
-            example="default",
+            description=f"Return only the data of the sensors that this chart type draws: {describe_asset_chart_types(include_legacy_names=True)}. "
+            "Without it, or with an empty value, return the data of every sensor in the asset's sensors_to_show.",
+            example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )
 
@@ -330,16 +331,10 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
 
 
 class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
-    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`.
-
-    It also hides `chart_type`, which only the asset page uses for now.
-    """
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = list(kwargs.get("exclude", [])) + [
-            "beliefs_after",
-            "chart_type",
-        ]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
         super().__init__(*args, **kwargs)
 
 
