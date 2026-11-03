@@ -13,6 +13,7 @@ Furthermore, we discuss several guidelines and best practices.
     :depth: 1
 
 |
+
 .. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
@@ -55,7 +56,9 @@ All ``flexmeasures`` commands in this guide are prefixed with ``uv run``, which 
 
       alias flexmeasures="uv run flexmeasures"
 
-:ref:`Installing test dependencies <install-test-dependencies>`. Install the test dependencies with:
+.. _install-test-dependencies:
+
+Install the test dependencies with:
 
 .. code-block:: bash
 
@@ -195,6 +198,7 @@ Tests
 You can run automated tests with:
 
 .. code-block:: bash
+
     # If you haven't already, install the test dependencies:
     $ uv sync --group test
     # Then run the tests:

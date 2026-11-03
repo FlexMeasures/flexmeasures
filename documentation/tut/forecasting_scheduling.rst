@@ -12,7 +12,7 @@ Let's take a look at how FlexMeasures users can access information from these se
 
 If you want to learn more about the actual algorithms used in the background, head over to :ref:`scheduling` and :ref:`forecasting`.
 
-.. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin-customization`.
+.. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin_customization`.
 
 
 Maintaining the queues

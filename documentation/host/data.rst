@@ -162,7 +162,7 @@ Finally, test if you can log in as the flexmeasures user:
 
    $ psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
-.. code-block:: sql
+.. code-block:: psql
 
    \q
 
@@ -177,7 +177,7 @@ Add the following extensions while logged in as the postgres superuser:
 
    $ sudo -u postgres psql
 
-.. code-block:: sql
+.. code-block:: psql
 
    \connect flexmeasures
    CREATE EXTENSION cube;
@@ -396,14 +396,14 @@ Log in into the database:
 
 with the password from flexmeasures/development_config.py. Check which tables are there:
 
-.. code-block:: sql
+.. code-block:: psql
 
    \dt
 
 
 To log out:
 
-.. code-block:: sql
+.. code-block:: psql
 
    \q
 

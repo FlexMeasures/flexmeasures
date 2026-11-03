@@ -171,6 +171,7 @@ Here are more details:
   Training and prediction can then be repeated in **cycles** until a user-specified end date is reached.  
   This cycle-based design is inspired by rolling forecasts while keeping a fixed viewpoint.  
   The ``forecast-frequency`` parameter controls how often predictions are generated during the forecast period.
+
 A use case: automating solar production prediction
 -----------------------------------------------------
 

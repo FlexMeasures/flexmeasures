@@ -20,7 +20,7 @@ Let's get started!
 In the following, we'll refer to GitHub Actions as our "CI environment" and our staging server as the "deployment server". 
 
 *
-  We add a GitHub Action workflow to ``deploy.yml``, which runs if the commit was on the ``main `` branch, waits for our CI test workflow, and then pushes the code to a remote repo on the deployment server.
+  We add a GitHub Action workflow to ``deploy.yml``, which runs if the commit was on the ``main`` branch, waits for our CI test workflow, and then pushes the code to a remote repo on the deployment server.
 
 *
   We explain how to make this git push to that remote repo happen.

@@ -91,7 +91,7 @@ Starting the template with ``{% extends "base.html" %}`` integrates your page co
 
     Created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
     in cooperation with <a href="https://ourclient.nl/">Our Client</a>
-    &copy
+    &copy;
     <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
     
     {% endblock copyright_notice %}
