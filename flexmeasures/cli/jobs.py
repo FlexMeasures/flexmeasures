@@ -604,7 +604,9 @@ def release_database_connections_before_forking():
     """
     db.session.remove()
     db.engine.dispose()
-    os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
+    # Platforms that cannot fork, such as Windows, have no fork hooks either.
+    if hasattr(os, "register_at_fork"):
+        os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
 
 
 @fm_jobs.command("show-queues")
