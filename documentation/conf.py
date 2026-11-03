@@ -236,6 +236,17 @@ copybutton_line_continuation_character = "\\"
 # -- Options for ifconfig extension ---------------------------------------
 
 
+def drop_openapi_spec(app, what, name, obj, options, lines):
+    """Leave out the OpenAPI spec that an API endpoint's docstring holds below a line of just ``---``.
+
+    The API docs render that spec themselves, and read as reStructuredText, its YAML only produces indentation errors.
+    """
+    for index, line in enumerate(lines):
+        if line.strip() == "---":
+            del lines[index:]
+            break
+
+
 def setup(sphinx_app):
     """
     Here you can set config variables for Sphinx or even pass config variables from FlexMeasures to Sphinx.
@@ -248,6 +259,7 @@ def setup(sphinx_app):
 
     """
     os.environ["FLEXMEASURES_ENV"] = "documentation"
+    sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
