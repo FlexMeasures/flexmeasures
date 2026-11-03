@@ -602,11 +602,18 @@ def release_database_connections_before_forking():
     and every forked process starts from an empty pool, leaving the parent's sockets alone.
     See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
     """
+    global _fork_hook_registered
+
     db.session.remove()
     db.engine.dispose()
     # Platforms that cannot fork, such as Windows, have no fork hooks either.
-    if hasattr(os, "register_at_fork"):
+    # A fork hook cannot be unregistered, so register it once per process, however often this is called.
+    if hasattr(os, "register_at_fork") and not _fork_hook_registered:
         os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
+        _fork_hook_registered = True
+
+
+_fork_hook_registered = False
 
 
 @fm_jobs.command("show-queues")
