@@ -539,7 +539,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param chart_type: one of the SENSOR_CHART_TYPES (see flexmeasures.data.models.charts), such as "bar_chart"
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
