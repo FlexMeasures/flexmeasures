@@ -588,7 +588,32 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     )
     click.echo("=========================================================\n")
 
+    release_database_connections_before_forking()
     worker.work(with_scheduler=with_scheduler)
+
+
+def release_database_connections_before_forking():
+    """Keep forked job processes from sharing the worker's database connections.
+
+    RQ's Worker forks a process for every job, and a fork copies the parent's connection pool, sockets included.
+    A job would then talk to Postgres over the same session as the worker and as every job before it,
+    so a job exiting mid-transaction would make the next job's first query fail (#2806).
+    Therefore, the worker gives up its own connections before it starts,
+    and every forked process starts from an empty pool, leaving the parent's sockets alone.
+    See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    """
+    global _fork_hook_registered
+
+    db.session.remove()
+    db.engine.dispose()
+    # Platforms that cannot fork, such as Windows, have no fork hooks either.
+    # A fork hook cannot be unregistered, so register it once per process, however often this is called.
+    if hasattr(os, "register_at_fork") and not _fork_hook_registered:
+        os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
+        _fork_hook_registered = True
+
+
+_fork_hook_registered = False
 
 
 @fm_jobs.command("show-queues")
