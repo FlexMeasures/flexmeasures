@@ -196,6 +196,10 @@ After you've started the compose stack with ``docker compose up``, run:
 
 .. code-block:: bash
 
-    $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
+    $ docker exec -it flexmeasures-server-1 pip install pytest pytest-flask fakeredis lupa pytest-mock requests-mock
+    $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 python -m pytest --pyargs flexmeasures
+
+The image comes without the test dependencies, so the first command installs them, and the second runs the tests that ship with FlexMeasures.
+To run the tests of the code you are working on instead, mount your source tree at ``/app/flexmeasures``: the image puts ``/app`` first on the Python path, so the server, the CLI and the tests all use the mounted code.
 
 This rounds up the developer experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
