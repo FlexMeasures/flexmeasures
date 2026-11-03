@@ -61,6 +61,24 @@ A range selected on the chart, or followed from the visible chart, is widened to
 
 Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
 
+Drafting sensor values
+----------------------
+
+Users with permission to record data on a sensor can sketch values on its chart from the **Draft values** panel, before anything is saved. Nothing is written to the database from this panel.
+
+The quickest way is to draw them. Click **Draw on chart**, then press and drag across the chart: each event your line crosses gets a draft value, at the height of your line there (rounded to what the chart can tell apart). Draw again over a part to change it. To draw above or below the data the chart shows, set **Highest value you want to draw** and **Lowest value you want to draw**, and the chart makes room between them; it proposes twice the top of the chart, and 0 (or as far below zero, when the chart goes below it). Drawing turns on the fast chart (switching to the bar chart if a histogram or heatmap was shown), and keeps the chart from panning or zooming while it is on; **Stop drawing**, or picking another chart tool, ends it.
+
+Or type them. Choose the time range to fill:
+
+- Enter a **Start** and a **Duration** under **Time range**. The duration is an ISO 8601 duration, read as the sensor data API reads it: ``PT15M``, ``PT2H``, or ``P1D``, which is always 24 hours, also on a day with a daylight saving time transition. It starts out as two hours, or the sensor's resolution when that is longer.
+- Or click **Select on chart**, then drag across the chart, or click once to choose a single event. This turns on the fast chart and its select tool (switching to the bar chart if a histogram or heatmap was shown); **Stop selecting** turns it off again.
+
+Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in **Start** and **Duration**. Type a value in the sensor's unit and click **Add** (or press Enter), and every event in the range gets that value. **Add** turns green as soon as a value is typed, and stays green once values were added. Adding over an existing draft value replaces it. After **Add**, the next range is chosen for you: it starts where the last one ended, with the same duration, and the value is kept, so a run of different values is typing a value and clicking **Add**, again and again. **Save** and **Preview** leave out that next range unless you changed its value.
+
+Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, one row per run of the same value (e.g. "40 kWh · 8 values"), where each run can be removed. **Discard** throws them away, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
+
+Draft values are not offered on touch devices, nor on sensors that record instantaneous values.
+
 Deleting annotations
 --------------------
 
