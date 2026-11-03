@@ -68,6 +68,7 @@ from flexmeasures.data.services.automations import (
     run_automation,
     update_automation,
 )
+from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -181,6 +182,12 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
+def validate_asset_chart_type(chart_type: str):
+    """Refuse a chart type an asset cannot be drawn as."""
+    if chart_type not in ASSET_CHART_BUILDERS:
+        raise ValidationError(f"Unknown chart type '{chart_type}'.")
+
+
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     legacy_field_aliases = {
         **EventWindowSchema.legacy_field_aliases,
@@ -244,8 +251,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
+        validate=validate_asset_chart_type,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description="The chart to draw; leave it out for the asset's default chart.",
         ),
     )
 
