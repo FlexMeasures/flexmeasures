@@ -261,7 +261,8 @@ jobs:
           } > flexmeasures-instance/flexmeasures.cfg
           docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
           # Fail here if the server did not load this config, rather than on the rate limits play mode lifts, halfway through HEMS.
-          # A failing exec leaves the mode empty, which fails this check too, and its error stays visible in the log.
+          # A failing exec fails this step, and its error stays visible in the log.
+          set -o pipefail
           mode=$(docker compose exec -T server python -c "from flexmeasures.app import create; print(create().config.get('FLEXMEASURES_MODE'))" | tail -n 1)
           if [[ "$mode" != "play" ]]; then
             echo "::error::The server runs in mode '$mode' instead of 'play', so it did not load flexmeasures-instance/flexmeasures.cfg."
