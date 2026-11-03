@@ -466,7 +466,7 @@ export function wirePreviewStep(root, options) {
       if (existingField) {
         el("existing-group").classList.toggle("d-none", overlaps.length === 0);
         existingField.disabled = saving;
-        el("superseded-label").textContent = keepingExisting() ? "Existing values kept" : "Replacing existing values";
+        el("superseded-label").textContent = keepingExisting() ? "Existing values kept" : "Updating existing values";
       }
       warningList.replaceChildren(
         ...summary.warnings.map((warning) => {

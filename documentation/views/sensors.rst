@@ -92,7 +92,7 @@ The preview runs by itself, and again whenever you change the repetition or the 
 
 - the values to create, the draft values included;
 - the values omitted because the clock skips their local time (spring forward), and those written twice because their local time occurs twice (fall back), each with a warning such as "On 28 Mar 2027 the clock skips 02:00–03:00: 4 values will not be written.". These warnings do not keep you from saving;
-- the existing values that the new ones supersede, which are circled on the chart. Existing values are not deleted: they stay in the sensor's history, while the chart, and schedules that read the sensor, use the newest value for each time. Under **Where values already exist**, choose to replace them, or to keep them and only fill the gaps.
+- the existing values that the new ones supersede, which are circled on the chart. Existing values are not deleted: they stay in the sensor's history, while the chart, and schedules that read the sensor, use the newest value for each time. Under **Where values already exist**, choose to update them with the new values, or to keep them and only fill the gaps.
 
 If the preview cannot be made, the reason shows in the panel, with **Try again** when the failure may pass, such as a lost connection. **Back** returns to the draft values as they were, and **Discard** throws them away, after asking.
 
