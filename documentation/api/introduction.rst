@@ -1,7 +1,7 @@
 .. _api_introduction:
 
 API Introduction
-============
+================
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
 

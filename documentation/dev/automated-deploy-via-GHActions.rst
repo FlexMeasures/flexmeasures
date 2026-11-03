@@ -113,7 +113,7 @@ We thus need to tell the deployment environment two things:
 
 
 Authenticate at the deployment server (with an ssh key)
-------------------------------------------------
+-------------------------------------------------------
 
 For CI environment and deployment server to interact securely, we of course need to put in place some authentication measures.  
 
@@ -130,7 +130,7 @@ Use ``ssh-keygen`` to create one, using no password.
 
 
 (Re-)start FlexMeasures on the deployment server (install Post-Receive Hook)
-------------------------------------------------
+----------------------------------------------------------------------------
 
 Only pushing the code will not actually deploy the updated FlexMeasures into a usable web app on the deployment server. For this, we need to trigger a script.
 

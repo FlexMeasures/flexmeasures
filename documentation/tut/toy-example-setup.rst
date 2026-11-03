@@ -291,6 +291,7 @@ Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-dashboard.png
     :align: center
+
 |
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
@@ -300,18 +301,21 @@ And here is the context view of the building:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-site-structure.png
     :align: center
+
 |
 
 The flex-context of the building (which you can edit here in the UI, as well):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-building-flex-context.png
     :align: center
+
 |
 
 And on the flex-model of the battery can be seen on its properties page (and is editable as well):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-battery-flex-model.png
     :align: center
+
 |
 
 
@@ -401,6 +405,7 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
+
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.

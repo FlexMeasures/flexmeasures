@@ -73,6 +73,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
+
 |
 
 .. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
@@ -166,12 +167,14 @@ We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
+
 |
 
 The `graphs page for the battery <http://localhost:5000/assets/6/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
+
 |
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
@@ -184,12 +187,14 @@ Moreover, we can use reporters to compute the capacity headroom (see :ref:`tut_t
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-pv.png
     :align: center
+
 |
 
 In the case of the scheduler that we ran in the previous tutorial, which did not yet consider the PV, the discharge power would have exceeded the headroom:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-nopv.png
     :align: center
+
 |
 
 .. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
@@ -198,6 +203,7 @@ A nice feature is that you can check the data connectivity status of your buildi
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
+
 |
 
 

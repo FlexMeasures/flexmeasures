@@ -244,7 +244,7 @@ was configured. Here is an example:
 .. _view_asset_auditlog:
 
 Audit log 
----------
+----------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:

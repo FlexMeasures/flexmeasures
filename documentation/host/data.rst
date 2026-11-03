@@ -93,7 +93,7 @@ This will create a postgres database in a directory ``postgres-data`` in your cu
 
 
 Make sure postgres represents datetimes in UTC timezone
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
@@ -127,7 +127,7 @@ Then restart the postgres server.
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 From the terminal:
 
@@ -190,7 +190,7 @@ If you have it, connect to the ``flexmeasures_test`` database and repeat creatin
 
 
 Configure FlexMeasures app for that database
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Write:
 
@@ -203,7 +203,7 @@ into the config file you are using, e.g. ~/.flexmeasures.cfg
 
 
 Get structure (and some data) into place
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You need data to enjoy the benefits of FlexMeasures or to develop features for it. In this section, there are some ways to get started.
 
@@ -352,7 +352,7 @@ Just to be clear that the ``db init`` command is needed only at the beginning - 
 
 
 Get database structure updated
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The goal is that on any other computer, you can always execute
 
@@ -364,7 +364,7 @@ The goal is that on any other computer, you can always execute
 to have the database structure up-to-date with all migrations.
 
 Working with the migration history
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The history of migrations is at your fingertips:
 
@@ -385,7 +385,7 @@ You can move back and forth through the history:
 Both of these accept a specific revision id parameter, as well.
 
 Check out database status
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Log in into the database:
 

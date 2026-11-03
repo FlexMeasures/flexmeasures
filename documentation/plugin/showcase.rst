@@ -100,7 +100,7 @@ We'd name this file ``our_client_base.html``. Then, we'd extend our page templat
 
 
 Using other code files in your non-package plugin
-----------------------------
+-------------------------------------------------
 
 Say you want to include other Python files in your plugin, importing them in your ``__init__.py`` file.
 With this file-only version of loading the plugin (if your plugin isn't imported as a package),
@@ -121,7 +121,7 @@ But it can be achieved if you put the plugin path on the import path. Do it like
 
 
 Notes on writing tests for your plugin
-----------------------------
+--------------------------------------
 
 Good software practice is to write automatable tests. We encourage you to also do this in your plugin.
 We do, and our CookieCutter template for plugins (see above) has simple examples how that can work for the different use cases

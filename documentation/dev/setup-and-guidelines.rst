@@ -178,7 +178,7 @@ The default logging level is ``WARNING``. To see more, you can update this with 
 
 
 Mocking an Email Server for Development
---------------------------------
+---------------------------------------
 
 To handle emails locally during development, you can use MailHog. Follow these steps to set it up:
 
@@ -289,7 +289,7 @@ Consult the extension's Readme for other systems.
 
 
 A hint about using notebooks
----------------
+----------------------------
 
 If you edit notebooks, make sure results do not end up in git:
 
