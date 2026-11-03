@@ -96,12 +96,6 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtual environment from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Installed as a regular package, FlexMeasures looks for its instance folder at ${VIRTUAL_ENV}/var/flexmeasures-instance, which is where Flask places it for installed packages.
-# Hosts mount their config and secrets at /app/instance, as the Docker docs say, so point the one at the other.
-RUN mkdir -p ${VIRTUAL_ENV}/var && \
-    rm -rf ${VIRTUAL_ENV}/var/flexmeasures-instance && \
-    ln -s /app/instance ${VIRTUAL_ENV}/var/flexmeasures-instance
-
 # Copy the application's entry point and its configuration.
 # FlexMeasures itself is already installed, non-editable, inside ${VIRTUAL_ENV}, so its source files need no separate copy.
 COPY --from=builder /app/.flaskenv /app/wsgi.py ./
