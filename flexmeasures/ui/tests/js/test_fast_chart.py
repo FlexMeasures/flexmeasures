@@ -536,3 +536,20 @@ def test_draft_value_tooltip_reads_the_slot_under_the_pointer(assert_js):
         eq("at the end of the last slot, its value", draftValueAt(drafts, 2 * HOUR).value, 2);
         eq("outside the draft values, none", draftValueAt(drafts, 3 * HOUR), null);
         """)
+
+
+def test_drawing_scale_reaches_an_empty_plot(assert_js):
+    """The scale to draw on raises the y-axis, also on a plot without any values yet, where ECharts ignores function-valued bounds."""
+    assert_js("""
+        import { raiseYAxisToDraw } from "/js/fast-chart.js";
+        const empty = { yAxis: [{ type: "value" }], series: [{ yAxisIndex: 0, data: [] }] };
+        raiseYAxisToDraw(empty, 50);
+        eq("an empty plot gets fixed bounds from 0 up to the scale", [empty.yAxis[0].min, empty.yAxis[0].max], [0, 50]);
+        const negative = { yAxis: [{ type: "value" }], series: [] };
+        raiseYAxisToDraw(negative, -20);
+        eq("and down to a negative one", [negative.yAxis[0].min, negative.yAxis[0].max], [-20, 0]);
+        const withData = { yAxis: [{ type: "value", min: 0 }], series: [{ yAxisIndex: 0, data: [[0, 70]] }] };
+        raiseYAxisToDraw(withData, 50);
+        eq("with values, the axis still follows them where they reach higher", withData.yAxis[0].max({ min: 0, max: 70 }), 70);
+        eq("and reaches up to the scale where they do not", withData.yAxis[0].max({ min: 0, max: 10 }), 50);
+        """)
