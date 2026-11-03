@@ -8,7 +8,7 @@ document.body.insertAdjacentHTML("beforeend", `
     <div data-draft-unavailable class="d-none"></div>
     <div data-draft-controls>
       <a href="#" data-draft-draw><span data-draft-draw-text>Draw on chart</span></a>
-      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /></div>
+      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /><input data-draft-draw-min type="number" /></div>
       <a href="#" data-draft-record><span data-draft-record-text>Select on chart</span></a>
       <div data-draft-typed>
       <input data-draft-start type="datetime-local" />
@@ -35,7 +35,8 @@ chart.scales = [];
 chart.startDrawing = () => { chart.drawing = true; };
 chart.stopDrawing = () => { chart.drawing = false; };
 chart.getYAxisMax = () => 10;
-chart.setDrawScale = (yMax) => chart.scales.push(yMax);
+chart.getYAxisMin = () => -3;
+chart.setDrawScale = (yMax, yMin) => chart.scales.push([yMax, yMin]);
 const confirmations = [];
 let confirmAnswer = true;
 const target = new EventTarget();
@@ -437,10 +438,12 @@ def test_a_stroke_becomes_draft_values(assert_js):
 
 def test_the_scale_to_draw_on(assert_js):
     assert_js("""
-        import { proposedDrawScale } from "/js/draft-values.js";
+        import { proposedDrawScale, proposedDrawFloor } from "/js/draft-values.js";
         import { drawnValueStep } from "/js/fast-chart.js";
         eq("twice the axis, rounded up to one significant digit", [proposedDrawScale(10), proposedDrawScale(37), proposedDrawScale(0.3)], [20, 80, 1]);
         eq("an empty chart still gets room", proposedDrawScale(null), 1);
+        eq("the lowest value is 0 for an axis that does not go below it", [proposedDrawFloor(0), proposedDrawFloor(5), proposedDrawFloor(null)], [0, 0, 0]);
+        eq("and mirrors the highest for one that does", [proposedDrawFloor(-10), proposedDrawFloor(-37)], [-20, -80]);
         eq("values are worth a power of ten no finer than a pixel", [drawnValueStep(0.27), drawnValueStep(0.004), drawnValueStep(3)], [1, 0.01, 10]);
         """)
 
@@ -461,10 +464,13 @@ def test_drawing_on_the_chart_makes_draft_values(assert_js):
         check("ending selecting", !panel.recording && !chart.selecting, "");
         eq("and offers to stop", button("draw").textContent, "Stop drawing");
         check("explaining how, and hiding the typed fields", !button("drawing").classList.contains("d-none") && button("typed").classList.contains("d-none"), "");
-        eq("proposing a scale above the data", [button("draw-max").value, chart.scales], ["20", [20]]);
+        eq("proposing room above the data, and below it as the chart goes below zero",
+           [button("draw-max").value, button("draw-min").value, chart.scales], ["20", "-6", [[20, -6]]]);
         button("draw-max").value = "50";
         button("draw-max").dispatchEvent(new Event("change"));
-        eq("which can be changed", chart.scales, [20, 50]);
+        button("draw-min").value = "-40";
+        button("draw-min").dispatchEvent(new Event("change"));
+        eq("which can be changed", chart.scales, [[20, -6], [50, -6], [50, -40]]);
 
         stroke(0, 59, 20);
         eq("a stroke adds a draft value per slot", panel.drafts.map((d) => d.value), [20, 20, 20, 20]);

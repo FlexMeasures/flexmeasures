@@ -151,6 +151,17 @@ export function proposedDrawScale(yAxisMax) {
 }
 
 /**
+ * A lowest value to propose for drawing: 0 when the chart's y-axis does not go below it, and otherwise as far below as proposedDrawScale goes above.
+ *
+ * @param {number|null} yAxisMin - The bottom of the y-axis as shown.
+ * @returns {number} The lowest value, at most 0.
+ */
+export function proposedDrawFloor(yAxisMin) {
+  if (!(yAxisMin < 0) || !isFinite(yAxisMin)) return 0;
+  return -proposedDrawScale(-yAxisMin);
+}
+
+/**
  * Remove the draft values within a time range, such as one group of groupDrafts.
  *
  * @param {Object[]} drafts - The current draft values.
@@ -295,7 +306,7 @@ function defaultFormatTime(date) {
  *
  * The panel's elements are found by their data attributes inside the root:
  * data-draft-draw (the Draw on chart toggle, with data-draft-draw-text for its label, data-draft-drawing explaining it
- * and holding data-draft-draw-max, the scale to draw on, and data-draft-typed, the fields hidden while drawing; all optional),
+ * and holding data-draft-draw-max and data-draft-draw-min, the highest and lowest values to draw, and data-draft-typed, the fields hidden while drawing; all optional),
  * data-draft-record (the Select on chart toggle, with data-draft-record-text for its label),
  * data-draft-start and data-draft-duration (a datetime-local and a text field), data-draft-value (the value field), data-draft-add,
  * data-draft-selection (describes the selection), data-draft-list (one row per group of draft values), data-draft-count,
@@ -315,7 +326,8 @@ function defaultFormatTime(date) {
  * @param {function(): number} options.getAnchorMs - Any event start of the sensor, in milliseconds since the epoch.
  * @param {Object} options.chart - How the panel drives the chart:
  *   startSelecting() turns on the select tool (it may return a promise, and false when that is not possible),
- *   stopSelecting(), startDrawing() and stopDrawing() likewise for the draw tool, showSelection(range|null) and showDrafts(drafts).
+ *   stopSelecting(), startDrawing() and stopDrawing() likewise for the draw tool, showSelection(range|null) and showDrafts(drafts),
+ *   and optionally getYAxisMax(), getYAxisMin() and setDrawScale(yMax, yMin) (either may be null) for the room to draw in.
  * @param {function(string): boolean} [options.confirm] - Asks the user to confirm (window.confirm by default).
  * @param {EventTarget} [options.target] - Where chart events arrive and the hand-off is dispatched (document by default).
  * @param {Window} [options.win] - Where leaving the page is guarded (window by default).
@@ -343,6 +355,7 @@ export function wireDraftValuesPanel(root, options) {
   const drawText = el("draw-text") || drawButton;
   const drawingNote = el("drawing");
   const drawMaxInput = el("draw-max");
+  const drawMinInput = el("draw-min");
   const typedFields = el("typed");
   const startInput = el("start");
   const durationInput = el("duration");
@@ -469,18 +482,22 @@ export function wireDraftValuesPanel(root, options) {
       const started = await opts.chart.startDrawing();
       if (started === false) return;
       drawing = true;
-      // Propose room above what the chart shows, as the values to draw may lie above the data so far.
-      if (drawMaxInput && opts.chart.getYAxisMax) {
-        if (!drawMaxInput.value) drawMaxInput.value = String(proposedDrawScale(opts.chart.getYAxisMax()));
-        controller.setDrawScale(drawMaxInput.value);
+      // Propose room beyond what the chart shows, as the values to draw may lie above (or below) the data so far.
+      if (drawMaxInput && opts.chart.getYAxisMax && !drawMaxInput.value) {
+        drawMaxInput.value = String(proposedDrawScale(opts.chart.getYAxisMax()));
       }
+      if (drawMinInput && opts.chart.getYAxisMin && !drawMinInput.value) {
+        drawMinInput.value = String(proposedDrawFloor(opts.chart.getYAxisMin()));
+      }
+      controller.setDrawScale();
       render();
     },
-    // Let the chart reach up to this value while drawing.
-    setDrawScale(text) {
-      const yMax = parseDraftValue(text);
-      if (!drawing || yMax === null || !opts.chart.setDrawScale) return;
-      opts.chart.setDrawScale(yMax);
+    // Let the chart reach from the lowest to the highest value to draw, as typed, while drawing.
+    setDrawScale() {
+      const yMax = drawMaxInput ? parseDraftValue(drawMaxInput.value) : null;
+      const yMin = drawMinInput ? parseDraftValue(drawMinInput.value) : null;
+      if (!drawing || (yMax === null && yMin === null) || !opts.chart.setDrawScale) return;
+      opts.chart.setDrawScale(yMax, yMin);
     },
     stopDrawing() {
       if (!drawing) return;
@@ -629,7 +646,8 @@ export function wireDraftValuesPanel(root, options) {
     });
   }
   opts.target.addEventListener("chartdrawn", (event) => controller.addStroke(event.detail));
-  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale(drawMaxInput.value));
+  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale());
+  if (drawMinInput) drawMinInput.addEventListener("change", () => controller.setDrawScale());
   // Another chart tool was picked, which ended drawing.
   opts.target.addEventListener("chartdrawmodeended", () => {
     drawing = false;

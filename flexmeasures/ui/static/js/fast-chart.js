@@ -2590,51 +2590,86 @@ export function setFastChartDrawMode(elementId, on) {
   instance._drawMode = !!on;
   if (on) instance._selectMode = false;
   applyChartMode(instance);
-  // The scale to draw on applies while drawing only.
-  if (!on && instance._drawYMax !== null && instance._drawYMax !== undefined) {
+  // The room to draw in applies while drawing only.
+  if (!on && (isFiniteNumber(instance._drawYMax) || isFiniteNumber(instance._drawYMin))) {
     instance._drawYMax = null;
+    instance._drawYMin = null;
     rerenderKeepingZoom(elementId, {});
   }
   return true;
 }
 
-// Let the first plot's y-axis reach up to this value while drawing, so values above the data can be drawn.
-export function setFastChartDrawScale(elementId, yMax) {
+// Let the first plot's y-axis reach up to yMax and down to yMin while drawing, so values beyond the data can be drawn.
+// Either may be null, to leave that side to the data.
+export function setFastChartDrawScale(elementId, yMax, yMin) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
-  instance._drawYMax = isFinite(yMax) ? yMax : null;
+  instance._drawYMax = isFiniteNumber(yMax) ? yMax : null;
+  instance._drawYMin = isFiniteNumber(yMin) ? yMin : null;
   rerenderKeepingZoom(elementId, {});
 }
 
 // The top of the first plot's y-axis as shown, e.g. to propose a scale to draw on.
 export function getFastChartYAxisMax(elementId) {
+  const extent = yAxisExtent(elementId);
+  return extent ? extent[1] : null;
+}
+
+// The bottom of the first plot's y-axis as shown, e.g. to propose a lowest value to draw.
+export function getFastChartYAxisMin(elementId) {
+  const extent = yAxisExtent(elementId);
+  return extent ? extent[0] : null;
+}
+
+function yAxisExtent(elementId) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return null;
   const axis = instance.chart.getModel().getComponent("yAxis", 0);
-  return axis && axis.axis ? axis.axis.scale.getExtent()[1] : null;
+  return axis && axis.axis ? axis.axis.scale.getExtent() : null;
 }
 
-// While drawing, raise the first plot's y-axis to the scale to draw on, unless the data reach higher.
+function isFiniteNumber(x) {
+  return typeof x === "number" && isFinite(x);
+}
+
+// While drawing, stretch the first plot's y-axis to the room to draw in, unless the data reach further.
 function applyDrawScale(option, instance) {
-  if (!instance._drawMode || instance._drawYMax === null || instance._drawYMax === undefined) return;
-  raiseYAxisToDraw(option, instance._drawYMax);
+  if (!instance._drawMode) return;
+  if (!isFiniteNumber(instance._drawYMax) && !isFiniteNumber(instance._drawYMin)) return;
+  fitYAxisToDraw(option, instance._drawYMax, instance._drawYMin);
 }
 
-// Let the first plot's y-axis reach up to drawMax, unless its values reach higher.
+// Let the first plot's y-axis reach up to drawMax and down to drawMin (either may be null), unless its values reach further.
 // ECharts only calls a function-valued bound for an axis that shows values, so a plot without any (no data and no draft values yet) gets fixed bounds instead.
-export function raiseYAxisToDraw(option, drawMax) {
+// Without a bound of its own, an axis keeps zero in view unless it fits the data (scale: true), as ECharts does.
+export function fitYAxisToDraw(option, drawMax, drawMin) {
   const yAxis = Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis;
   if (!yAxis || yAxis.type !== "value") return;
+  let top = isFiniteNumber(drawMax) ? drawMax : null;
+  let bottom = isFiniteNumber(drawMin) ? drawMin : null;
+  // A lowest value typed above the highest one is read the other way round.
+  if (top !== null && bottom !== null && bottom > top) [top, bottom] = [bottom, top];
   const hasValues = (option.series || []).some(
     (s) => (s.yAxisIndex || 0) === 0 && Array.isArray(s.data) && s.data.some((p) => Array.isArray(p) && p[1] !== null && p[1] !== undefined)
   );
   if (!hasValues) {
-    yAxis.min = Math.min(0, drawMax);
-    yAxis.max = Math.max(0, drawMax);
+    yAxis.min = bottom !== null ? bottom : Math.min(0, top);
+    yAxis.max = top !== null ? top : Math.max(0, bottom);
     return;
   }
-  const max = yAxis.max;
-  yAxis.max = (extent) => Math.max(typeof max === "function" ? max(extent) : typeof max === "number" ? max : extent.max, drawMax);
+  const bound = (own, extent, side) => {
+    if (typeof own === "function") return own(extent);
+    if (typeof own === "number") return own;
+    return yAxis.scale ? extent[side] : side === "max" ? Math.max(extent.max, 0) : Math.min(extent.min, 0);
+  };
+  if (top !== null) {
+    const max = yAxis.max;
+    yAxis.max = (extent) => Math.max(bound(max, extent, "max"), top);
+  }
+  if (bottom !== null) {
+    const min = yAxis.min;
+    yAxis.min = (extent) => Math.min(bound(min, extent, "min"), bottom);
+  }
 }
 
 // The finest step worth keeping in a drawn value: a power of ten no smaller than what one pixel of the y-axis spans.

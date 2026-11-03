@@ -66,7 +66,7 @@ Drafting sensor values
 
 Users with permission to record data on a sensor can sketch values on its chart from the **Draft values** panel, before anything is saved. Nothing is written to the database from this panel.
 
-The quickest way is to draw them. Click **Draw on chart**, then press and drag across the chart: each event your line crosses gets a draft value, at the height of your line there (rounded to what the chart can tell apart). Draw again over a part to change it. To draw above the data the chart shows, set **Highest value you want to draw**, and the chart makes room up to it; it proposes twice the top of the chart. Drawing turns on the fast chart (switching to the bar chart if a histogram or heatmap was shown), and keeps the chart from panning or zooming while it is on; **Stop drawing**, or picking another chart tool, ends it.
+The quickest way is to draw them. Click **Draw on chart**, then press and drag across the chart: each event your line crosses gets a draft value, at the height of your line there (rounded to what the chart can tell apart). Draw again over a part to change it. To draw above or below the data the chart shows, set **Highest value you want to draw** and **Lowest value you want to draw**, and the chart makes room between them; it proposes twice the top of the chart, and 0 (or as far below zero, when the chart goes below it). Drawing turns on the fast chart (switching to the bar chart if a histogram or heatmap was shown), and keeps the chart from panning or zooming while it is on; **Stop drawing**, or picking another chart tool, ends it.
 
 Or type them. Choose the time range to fill:
 

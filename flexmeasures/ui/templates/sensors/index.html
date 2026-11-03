@@ -251,8 +251,10 @@ For the data, note the following:
                                           Press and drag across the chart: the height of your line is the value. Draw again over a part to change it.
                                       </div>
                                       <label for="draftDrawMax" class="form-label small mb-0">Highest value you want to draw{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
-                                      <input id="draftDrawMax" data-draft-draw-max class="form-control" type="number" step="any" aria-describedby="draftDrawMaxHelp" />
-                                      <div id="draftDrawMaxHelp" class="form-text text-white">The chart makes room up to this value, so you can draw above the data it shows.</div>
+                                      <input id="draftDrawMax" data-draft-draw-max class="form-control" type="number" step="any" aria-describedby="draftDrawScaleHelp" />
+                                      <label for="draftDrawMin" class="form-label small mb-0 mt-2">Lowest value you want to draw{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
+                                      <input id="draftDrawMin" data-draft-draw-min class="form-control" type="number" step="any" aria-describedby="draftDrawScaleHelp" />
+                                      <div id="draftDrawScaleHelp" class="form-text text-white">The chart makes room between these values, so you can draw above or below the data it shows, also below zero.</div>
                                   </div>
                                   <div data-draft-typed>
                                   <div class="mb-3">
