@@ -68,6 +68,7 @@ from flexmeasures.data.services.automations import (
     run_automation,
     update_automation,
 )
+from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -89,7 +90,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
-    SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
@@ -181,6 +181,12 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
+def validate_asset_chart_type(chart_type: str):
+    """Refuse a chart type an asset cannot be drawn as."""
+    if chart_type not in ASSET_CHART_BUILDERS:
+        raise ValidationError(f"Unknown chart type '{chart_type}'.")
+
+
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     legacy_field_aliases = {
         **EventWindowSchema.legacy_field_aliases,
@@ -244,8 +250,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
+        validate=validate_asset_chart_type,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description="The chart to draw; leave it out for the asset's default chart.",
         ),
     )
 
@@ -281,6 +289,16 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
+    # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
+    # its values are the names of the chart functions, which public chart type names replace in v1.2.0 (see issue #2795).
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
+            example="chart_for_multiple_sensors",
+        ),
+    )
 
 
 class AssetChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
@@ -310,10 +328,16 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
 
 
 class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
-    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`.
+
+    It also hides `chart_type`, which only the asset page uses for now.
+    """
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + [
+            "beliefs_after",
+            "chart_type",
+        ]
         super().__init__(*args, **kwargs)
 
 
@@ -1063,7 +1087,7 @@ class AssetAPI(FlaskView):
         if {"flex_context", "flex_model"} & asset_data.keys():
             check_access(db_asset, "edit-flex-config")
 
-        asset_schema = AssetSchema(partial=True)
+        asset_schema = AssetSchema(partial=True, exclude=["account_id"])
         asset_schema.context = {
             "asset": db_asset
         }  # context for validating fields like parent_asset_id
@@ -1080,7 +1104,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
@@ -1234,7 +1258,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        sensors = asset.chart_sensors(kwargs.pop("chart_type", None))
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)

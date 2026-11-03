@@ -1,5 +1,9 @@
 """Tests for flexmeasures/ui/static/js/fast-chart.js."""
 
+import json
+
+from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):
     """The visible time range follows mouse zoom and resets to the full domain."""
@@ -610,3 +614,19 @@ def test_fixed_value_sensor_does_not_force_linear_interpolation(assert_js):
         eq("instantaneous sensor + fixed-value sensor stays linear", isGroupInstantaneous(mixedInstantAndFixed[0]), true);
         eq("a row with only fixed-value sensors uses step-after", isGroupInstantaneous(onlyFixed[0]), false);
         """)
+
+
+def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_letter(
+    assert_js,
+):
+    """Like the Vega-Lite chart, the fast chart capitalizes a graph title before matching it."""
+    assert_js("""
+        import { isChargePointCompanionTitle } from "/js/fast-chart.js";
+        const names = CHARGE_POINT_CHART_NAMES;
+        for (const title of ["Prices", "prices", "Power flow by type", "power flow by type"]) {
+            eq(`"${title}" is a companion graph`, isChargePointCompanionTitle(title, names), true);
+        }
+        for (const title of ["Weather", "Charge Point sessions", "PRICES", "", null, undefined]) {
+            eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
+        }
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))

@@ -133,6 +133,15 @@ def render_flexmeasures_template(html_filename: str, **variables):
         variables["breadcrumb_info"] = get_breadcrumb_info(
             asset, current_page=current_page
         )
+        if current_page is not None:
+            # Imported here, as the asset views' utils import this module.
+            from flexmeasures.ui.views.assets.utils import (
+                deleted_sensor_references_toast,
+            )
+
+            variables["deleted_sensor_references_toast"] = (
+                deleted_sensor_references_toast(variables["asset"])
+            )
     variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)

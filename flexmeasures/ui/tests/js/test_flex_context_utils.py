@@ -139,3 +139,51 @@ def test_flex_config_sensor_ids(assert_js):
         eq("a config without references names nothing", flexConfigSensorIds({}), []);
         eq("and neither does an unset one", flexConfigSensorIds(null), []);
         """)
+
+
+def test_unset_sensor_references(assert_js):
+    """Deleting a sensor leaves its references without a sensor, which the editors have to find, wherever they sit."""
+    assert_js("""
+        import { isUnsetSensorReference, unsetSensorReferencePaths } from "/js/flex-context-utils.js";
+        eq("a reference whose sensor was deleted", isUnsetSensorReference({sensor: null, default: "10 EUR/MWh"}), true);
+        eq("is not one with a sensor, a fixed value or nothing",
+           [{sensor: 4}, "10 EUR/MWh", null, [], {}].map(isUnsetSensorReference),
+           [false, false, false, false, false]);
+        eq("a top-level field is named by its name",
+           unsetSensorReferencePaths({"production-price": {sensor: null, default: "1 EUR/MWh"}, "site-power-capacity": "1 MW"}),
+           ["production-price"]);
+        eq("a nested one by its path, counting list positions from 1",
+           unsetSensorReferencePaths({commodities: [{commodity: "gas"}, {commodity: "heat", "consumption-price": {sensor: null, upper: "5 EUR/MWh"}}]}),
+           ["commodities > 2 > consumption-price"]);
+        eq("a config with all its sensors names nothing", unsetSensorReferencePaths({"production-price": {sensor: 4}}), []);
+        eq("and neither does an unset one", unsetSensorReferencePaths(null), []);
+        """)
+
+
+def test_picking_a_sensor_keeps_what_a_deleted_sensor_left(assert_js):
+    """The default, bounds and source filters a deleted sensor's reference kept are what the user meant to keep for its replacement."""
+    assert_js("""
+        import { referenceWithSensor } from "/js/flex-context-utils.js";
+        eq("a field whose sensor was deleted keeps the rest of its reference",
+           referenceWithSensor({sensor: null, default: "1 kWh", upper: "5 kWh", "source-types": ["forecaster"]}, 7),
+           {sensor: 7, default: "1 kWh", upper: "5 kWh", "source-types": ["forecaster"]});
+        eq("a field with a sensor starts afresh", referenceWithSensor({sensor: 3, default: "1 kWh"}, 7), {sensor: 7});
+        eq("and so does a fixed value, or nothing", [referenceWithSensor("1 kWh", 7), referenceWithSensor(null, 7)],
+           [{sensor: 7}, {sensor: 7}]);
+        """)
+
+
+def test_unset_sensor_reference_note(assert_js):
+    """A field whose sensor was deleted says what scheduling does with it until a new sensor is picked."""
+    assert_js("""
+        import { unsetSensorReferenceNote } from "/js/flex-context-utils.js";
+        eq("its default is used as a fixed value",
+           unsetSensorReferenceNote({sensor: null, default: "10 EUR/MWh"}, "Site"),
+           "The sensor of this field has been deleted. Pick a new sensor for it. Until then, its default (10 EUR/MWh) is used as a fixed value. Kept for the new sensor: default: 10 EUR/MWh.");
+        eq("without a default, an ancestor's value applies",
+           unsetSensorReferenceNote({sensor: null, "source-types": ["forecaster"]}, "Site"),
+           'The sensor of this field has been deleted. Pick a new sensor for it. Until then, this field is ignored, so the value set on Site applies. Kept for the new sensor: source-types: ["forecaster"].');
+        eq("or the field is ignored",
+           unsetSensorReferenceNote({sensor: null}),
+           "The sensor of this field has been deleted. Pick a new sensor for it. Until then, this field is ignored.");
+        """)

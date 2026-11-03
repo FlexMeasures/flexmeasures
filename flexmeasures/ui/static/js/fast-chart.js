@@ -2154,18 +2154,34 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
   return series;
 }
 
-// The two companion subplots Vega-Lite shows alongside the sessions chart (when
-// present in the dashboard config), restricted the same way the Python chart
-// builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
-const CHARGEPOINT_COMPANION_TITLES = ["Power flow by type", "Prices"];
-const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
-// Title of the dashboard group holding the raw session-marker sensors (arrival,
-// departure, plug in/out, start/stop charging). Their values are epoch timestamps,
-// not plottable quantities, so — like Vega-Lite — only the dedicated Charge Point
-// sessions chart type shows them; the default multi-sensor view hides this group.
-const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
+// The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
+// from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
+// - sessionsTitle: the dashboard group holding the raw session-marker sensors (arrival, departure, plug in/out, start/stop charging).
+//   Their values are epoch timestamps, not plottable quantities, so (like Vega-Lite) only the Charge Points chart type shows them;
+//   the default multi-sensor view hides this group.
+// - companionTitles: the two companion subplots Vega-Lite shows alongside the sessions chart (when present in the dashboard config),
+//   restricted the same way the Python chart builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
+// - powerFlowTitle and powerSensorName: of the power flows, only this sensor is shown.
+
+// Graph titles are matched as the Vega-Lite chart shows them, i.e. with a capital first letter,
+// so a graph titled "prices" counts as a Prices graph (see charge_point_companion_graph in belief_charts.py).
+function capitalizeTitle(title) {
+  return title ? title[0].toUpperCase() + title.slice(1) : title;
+}
+
+/**
+ * Whether the Charge Points chart shows this graph below its sessions.
+ *
+ * @param {string} title - The graph's title, as in sensors_to_show.
+ * @param {Object} chargePointChart - The names the Charge Points chart goes by (CHARGE_POINT_CHART_NAMES in belief_charts.py).
+ * @returns {boolean}
+ */
+export function isChargePointCompanionTitle(title, chargePointChart) {
+  return ((chargePointChart || {}).companionTitles || []).includes(capitalizeTitle(title));
+}
 
 export function buildChargePointSessionsOption(elementId, data, opts) {
+  const chargePointChart = opts.chargePointChart || {};
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2193,16 +2209,16 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
   // via the normal multi-sensor line-chart renderer and spliced in underneath.
-  const companionSpec = (opts.groupSpec || []).filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title));
+  const companionSpec = (opts.groupSpec || []).filter((g) => isChargePointCompanionTitle(g.title, chargePointChart));
   let companionGroups = companionSpec.length > 0 ? groupData(data, companionSpec) : [];
   // groupData() falls back to grouping any row not covered by companionSpec's
   // sensorIds by unit, producing extra ad-hoc groups for the asset's other
   // sensors (soc, power, ...) — drop everything except the two intended titles.
   companionGroups = companionGroups
-    .filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title))
+    .filter((g) => isChargePointCompanionTitle(g.title, chargePointChart))
     .map((g) =>
-      g.title === "Power flow by type"
-        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === CHARGEPOINT_POWER_SENSOR_NAME) })
+      capitalizeTitle(g.title) === chargePointChart.powerFlowTitle
+        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === chargePointChart.powerSensorName) })
         : g
     )
     .filter((g) => g.series.length > 0);
@@ -2275,7 +2291,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
     splitLine: { show: false },
   }];
   const titles = [{
-    text: "Charge Point sessions",
+    text: chargePointChart.sessionsTitle,
     left: plotCenter,
     textAlign: "center",
     top: sessionsTop - TITLE_RAISE,
@@ -2455,7 +2471,8 @@ export function renderFastChart(elementId, data, options) {
   } else if (opts.chartType === "chart_for_chargepoint_sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
-    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== CHARGE_POINT_SESSIONS_GROUP_TITLE);
+    const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
+    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== sessionsTitle);
     const groups = groupData(data, groupSpec);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
   }
