@@ -64,16 +64,16 @@ def load_custom_scheduler(scheduler_specs: dict | str) -> type:
     The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
     The scheduler class should have a class method named "compute".
 
-    Example specs:
+    Example specs::
 
-    {
-        "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
-        "class": "NameOfSchedulerClass",
-    }
+        {
+            "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
+            "class": "NameOfSchedulerClass",
+        }
 
-    or if the scheduler is already subclassing flexmeasures.Scheduler, simply:
+    or if the scheduler is already subclassing flexmeasures.Scheduler, simply::
 
-    "NameOfSchedulerClass"
+        "NameOfSchedulerClass"
 
     """
     if isinstance(scheduler_specs, dict):
@@ -240,11 +240,13 @@ def create_scheduling_job(
     As a rule of thumb, keep arguments to the job simple, and deserializable.
 
     The life cycle of a scheduling job:
+
     1. A scheduling job is born here (in create_scheduling_job).
     2. It is run in make_schedule which writes results to the db.
     3. If an error occurs (and the worker is configured accordingly), handle_scheduling_exception comes in.
 
     Arguments:
+
     :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
     :param job_id:                  Optionally, set a job id explicitly.
                                     A job that already exists under this id is returned as it is, rather than created again.
@@ -482,7 +484,7 @@ def create_sequential_scheduling_job(
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
 
-    Example of a partially deserialized flex-model per sensor:
+    Example of a partially deserialized flex-model per sensor::
 
         scheduler_kwargs["flex_model"] = [
             dict(
@@ -635,7 +637,7 @@ def create_simultaneous_scheduling_job(
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The scheduling job.
 
-    Example of a partially deserialized flex-model per sensor:
+    Example of a partially deserialized flex-model per sensor::
 
         scheduler_kwargs["flex_model"] = [
             dict(

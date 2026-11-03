@@ -149,8 +149,10 @@ def device_scheduler(  # noqa C901
                                     derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
                                     stock delta: predefined stock delta to apply to the storage device. Positive values cause an increase and negative values a decrease
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
+
                                     derivative max: maximum flow
                                     derivative min: minimum flow
+
                                 May be a single DataFrame (the constraint is applied to the summed flow of all devices),
                                 or a list of DataFrames (one per device group). In the latter case, ``ems_constraint_groups``
                                 lists the device indices each DataFrame applies to. The StorageScheduler uses one device
@@ -192,12 +194,17 @@ def device_scheduler(  # noqa C901
                                 its flow absorbs the imbalance, and its stock is bounded by its own device constraints.
 
     Potentially deprecated arguments:
-        commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
-            - e.g. in MW or boxes/h
-        commitment_downwards_deviation_price: penalty for downwards deviations of the flow
-            - e.g. in EUR/MW or EUR/(boxes/h)
-            - either a single value (same value for each flow value) or a Series (different value for each flow value)
-        commitment_upwards_deviation_price: penalty for upwards deviations of the flow
+
+    - commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
+
+      - e.g. in MW or boxes/h
+
+    - commitment_downwards_deviation_price: penalty for downwards deviations of the flow
+
+      - e.g. in EUR/MW or EUR/(boxes/h)
+      - either a single value (same value for each flow value) or a Series (different value for each flow value)
+
+    - commitment_upwards_deviation_price: penalty for upwards deviations of the flow
 
     Separate costs for each commitment are stored in a dictionary under `model.commitment_costs` (indexed by commitment).
 

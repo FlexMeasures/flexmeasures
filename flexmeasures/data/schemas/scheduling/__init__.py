@@ -1689,14 +1689,14 @@ class MultiSensorFlexModelSchema(Schema):
     This schema is agnostic to the underlying type of flex-model, which is governed by the chosen Scheduler instead.
     Therefore, the underlying type of flex-model is not deserialized.
 
-    So:
+    So::
 
         {
             "sensor": 1,
             "soc-at-start": "10 kWh"
         }
 
-    becomes:
+    becomes::
 
         {
             "sensor": <Sensor 1>,
@@ -1753,19 +1753,21 @@ class MultiSensorFlexModelSchema(Schema):
 
 class AssetTriggerSchema(Schema):
     """
-    {
-        "start": "2025-01-21T15:00+01",
-        "flex-model": [
-            {
-                "sensor": 1,
-                "soc-at-start": "10 kWh"
-            },
-            {
-                "sensor": 2,
-                "soc-at-start": "20 kWh"
-            },
-        ]
-    }
+    Example::
+
+        {
+            "start": "2025-01-21T15:00+01",
+            "flex-model": [
+                {
+                    "sensor": 1,
+                    "soc-at-start": "10 kWh"
+                },
+                {
+                    "sensor": 2,
+                    "soc-at-start": "20 kWh"
+                },
+            ]
+        }
 
     This schema is also used outside of the (versioned) API, e.g. by the CLI,
     so it stays canonical (no legacy field-name aliasing here). API-version-

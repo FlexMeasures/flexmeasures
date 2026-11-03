@@ -120,6 +120,7 @@ class AuditLog(db.Model, AuthModelMixin):
         """
         Table-level access rules for user-affecting audit logs. Use directly in check_access or in @permission_required_for_context with pass_ctx_to_loader, ctx_loader=AuditLog.user_acl.
         Permissions:
+
             User can see his own audit logs.
             Account-admin users can see audit logs for all users of their account.
             Admins / admin-readers can see audit logs for all users.
@@ -154,6 +155,7 @@ class AuditLog(db.Model, AuthModelMixin):
         """
         Table-level access rules for account-affecting audit logs. Use directly in check_access or in @permission_required_for_context with pass_ctx_to_loader, ctx_loader=AuditLog.user_acl.
         Permissions:
+
             Account-admin users can see audit logs for their account.
             Admins / admin-readers can see audit logs for all accounts.
             Consultant users can see the audit log of all client accounts.

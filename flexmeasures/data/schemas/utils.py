@@ -97,6 +97,7 @@ def with_appcontext_if_needed():
     which, typically, is a request to the running FlexMeasures server.
 
     The check walks up the entire context chain so it handles both:
+
     - ``flask run``: modules are imported while the ``run`` subcommand context is *current*
       (``ctx.info_name == "run"``, ``ctx.invoked_subcommand is None``).
     - ``flexmeasures run``: modules are imported at group level, where the parent context

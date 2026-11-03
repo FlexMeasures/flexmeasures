@@ -127,6 +127,7 @@ def titleize(word):
 
     In most cases it's probably better to use our capitalize function instead of titleize,
     because it has less unintended side effects. For example:
+
      >>> word = "two PV panels"
      >>> titleize(word)
      'Two Pv Panels'

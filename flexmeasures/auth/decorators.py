@@ -38,7 +38,7 @@ def roles_required(*roles):
 
 def account_roles_accepted(*account_roles):
     """Decorator which specifies that a user's account must have at least one of the
-    specified roles (or must be an admin). Example:
+    specified roles (or must be an admin). Example::
 
         @app.route('/postMeterData')
         @account_roles_accepted('Prosumer', 'MDC')
@@ -121,13 +121,16 @@ def permission_required_for_context(
     We will now explain how to load a context, and give an example:
 
     The context needs to be an AuthModelMixin and is found ...
+
     - by loading it via the ctx_loader callable;
     - otherwise:
+
       * by the keyword argument ctx_arg_name;
       * and/or by a position in the non-keyword arguments (ctx_arg_pos).
+
     If nothing is passed, the context lookup defaults to ctx_arg_pos=0.
 
-    Let's look at an example. Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
+    Let's look at an example. Usually, you'd place a marshmallow field further up in the decorator chain, e.g.::
 
         @app.route("/resource/<resource_id>", methods=["GET"])
         @use_kwargs(
@@ -152,7 +155,7 @@ def permission_required_for_context(
       Using both ctx_arg_name and ctx_arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first ctx_arg_pos, then ctx_arg_name.
 
     Let's look at a slightly more complex example where we combine both special cases from above.
-    We parse a dictionary from the input with a Marshmallow schema, in which a context ID can be found which we need to instantiate:
+    We parse a dictionary from the input with a Marshmallow schema, in which a context ID can be found which we need to instantiate::
 
         @app.route("/resource", methods=["POST"])
         @use_args(resource_schema)
@@ -160,6 +163,7 @@ def permission_required_for_context(
             "create-children", ctx_arg_pos=1, ctx_arg_name="resource_id", ctx_loader=Resource, pass_ctx_to_loader=True
         )
         def post(self, resource_data: dict):
+
     Note that in this example, resource_data is the input parsed by resource_schema, "resource_id" is one of the parameters in this schema, and Resource is a subclass of AuthModelMixin.
     """
 

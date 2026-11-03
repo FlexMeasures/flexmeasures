@@ -410,24 +410,30 @@ class GenericAsset(db.Model, AuthModelMixin):
         Validate and transform the 'sensors_to_show' attribute into the latest format for use in graph-making code.
 
         This function ensures that the 'sensors_to_show' attribute:
+
         1. Follows the latest format, even if the data in the database uses an older format.
         2. Contains only sensors that the user has access to (based on the current asset, account, or public availability).
 
         Steps:
+
         - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
         - It checks if each sensor is accessible by the user and filters out any unauthorized sensors.
         - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles, all into a single 'plots' array.
 
         Details on format:
+
         - The 'sensors_to_show' attribute is defined as a list of sensor IDs or nested lists of sensor IDs (to indicate grouping).
         - Titles may be associated with rows of sensors. If no title is provided, `{"title": None}` will be assigned.
         - Nested lists of sensors indicate that they should be shown together (e.g., layered in the same chart).
 
         Example inputs:
-        1. Simple list of sensors, where sensors 42 and 44 are grouped:
+
+        1. Simple list of sensors, where sensors 42 and 44 are grouped::
+
             sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
 
-        2. List with titles and sensor groupings:
+        2. List with titles and sensor groupings::
+
             sensors_to_show = [
                 {"title": "Title 1", "plots": [{"sensor": 40}]},
                 {"title": "Title 2", "plots": [{"sensors": [41, 42]}]},
@@ -435,12 +441,15 @@ class GenericAsset(db.Model, AuthModelMixin):
             ]
 
         Parameters:
+
         - suggest_default_sensors: If True, the function will suggest default sensors if 'sensors_to_show' is not set.
         - If False, the function will return an empty list if 'sensors_to_show' is not set.
 
         Returned structure:
+
         - The function returns a list of dictionaries, with each dictionary containing either a 'sensor' (for individual sensors) or 'sensors' (for groups of sensors), and an optional 'title'.
-        - Example output:
+        - Example output::
+
             [
                 {"title": "Title 1", "sensor": <Sensor object for sensor 40>},
                 {"title": "Title 2", "sensors": [<Sensor object for sensor 41>, <Sensor object for sensor 42>]},
@@ -1515,11 +1524,13 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange(self) -> dict[str, datetime]:
         """Time range for which sensor data exists.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example::
+
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.sensors)
 
@@ -1527,11 +1538,13 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange_of_sensors_to_show(self) -> dict[str, datetime]:
         """Time range for which sensor data exists, for sensors to show.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example::
+
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.validate_sensors_to_show())
 
@@ -1540,11 +1553,13 @@ class GenericAsset(db.Model, AuthModelMixin):
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example::
+
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 

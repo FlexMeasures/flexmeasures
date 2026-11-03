@@ -14,12 +14,17 @@ class SchedulingJobResult:
 
     **Structure:**
     Results contain three top-level fields:
+
     - ``unresolved``: List of soft constraints that the scheduler could not satisfy
+
       - Each entry is a dict with ``"asset"`` field (asset ID) and constraint-type keys (``"soc-minima"``, ``"soc-maxima"``)
       - Each constraint-type key holds a list of dicts, one per violated slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "violation": "X kWh"}``
+
     - ``resolved``: List of soft constraints that were satisfied with available headroom
+
       - Each entry is a dict with ``"asset"`` field and constraint-type keys
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
+
     - ``num-beliefs``: Total number of beliefs (scheduled values) saved to the database
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.

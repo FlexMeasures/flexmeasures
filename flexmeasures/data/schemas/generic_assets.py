@@ -36,6 +36,7 @@ class SensorsToShowSchema(fields.Field):
     a `title` (optional), a `y-axis` (optional) and a `plots` list, this list
     then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
     The `y-axis` key controls how the shared y-axis domain for that sub-chart is chosen:
+
     - absent, or `"zero"`: the axis is padded out to include zero (the default).
     - `"data"`: the axis is fitted to the data instead of being padded out to include zero.
     - `[min, max]`: a minimum domain; the axis always covers at least this range,
@@ -51,15 +52,18 @@ class SensorsToShowSchema(fields.Field):
 
 
     Validation ensures that:
+
     - The input is either a list, integer, or dictionary.
     - If the input is a dictionary, it must contain either `sensor` (int), `sensors` (list of ints) or `plots` (list of dicts).
     - All sensor IDs must be valid integers.
 
     Example Inputs:
+
     - `[{"title": "Test", "plots": [{"sensor": 1}, {"sensor": 2}]}, {"title": "Another Test", "plots": [{"sensors": [3, 4]}]}, 5]`
     - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]` (Older format but still compatible)
 
     Example Output (Standardized):
+
     - `[{"title": "Test", "plots": [{"sensors": [1, 2]}]}, {"title": None, "plots": [{"sensors": [3, 4]}]}, {"title": None, "plots": [{"sensor": 5}]}]`
     """
 
@@ -300,6 +304,7 @@ class SensorsToShowSchema(fields.Field):
         Flatten a nested list of sensor IDs into a unique list. Also works for Sensor objects.
 
         This method processes the following formats for each entry in the list:
+
         1. A single sensor ID:
            `3`
         2. A list of sensor IDs:
@@ -313,11 +318,12 @@ class SensorsToShowSchema(fields.Field):
            `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
         6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
            containing a field name or a list of field names:
-            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+           `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
         7. Mixed formats:
            `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
         Example:
+
         >>> SensorsToShowSchema.flatten([1, [2, 20, 6], 10, [6, 2], {"title": None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 8]}]}])
         [1, 2, 20, 6, 10, 15, 8]
 

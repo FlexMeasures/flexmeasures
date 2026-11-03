@@ -319,7 +319,8 @@ class PandasReporter(Reporter):
 
         Example:
 
-        The example below converts from hourly meter readings in kWh to electricity demand in kW.
+        The example below converts from hourly meter readings in kWh to electricity demand in kW::
+
             transformations = [
                 {"method": "diff"},
                 {"method": "shift", "kwargs": {"periods": -1}},
