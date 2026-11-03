@@ -70,7 +70,7 @@ The quickest way is to draw them. Click **Draw on chart**, then press and drag a
 
 Or type them. Choose the time range to fill:
 
-- Enter a **Start** and a **Duration** under **Time range**. The duration is an ISO 8601 duration, read as the sensor data API reads it: ``PT15M``, ``PT2H``, or ``P1D``, which is always 24 hours, also on a day with a daylight saving time transition.
+- Enter a **Start** and a **Duration** under **Time range**. The duration is an ISO 8601 duration, read as the sensor data API reads it: ``PT15M``, ``PT2H``, or ``P1D``, which is always 24 hours, also on a day with a daylight saving time transition. It starts out as two hours, or the sensor's resolution when that is longer.
 - Or click **Select on chart**, then drag across the chart, or click once to choose a single event. This turns on the fast chart and its select tool (switching to the bar chart if a histogram or heatmap was shown); **Stop selecting** turns it off again.
 
 Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in **Start** and **Duration**. Type a value in the sensor's unit and click **Add** (or press Enter), and every event in the range gets that value. **Add** turns green as soon as a value is typed, and stays green once values were added. Adding over an existing draft value replaces it.

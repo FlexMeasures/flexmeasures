@@ -161,6 +161,18 @@ export function proposedDrawFloor(yAxisMin) {
   return -proposedDrawScale(-yAxisMin);
 }
 
+const TWO_HOURS_MS = 2 * 3600 * 1000;
+
+/**
+ * The duration to propose for a typed time range: two hours, or the sensor's resolution when that is longer (such as one day for a daily sensor).
+ *
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @returns {number} The duration, in milliseconds.
+ */
+export function defaultDraftDuration(resolutionMs) {
+  return resolutionMs > TWO_HOURS_MS ? resolutionMs : TWO_HOURS_MS;
+}
+
 /**
  * Remove the draft values within a time range, such as one group of groupDrafts.
  *
@@ -372,6 +384,8 @@ export function wireDraftValuesPanel(root, options) {
   let recording = false;
   let drawing = false;
   let slots = [];
+  const defaultDuration = formatIsoDuration(defaultDraftDuration(opts.resolutionMs));
+  if (!durationInput.value) durationInput.value = defaultDuration;
 
   const unavailable = draftValuesUnavailableReason(opts.resolutionMs, opts.isTouch);
   if (unavailable) {
@@ -457,11 +471,12 @@ export function wireDraftValuesPanel(root, options) {
     opts.chart.showDrafts(drafts.slice());
   }
 
+  // Clear the selection and its start, keeping a readable duration for the next range.
   function clearSelection() {
     slots = [];
     opts.chart.showSelection(null);
     startInput.value = "";
-    durationInput.value = "";
+    if (parseIsoDuration(durationInput.value) === null) durationInput.value = defaultDuration;
     durationInput.classList.remove("is-invalid");
   }
 

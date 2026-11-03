@@ -354,20 +354,21 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
     assert_js(PANEL + """
         import { toDatetimeLocalValue } from "/js/draft-values.js";
         const start = new Date(T0 + 2 * 3600000 + 7 * 60000);
+        eq("the duration starts out as two hours, as the sensor's resolution is shorter", button("duration").value, "PT2H");
         await typeIn("start", toDatetimeLocalValue(start));
-        eq("a start alone selects nothing", panel.slots.length, 0);
-        check("nor starts recording", !panel.recording, "");
+        eq("so a start alone selects two hours from it", panel.slots.length, 9);
+        check("and starts recording", panel.recording, "");
         await typeIn("duration", "PT1H");
         check("start and duration start recording, without pressing Select on chart", panel.recording && chart.selecting, "");
-        eq("start and duration select the slots they touch", panel.slots.length, 5);
+        eq("start and duration select the slots they touch, from the start as snapped to a slot", panel.slots.length, 4);
         eq("from the slot the start lies in", panel.slots[0].start.getTime(), T0 + 2 * 3600000);
         check("which shows on the chart", chart.selection && chart.selection.start.getTime() === T0 + 2 * 3600000, "");
         eq("the fields show the snapped start", button("start").value, toDatetimeLocalValue(new Date(T0 + 2 * 3600000)));
-        eq("and the duration it covers", button("duration").value, "PT1H15M");
+        eq("and the duration it covers", button("duration").value, "PT1H");
 
         await typeIn("duration", "two hours");
         check("an unreadable duration is pointed out", button("duration").classList.contains("is-invalid"), "");
-        eq("and keeps the previous selection", panel.slots.length, 5);
+        eq("and keeps the previous selection", panel.slots.length, 4);
 
         selectOnChart(T0, T0 + 30 * 60000);
         eq("a selection on the chart fills in the start", button("start").value, toDatetimeLocalValue(new Date(T0)));
@@ -377,7 +378,20 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         typeValue("4");
         panel.add();
         eq("adding fills the slots", panel.drafts.length, 2);
-        eq("and clears the fields for the next range", [button("start").value, button("duration").value], ["", ""]);
+        eq("and clears the start for the next range, keeping the duration", [button("start").value, button("duration").value], ["", "PT30M"]);
+        """)
+
+
+def test_the_proposed_duration_follows_the_sensor_resolution(assert_js):
+    assert_js("""
+        import { defaultDraftDuration } from "/js/draft-values.js";
+        const MIN = 60 * 1000;
+        const HOUR = 60 * MIN;
+        eq("two hours for a 15-minute sensor", defaultDraftDuration(15 * MIN), 2 * HOUR);
+        eq("two hours for an hourly sensor", defaultDraftDuration(HOUR), 2 * HOUR);
+        eq("the resolution when it is longer than two hours", defaultDraftDuration(3 * HOUR), 3 * HOUR);
+        eq("one day for a daily sensor", defaultDraftDuration(24 * HOUR), 24 * HOUR);
+        eq("one week for a weekly sensor", defaultDraftDuration(7 * 24 * HOUR), 7 * 24 * HOUR);
         """)
 
 
