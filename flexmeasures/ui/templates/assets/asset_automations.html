@@ -371,9 +371,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     } else {
       message = xhr.status ? `HTTP ${xhr.status}` : "unknown error";
     }
-    return xhr.status === 429
-      ? errorWithRetryAfter(message, xhr.getResponseHeader("Retry-After"))
-      : message;
+    if (xhr.status === 429) {
+      message = errorWithRetryAfter(message, xhr.getResponseHeader("Retry-After"));
+    }
+    // Every caller ends its sentence after this message, so a full stop of the message's own would be doubled.
+    return message.replace(/\.+$/, "");
   }
 
   function showAutomationsError(message) {
