@@ -213,10 +213,11 @@ def test_record_select_add_and_stop(assert_js):
         check("which has the value, its unit and the count", button("list").children[0].textContent.includes("3.5 kWh · 4 values"), button("list").children[0].textContent);
         eq("and counts them", [button("count").textContent, button("count").classList.contains("d-none")], ["4", false]);
         check("they can be discarded", !button("cancel").classList.contains("d-none"), "");
-        eq("the selection is cleared", chart.selection, null);
-        eq("the value stays for the next selection", button("value").value, "3.5");
+        eq("the next range is proposed, starting where this one ended and as long",
+           [chart.selection.start.getTime(), chart.selection.end.getTime()], [T0 + 3600000, T0 + 2 * 3600000]);
+        eq("the value stays for the next range", button("value").value, "3.5");
         check("Add stays green, showing values were added", button("add").classList.contains("btn-success"), "");
-        eq("not faded, though there is nothing to add for now", [button("add").disabled, button("add").style.opacity], [true, "1"]);
+        eq("and can add the proposed range right away", [button("add").disabled, button("add").style.opacity], [false, "1"]);
 
         selectOnChart(T0 + 3600000, T0 + 3600000 + 2 * QUARTER - 60000);
         typeValue("5");
@@ -378,7 +379,35 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         typeValue("4");
         panel.add();
         eq("adding fills the slots", panel.drafts.length, 2);
-        eq("and clears the start for the next range, keeping the duration", [button("start").value, button("duration").value], ["", "PT30M"]);
+        eq("and moves the fields on to the next range, keeping the duration",
+           [button("start").value, button("duration").value], [toDatetimeLocalValue(new Date(T0 + 30 * 60000)), "PT30M"]);
+        eq("and the value", button("value").value, "4");
+        typeValue("6");
+        panel.add();
+        eq("so a run of different values is a value and Add each", panel.drafts.map((d) => d.value), [4, 4, 6, 6]);
+        """)
+
+
+def test_the_range_proposed_after_add_is_not_handed_over_unless_given_a_value(
+    assert_js,
+):
+    """Save and Preview leave out the range proposed after Add, unless the user typed a value for it."""
+    assert_js(PANEL + """
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("7");
+        panel.add();
+        eq("a range is proposed after adding", panel.slots.length, 4);
+        panel.handOver("save");
+        eq("handing over leaves the proposed range out", handedOver[0].drafts.length, 4);
+
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("7");
+        panel.add();
+        typeValue("8");
+        panel.handOver("preview");
+        eq("but adds it once a value is typed for it", handedOver[1].drafts.map((d) => d.value), [7, 7, 7, 7, 8, 8, 8, 8]);
         """)
 
 

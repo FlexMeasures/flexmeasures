@@ -384,6 +384,8 @@ export function wireDraftValuesPanel(root, options) {
   let recording = false;
   let drawing = false;
   let slots = [];
+  // Whether the selection is the next range proposed after Add, rather than one the user chose.
+  let proposed = false;
   const defaultDuration = formatIsoDuration(defaultDraftDuration(opts.resolutionMs));
   if (!durationInput.value) durationInput.value = defaultDuration;
 
@@ -474,6 +476,7 @@ export function wireDraftValuesPanel(root, options) {
   // Clear the selection and its start, keeping a readable duration for the next range.
   function clearSelection() {
     slots = [];
+    proposed = false;
     opts.chart.showSelection(null);
     startInput.value = "";
     if (parseIsoDuration(durationInput.value) === null) durationInput.value = defaultDuration;
@@ -554,7 +557,8 @@ export function wireDraftValuesPanel(root, options) {
     // End recording, keep the draft values, and hand them over, to be saved as they are ("save") or previewed first ("preview").
     // A selection with a value that was not added yet is added first, so it is not lost.
     handOver(action) {
-      controller.add();
+      // The next range proposed after Add was not chosen, so it is left out.
+      if (!proposed) controller.add();
       if (drafts.length === 0) return;
       controller.endRecording();
       controller.stopDrawing();
@@ -567,6 +571,7 @@ export function wireDraftValuesPanel(root, options) {
     // Select the slots a range on the chart covers (null clears the selection).
     select(range) {
       if (!recording) return;
+      proposed = false;
       if (!range) {
         clearSelection();
         render();
@@ -602,12 +607,20 @@ export function wireDraftValuesPanel(root, options) {
       await controller.record();
       controller.select(range);
     },
-    // Give the selected slots the typed value, then clear the selection (the value stays, to be used again).
+    // Give the selected slots the typed value, then propose the next range: it starts where this one ends, with the same duration, and the value stays.
+    // So drafting a run of different values is typing a value and pressing Add, again and again.
     add() {
       const value = parseDraftValue(valueInput.value);
       if (!recording || slots.length === 0 || value === null) return;
       setDrafts(fillSlots(drafts, slots, value));
+      const end = slots[slots.length - 1].end;
+      const duration = parseIsoDuration(durationInput.value);
       clearSelection();
+      if (duration !== null) {
+        startInput.value = toDatetimeLocalValue(end);
+        controller.select(rangeFromStartAndDuration(end, duration));
+        proposed = slots.length > 0;
+      }
       render();
     },
     remove(startMs) {
@@ -644,7 +657,11 @@ export function wireDraftValuesPanel(root, options) {
     event.preventDefault();
     controller.cancel();
   });
-  valueInput.addEventListener("input", render);
+  // Changing the value makes the proposed range one the user chose.
+  valueInput.addEventListener("input", () => {
+    proposed = false;
+    render();
+  });
   startInput.addEventListener("change", () => controller.selectTyped());
   durationInput.addEventListener("change", () => controller.selectTyped());
   valueInput.addEventListener("keydown", (event) => {
