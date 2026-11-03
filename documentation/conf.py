@@ -7,6 +7,7 @@
 # http://www.sphinx-doc.org/en/stable/config
 
 import os
+import re
 import shutil
 
 from datetime import datetime
@@ -249,6 +250,23 @@ def drop_openapi_spec(app, what, name, obj, options, lines):
             break
 
 
+def render_swagger_ui_links_as_text():
+    """Render links to SwaggerUI anchors in the OpenAPI spec's descriptions as their text only.
+
+    In SwaggerUI, a Markdown link like ``[the Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger)`` jumps to that endpoint.
+    In these docs, the same anchor becomes a reference to a label that does not exist, while the endpoint is described on the same page anyway.
+    """
+    from sphinxcontrib.openapi import utils as openapi_utils
+
+    get_text_converter = openapi_utils.get_text_converter
+
+    def get_text_converter_without_swagger_ui_links(options):
+        convert = get_text_converter(options)
+        return lambda text: convert(re.sub(r"\[([^\]]+)\]\(#/[^)]*\)", r"\1", text))
+
+    openapi_utils.get_text_converter = get_text_converter_without_swagger_ui_links
+
+
 def setup(sphinx_app):
     """
     Here you can set config variables for Sphinx or even pass config variables from FlexMeasures to Sphinx.
@@ -262,6 +280,7 @@ def setup(sphinx_app):
     """
     os.environ["FLEXMEASURES_ENV"] = "documentation"
     sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
+    render_swagger_ui_links_as_text()
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
