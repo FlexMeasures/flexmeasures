@@ -1562,10 +1562,7 @@ function buildLineBarOption(elementId, groups, opts) {
       minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
-    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation if any of the row's real sensors is instantaneous (event_resolution 0),
-    // otherwise use step-after.
-    // Only real sensors determine interpolation; fixed-value sensors (negative sensorId) always have event_resolution=0 by construction,
-    // and must not force a mixed row to linear (#2253).
+    // Linear or step-after for the whole row, as in Vega-Lite (see isGroupInstantaneous).
     const groupIsInstantaneous = isGroupInstantaneous(group);
     // Annotation marks (shaded bands, instant rules) and the replay ruler live
     // on a dedicated, data-less carrier series, so they also show in subplots
