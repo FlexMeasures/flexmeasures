@@ -67,7 +67,7 @@ To load a configuration file into the container when starting up, we make use of
 .. warning:: The location of the instance folder depends on how we serve FlexMeasures. The above works with gunicorn. See the compose file for an alternative (for the FlexMeasures CLI), and you can also read the above link about the instance folder.
 
 Installing plugins within the container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 At this point, the FlexMeasures container is up and running without including any plugins you might need to use. To integrate a plugin into the container, follow these steps:
 
