@@ -15,6 +15,7 @@ It also gives both backends a single place to grow support for a new scheduling 
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -87,8 +88,10 @@ def solver_options(solver_name: str) -> dict:
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
         }
-        # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-        if current_app.config["LOGGING_LEVEL"] == "INFO":
+        # HiGHS writes its log straight to the console, bypassing our loggers,
+        # so only let it through when debugging.
+        # The app logger's level reflects LOGGING_LEVEL, whether that was configured as a name (e.g. "INFO") or a number (e.g. logging.INFO).
+        if current_app.logger.getEffectiveLevel() > logging.DEBUG:
             profile["output_flag"] = "false"
 
     configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}

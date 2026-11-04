@@ -331,9 +331,7 @@ def first_exported_timestamp(filepath) -> str:
     [
         # Without the option, the file uses the sensor's timezone (this used to be naive UTC).
         ([], "2021-03-28 17:00:00+02:00"),
-        # An explicit timezone is used (this used to be ignored, giving naive UTC, too).
-        (["--export-timezone", "Asia/Tokyo"], "2021-03-29 00:00:00+09:00"),
-        # The former name of the option keeps working.
+        # An explicit timezone is used (this used to be replaced by the sensor's timezone).
         (["--timezone", "Asia/Tokyo"], "2021-03-29 00:00:00+09:00"),
     ],
 )
@@ -349,20 +347,6 @@ def test_plot_beliefs_exports_in_the_requested_timezone(
     assert "only applies to the file" not in result.output
 
 
-def test_plot_beliefs_timezone_alias_is_deprecated(app, db, amsterdam_sensor, tmp_path):
-    result, _ = export_beliefs(
-        app, tmp_path, [amsterdam_sensor], "--timezone", "Asia/Tokyo"
-    )
-    assert (
-        "Option '--timezone' will be replaced by '--export-timezone'." in result.output
-    )
-
-    result, _ = export_beliefs(
-        app, tmp_path, [amsterdam_sensor], "--export-timezone", "Asia/Tokyo"
-    )
-    assert "will be replaced by" not in result.output
-
-
 def test_plot_beliefs_defaults_to_the_timezone_of_the_first_non_empty_sensor(
     app, db, setup_markets, amsterdam_sensor, tmp_path
 ):
@@ -376,31 +360,24 @@ def test_plot_beliefs_defaults_to_the_timezone_of_the_first_non_empty_sensor(
     assert first_exported_timestamp(filepath) == "2021-03-28 17:00:00+02:00"
 
 
-def test_plot_beliefs_rejects_an_unknown_export_timezone(
-    app, db, amsterdam_sensor, tmp_path
-):
+def test_plot_beliefs_rejects_an_unknown_timezone(app, db, amsterdam_sensor, tmp_path):
     result, filepath = export_beliefs(
-        app, tmp_path, [amsterdam_sensor], "--export-timezone", "Europe/NotAmsterdam"
+        app, tmp_path, [amsterdam_sensor], "--timezone", "Europe/NotAmsterdam"
     )
 
     assert result.exit_code == 2
     assert (
-        "Invalid value for '--export-timezone' / '--timezone': "
+        "Invalid value for '--timezone': "
         "Timezone 'Europe/NotAmsterdam' does not exist."
     ) in result.output
     assert not filepath.exists()
 
 
-def test_plot_beliefs_warns_that_the_export_timezone_needs_a_file(
-    app, db, amsterdam_sensor
-):
-    result = show_beliefs(app, [amsterdam_sensor], "--export-timezone", "Asia/Tokyo")
+def test_plot_beliefs_warns_that_the_timezone_needs_a_file(app, db, amsterdam_sensor):
+    result = show_beliefs(app, [amsterdam_sensor], "--timezone", "Asia/Tokyo")
 
     check_command_ran_without_error(result)
-    assert (
-        "--export-timezone only applies to the file written with --to-file"
-        in result.output
-    )
+    assert "--timezone only applies to the file written with --to-file" in result.output
 
 
 def test_plot_beliefs_plots_without_timezone_warnings(app, db, amsterdam_sensor):

@@ -23,7 +23,12 @@ from flexmeasures.data.services.group_membership_audit import (
 
 
 def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
-    """Return whether an asset subtree holds beliefs or annotations."""
+    """Return whether an asset subtree holds beliefs or annotations.
+
+    The subtree's assets and sensors are looked up first, and the probes name them by ID.
+    Probing ``timed_belief`` with a subquery for its sensors instead lets Postgres plan a join that reads the whole table's index,
+    which takes seconds on a large database whenever the subtree holds no beliefs.
+    """
     from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
     subtree = (
@@ -34,17 +39,16 @@ def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
     subtree = subtree.union_all(
         sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
     )
-    asset_ids = sa.select(subtree.c.id)
-    sensor_ids = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    asset_query = sa.select(GenericAsset.id).where(
+        GenericAsset.id.in_(sa.select(subtree.c.id))
+    )
     if lock:
-        db.session.scalars(
-            sa.select(GenericAsset.id)
-            .where(GenericAsset.id.in_(asset_ids))
-            .with_for_update()
-        ).all()
-        db.session.scalars(
-            sa.select(Sensor.id).where(Sensor.id.in_(sensor_ids)).with_for_update()
-        ).all()
+        asset_query = asset_query.with_for_update()
+    asset_ids = db.session.scalars(asset_query).all()
+    sensor_query = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        sensor_query = sensor_query.with_for_update()
+    sensor_ids = db.session.scalars(sensor_query).all()
     for model, condition in (
         (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
         (

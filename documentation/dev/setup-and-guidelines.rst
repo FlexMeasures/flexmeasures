@@ -13,6 +13,7 @@ Furthermore, we discuss several guidelines and best practices.
     :depth: 1
 
 |
+
 .. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
@@ -55,7 +56,9 @@ All ``flexmeasures`` commands in this guide are prefixed with ``uv run``, which 
 
       alias flexmeasures="uv run flexmeasures"
 
-:ref:`Installing test dependencies <install-test-dependencies>`. Install the test dependencies with:
+.. _install-test-dependencies:
+
+Install the test dependencies with:
 
 .. code-block:: bash
 
@@ -178,7 +181,7 @@ The default logging level is ``WARNING``. To see more, you can update this with 
 
 
 Mocking an Email Server for Development
---------------------------------
+---------------------------------------
 
 To handle emails locally during development, you can use MailHog. Follow these steps to set it up:
 
@@ -195,6 +198,7 @@ Tests
 You can run automated tests with:
 
 .. code-block:: bash
+
     # If you haven't already, install the test dependencies:
     $ uv sync --group test
     # Then run the tests:
@@ -289,7 +293,7 @@ Consult the extension's Readme for other systems.
 
 
 A hint about using notebooks
----------------
+----------------------------
 
 If you edit notebooks, make sure results do not end up in git:
 

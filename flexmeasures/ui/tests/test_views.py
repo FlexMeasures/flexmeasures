@@ -11,6 +11,17 @@ def test_dashboard_responds(client, setup_assets, as_prosumer_user1):
     assert b"Dashboard" in dashboard.data
 
 
+def test_clearing_the_session_forgets_the_graph_date_range(client, as_prosumer_user1):
+    """The graphs remember their date range in the browser, so clearing the session must reach it there."""
+    dashboard = client.get(url_for("flexmeasures_ui.dashboard_view"))
+    assert b"forgetChartDateRange()" not in dashboard.data
+    cleared = client.get(
+        url_for("flexmeasures_ui.dashboard_view", **{"clear-session": 1})
+    )
+    assert b"Your session was cleared." in cleared.data
+    assert b"forgetChartDateRange()" in cleared.data
+
+
 def test_dashboard_responds_only_for_logged_in_users(client, as_prosumer_user1):
     logout(client)
     dashboard = client.get(
