@@ -3408,7 +3408,7 @@
       },
       "patch": {
         "summary": "Update an asset given its identifier.",
-        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n- account_id\n",
+        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n\nThe optional `account_id` field is deprecated. If supplied, it must match\nthe asset's current account; it cannot change ownership.\n",
         "security": [
           {
             "ApiKeyAuth": []

@@ -125,7 +125,6 @@ annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
@@ -1034,7 +1033,8 @@ class AssetAPI(FlaskView):
 
             The following fields are not allowed to be updated:
             - id
-            - account_id
+
+            The optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1087,7 +1087,7 @@ class AssetAPI(FlaskView):
         if {"flex_context", "flex_model"} & asset_data.keys():
             check_access(db_asset, "edit-flex-config")
 
-        asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+        asset_schema = AssetSchema(partial=True)
         asset_schema.context = {
             "asset": db_asset
         }  # context for validating fields like parent_asset_id
@@ -1096,6 +1096,12 @@ class AssetAPI(FlaskView):
             validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
             return unprocessable_entity(e.messages)
+
+        if "account_id" in validated_data:
+            if validated_data.pop("account_id") != db_asset.account_id:
+                return unprocessable_entity(
+                    {"account_id": ["Cannot change the account of an asset."]}
+                )
 
         try:
             db_asset = patch_asset(db_asset, validated_data)
