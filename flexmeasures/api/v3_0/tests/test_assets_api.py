@@ -662,11 +662,19 @@ def test_alter_an_asset(
         json={
             "latitude": 11.1,
             "name": "other",
+            "account_id": prosumer_id,
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
     assert asset_edit_response.json["account_id"] == prosumer_id
+
+    ownership_change_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        json={"account_id": None},
+    )
+    assert ownership_change_response.status_code == 422
+    assert prosumer_asset.account_id == prosumer_id
 
     # Resetting changes to keep other tests clean here
     asset_edit_response = client.patch(
