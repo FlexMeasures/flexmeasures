@@ -280,7 +280,7 @@ def get_series_from_quantity_or_sensor(
     :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
-    :param fill_sides               If True, values are extended to the edges of the query window:
+    :param fill_sides:              If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :return:                        Pandas Series with the requested time series data.
@@ -391,18 +391,17 @@ def process_time_series_segments(
     """
     Process a time series defined by a list of dicts, while resolving overlapping segments.
 
-    Parameters:
-        index:              The index for the time series DataFrame.
-        variable_quantity:  List of events, where each event is a dictionary containing:
-                            - 'value': The value of the event (can be a Quantity or scalar).
-                            - 'start': The start datetime of the event.
-                            - 'end': The end datetime of the event.
-        unit:               The unit to convert the value into if it's a Quantity.
-        resolution:         The resolution to subtract from the 'end' to avoid overlap.
-        resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
-        fill_sides:         Whether to extend values to cover the whole index.
+    :param index:               The index for the time series DataFrame.
+    :param variable_quantity:   List of events, where each event is a dictionary containing:
 
-    Returns:                A time series with resolved event values.
+                                - 'value': The value of the event (can be a Quantity or scalar).
+                                - 'start': The start datetime of the event.
+                                - 'end': The end datetime of the event.
+    :param unit:                The unit to convert the value into if it's a Quantity.
+    :param resolution:          The resolution to subtract from the 'end' to avoid overlap.
+    :param resolve_overlaps:    How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
+    :param fill_sides:          Whether to extend values to cover the whole index.
+    :returns:                   A time series with resolved event values.
     """
     # Initialize a DataFrame to hold the segments
     time_series_segments = pd.DataFrame(
@@ -484,7 +483,7 @@ def get_continuous_series_sensor_or_quantity(
     :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
-    :param fill_sides               If True, values are extended to the edges of the query window:
+    :param fill_sides:              If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.

@@ -631,11 +631,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def timerange(self) -> dict[str, datetime_type]:
         """Time range for which sensor data exists.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
@@ -1147,23 +1148,24 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
-        :param source_types: Optional list of source type names to query only specific source types *
-        :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param source_types: Optional list of source type names to query only specific source types (*)
+        :param exclude_source_types: Optional list of source type names to exclude specific source types (*)
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source). Where several sources report an event, the one to keep is chosen by version within a family of sources sharing a name, type and model, and between families by the order the sources were passed in, then by the most recent belief, then by the highest source id.
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
-        :param resolution: Optional timedelta or pandas freqstr used to resample the results **
+        :param resolution: Optional timedelta or pandas freqstr used to resample the results (**)
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
 
-        *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
-           Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
-        ** Note that:
-           - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
-           - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
-           - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)
+        (*) If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
+        Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
+
+        (**) Note that:
+        - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
+        - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
+        - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)
         """
         # todo: deprecate the 'sensor' argument in favor of 'sensors' (announced v0.8.0)
         sensors = tb_utils.replace_deprecated_argument(

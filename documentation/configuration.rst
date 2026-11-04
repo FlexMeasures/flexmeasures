@@ -207,7 +207,7 @@ Default ``[]``
 .. _menu-config:
 
 FLEXMEASURES_MENU_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of the view names which are listed in the menu.
 
@@ -221,7 +221,7 @@ Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a Font Awesome icon name for each view name listed in the menu.
 For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
@@ -232,7 +232,7 @@ Default: ``{}``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_TITLES
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a string title for each view name listed in the menu.
 For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
@@ -1099,7 +1099,7 @@ Reporters
 ---------
 
 FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type: list of strings or comma-separated string
 

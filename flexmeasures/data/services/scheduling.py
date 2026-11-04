@@ -66,14 +66,14 @@ def load_custom_scheduler(scheduler_specs: dict | str) -> type:
 
     Example specs:
 
-    {
-        "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
-        "class": "NameOfSchedulerClass",
-    }
+        {
+            "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
+            "class": "NameOfSchedulerClass",
+        }
 
     or if the scheduler is already subclassing flexmeasures.Scheduler, simply:
 
-    "NameOfSchedulerClass"
+        "NameOfSchedulerClass"
 
     """
     if isinstance(scheduler_specs, dict):

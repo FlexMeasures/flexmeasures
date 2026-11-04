@@ -9,6 +9,7 @@ The asset page is divided into different views. The default selection is the "Co
 .. contents::
     :local:
     :depth: 1
+
 |
 
 
@@ -175,7 +176,7 @@ You can also delete the asset by clicking on the "Delete this asset" button.
 Editing an asset's flex-model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+Per asset, you can set fields in :ref:`the flex-model <flex_models_and_schedulers>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
     :align: center
@@ -205,6 +206,7 @@ Setting a field value
     * Other fields may accept either a sensor or a fixed value.
 
 |
+
 .. _view_asset_status:
 
 Status page
@@ -244,7 +246,7 @@ was configured. Here is an example:
 .. _view_asset_auditlog:
 
 Audit log 
----------
+----------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:

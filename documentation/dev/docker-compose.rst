@@ -152,6 +152,7 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+
 |
 
 .. note::
