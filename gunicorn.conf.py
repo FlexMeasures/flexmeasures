@@ -13,9 +13,9 @@ which would also end them for the parent process that still holds them.
 
 
 def when_ready(server):
-    # Gunicorn calls this before forking the first workers.
-    # With --preload, the app has used the database by now, and the master would keep those connections for its whole lifetime without ever using them again.
-    # Without --preload, the master has no app, and importing wsgi here would create one, so leave it be.
+    # Close the database connections that loading the app left in gunicorn's arbiter, which forks and watches the workers but never queries the database itself.
+    # Gunicorn calls this once the app is loaded with --preload, before forking the first workers.
+    # Without --preload, the arbiter has no app, and importing wsgi here would create one, so leave it be.
     if not server.cfg.preload_app:
         return
     from flexmeasures.data.config import db

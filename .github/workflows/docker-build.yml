@@ -70,7 +70,7 @@ jobs:
           for i in $(seq 8); do curl --silent --fail --retry 10 --retry-connrefused --retry-delay 3 http://127.0.0.1:5000/api/ops/ping > /dev/null & pids+=($!); done
           # Wait for each request by its PID, as a bare `wait` would succeed even if requests failed.
           for pid in "${pids[@]}"; do wait "$pid"; done
-          # Gunicorn's own logging survives the app configuring its logging (#2512 preloads the app in gunicorn's master process).
+          # Gunicorn's own logging survives the app configuring its logging (#2512 preloads the app in gunicorn's arbiter).
           docker logs fm-container 2>&1 | grep -q "Booting worker" || { echo "::error::Gunicorn logged nothing about its workers."; exit 1; }
           # The config mounted at /app/instance is read, by the server and by the CLI.
           if docker logs fm-container 2>&1 | grep -q "flexmeasures.cfg could not be found"; then echo "::error::The server did not find the config mounted at /app/instance."; exit 1; fi
