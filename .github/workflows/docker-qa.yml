@@ -265,7 +265,7 @@ jobs:
           set -o pipefail
           mode=$(docker compose exec -T server python -c "from flexmeasures.app import create; print(create().config.get('FLEXMEASURES_MODE'))" | tail -n 1)
           if [[ "$mode" != "play" ]]; then
-            echo "::error::The server did not load flexmeasures-instance/flexmeasures.cfg, as it runs in mode '$mode' instead of 'play'."
+            echo "::error::The server did not load flexmeasures-instance/flexmeasures.cfg, which sets the mode to 'play': the server runs in mode '$mode'."
             exit 1
           fi
 
