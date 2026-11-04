@@ -2104,6 +2104,7 @@ class SensorAPI(FlaskView):
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
             Data that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).
+            Each status names its fields in kebab case (staleness-since, source-type, asset-id, asset-name); the snake case spellings (staleness_since, source_type, asset_id, asset_name) are deprecated, return the same values, and will be removed in a future API version.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2131,15 +2132,20 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor status data
                       value:
+                        sensors_data:
                         - staleness: "PT2H"
                           stale: true
+                          staleness-since: "2024-01-15T14:30:00+00:00"
                           staleness_since: "2024-01-15T14:30:00+00:00"
                           reason: "data is outdated"
+                          source-type: "forecast"
                           source_type: "forecast"
                           id: 64907
                           name: "temperature"
                           resolution: "PT5M"
+                          asset-id: 1
                           asset_id: 1
+                          asset-name: "Building A"
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
                     partial-aggregate:
@@ -2148,15 +2154,20 @@ class SensorAPI(FlaskView):
                         The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
                         `missing-members` lists the sensors left out, and is left out itself where no member is missing.
                       value:
+                        sensors_data:
                         - staleness: "PT6M"
                           stale: false
+                          staleness-since: "2024-01-15T14:30:00+00:00"
                           staleness_since: "2024-01-15T14:30:00+00:00"
                           reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report"
+                          source-type: "reporter"
                           source_type: "reporter"
                           id: 88750
                           name: "power"
                           resolution: "PT15M"
+                          asset-id: 12
                           asset_id: 12
+                          asset-name: "Street"
                           asset_name: "Street"
                           relation: "sensor belongs to this asset"
                           missing-members:
@@ -2179,7 +2190,16 @@ class SensorAPI(FlaskView):
 
         if asset is not None:
             check_access(asset, "read")
-        status_data = serialize_sensor_status_data(sensor=sensor, asset=asset)
+        status_data = [
+            {
+                **status,
+                "staleness-since": status["staleness_since"],
+                "source-type": status["source_type"],
+                "asset-id": status["asset_id"],
+                "asset-name": status["asset_name"],
+            }
+            for status in serialize_sensor_status_data(sensor=sensor, asset=asset)
+        ]
 
         return {"sensors_data": status_data}, 200
 
