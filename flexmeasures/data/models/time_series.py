@@ -1205,9 +1205,20 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             )
 
         # timely-beliefs would otherwise look up its materialized view of most recent beliefs once per sensor.
+        # It uses the view only without belief timing filters, so only look it up then.
         most_recent_beliefs_mview = (
             get_most_recent_beliefs_mview(db.session)
-            if most_recent_beliefs_only and not most_recent_only
+            if most_recent_beliefs_only
+            and not most_recent_only
+            and all(
+                pd.isnull(f)
+                for f in (
+                    beliefs_after,
+                    beliefs_before,
+                    horizons_at_least,
+                    horizons_at_most,
+                )
+            )
             else None
         )
 

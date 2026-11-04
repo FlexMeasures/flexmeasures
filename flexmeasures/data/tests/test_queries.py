@@ -550,3 +550,26 @@ def test_sensor_as_dict_does_not_query_the_parent_asset(setup_beliefs, db):
         for sensor in sensors[1:]:
             assert sensor.as_dict["asset_id"] == asset.id
     assert recorder.statements == []
+
+
+@pytest.mark.parametrize(
+    "belief_timing_filter",
+    [
+        dict(beliefs_before=datetime(2021, 3, 28, 16, tzinfo=pytz.utc)),
+        dict(horizons_at_least=timedelta(0)),
+    ],
+)
+def test_search_with_belief_timing_filters_does_not_look_up_the_materialized_view(
+    setup_beliefs, db, belief_timing_filter
+):
+    """timely-beliefs cannot use the view of most recent beliefs with belief timing filters, so such a search should not ask the database for it."""
+    sensors = db.session.scalars(select(Sensor).order_by(Sensor.id)).all()
+    with StatementRecorder(db.engine) as recorder:
+        TimedBelief.search(
+            sensors,
+            most_recent_beliefs_only=True,
+            sum_multiple=False,
+            **belief_timing_filter,
+        )
+    assert recorder.count > 0, "the search should have queried the database"
+    assert not [s for s in recorder.statements if "pg_matviews" in s]
