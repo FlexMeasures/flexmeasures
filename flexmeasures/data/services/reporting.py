@@ -188,9 +188,9 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
             summary,
         )
     elif any(count_persistable_values(result["data"]) for result in results):
-        # Saving nothing is not the same as computing nothing: these values were all on record already.
+        # Saving nothing is not the same as computing nothing: the values it computed were on record already, or NaN.
         current_app.logger.info(
-            "Report by %s ran successfully, but every value it computed was already on record (%s).",
+            "Report by %s ran successfully, but saved nothing new, as every value it computed was already on record or had no value (%s).",
             source,
             summary,
         )

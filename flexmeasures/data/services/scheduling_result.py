@@ -21,9 +21,9 @@ class SchedulingJobResult:
       - Each entry is a dict with ``"asset"`` field and constraint-type keys
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
     - ``num-beliefs``: Total number of beliefs (scheduled values) saved to the database,
-      which leaves out beliefs that repeat what is already on record
+      which leaves out beliefs that repeat what is already on record.
     - ``num-computed-beliefs``: Total number of beliefs (scheduled values) the scheduler computed,
-      including those that were not saved because they were already on record
+      including those that were not saved because they were already on record.
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
     Only hard constraint failures cause job failure.

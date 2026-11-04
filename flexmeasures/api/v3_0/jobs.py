@@ -75,34 +75,28 @@ class JobAPI(FlaskView):
         get:
           summary: Get the status of a background job
           description: |
-            Look up a background job by its UUID and see whether it is
-            queued, running, finished, or failed.
+            Look up a background job by its UUID and see whether it is queued, running, finished, or failed.
 
-            The response includes a status message plus job metadata such
-            as the queue name, function name, timestamps, and the job
-            result when available.
+            The response includes a status message plus job metadata,
+            such as the queue name, function name, timestamps, and the job result when available.
 
-            Failed jobs also include traceback information when the worker
-            stored it with the job result.
+            Failed jobs also include traceback information when the worker stored it with the job result.
 
-            For a finished scheduling job, ``result`` is an object. For a
-            ``StorageScheduler`` job it holds soft state-of-charge constraint
-            analysis: ``unresolved`` lists constraints the scheduler could not
-            satisfy, and ``resolved`` lists constraints that were satisfied
-            with some margin. Each device entry's ``soc-minima``/``soc-maxima``
-            value is a list, holding one entry per violated slot (for
-            ``unresolved``) or per met slot with its margin (for ``resolved``),
-            ordered chronologically. Both arrays are empty when the flex model
-            defines no ``soc-minima``/``soc-maxima``, or when a scheduler other
-            than ``StorageScheduler`` was used. The ``num-beliefs`` field holds
-            the total number of beliefs (scheduled values) saved to the database,
+            For a finished scheduling job, ``result`` is an object.
+            For a ``StorageScheduler`` job, it holds soft state-of-charge constraint analysis:
+            ``unresolved`` lists constraints the scheduler could not satisfy,
+            and ``resolved`` lists constraints that were satisfied with some margin.
+            Each device entry's ``soc-minima``/``soc-maxima`` value is a list,
+            holding one entry per violated slot (for ``unresolved``) or per met slot with its margin (for ``resolved``), ordered chronologically.
+            Both arrays are empty when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used.
+            This is the only place constraint analysis is available:
+            the sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power values only.
+            The ``num-beliefs`` field holds the total number of beliefs (scheduled values) saved to the database,
             and ``num-computed-beliefs`` the total number the scheduler computed,
             which also counts beliefs not saved because they were already on record.
+
             For a finished reporting job, ``result`` is a list holding, per output,
             the ``sensor_id``, the number of beliefs computed (``n_computed``) and the number of beliefs saved (``n_rows``).
-            This is the only place constraint analysis is available — the sensor
-            schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``)
-            returns power values only.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -138,18 +132,14 @@ class JobAPI(FlaskView):
                         description: Human-readable description of the job status.
                       result:
                         description: >
-                          Return value of the job function, or null when not yet
-                          available. For a finished scheduling job, this is an
-                          object; a ``StorageScheduler`` job populates it with
-                          ``unresolved``/``resolved`` soft state-of-charge
-                          constraint analysis (empty arrays when the flex model
-                          defines no ``soc-minima``/``soc-maxima``, or when a
-                          scheduler other than ``StorageScheduler`` was used).
-                          The ``num-beliefs`` field holds the total number of
-                          beliefs (scheduled values) saved to the database,
+                          Return value of the job function, or null when not yet available.
+                          For a finished scheduling job, this is an object;
+                          a ``StorageScheduler`` job populates it with ``unresolved``/``resolved`` soft state-of-charge constraint analysis
+                          (empty arrays when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used).
+                          The ``num-beliefs`` field holds the total number of beliefs (scheduled values) saved to the database,
                           and ``num-computed-beliefs`` the total number computed.
-                          For a finished reporting job, this is a list holding,
-                          per output, ``sensor_id``, ``n_computed`` and ``n_rows`` (the number of beliefs saved).
+                          For a finished reporting job, this is a list holding, per output,
+                          ``sensor_id``, ``n_computed`` and ``n_rows`` (the number of beliefs saved).
                         nullable: true
                       func-name:
                         type: string
