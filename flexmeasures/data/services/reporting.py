@@ -15,6 +15,7 @@ from flexmeasures.data.services.automations import record_outcome_on_automation_
 from flexmeasures.data.services.generator_results import (
     check_generator_results,
     describe_generator,
+    outputs_of_job_result,
     save_generator_results,
 )
 
@@ -140,8 +141,11 @@ def compute_and_save_report(
 
 
 @record_outcome_on_automation_run
-def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
+def run_report_job(data_source_id: int, parameters: dict) -> dict:
     """Compute and store a report in a reporting worker.
+
+    The job's result lists, under "outputs", one entry per output sensor:
+    the sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs saved ("num-saved-beliefs").
 
     If the report was triggered by an automation, the end of the report window is recorded upon success,
     so the automation's next default window starts where this one ended.
@@ -214,4 +218,4 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
             automation_id, now=datetime.fromisoformat(parameters["end"])
         )
 
-    return saved
+    return {"outputs": outputs_of_job_result(saved)}

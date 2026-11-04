@@ -44,6 +44,7 @@ from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
 from flexmeasures.data.services.generator_results import (
     check_generator_results,
     describe_generator,
+    outputs_of_job_result,
     save_generator_results,
 )
 from flexmeasures.utils.time_utils import server_now
@@ -972,8 +973,8 @@ def make_schedule(  # noqa: C901
 ) -> dict:
     """
     This function computes a schedule. It returns a dict (see ``SchedulingJobResult``),
-    which counts the beliefs the schedule computed (``num-computed-beliefs``) and those it saved (``num-saved-beliefs``).
-    It also holds the deprecated ``num-beliefs``, which counts the beliefs passed to the save, as it did in v1.0.
+    which lists, per output sensor, the beliefs the schedule computed and those it saved (under ``outputs``),
+    and counts the beliefs passed to the save (``num-beliefs``).
     If the scheduler produced soft state-of-charge constraint analysis,
     the dict also holds that analysis under ``unresolved`` and ``resolved`` keys, which are empty lists otherwise.
 
@@ -1101,7 +1102,8 @@ def make_schedule(  # noqa: C901
     )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     to_save = []
-    n_computed = 0
+    # On a dry run, nothing is saved, so the outputs say what was computed, and that none of it was saved.
+    dry_run_outputs = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1144,10 +1146,12 @@ def make_schedule(  # noqa: C901
             # todo: move this into save_to_db
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
-        n_computed += len(bdf)
         if not dry_run:
             to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
+            dry_run_outputs.append(
+                {"sensor_id": result["sensor"].id, "n_computed": len(bdf), "n_rows": 0}
+            )
             # Report what would have been saved, in the same terms as a forecast dry run does:
             # the sensor, the number of beliefs, and the events they cover.
             event_range = (
@@ -1161,14 +1165,11 @@ def make_schedule(  # noqa: C901
             )
 
     # Saved the way every data generator's results are: all or nothing, and counting the beliefs actually saved,
-    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so that count is 0.
-    # The beliefs computed are counted as well, also on a dry run, so that saving none does not read as computing none.
+    # which leaves out beliefs that repeat what is already on record.
+    # Each output also counts the beliefs computed, so that saving none does not read as computing none.
     saved = save_generator_results(to_save) if to_save else []
-    scheduling_result_dict["num-computed-beliefs"] = n_computed
-    scheduling_result_dict["num-saved-beliefs"] = sum(
-        entry["n_rows"] for entry in saved
-    )
-    # The deprecated num-beliefs keeps its v1.0 meaning: the beliefs passed to the save, which are none on a dry run.
+    scheduling_result_dict["outputs"] = outputs_of_job_result(saved + dry_run_outputs)
+    # num-beliefs counts the beliefs passed to the save, as it has since v1.0, which are none on a dry run.
     scheduling_result_dict["num-beliefs"] = sum(entry["n_computed"] for entry in saved)
 
     if not dry_run:

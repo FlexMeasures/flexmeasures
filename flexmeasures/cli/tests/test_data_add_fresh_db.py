@@ -1555,42 +1555,6 @@ def test_add_schedule_dry_run_saves_no_beliefs(
     assert len(sensor.search_beliefs()) == n_computed
 
 
-def test_schedule_results_count_computed_and_saved_beliefs_and_keep_num_beliefs(
-    app, fresh_db, process_power_sensor, add_market_prices_fresh_db, monkeypatch
-):
-    """A schedule's result counts the beliefs computed and those saved, and the deprecated num-beliefs keeps its v1.0 meaning.
-
-    That meaning is the number of beliefs passed to the save: none on a dry run, and all computed beliefs otherwise,
-    also on a rerun that saves none of them, because they are already on record.
-    """
-    from flexmeasures.cli import data_add
-
-    results = []
-    real_make_schedule = data_add.make_schedule
-
-    def make_schedule_and_keep_result(**kwargs):
-        result = real_make_schedule(**kwargs)
-        results.append(result)
-        return result
-
-    monkeypatch.setattr(data_add, "make_schedule", make_schedule_and_keep_result)
-    runner = app.test_cli_runner()
-    cli_input = to_flags(_process_schedule_cli_input(fresh_db, process_power_sensor))
-
-    for flags in (["--dry-run"], [], []):
-        check_command_ran_without_error(
-            runner.invoke(data_add.add_schedule, cli_input + flags)
-        )
-
-    n = results[0]["num-computed-beliefs"]
-    assert n > 0
-    counts = [
-        (r["num-computed-beliefs"], r["num-saved-beliefs"], r["num-beliefs"])
-        for r in results
-    ]
-    assert counts == [(n, 0, 0), (n, n, n), (n, 0, n)]
-
-
 def test_add_schedule_says_when_the_scheduler_computed_nothing(
     app, fresh_db, process_power_sensor, add_market_prices_fresh_db, monkeypatch
 ):

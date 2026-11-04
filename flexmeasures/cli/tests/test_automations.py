@@ -1991,10 +1991,20 @@ def test_run_report_automation_with_two_outputs_saves_both(
     )
     assert (stored_sub.values.T == [0, 0, 0, 0, 0]).all()
 
-    assert job.return_value() == [
-        {"sensor_id": report_sensor_id, "n_computed": 5, "n_rows": 5},
-        {"sensor_id": report_sensor_2_id, "n_computed": 5, "n_rows": 5},
-    ]
+    assert job.return_value() == {
+        "outputs": [
+            {
+                "sensor": report_sensor_id,
+                "num-computed-beliefs": 5,
+                "num-saved-beliefs": 5,
+            },
+            {
+                "sensor": report_sensor_2_id,
+                "num-computed-beliefs": 5,
+                "num-saved-beliefs": 5,
+            },
+        ]
+    }
 
     import pandas as pd
 
@@ -2249,7 +2259,7 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import run_report_job
 
-    report_sensor_id = setup_dummy_data_fresh_db[2]
+    *_, report_sensor_id, report_sensor_2_id = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     runner = app.test_cli_runner()
     freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
@@ -2266,18 +2276,24 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     )
 
     first = run_report_job(**job.kwargs)
-    assert all(result["n_rows"] > 0 for result in first), first
-    assert all(result["n_computed"] == result["n_rows"] for result in first), first
+    assert first == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-saved-beliefs": 5}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
 
     info = mocker.spy(app.logger, "info")
     warning = mocker.spy(app.logger, "warning")
     second = run_report_job(**job.kwargs)
 
-    assert [result["n_rows"] for result in second] == [0] * len(first)
     # The rerun computed as much as the first run did, which tells it apart from a run that computed nothing.
-    assert [result["n_computed"] for result in second] == [
-        result["n_computed"] for result in first
-    ]
+    assert second == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-saved-beliefs": 0}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
     assert any(
         "already on record" in call.args[0] for call in info.call_args_list
     ), info.call_args_list

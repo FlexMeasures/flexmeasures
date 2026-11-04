@@ -22,6 +22,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
     handle_scheduling_exception,
+    make_schedule,
 )
 from flexmeasures.utils.unit_utils import ur
 from flexmeasures.utils.calculations import integrate_time_series
@@ -423,6 +424,74 @@ def test_save_state_of_charge(
     assert all(
         np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
     )
+
+
+def test_schedule_result_lists_per_output_what_was_computed_and_saved(
+    fresh_db, app, smart_building
+):
+    """A schedule's result lists, per output sensor, the beliefs computed and those saved, and num-beliefs counts those passed to the save.
+
+    A heat buffer with a state-of-charge sensor records on two sensors: its power and its state of charge.
+    A dry run saves none of what it computes, a first run saves all of it,
+    and a rerun computes the same schedule, which is already on record, so it saves none of it.
+    num-beliefs counts the beliefs passed to the save, as it did in v1.0: none on a dry run, and all of them on a rerun.
+    """
+    assets, sensors, soc_sensors = smart_building
+    power_sensor = sensors["Test Heat Buffer"]
+    soc_sensor = soc_sensors["Test Heat Buffer"]
+    kwargs = dict(
+        asset_or_sensor={"id": power_sensor.id, "class": "Sensor"},
+        start=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam"),
+        belief_time=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution=timedelta(minutes=15),
+        scheduler_specs={
+            "module": "flexmeasures.data.models.planning.storage",
+            "class": "StorageScheduler",
+        },
+        flex_model={
+            "power-capacity": "10kW",
+            "soc-at-start": "0kWh",
+            "soc-unit": "kWh",
+            "soc-min": 0.0,
+            "soc-max": "100kWh",
+            "soc-usage": ["10kW"],
+            "soc-gain": ["1kW"],
+            "state-of-charge": {"sensor": soc_sensor.id},
+        },
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-production-capacity": "1MW",
+            "site-consumption-capacity": "1MW",
+        },
+    )
+
+    dry_run = make_schedule(dry_run=True, **kwargs)
+    first = make_schedule(**kwargs)
+    rerun = make_schedule(**kwargs)
+
+    def counts(result: dict) -> dict:
+        return {
+            output["sensor"]: (
+                output["num-computed-beliefs"],
+                output["num-saved-beliefs"],
+            )
+            for output in result["outputs"]
+        }
+
+    computed = {sensor: n for sensor, (n, _) in counts(first).items()}
+    assert set(computed) == {power_sensor.id, soc_sensor.id}
+    assert all(n > 0 for n in computed.values())
+    assert counts(dry_run) == {sensor: (n, 0) for sensor, n in computed.items()}
+    assert counts(first) == {sensor: (n, n) for sensor, n in computed.items()}
+    assert counts(rerun) == {sensor: (n, 0) for sensor, n in computed.items()}
+    total = sum(computed.values())
+    assert [dry_run["num-beliefs"], first["num-beliefs"], rerun["num-beliefs"]] == [
+        0,
+        total,
+        total,
+    ]
 
 
 def test_save_state_of_charge_percent_sensor(

@@ -222,8 +222,24 @@ def test_plugin_job_reports_rows_saved(
         assert job.is_finished, job.exc_info
         n_rows.append(job.return_value())
     assert n_rows == [
-        [{"sensor_id": sensors[0].id, "n_computed": 1, "n_rows": 1}],
-        [{"sensor_id": sensors[0].id, "n_computed": 1, "n_rows": 0}],
+        {
+            "outputs": [
+                {
+                    "sensor": sensors[0].id,
+                    "num-computed-beliefs": 1,
+                    "num-saved-beliefs": 1,
+                }
+            ]
+        },
+        {
+            "outputs": [
+                {
+                    "sensor": sensors[0].id,
+                    "num-computed-beliefs": 1,
+                    "num-saved-beliefs": 0,
+                }
+            ]
+        },
     ]
 
 
