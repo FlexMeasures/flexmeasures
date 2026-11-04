@@ -971,10 +971,10 @@ def make_schedule(  # noqa: C901
     **scheduler_kwargs: dict,
 ) -> dict:
     """
-    This function computes a schedule. It returns a dict, empty on schedulers
-    that don't (yet) produce further analysis. If the scheduler produced soft
-    state-of-charge constraint analysis (see ``SchedulingJobResult``), the dict
-    instead holds that analysis under ``unresolved`` and ``resolved`` keys.
+    This function computes a schedule. It returns a dict (see ``SchedulingJobResult``),
+    which counts the beliefs the schedule computed (``num-computed-beliefs``) and those it saved (``num-beliefs``).
+    If the scheduler produced soft state-of-charge constraint analysis,
+    the dict also holds that analysis under ``unresolved`` and ``resolved`` keys, which are empty lists otherwise.
 
     It can be queued as a job (see create_scheduling_job).
     In that case, it will probably run on a different FlexMeasures node than where the job is created.
@@ -1100,6 +1100,7 @@ def make_schedule(  # noqa: C901
     )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     to_save = []
+    n_computed = 0
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1142,6 +1143,7 @@ def make_schedule(  # noqa: C901
             # todo: move this into save_to_db
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
+        n_computed += len(bdf)
         if not dry_run:
             to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
@@ -1158,9 +1160,11 @@ def make_schedule(  # noqa: C901
             )
 
     # Saved the way every data generator's results are: all or nothing, and counting the beliefs actually saved,
-    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so the count is 0.
+    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so that count is 0.
+    # The beliefs computed are counted as well, also on a dry run, so that saving none does not read as computing none.
     saved = save_generator_results(to_save) if to_save else []
     scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
+    scheduling_result_dict["num-computed-beliefs"] = n_computed
 
     if not dry_run:
         scheduler.persist_flex_model()

@@ -126,10 +126,12 @@ def test_trigger_report_worker_reports_nothing_saved_for_misaligned_inputs(
 
     job = app.queues["reporting"].fetch_job(response.json["job"])
     assert job.get_status() == "finished"
-    # The count must exclude computed rows that persistence drops as NaN.
+    # The saved count must exclude computed rows that persistence drops as NaN, while the computed count includes them:
+    # the two inputs do not align on source, so adding them gives a NaN for each of their 2 x 10 rows.
     assert job.return_value() == [
         {
             "sensor_id": hourly_output.id,
+            "n_computed": 20,
             "n_rows": 0,
         }
     ]

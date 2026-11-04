@@ -130,7 +130,8 @@ def compute_and_save_report(
     and without committing, which is left to the caller.
 
     :returns: the computed results, and per result a summary of what was saved:
-        the sensor id and the number of beliefs saved, which leaves out NaN values and beliefs that were already on record.
+        the sensor id, the number of beliefs computed ("n_computed"), which counts every belief the report returned,
+        and the number of beliefs saved ("n_rows"), which leaves out NaN values and beliefs that were already on record.
     """
     results = compute_report(
         reporter, parameters, permitted_output_sensor_ids, automation_id
@@ -175,12 +176,16 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     )
     db.session.commit()
 
+    # Say both counts, as saving none of what was computed is not the same as computing nothing.
     summary = ", ".join(
-        f"{result['n_rows']} values on sensor {result['sensor_id']}" for result in saved
+        f"sensor {result['sensor_id']}: computed {result['n_computed']}, saved {result['n_rows']}"
+        for result in saved
     )
     if any(result["n_rows"] for result in saved):
         current_app.logger.info(
-            "Report by %s ran successfully, producing %s.", source, summary
+            "Report by %s ran successfully, saving the values that were not yet on record (%s).",
+            source,
+            summary,
         )
     elif any(count_persistable_values(result["data"]) for result in results):
         # Saving nothing is not the same as computing nothing: these values were all on record already.

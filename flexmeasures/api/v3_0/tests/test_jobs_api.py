@@ -256,6 +256,7 @@ def test_get_job_status_finished(
     assert result["unresolved"] == []
     assert result["resolved"] == []
     assert result["num-beliefs"] == 96
+    assert result["num-computed-beliefs"] == 96
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
 
@@ -315,9 +316,15 @@ def test_get_job_status_finished_with_unresolved_soc_minima(
 
     result = data["result"]
     assert isinstance(result, dict)
-    assert set(result.keys()) == {"unresolved", "resolved", "num-beliefs"}
+    assert set(result.keys()) == {
+        "unresolved",
+        "resolved",
+        "num-beliefs",
+        "num-computed-beliefs",
+    }
     assert isinstance(result["num-beliefs"], int)
     assert result["num-beliefs"] > 0
+    assert result["num-computed-beliefs"] == result["num-beliefs"]
 
     asset_id = add_battery_assets["Test battery"].id
     unresolved_entry = next(

@@ -1992,8 +1992,8 @@ def test_run_report_automation_with_two_outputs_saves_both(
     assert (stored_sub.values.T == [0, 0, 0, 0, 0]).all()
 
     assert job.return_value() == [
-        {"sensor_id": report_sensor_id, "n_rows": 5},
-        {"sensor_id": report_sensor_2_id, "n_rows": 5},
+        {"sensor_id": report_sensor_id, "n_computed": 5, "n_rows": 5},
+        {"sensor_id": report_sensor_2_id, "n_computed": 5, "n_rows": 5},
     ]
 
     import pandas as pd
@@ -2160,7 +2160,7 @@ def test_none_permitted_output_set_disables_output_guard(
         StubReporter(), {}, permitted_output_sensor_ids=None
     )
     save.assert_called_once()
-    assert saved == [{"sensor_id": sensor1_id, "n_rows": 0}]
+    assert saved == [{"sensor_id": sensor1_id, "n_computed": 0, "n_rows": 0}]
 
 
 def test_report_job_persistence_failure_rolls_back_all_outputs(
@@ -2267,12 +2267,17 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
 
     first = run_report_job(**job.kwargs)
     assert all(result["n_rows"] > 0 for result in first), first
+    assert all(result["n_computed"] == result["n_rows"] for result in first), first
 
     info = mocker.spy(app.logger, "info")
     warning = mocker.spy(app.logger, "warning")
     second = run_report_job(**job.kwargs)
 
     assert [result["n_rows"] for result in second] == [0] * len(first)
+    # The rerun computed as much as the first run did, which tells it apart from a run that computed nothing.
+    assert [result["n_computed"] for result in second] == [
+        result["n_computed"] for result in first
+    ]
     assert any(
         "already on record" in call.args[0] for call in info.call_args_list
     ), info.call_args_list
@@ -2319,7 +2324,7 @@ def test_a_report_is_saved_but_left_for_its_caller_to_commit(
 
     beliefs_before = count_beliefs()
     _, saved = compute_and_save_report(StubReporter(), {})
-    assert saved == [{"sensor_id": sensor.id, "n_rows": 3}]
+    assert saved == [{"sensor_id": sensor.id, "n_computed": 3, "n_rows": 3}]
     assert count_beliefs() == beliefs_before + 3, "the results are staged"
 
     # A caller that decides against its transaction takes the report down with it.

@@ -209,7 +209,7 @@ def test_plugin_job_keeps_its_result_by_its_queue(
 def test_plugin_job_reports_rows_saved(
     fresh_db, app, ingestion_plugin, ingestion_assets
 ):
-    """A rerun whose beliefs are unchanged reports that it saved nothing."""
+    """A rerun whose beliefs are unchanged reports that it saved nothing, while it computed as much as the first run."""
     root, sensors = ingestion_assets
     automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3.0})
     n_rows = []
@@ -222,8 +222,8 @@ def test_plugin_job_reports_rows_saved(
         assert job.is_finished, job.exc_info
         n_rows.append(job.return_value())
     assert n_rows == [
-        [{"sensor_id": sensors[0].id, "n_rows": 1}],
-        [{"sensor_id": sensors[0].id, "n_rows": 0}],
+        [{"sensor_id": sensors[0].id, "n_computed": 1, "n_rows": 1}],
+        [{"sensor_id": sensors[0].id, "n_computed": 1, "n_rows": 0}],
     ]
 
 
