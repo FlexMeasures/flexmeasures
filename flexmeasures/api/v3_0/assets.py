@@ -1034,8 +1034,7 @@ class AssetAPI(FlaskView):
             The following fields are not allowed to be updated:
             - id
 
-            The optional `account_id` field is deprecated. If supplied, it must match
-            the asset's current account; it cannot change ownership.
+            The optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.
           security:
             - ApiKeyAuth: []
           parameters:
