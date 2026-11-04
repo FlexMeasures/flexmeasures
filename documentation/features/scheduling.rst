@@ -65,9 +65,9 @@ optimized and provide a scheduling window. If the configuration above is
 stored in the asset tree, an API request for a four-hour schedule can be this
 small:
 
-.. code-block:: http
+.. code-block:: text
 
-   POST /api/v3_0/assets/6/schedules/trigger HTTP/1.1
+   POST /api/v3_0/assets/6/schedules/trigger
 
 .. code-block:: json
 
