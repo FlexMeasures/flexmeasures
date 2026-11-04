@@ -24,7 +24,7 @@ class SchedulingJobResult:
       - Each entry is a dict with ``"sensor"`` field (sensor ID), ``"num-computed-beliefs"`` (the beliefs the scheduler computed for it),
         and ``"num-recorded-beliefs"`` (those recorded, which leaves out beliefs that repeat what is already on record).
       - On a dry run, nothing is recorded, so each entry's ``"num-recorded-beliefs"`` is 0.
-    - ``num-beliefs``: Total number of beliefs (scheduled values) passed to the save, which is 0 on a dry run.
+    - ``num-beliefs``: Total number of beliefs (scheduled values) computed, i.e. the total of ``"num-computed-beliefs"`` across ``outputs``.
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
     Only hard constraint failures cause job failure.

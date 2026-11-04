@@ -429,12 +429,12 @@ def test_save_state_of_charge(
 def test_schedule_result_lists_per_output_what_was_computed_and_saved(
     fresh_db, app, smart_building
 ):
-    """A schedule's result lists, per output sensor, the beliefs computed and those saved, and num-beliefs counts those passed to the save.
+    """A schedule's result lists, per output sensor, the beliefs computed and those recorded, and num-beliefs totals those computed.
 
     A heat buffer with a state-of-charge sensor records on two sensors: its power and its state of charge.
-    A dry run saves none of what it computes, a first run saves all of it,
-    and a rerun computes the same schedule, which is already on record, so it saves none of it.
-    num-beliefs counts the beliefs passed to the save, as it did in v1.0: none on a dry run, and all of them on a rerun.
+    A dry run records none of what it computes, a first run records all of it,
+    and a rerun computes the same schedule, which is already on record, so it records none of it.
+    num-beliefs is the total of the beliefs computed, on each of these runs.
     """
     assets, sensors, soc_sensors = smart_building
     power_sensor = sensors["Test Heat Buffer"]
@@ -488,7 +488,7 @@ def test_schedule_result_lists_per_output_what_was_computed_and_saved(
     assert counts(rerun) == {sensor: (n, 0) for sensor, n in computed.items()}
     total = sum(computed.values())
     assert [dry_run["num-beliefs"], first["num-beliefs"], rerun["num-beliefs"]] == [
-        0,
+        total,
         total,
         total,
     ]
