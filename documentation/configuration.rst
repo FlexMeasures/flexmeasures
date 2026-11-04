@@ -423,6 +423,8 @@ Set ``output_flag`` here to override that either way.
 Under ``appsi_highs`` (and Pyomo's other appsi solvers), FlexMeasures likewise shows the solver's output on stdout without passing it through its log handlers,
 because Pyomo captures that output and log handlers writing to the console would feed it back into the capture, which can hang a worker.
 One difference: ``appsi_highs`` applies the options only after HiGHS has printed its banner, so ``output_flag`` cannot suppress the banner there.
+Bypassing the log handlers also means the solver's output no longer reaches FlexMeasures' log file.
+To keep a HiGHS log in a file, set HiGHS' own ``log_file`` option here, together with ``"output_flag": "true"`` unless ``LOGGING_LEVEL`` is ``DEBUG``, since HiGHS writes nothing to that file while ``output_flag`` is off.
 
 When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
 
