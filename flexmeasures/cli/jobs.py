@@ -565,6 +565,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
     else:
         worker = Worker(
@@ -572,6 +574,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
 
     click.echo("\n=========================================================")
