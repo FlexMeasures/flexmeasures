@@ -14,6 +14,9 @@ from flexmeasures.data.models.planning import (
     FlowCommitment,
     StockCommitment,
 )
+from flexmeasures.data.models.planning.utils import (
+    solver_output_kept_off_our_log_handlers,
+)
 from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
@@ -807,7 +810,8 @@ def device_scheduler(  # noqa C901
         solver.options[option_name] = option_value
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    results = solver.solve(model, load_solutions=False)
+    with solver_output_kept_off_our_log_handlers(solver):
+        results = solver.solve(model, load_solutions=False)
 
     # load the results only if a feasible solution has been found
     if len(results.solution) > 0:
