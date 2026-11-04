@@ -2199,16 +2199,31 @@ def add_schedule(  # noqa C901
                 **MsgStyle.SUCCESS,
             )
     else:
-        make_schedule(
+        scheduling_result = make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if not dry_run:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+        n_computed = scheduling_result["num-computed-beliefs"]
+        n_saved = scheduling_result["num-beliefs"]
+        if dry_run:
+            click.secho(
+                f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, saved 0.",
+                **MsgStyle.SUCCESS,
+            )
+        elif n_saved == n_computed:
+            click.secho(
+                f"New schedule is stored: saved {pluralize('belief', n_saved, include_count=True)}.",
+                **MsgStyle.SUCCESS,
+            )
+        elif n_saved:
+            click.secho(
+                f"New schedule is stored: computed {n_computed}, saved {n_saved}, as the rest was already on record.",
+                **MsgStyle.SUCCESS,
+            )
         else:
             click.secho(
-                "The schedule above was computed but not stored (because of --dry-run).",
+                f"The new schedule repeats beliefs already on record, so nothing new was stored (computed {n_computed}, saved 0).",
                 **MsgStyle.SUCCESS,
             )
 
@@ -2504,19 +2519,26 @@ def add_report(  # noqa: C901
         # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
             n_saved = saved[i]["n_rows"]
-            if n_saved:
+            n_computed = saved[i]["n_computed"]
+            if n_saved and n_saved == n_computed:
                 click.secho(
                     f"Success. Saved {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` to the database.",
                     **MsgStyle.SUCCESS,
                 )
+            elif n_saved:
+                click.secho(
+                    f"Success. Saved {n_saved} of the {pluralize('belief', n_computed, include_count=True)} computed for the report for sensor `{sensor}` to the database:"
+                    " the rest was already on record or had no value.",
+                    **MsgStyle.SUCCESS,
+                )
             elif count_persistable_values(data):
                 click.secho(
-                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved.",
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved (computed {n_computed}, saved 0).",
                     **MsgStyle.SUCCESS,
                 )
             else:
                 click.secho(
-                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save."
+                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save (computed {n_computed}, saved 0)."
                     " This can happen when its inputs do not align on source and belief time.",
                     **MsgStyle.WARN,
                 )

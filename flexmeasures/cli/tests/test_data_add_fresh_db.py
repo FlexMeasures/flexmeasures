@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -1303,7 +1304,10 @@ def test_add_report_says_when_a_rerun_saves_nothing_new(
     rerun = runner.invoke(add_report, cli_input)
 
     check_command_ran_without_error(rerun)
-    assert "repeats beliefs already on record, so nothing new was saved" in rerun.output
+    assert (
+        "repeats beliefs already on record, so nothing new was saved (computed 5, saved 0)"
+        in rerun.output
+    )
     assert "Success. Saved" not in rerun.output
     assert _count_beliefs(fresh_db, report_sensor_id) == recorded
 
@@ -1490,7 +1494,7 @@ def test_add_process(
     # ProcessScheduler's make_schedule() call returns a dict (not the boolean
     # True), which used to be falsy enough to silently suppress this message;
     # confirm the message still appears.
-    assert "New schedule is stored." in result.output
+    assert "New schedule is stored" in result.output
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
@@ -1528,15 +1532,27 @@ def test_add_schedule_dry_run_saves_no_beliefs(
     assert "Not saving schedule for sensor `power`" in result.output
     assert "covering events from" in result.output
     assert "computed but not stored (because of --dry-run)" in result.output
-    assert "New schedule is stored." not in result.output
+    assert "New schedule is stored" not in result.output
     sensor = fresh_db.session.get(Sensor, process_power_sensor)
     assert len(sensor.search_beliefs()) == 0
+    # A dry run still says how much it computed, which a normal run then saves in full.
+    n_computed = int(re.search(r"computed (\d+), saved 0", result.output).group(1))
+    assert n_computed > 0
 
     # A normal run does record the schedule, so the dry run really skipped that step
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
-    assert "New schedule is stored." in result.output
-    assert len(sensor.search_beliefs()) > 0
+    assert f"New schedule is stored: saved {n_computed} beliefs." in result.output
+    assert len(sensor.search_beliefs()) == n_computed
+
+    # Running it again computes the same schedule, which is already on record, so nothing new is saved.
+    result = runner.invoke(add_schedule, cli_input)
+    check_command_ran_without_error(result)
+    assert (
+        f"repeats beliefs already on record, so nothing new was stored (computed {n_computed}, saved 0)"
+        in result.output
+    )
+    assert len(sensor.search_beliefs()) == n_computed
 
 
 def test_add_schedule_rejects_dry_run_as_job(app, fresh_db, add_market_prices_fresh_db):
