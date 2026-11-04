@@ -141,6 +141,7 @@ Now we can visualize the diminished headroom in the following `link <http://loca
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
+
 |
 
 The graph shows that the capacity of the grid is at full disposal for the battery when there's no sun (thus no PV generation), while at noon the battery can only discharge at 280kW max.
@@ -196,6 +197,7 @@ Check the results `here <http://localhost:5000/sensors/15>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-inflexible.png
     :align: center
+
 |
 
 
@@ -224,6 +226,7 @@ Check the results `here <http://localhost:5000/sensors/16>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-breakable.png
     :align: center
+
 |
 
 Shiftable process
@@ -252,6 +255,7 @@ Check the results `here <http://localhost:5000/sensors/17>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png
     :align: center
+
 |
 
 

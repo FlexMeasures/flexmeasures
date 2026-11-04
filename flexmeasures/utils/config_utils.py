@@ -28,6 +28,9 @@ from flexmeasures.utils.config_defaults import (
 
 flexmeasures_logging_config = {
     "version": 1,
+    # Leave loggers alone that exist before FlexMeasures configures logging,
+    # such as gunicorn's own when it preloads the app, and those of libraries imported before the app is created.
+    "disable_existing_loggers": False,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {

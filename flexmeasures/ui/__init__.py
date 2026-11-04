@@ -319,6 +319,8 @@ def add_jinja_filters(app):
 
 
 def add_jinja_variables(app):
+    from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+
     # Set variables for Jinja template context
     for v, d in (
         ("FLEXMEASURES_MODE", ""),
@@ -333,6 +335,7 @@ def add_jinja_variables(app):
     app.jinja_env.globals["js_versions"] = {
         key: library.version for key, library in app.extensions[APP_EXTENSION].items()
     }
+    app.jinja_env.globals["charge_point_chart_names"] = CHARGE_POINT_CHART_NAMES
     app.jinja_env.globals["vendor_url"] = vendor_url
     app.jinja_env.globals["vendor_attrs"] = vendor_attrs
     app.jinja_env.globals["sphinx_docs_exist"] = (

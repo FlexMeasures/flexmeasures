@@ -4037,7 +4037,7 @@
           {
             "in": "query",
             "name": "chart-type",
-            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            "description": "The chart to draw; leave it out for the asset's default chart.",
             "schema": {
               "type": "string"
             },
