@@ -254,7 +254,7 @@ def render_swagger_ui_links_as_text():
     """Render links to SwaggerUI anchors in the OpenAPI spec's descriptions as their text only.
 
     In SwaggerUI, a Markdown link like ``[the Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger)`` jumps to that endpoint.
-    In these docs, the same anchor becomes a reference to a label that does not exist, while the endpoint is described on the same page anyway.
+    In the Sphinx docs, the same anchor becomes a reference to a label that does not exist, while the endpoint is described on the same page anyway.
     """
     from sphinxcontrib.openapi import utils as openapi_utils
 
@@ -280,6 +280,7 @@ def setup(sphinx_app):
     """
     os.environ["FLEXMEASURES_ENV"] = "documentation"
     sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
+    # Patch sphinxcontrib.openapi here, before its directives render the API pages, or their SwaggerUI links each produce an undefined-label warning.
     render_swagger_ui_links_as_text()
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
