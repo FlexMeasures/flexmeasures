@@ -38,7 +38,7 @@ v1.1.0 | November XX, 2026
              To give a user the narrower reader or data-integrator access instead, assign them the ``account-reader`` or ``account-data-integrator`` role, and then remove their ``account-member`` role.
 
 .. warning:: The API's rate limits are now counted per organisation rather than per user, so all users and integrations of an organisation share one budget.
-             Hosts serving several organisations, or organisations that run several integrations, should check their limits before upgrading; see :ref:`Plans and rate limits <v1.1.0-rate-limits>`.
+             Before upgrading, hosts should check the limits of organisations with several users or integrations; see :ref:`Plans and rate limits <v1.1.0-rate-limits>`.
 
 New features
 -------------
@@ -183,7 +183,7 @@ Bugfixes
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
 * Saving several beliefs about the same event at once no longer drops a belief whose value changes back to an earlier one; ``flexmeasures edit resample-data`` lost such beliefs for good [see `PR #2687 <https://www.github.com/FlexMeasures/flexmeasures/pull/2687>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
-* Setting an attribute that does not exist yet on an asset or sensor now takes effect, instead of being silently ignored [see `PR #2649 <https://www.github.com/FlexMeasures/flexmeasures/pull/2649>`_]
+* ``GenericAsset.set_attribute`` and ``Sensor.set_attribute``, which plugins and scripts use, now create an attribute that does not exist yet, instead of silently ignoring it [see `PR #2649 <https://www.github.com/FlexMeasures/flexmeasures/pull/2649>`_]
 * A sensor reference in a flex-model or flex-context now refuses a key it does not take, naming the nearest key it does take, where it used to read past it, so that a source filter written in the singular (``source: 42`` rather than ``sources: [42]``) silently did not filter; a stored flex config carrying such a key starts failing, which is how it stops being ignored, and `Notation <https://flexmeasures.readthedocs.io/en/latest/api/notation.html>`_ sets out which spelling belongs where [see `PR #2656 <https://www.github.com/FlexMeasures/flexmeasures/pull/2656>`_]
 * Deleting a sensor now unsets it in the flex-model and flex-context references to it that carry a default, bounds or source filters, which used to keep pointing at the deleted sensor; until a new sensor is picked, schedules use the reference's default as a fixed value, or, without a default, ignore the field, so that an ancestor asset's value for it applies, and the UI marks such fields and lists them when you delete a sensor [see `PR #2726 <https://www.github.com/FlexMeasures/flexmeasures/pull/2726>`_, `PR #2767 <https://www.github.com/FlexMeasures/flexmeasures/pull/2767>`_ and `PR #2783 <https://www.github.com/FlexMeasures/flexmeasures/pull/2783>`_]
 
