@@ -1555,6 +1555,29 @@ def test_add_schedule_dry_run_saves_no_beliefs(
     assert len(sensor.search_beliefs()) == n_computed
 
 
+def test_add_schedule_says_when_the_scheduler_computed_nothing(
+    app, fresh_db, process_power_sensor, add_market_prices_fresh_db, monkeypatch
+):
+    """A schedule of no beliefs is said to be one, rather than reported as a new schedule stored with 0 beliefs."""
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.services.scheduling_result import SchedulingJobResult
+
+    monkeypatch.setattr(
+        data_add, "make_schedule", lambda **kwargs: SchedulingJobResult().to_dict()
+    )
+    runner = app.test_cli_runner()
+    cli_input = to_flags(_process_schedule_cli_input(fresh_db, process_power_sensor))
+
+    result = runner.invoke(data_add.add_schedule, cli_input)
+
+    check_command_ran_without_error(result)
+    assert (
+        "The scheduler computed no beliefs, so no new schedule was stored."
+        in result.output
+    )
+    assert "New schedule is stored" not in result.output
+
+
 def test_add_schedule_rejects_dry_run_as_job(app, fresh_db, add_market_prices_fresh_db):
     """A dry run cannot be queued: the worker would save the schedule that the flag rules out."""
     from flexmeasures.cli.data_add import add_schedule, add_toy_account

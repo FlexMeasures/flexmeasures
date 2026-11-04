@@ -2211,6 +2211,11 @@ def add_schedule(  # noqa C901
                 f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, saved 0.",
                 **MsgStyle.SUCCESS,
             )
+        elif n_computed == 0:
+            click.secho(
+                "The scheduler computed no beliefs, so no new schedule was stored.",
+                **MsgStyle.WARN,
+            )
         elif n_saved == n_computed:
             click.secho(
                 f"New schedule is stored: saved {pluralize('belief', n_saved, include_count=True)}.",
