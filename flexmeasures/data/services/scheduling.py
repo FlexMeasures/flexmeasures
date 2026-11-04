@@ -1160,7 +1160,7 @@ def make_schedule(  # noqa: C901
                 else ""
             )
             print(
-                f"\nNot saving schedule for sensor `{bdf.sensor}` (ID {bdf.sensor.id}) to the database (because of --dry-run),"
+                f"\nNot recording schedule for sensor `{bdf.sensor}` (ID {bdf.sensor.id}) in the database (because of --dry-run),"
                 f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
 

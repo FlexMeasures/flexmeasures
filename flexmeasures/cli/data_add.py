@@ -2210,29 +2210,20 @@ def add_schedule(  # noqa C901
         n_recorded = sum(
             output["num-recorded-beliefs"] for output in scheduling_result["outputs"]
         )
-        if dry_run:
-            click.secho(
-                f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, recorded 0.",
-                **MsgStyle.SUCCESS,
-            )
-        elif n_computed == 0:
+        if n_computed == 0:
             click.secho(
                 "The scheduler computed no beliefs, so no new schedule was stored.",
                 **MsgStyle.WARN,
             )
-        elif n_recorded == n_computed:
-            click.secho(
-                f"New schedule is stored: recorded {pluralize('belief', n_recorded, include_count=True)}.",
-                **MsgStyle.SUCCESS,
-            )
-        elif n_recorded:
-            click.secho(
-                f"New schedule is stored: computed {n_computed}, recorded {n_recorded}, as the rest was already on record.",
-                **MsgStyle.SUCCESS,
-            )
         else:
+            if dry_run:
+                reason = ", as this was a dry run"
+            elif n_recorded < n_computed:
+                reason = ", as the rest was already on record"
+            else:
+                reason = ""
             click.secho(
-                f"The new schedule repeats beliefs already on record, so nothing new was stored (computed {n_computed}, recorded 0).",
+                f"Scheduling done: computed {n_computed}, recorded {n_recorded}{reason}.",
                 **MsgStyle.SUCCESS,
             )
 
