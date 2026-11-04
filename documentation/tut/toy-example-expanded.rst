@@ -85,6 +85,8 @@ Trigger an updated schedule
 Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
 This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
+The API and client examples use the IDs that the toy setup gives the battery (8) and solar (9) sensors, which it stored in ``FM_TOY_BATTERY_SENSOR_ID`` and ``FM_TOY_SOLAR_SENSOR_ID``; use those values if yours differ.
+
 .. tabs::
 
     .. tab:: CLI
@@ -97,8 +99,8 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-context '{"inflexible-production": [{"sensor": 9}]}'
-                --flex-model '{"soc-min": "50 kWh"}' \
+                --flex-context '{"inflexible-production": [{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"'}]}' \
+                --flex-model '{"soc-min": "50 kWh"}'
             New schedule is stored.
         
     .. tab:: API
@@ -116,7 +118,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     "soc-min": "50 kWh"
                 },
                 "flex-context": {
-                    "inflexible-production": [{"sensor": ${FM_TOY_SOLAR_SENSOR_ID}}]
+                    "inflexible-production": [{"sensor": 9}]
                 }
             }
 
