@@ -8,6 +8,36 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <style>
+  /* A list of tick boxes, as a multiple select needs Ctrl-clicks and cuts long names off.
+     Dragging its corner enlarges it, for a page listing many automations. */
+  .depends-on-picker {
+    height: 9rem;
+    min-height: 5rem;
+    overflow-y: auto;
+    resize: vertical;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+  }
+  .depends-on-option {
+    display: flex;
+    gap: .5rem;
+    margin: 0;
+    padding: .35rem .6rem;
+    cursor: pointer;
+  }
+  .depends-on-option:hover {
+    background-color: var(--bs-tertiary-bg);
+  }
+  .depends-on-option:has(input:checked) {
+    background-color: var(--bs-primary-bg-subtle);
+  }
+  .depends-on-option input {
+    flex-shrink: 0;
+  }
+  .depends-on-option small {
+    display: block;
+    color: var(--bs-secondary-color);
+  }
   /* One Actions menu per row, so the listing carries two controls instead of five. */
   .automation-actions {
     display: inline-block;
@@ -193,12 +223,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
                 </div>
                 <div class="mb-3">
-                  <label for="automationDependsOn" class="form-label">Waits for
+                  <label id="automationDependsOnLabel" class="form-label">Waits for
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
                   </label>
-                  <select class="form-select" id="automationDependsOn" multiple size="3"></select>
-                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
+                  <div class="depends-on-picker" id="automationDependsOn" role="group" aria-labelledby="automationDependsOnLabel"></div>
+                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset. Drag the corner of the list to enlarge it.</div>
                   <div class="form-check mt-1">
                     <input class="form-check-input" type="checkbox" id="automationAllowFailure">
                     <label class="form-check-label" for="automationAllowFailure">Run even when a run it waits for failed</label>
@@ -294,12 +324,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationDependsOn" class="form-label">Waits for
+                  <label id="editAutomationDependsOnLabel" class="form-label">Waits for
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
                   </label>
-                  <select class="form-select" id="editAutomationDependsOn" multiple size="3"></select>
-                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
+                  <div class="depends-on-picker" id="editAutomationDependsOn" role="group" aria-labelledby="editAutomationDependsOnLabel"></div>
+                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset. Drag the corner of the list to enlarge it.</div>
                   <div class="form-check mt-1">
                     <input class="form-check-input" type="checkbox" id="editAutomationAllowFailure">
                     <label class="form-check-label" for="editAutomationAllowFailure">Run even when a run it waits for failed</label>
@@ -520,30 +550,47 @@ An active automation follows its cron recurrence in the timezone shown below. Th
      An automation it already waits for that is not on this page, such as one on another asset, is kept as an option of its own,
      so that saving the form does not drop it. */
   function fillDependsOnPicker(selector, excludedId = null, selected = []) {
-    const picker = $(selector).empty();
+    const picker = document.querySelector(selector);
     const selectedIds = new Set(selected.map((dependency) => dependency.automation));
     const onPage = [...automationsById.values()].filter((automation) => automation.id !== excludedId);
-    for (const automation of onPage) {
-      picker.append(new Option(
-        `${automation.id}: ${automation.name} (${automation["cron"]}, ${automation.timezone})`,
-        automation.id,
-        false,
-        selectedIds.has(automation.id),
-      ));
-    }
+    const options = onPage.map((automation) => dependsOnOption(
+      automation.id,
+      `${automation.id}: ${automation.name}`,
+      `${automation["asset-name"]}, ${automation["cron"]}, ${automation.timezone}`,
+      selectedIds.has(automation.id),
+    ));
     for (const dependency of selected) {
       if (!automationsById.has(dependency.automation)) {
-        picker.append(new Option(`${dependency.automation} (not on this page)`, dependency.automation, false, true));
+        options.push(dependsOnOption(dependency.automation, `${dependency.automation} (not on this page)`, "", true));
       }
     }
+    picker.replaceChildren(...options);
+  }
+
+  // The whole row is a label, so a click anywhere on it ticks the box.
+  function dependsOnOption(automationId, name, details, checked) {
+    const option = document.createElement("label");
+    option.className = "depends-on-option";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "form-check-input";
+    box.value = automationId;
+    box.checked = checked;
+    const text = document.createElement("span");
+    text.textContent = name;
+    const detail = document.createElement("small");
+    detail.textContent = details;
+    text.append(detail);
+    option.append(box, text);
+    return option;
   }
 
   // Whether to allow for failure, as the checkbox says it, or for each dependency as it was, while the checkbox still says "some of them".
   function dependsOnValues(selector, allowFailureSelector, previous = []) {
     const allowFailureBox = document.querySelector(allowFailureSelector);
     const previouslyAllowed = new Map(previous.map((dependency) => [dependency.automation, dependency["allow-failure"]]));
-    return ($(selector).val() || []).map((id) => {
-      const automationId = Number(id);
+    return [...document.querySelectorAll(`${selector} input:checked`)].map((box) => {
+      const automationId = Number(box.value);
       return {
         automation: automationId,
         "allow-failure": allowFailureBox.indeterminate

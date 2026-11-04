@@ -45,3 +45,30 @@ def test_the_chain_of_an_automation_is_drawn_from_first_to_last(assert_js):
         eq("only an automation that another listed one waits for offers to run with dependents",
            [7, 8, 9, 10].map((id) => page.hasListedDependents({{id}})), [true, true, false, false]);
     """)
+
+
+def test_the_waits_for_picker_ticks_what_an_automation_waits_for(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ fillDependsOnPicker, dependsOnValues, automationsById }};")();
+        document.body.insertAdjacentHTML("beforeend", '<div id="picker"></div><input type="checkbox" id="allowFailure">');
+        for (const automation of [
+            {{id: 7, name: "Pull meter data", "asset-name": "site", cron: "0 * * * *", timezone: "UTC"}},
+            {{id: 8, name: "<b>Net report</b>", "asset-name": "site", cron: "*/15 * * * *", timezone: "UTC"}},
+            {{id: 9, name: "Forecast", "asset-name": "battery", cron: "0 6 * * *", timezone: "UTC"}},
+        ]) {{
+            page.automationsById.set(automation.id, automation);
+        }}
+        page.fillDependsOnPicker("#picker", 9, [{{automation: 7, "allow-failure": false}}, {{automation: 5, "allow-failure": false}}]);
+        const rows = [...document.querySelectorAll("#picker label")];
+        const boxes = () => [...document.querySelectorAll("#picker input")];
+        eq("every other automation is offered, and one on another page is kept", boxes().map((box) => box.value), ["7", "8", "5"]);
+        eq("what it waits for is ticked", boxes().map((box) => box.checked), [true, false, true]);
+        check("a row names the asset and the recurrence", rows[1].textContent.includes("site, */15 * * * *, UTC"));
+        eq("a name stays text", rows[1].querySelector("b"), null);
+        rows[1].click();
+        eq("a click anywhere on a row ticks its box, and is sent along",
+           page.dependsOnValues("#picker", "#allowFailure").map((dependency) => dependency.automation), [7, 8, 5]);
+    """)
