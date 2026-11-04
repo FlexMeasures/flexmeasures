@@ -534,12 +534,21 @@ def test_search_does_not_look_up_the_materialized_view_when_it_is_not_needed(
 
 def test_sensor_as_dict_does_not_query_the_parent_asset(setup_beliefs, db):
     """Once an asset and its parent are loaded, describing the other sensors of that asset needs no more queries."""
-    asset = get_test_sensor(db).generic_asset
-    parent = GenericAsset(
-        name="parent of the market", generic_asset_type=asset.generic_asset_type
+    # Build a fresh asset with a parent, rather than give a shared fixture asset a parent.
+    asset_type = get_test_sensor(db).generic_asset.generic_asset_type
+    parent = GenericAsset(name="parent", generic_asset_type=asset_type)
+    asset = GenericAsset(
+        name="child", generic_asset_type=asset_type, parent_asset=parent
     )
-    db.session.add(parent)
-    asset.parent_asset = parent
+    for name in ("first", "second", "third"):
+        db.session.add(
+            Sensor(
+                name=name,
+                generic_asset=asset,
+                event_resolution=timedelta(minutes=15),
+                unit="MW",
+            )
+        )
     db.session.flush()
     sensors = db.session.scalars(
         select(Sensor).filter_by(generic_asset_id=asset.id).order_by(Sensor.id)
