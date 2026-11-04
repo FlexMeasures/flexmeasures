@@ -485,11 +485,28 @@ def json_lexer_with_placeholders():
 
     class JsonWithPlaceholdersLexer(JsonLexer):
         def get_tokens_unprocessed(self, text):
-            spans = [match.span() for match in placeholder.finditer(text)]
-            for index, token, value in super().get_tokens_unprocessed(text):
-                if token is Error and any(start <= index < end for start, end in spans):
-                    token = Comment
-                yield index, token, value
+            tokens = list(super().get_tokens_unprocessed(text))
+            errors = [index for index, token, _ in tokens if token is Error]
+            # A placeholder is one that JSON cannot read, so leave alone any lookalike within a string.
+            spans = [
+                match.span()
+                for match in placeholder.finditer(text)
+                if any(match.start() <= index < match.end() for index in errors)
+            ]
+            for index, token, value in tokens:
+                end = index + len(value)
+                position = index
+                while position < end:
+                    span = next((s for s in spans if s[0] <= position < s[1]), None)
+                    if span is not None:
+                        # Render the whole placeholder as one comment, where it starts.
+                        if position == span[0]:
+                            yield span[0], Comment, text[span[0] : span[1]]
+                        position = min(end, span[1])
+                    else:
+                        stop = min([end] + [s[0] for s in spans if s[0] > position])
+                        yield position, token, text[position:stop]
+                        position = stop
 
     return JsonWithPlaceholdersLexer
 
