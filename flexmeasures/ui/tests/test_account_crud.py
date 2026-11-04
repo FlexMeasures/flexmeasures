@@ -84,7 +84,7 @@ def test_account_page_lets_admin_change_the_plan(
 ):
     """Admins get a dropdown of the plans they can put the account on."""
     prosumer_account = setup_accounts["Prosumer"]
-    db.session.add(Plan(name="Enterprise"))
+    db.session.add(Plan(name="Enterprise", max_users=1, max_assets=12, max_clients=0))
     db.session.add(Plan(name="Retired plan", legacy=True))
     db.session.commit()
 
@@ -95,6 +95,10 @@ def test_account_page_lets_admin_change_the_plan(
     assert account_page.status_code == 200
     assert b'name="plan_id"' in account_page.data
     assert b"Enterprise" in account_page.data
+    assert b'data-max-users="1"' in account_page.data
+    assert b'data-max-assets="12"' in account_page.data
+    assert b'data-max-clients="0"' in account_page.data
+    assert b'id="plan-quota-warning"' in account_page.data
     # A plan we no longer hand out is not on offer
     assert b"Retired plan" not in account_page.data
 

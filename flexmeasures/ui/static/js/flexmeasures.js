@@ -2,7 +2,6 @@ $(document).ready(function () {
     ready();
 });
 
-
 $(window).resize(function () {
     $('body').css('padding-top', $("#navbar-fixed-top").height());
     $('.floatThead-container').css('top', $("#navbar-container").height() - $('#topnavbar').height());

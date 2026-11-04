@@ -8,7 +8,7 @@ from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, UnprocessableEntity
 from flexmeasures.auth.policy import can_modify_role, check_access
 
 from flexmeasures.data.models.audit_log import AuditLog, truncate_string
@@ -19,6 +19,7 @@ from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
+    InvalidFlexMeasuresUser,
     reset_password,
     remove_cookie_and_token_access,
     set_random_password,
@@ -317,12 +318,17 @@ class UserAPI(FlaskView):
         """
         from flexmeasures.data.services.users import create_user
 
-        created_user = create_user(
-            username=user_data["username"],
-            email=user_data["email"],
-            account_name=user_data["account"].name,
-            password=user_data["email"],  # This will be set to a random password below
-        )
+        try:
+            created_user = create_user(
+                username=user_data["username"],
+                email=user_data["email"],
+                account_name=user_data["account"].name,
+                # This will be set to a random password below
+                password=user_data["email"],
+            )
+        except InvalidFlexMeasuresUser as exc:
+            # For instance, an email address whose domain accepts no mail.
+            raise UnprocessableEntity(str(exc)) from exc
         set_random_password(created_user)
         send_reset_password_instructions(created_user)
         db.session.commit()
