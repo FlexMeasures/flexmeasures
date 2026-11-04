@@ -22,7 +22,7 @@ class SchedulingJobResult:
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
     - ``outputs``: List of the sensors the schedule records on, one entry per sensor
       - Each entry is a dict with ``"sensor"`` field (sensor ID), ``"num-computed-beliefs"`` (the beliefs the scheduler computed for it),
-        and ``"num-recorded-beliefs"`` (those recorded, which leaves out beliefs that repeat what is already on record).
+        and ``"num-recorded-beliefs"`` (those recorded, which leaves out beliefs that repeat what is already on record or have no value).
       - On a dry run, nothing is recorded, so each entry's ``"num-recorded-beliefs"`` is 0.
     - ``num-beliefs``: Total number of beliefs (scheduled values) computed, i.e. the total of ``"num-computed-beliefs"`` across ``outputs``.
 
