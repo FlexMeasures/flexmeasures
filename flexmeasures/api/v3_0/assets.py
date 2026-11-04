@@ -2654,7 +2654,9 @@ class AssetAPI(FlaskView):
             The sensors are expected to have a daily resolution, suitable for KPIs.
             Each sensor has a preferred function to downsample the daily values to the KPI value.
 
-            This endpoint returns a list of KPIs for the asset.
+            This endpoint returns a list of KPIs for the asset. The `has_missing_kpi_days`
+            field indicates whether a daily KPI has no usable result for one or more calendar
+            days in the requested range.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2686,6 +2688,7 @@ class AssetAPI(FlaskView):
                     kpi_response:
                       summary: KPI response
                       value:
+                        has_missing_kpi_days: false
                         data:
                           - sensor: 145046
                             title: My KPI
@@ -2711,6 +2714,8 @@ class AssetAPI(FlaskView):
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
         kpis = []
+        expected_kpi_days = max(0, (end.date() - start.date()).days)
+        has_missing_kpi_days = False
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
             # One value per event, which is what a KPI reduces.
@@ -2731,6 +2736,11 @@ class AssetAPI(FlaskView):
             event_starts = beliefs.index.get_level_values("event_start")
             beliefs = beliefs[(event_starts >= start) & (event_starts < end)]
             values = beliefs["event_value"].dropna()
+            if (
+                sensor.event_resolution == timedelta(days=1)
+                and len(values) < expected_kpi_days
+            ):
+                has_missing_kpi_days = True
 
             downsample_function, downsample_value = get_downsample_function_and_value(
                 kpi, sensor, values
@@ -2743,7 +2753,7 @@ class AssetAPI(FlaskView):
                 "downsample_function": downsample_function,
             }
             kpis.append(kpi_dict)
-        return dict(data=kpis), 200
+        return dict(data=kpis, has_missing_kpi_days=has_missing_kpi_days), 200
 
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
