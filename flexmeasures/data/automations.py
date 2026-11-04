@@ -51,7 +51,7 @@ class AutomationHandler:
     ) -> DataGenerator:
         """Set up this type's data generator from an existing data source, as the user named it.
 
-        The built-in types do this in `_create_builtin_automation`, and a type registered by a plugin is held to the same rules.
+        The built-in types do this in `_prepare_builtin_automation`, and a type registered by a plugin is held to the same rules.
         """
         # Naming a source hands its configuration over and records the automation's results under it,
         # so it takes more than being allowed to read what it computed: it has to be a source the user may work with.
@@ -87,49 +87,82 @@ class AutomationHandler:
             raise ValidationError("Use either a source or configuration, not both.")
         return generator
 
-    def create(self, **kwargs):
-        """Validate and create the automation without committing it."""
-        from flexmeasures.data.models.automations import Automation
-        from flexmeasures.data.models.audit_log import AssetAuditLog
+    def prepare(
+        self,
+        asset,
+        cronstr: str,
+        timezone: str | None = None,
+        parameters: dict | None = None,
+        generator_class: str | None = None,
+        config: dict | None = None,
+        source=None,
+        check_permissions: bool = False,
+        source_is_kept: bool = False,
+        editing: bool = False,
+    ):
+        """Validate an automation's definition, and look up or create the data source storing its generator config.
+
+        Creating an automation and editing one both go through here, so an edit is held to the same rules as a creation.
+        See `_prepare_builtin_automation` for the parameters.
+
+        :returns: a `PreparedAutomation`.
+        """
+        from flexmeasures.data.models.automations import (
+            get_default_automation_timezone,
+        )
+        from flexmeasures.data.services.automations import (
+            EDIT_REFUSED,
+            PreparedAutomation,
+            _prepare_builtin_automation,
+        )
         from flexmeasures.data.services.data_generators import (
             check_sensor_access,
             resolve_data_generator_sensors,
         )
-        from flexmeasures.data.services.automations import _create_builtin_automation
 
         if self.generator_class is None:
             if self.type_id == "forecasting":
-                kwargs["generator_class"] = (
-                    kwargs.get("generator_class") or "TrainPredictPipeline"
-                )
-            return _create_builtin_automation(**kwargs)
-        selected_class = kwargs.get("generator_class")
-        if selected_class not in (None, self.generator_class.__name__):
+                generator_class = generator_class or "TrainPredictPipeline"
+            return _prepare_builtin_automation(
+                asset,
+                cronstr=cronstr,
+                timezone=timezone,
+                automation_type=self.type_id,
+                parameters=parameters,
+                generator_class=generator_class,
+                config=config,
+                source=source,
+                check_permissions=check_permissions,
+                source_is_kept=source_is_kept,
+                editing=editing,
+            )
+        if generator_class not in (None, self.generator_class.__name__):
             raise ValidationError("This automation type determines its data generator.")
-        asset = kwargs["asset"]
-        source = kwargs.get("source")
         if source is not None:
             generator = self._generator_from_source(
                 source,
-                check_permissions=bool(kwargs.get("check_permissions")),
-                config_given=bool(kwargs.get("config")),
+                check_permissions=check_permissions and not source_is_kept,
+                config_given=bool(config),
             )
         else:
-            config = load_automation_payload(
+            loaded_config = load_automation_payload(
                 self.generator_class._config_schema,
-                kwargs.get("config") or {},
+                config or {},
                 "config",
             )
             generator = self.generator_class(
-                config=self.generator_class._config_schema.dump(config)
+                config=self.generator_class._config_schema.dump(loaded_config)
             )
-        parameters = kwargs.get("parameters") or {}
+        parameters = parameters or {}
         loaded = load_automation_payload(
             generator._parameters_schema, parameters, "parameters"
         )
         sensors = resolve_data_generator_sensors(generator, loaded)
-        if kwargs.get("check_permissions"):
-            check_sensor_access(**sensors)
+        if check_permissions:
+            if editing:
+                check_sensor_access(**sensors, refused=EDIT_REFUSED)
+            else:
+                check_sensor_access(**sensors)
         validate_output_scope(asset.id, sensors["output_sensors"])
         if source is None:
             from flexmeasures.data.services.data_sources import get_or_create_source
@@ -147,30 +180,56 @@ class AutomationHandler:
             generator._data_source = get_or_create_source(
                 **source_info, account=asset.owner
             )
+        return PreparedAutomation(
+            generator=generator.data_source,
+            parameters=parameters,
+            timezone=timezone or get_default_automation_timezone(asset),
+            warnings=[],
+            data_generator=generator,
+            input_sensors=sensors["input_sensors"],
+            output_sensors=sensors["output_sensors"],
+        )
+
+    def create(self, **kwargs):
+        """Validate and create the automation without committing it."""
+        from flexmeasures.data.models.automations import Automation
+        from flexmeasures.data.models.audit_log import AssetAuditLog
+        from flexmeasures.data.services.automations import _create_builtin_automation
+
+        if self.generator_class is None:
+            if self.type_id == "forecasting":
+                kwargs["generator_class"] = (
+                    kwargs.get("generator_class") or "TrainPredictPipeline"
+                )
+            return _create_builtin_automation(**kwargs)
+        asset = kwargs["asset"]
+        prepared = self.prepare(
+            asset,
+            cronstr=kwargs["cronstr"],
+            timezone=kwargs.get("timezone"),
+            parameters=kwargs.get("parameters"),
+            generator_class=kwargs.get("generator_class"),
+            config=kwargs.get("config"),
+            source=kwargs.get("source"),
+            check_permissions=bool(kwargs.get("check_permissions")),
+        )
         automation = Automation(
             asset_id=asset.id,
             type=self.type_id,
             name=kwargs["name"],
             cronstr=kwargs["cronstr"],
             active=kwargs.get("active", True),
-            generator=generator.data_source,
-            parameters=parameters,
+            generator=prepared.generator,
+            parameters=prepared.parameters,
+            timezone=prepared.timezone,
         )
-        if kwargs.get("timezone") is not None:
-            automation.timezone = kwargs["timezone"]
-        else:
-            from flexmeasures.data.models.automations import (
-                get_default_automation_timezone,
-            )
-
-            automation.timezone = get_default_automation_timezone(asset)
         db.session.add(automation)
         db.session.flush()
         AssetAuditLog.add_record(
             asset,
             f"Created automation '{automation.name}' ({automation.id}) via {kwargs.get('origin', 'API')}.",
         )
-        return automation, []
+        return automation, prepared.warnings
 
     def installed_generator_version(self) -> str:
         """The version of the generator class this server has, as a data source records it."""
@@ -205,8 +264,13 @@ class AutomationHandler:
             if automation_run is not None
             else dict(automation.parameters or {})
         )
+        from flexmeasures.data.services.automations import generator_of_run
+
         generator, sensors = resolve_plugin_generator(
-            automation, self, parameters=planned_parameters
+            automation,
+            self,
+            parameters=planned_parameters,
+            source=generator_of_run(automation, automation_run),
         )
         validate_output_scope(automation.asset_id, sensors["output_sensors"])
         source_id = generator.data_source.id
@@ -342,24 +406,28 @@ def validate_output_scope(asset_id, sensors):
             )
 
 
-def resolve_plugin_generator(automation, handler, parameters=None):
-    """Resolve the declared generator and sensors without sharing mutable run state."""
+def resolve_plugin_generator(automation, handler, parameters=None, source=None):
+    """Resolve the declared generator and sensors without sharing mutable run state.
+
+    :param source: the data source to compute with, such as the one a run was planned with; defaults to the automation's own.
+    """
     from flexmeasures.data.services.data_generators import (
         resolve_data_generator_sensors,
     )
 
-    if automation.generator is None:
+    source = source if source is not None else automation.generator
+    if source is None:
         raise ValueError(f"Automation {automation.id} has no data source to run.")
     installed_version = handler.installed_generator_version()
-    if automation.generator.version != installed_version:
+    if source.version != installed_version:
         raise ValueError(
-            f"Automation {automation.id} uses generator version {automation.generator.version},"
+            f"Automation {automation.id} uses generator version {source.version},"
             f" but version {installed_version} is installed. Recreate the automation with the installed plugin version."
         )
-    generator = copy(automation.generator.data_generator)
+    generator = copy(source.data_generator)
     if type(generator) is not handler.generator_class:
         raise ValueError(
-            f"Data source {automation.generator_id} does not belong to automation type '{automation.type}'."
+            f"Data source {source.id} does not belong to automation type '{automation.type}'."
         )
     generator._parameters = None
     loaded = generator._parameters_schema.load(
@@ -369,13 +437,21 @@ def resolve_plugin_generator(automation, handler, parameters=None):
     return generator, resolve_data_generator_sensors(generator, loaded)
 
 
+def user_has_permission(user, entity, permission: str) -> bool:
+    """Whether a given user, rather than the one making the request, holds a permission on an entity."""
+    from flexmeasures.auth.policy import user_has_admin_access, user_matches_principals
+
+    return user_has_admin_access(user, permission) or user_matches_principals(
+        user, entity.__acl__().get(permission, [])
+    )
+
+
 def check_execution_access(automation, sensors):
     """Recheck the API creator's current permissions for unattended execution.
 
     A null identity denotes trusted CLI creation or a legacy automation. A deleted
     identity remains stored and fails closed, rather than reverting to CLI trust.
     """
-    from flexmeasures.auth.policy import user_has_admin_access, user_matches_principals
     from flexmeasures.data.models.user import User
 
     if automation.execution_user_id is None:
@@ -391,11 +467,7 @@ def check_execution_access(automation, sensors):
         (sensors["output_sensors"], "create-children"),
     ):
         for entity in entities:
-            if not user_has_admin_access(
-                user, permission
-            ) and not user_matches_principals(
-                user, entity.__acl__().get(permission, [])
-            ):
+            if not user_has_permission(user, entity, permission):
                 raise Forbidden(
                     f"Automation {automation.id} creator no longer has '{permission}' permission on {entity}."
                 )
@@ -403,8 +475,14 @@ def check_execution_access(automation, sensors):
 
 @record_outcome_on_automation_run
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
-    """Compute and persist declared results with provenance in a plugin-enabled worker."""
+    """Compute and persist declared results with provenance in a plugin-enabled worker.
+
+    The job computes with the data source and the parameters it was queued with,
+    also when the automation has been edited since, the way a job of a built-in type does.
+    Its sensors are still checked against the access of the user whose access the automation's runs check now.
+    """
     from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.services.generator_results import (
         check_generator_results,
         describe_generator,
@@ -415,14 +493,14 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
     if automation is None:
         raise ValueError(f"Automation {automation_id} is missing.")
     handler = get_automation_handler(automation.type)
-    if (
-        automation.generator_id != data_source_id
-        or dict(automation.parameters) != parameters
-    ):
+    source = db.session.get(DataSource, data_source_id)
+    if source is None:
         raise ValueError(
-            "The automation changed after its job was queued. Queue a new run."
+            f"Data source {data_source_id}, which automation {automation_id} was queued with, is missing."
         )
-    generator, sensors = resolve_plugin_generator(automation, handler, parameters)
+    generator, sensors = resolve_plugin_generator(
+        automation, handler, parameters, source=source
+    )
     validate_output_scope(automation.asset_id, sensors["output_sensors"])
     check_execution_access(automation, sensors)
     output_ids = {sensor.id for sensor in sensors["output_sensors"]}

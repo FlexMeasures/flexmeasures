@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
 import re
@@ -1419,6 +1420,77 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data_fresh_db, tmp_pat
     assert "Invalid start-offset" in result.output
 
 
+def test_edit_report_automation_config_and_parameters(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A report automation's config and parameters can be edited from the CLI.
+
+    A new config keeps the reporter, moves the automation onto the data source storing that config,
+    and leaves the old data source as it was; the CLI makes no user the one runs execute as.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.data.models.time_series import Sensor
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            asset_id=report_sensor.generic_asset_id,
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    old_source = automation.generator
+    old_config = old_source.attributes["data_generator"]["config"]
+    revision = automation.revision
+
+    new_config = deepcopy(old_config)
+    new_config["transformations"][1]["args"] = ["4h"]
+    config_file = tmp_path / "new_reporter_config.yml"
+    config_file.write_text(yaml.dump(new_config))
+    parameters = dict(automation.parameters)
+    parameters["start-offset"] = "-2D,DB"
+    parameters["end-offset"] = "DB"
+    parameters_file = tmp_path / "new_parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully updated" in result.output, result.output
+    assert automation.generator_id != old_source.id
+    assert automation.generator.model == "PandasReporter"
+    assert automation.generator.attributes["data_generator"]["config"] == new_config
+    assert old_source.attributes["data_generator"]["config"] == old_config
+    assert automation.parameters["start-offset"] == "-2D,DB"
+    assert automation.revision == revision + 1
+    assert automation.execution_user_id is None
+
+    # A config naming the source that stores it, too, is refused.
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--source", str(old_source.id),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "cannot be combined with" in result.output
+
+
 @pytest.mark.parametrize(
     "fixed_timing, consequence",
     [
@@ -1743,6 +1815,94 @@ def test_run_report_automation(
     assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
         "2023-04-10T10:00:00+00:00"
     )
+
+
+@pytest.mark.parametrize("edited", ["after queueing", "before dispatching"])
+def test_report_run_planned_before_an_edit_reports_what_it_was_planned_with(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    edited,
+):
+    """A report run, and its job, report with the data source and the parameters the run was planned with, also when the automation was edited since.
+
+    The edit points the report at another output sensor,
+    so a job held to the edited definition would be refused for recording on the one it was planned with.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.automations import (
+        run_automation,
+        update_automation,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, other_report_sensor_id = (
+        setup_dummy_data_fresh_db
+    )
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    result = app.test_cli_runner().invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    planned_source_id = automation.generator_id
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2023, 4, 10, 10, 0, tzinfo=timezone.utc),
+        revision=automation.revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=dict(automation.parameters),
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    run_id = run.id
+
+    def edit():
+        parameters = deepcopy(dict(automation.parameters))
+        parameters["output"][0]["sensor"] = other_report_sensor_id
+        config = deepcopy(automation.generator.attributes["data_generator"]["config"])
+        config["transformations"][1]["args"] = ["4h"]
+        update_automation(automation, parameters=parameters, config=config)
+        fresh_db.session.commit()
+        assert automation.generator_id != planned_source_id
+
+    if edited == "before dispatching":
+        edit()
+    run_automation(automation, automation_run=run)
+    if edited == "after queueing":
+        edit()
+    work_on_rq(app.queues["reporting"])
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+    assert set(stored_report.sources.map(lambda source: source.id)) == {
+        planned_source_id
+    }
+    other_report_sensor = fresh_db.session.get(Sensor, other_report_sensor_id)
+    assert other_report_sensor.search_beliefs().empty
+    fresh_db.session.expire_all()
+    assert fresh_db.session.get(AutomationRun, run_id).execution_state == "succeeded"
 
 
 def test_report_automation_with_nothing_new_to_report_queues_no_job(

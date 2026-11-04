@@ -315,7 +315,7 @@ def create_test_automations(db, battery: GenericAsset) -> list[Automation]:
     run = AutomationRun(
         automation=automations[0],
         scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
-        schedule_revision=automations[0].schedule_revision,
+        revision=automations[0].revision,
         automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="partially_queued",
@@ -358,7 +358,7 @@ def create_test_automations(db, battery: GenericAsset) -> list[Automation]:
     failed_before_queueing = AutomationRun(
         automation=automations[1],
         scheduled_at=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
-        schedule_revision=automations[1].schedule_revision,
+        revision=automations[1].revision,
         automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="failed",
@@ -372,7 +372,7 @@ def create_test_automations(db, battery: GenericAsset) -> list[Automation]:
     fully_queued_and_succeeded = AutomationRun(
         automation=automations[1],
         scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
-        schedule_revision=automations[1].schedule_revision,
+        revision=automations[1].revision,
         automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="queued",
