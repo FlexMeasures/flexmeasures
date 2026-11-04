@@ -52,7 +52,7 @@ Unless stated otherwise, values of such fields can take one of the following for
 
 - A variable quantity defined at specific moments in time, to describe dynamic constraints/preferences such as target states of charge.
 
-  .. code-block:: javascript
+  .. code-block:: json
 
      {
          "soc-targets": [
@@ -64,7 +64,7 @@ Unless stated otherwise, values of such fields can take one of the following for
 
 - A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as minimum state-of-charge requirements.
 
-  .. code-block:: javascript
+  .. code-block:: json
 
      {
          "soc-minima": [

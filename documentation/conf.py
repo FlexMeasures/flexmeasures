@@ -250,6 +250,28 @@ def drop_openapi_spec(app, what, name, obj, options, lines):
             break
 
 
+def json_lexer_with_placeholders():
+    """Make a JSON lexer that also accepts the placeholders our examples use: ``...`` for left-out items, ``<house>`` for a value to fill in, and ``${SENSOR_ID}`` for a shell variable.
+
+    Pygments marks these as errors, after which Sphinx would skip highlighting the whole block and warn.
+    This lexer renders them as comments instead, and still marks any other invalid JSON as an error, so typos keep producing warnings.
+    """
+    from pygments.lexers.data import JsonLexer
+    from pygments.token import Comment, Error
+
+    placeholder = re.compile(r"\.\.\.|<[\w-]+>|\$\{\w+\}")
+
+    class JsonWithPlaceholdersLexer(JsonLexer):
+        def get_tokens_unprocessed(self, text):
+            spans = [match.span() for match in placeholder.finditer(text)]
+            for index, token, value in super().get_tokens_unprocessed(text):
+                if token is Error and any(start <= index < end for start, end in spans):
+                    token = Comment
+                yield index, token, value
+
+    return JsonWithPlaceholdersLexer
+
+
 def render_swagger_ui_links_as_text():
     """Render links to SwaggerUI anchors in the OpenAPI spec's descriptions as their text only.
 
@@ -280,6 +302,7 @@ def setup(sphinx_app):
     """
     os.environ["FLEXMEASURES_ENV"] = "documentation"
     sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
+    sphinx_app.add_lexer("json", json_lexer_with_placeholders())
     # Patch sphinxcontrib.openapi here, before its directives render the API pages, or their SwaggerUI links each produce an undefined-label warning.
     render_swagger_ui_links_as_text()
 

@@ -162,19 +162,19 @@ A report over an outer group reaches the devices behind it, not the inner groups
         ├── House PV                  sensor 31 "power", kW
         └── House heat pump           sensor 41 "power", kW
 
-.. code-block:: javascript
+.. code-block:: json
 
     {"group" : {"asset" : <house>}}
 
-.. code-block:: javascript
+.. code-block:: json
 
     {"group" : {"asset" : <street>}, "consumption" : {"sensor" : 21}}
 
-.. code-block:: javascript
+.. code-block:: json
 
     {"inflexible-production" : {"sensor" : 31}, "group" : {"asset" : <house>}}
 
-.. code-block:: javascript
+.. code-block:: json
 
     {"inflexible-consumption" : {"sensor" : 41}, "group" : {"asset" : <house>}}
 
@@ -185,7 +185,7 @@ Sensor 21 is the house's aggregate rather than a device, so it is not read, and 
 **Narrowing a group.** A group is a piece of equipment, so it holds everything behind it.
 To report a category instead, filter its members:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         "group" : {"asset" : <street>},
