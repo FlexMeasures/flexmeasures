@@ -74,7 +74,7 @@ def test_trigger_report_worker_stores_report_data(
         {
             "sensor": sensors["output"].id,
             "num-computed-beliefs": 5,
-            "num-saved-beliefs": 5,
+            "num-recorded-beliefs": 5,
         }
     ]
 
@@ -149,7 +149,7 @@ def test_trigger_report_worker_reports_nothing_saved_for_misaligned_inputs(
             {
                 "sensor": hourly_output.id,
                 "num-computed-beliefs": 20,
-                "num-saved-beliefs": 0,
+                "num-recorded-beliefs": 0,
             }
         ]
     }

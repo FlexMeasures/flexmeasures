@@ -183,14 +183,14 @@ def save_results_not_yet_saved(results: list[dict]) -> None:
 def outputs_of_job_result(saved: list[dict]) -> list[dict]:
     """Turn what ``save_generator_results`` says about each result into the "outputs" a job result reports, as API clients read them.
 
-    Each output names its sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs saved ("num-saved-beliefs"),
+    Each output names its sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs recorded ("num-recorded-beliefs"),
     counted as ``save_generator_results`` counts them.
     """
     return [
         {
             "sensor": entry["sensor_id"],
             "num-computed-beliefs": entry["n_computed"],
-            "num-saved-beliefs": entry["n_rows"],
+            "num-recorded-beliefs": entry["n_rows"],
         }
         for entry in saved
     ]

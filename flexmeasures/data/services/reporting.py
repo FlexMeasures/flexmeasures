@@ -145,7 +145,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
     """Compute and store a report in a reporting worker.
 
     The job's result lists, under "outputs", one entry per output sensor:
-    the sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs saved ("num-saved-beliefs").
+    the sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs recorded ("num-recorded-beliefs").
 
     If the report was triggered by an automation, the end of the report window is recorded upon success,
     so the automation's next default window starts where this one ended.
@@ -182,19 +182,19 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
 
     # Say both counts, as saving none of what was computed is not the same as computing nothing.
     summary = ", ".join(
-        f"sensor {result['sensor_id']}: computed {result['n_computed']}, saved {result['n_rows']}"
+        f"sensor {result['sensor_id']}: computed {result['n_computed']}, recorded {result['n_rows']}"
         for result in saved
     )
     if any(result["n_rows"] for result in saved):
         current_app.logger.info(
-            "Report by %s ran successfully, saving the values that were not yet on record (%s).",
+            "Report by %s ran successfully, recording the values that were not yet on record (%s).",
             source,
             summary,
         )
     elif any(count_persistable_values(result["data"]) for result in results):
         # Saving nothing is not the same as computing nothing: the values it computed were on record already, or NaN.
         current_app.logger.info(
-            "Report by %s ran successfully, but saved nothing new, as every value it computed was already on record or had no value (%s).",
+            "Report by %s ran successfully, but recorded nothing new, as every value it computed was already on record or had no value (%s).",
             source,
             summary,
         )

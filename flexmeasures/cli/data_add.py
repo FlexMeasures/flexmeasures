@@ -2207,12 +2207,12 @@ def add_schedule(  # noqa C901
         n_computed = sum(
             output["num-computed-beliefs"] for output in scheduling_result["outputs"]
         )
-        n_saved = sum(
-            output["num-saved-beliefs"] for output in scheduling_result["outputs"]
+        n_recorded = sum(
+            output["num-recorded-beliefs"] for output in scheduling_result["outputs"]
         )
         if dry_run:
             click.secho(
-                f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, saved 0.",
+                f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, recorded 0.",
                 **MsgStyle.SUCCESS,
             )
         elif n_computed == 0:
@@ -2220,19 +2220,19 @@ def add_schedule(  # noqa C901
                 "The scheduler computed no beliefs, so no new schedule was stored.",
                 **MsgStyle.WARN,
             )
-        elif n_saved == n_computed:
+        elif n_recorded == n_computed:
             click.secho(
-                f"New schedule is stored: saved {pluralize('belief', n_saved, include_count=True)}.",
+                f"New schedule is stored: recorded {pluralize('belief', n_recorded, include_count=True)}.",
                 **MsgStyle.SUCCESS,
             )
-        elif n_saved:
+        elif n_recorded:
             click.secho(
-                f"New schedule is stored: computed {n_computed}, saved {n_saved}, as the rest was already on record.",
+                f"New schedule is stored: computed {n_computed}, recorded {n_recorded}, as the rest was already on record.",
                 **MsgStyle.SUCCESS,
             )
         else:
             click.secho(
-                f"The new schedule repeats beliefs already on record, so nothing new was stored (computed {n_computed}, saved 0).",
+                f"The new schedule repeats beliefs already on record, so nothing new was stored (computed {n_computed}, recorded 0).",
                 **MsgStyle.SUCCESS,
             )
 
@@ -2531,23 +2531,23 @@ def add_report(  # noqa: C901
             n_computed = saved[i]["n_computed"]
             if n_saved and n_saved == n_computed:
                 click.secho(
-                    f"Success. Saved {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` to the database.",
+                    f"Success. Recorded {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` in the database.",
                     **MsgStyle.SUCCESS,
                 )
             elif n_saved:
                 click.secho(
-                    f"Success. Saved {n_saved} of the {pluralize('belief', n_computed, include_count=True)} computed for the report for sensor `{sensor}` to the database:"
+                    f"Success. Recorded {n_saved} of the {pluralize('belief', n_computed, include_count=True)} computed for the report for sensor `{sensor}` in the database:"
                     " the rest was already on record or had no value.",
                     **MsgStyle.SUCCESS,
                 )
             elif count_persistable_values(data):
                 click.secho(
-                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved (computed {n_computed}, saved 0).",
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was recorded (computed {n_computed}, recorded 0).",
                     **MsgStyle.SUCCESS,
                 )
             else:
                 click.secho(
-                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save (computed {n_computed}, saved 0)."
+                    f"Nothing was recorded for sensor `{sensor}`, as the report holds no values to record (computed {n_computed}, recorded 0)."
                     " This can happen when its inputs do not align on source and belief time.",
                     **MsgStyle.WARN,
                 )

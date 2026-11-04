@@ -227,7 +227,7 @@ def test_plugin_job_reports_rows_saved(
                 {
                     "sensor": sensors[0].id,
                     "num-computed-beliefs": 1,
-                    "num-saved-beliefs": 1,
+                    "num-recorded-beliefs": 1,
                 }
             ]
         },
@@ -236,7 +236,7 @@ def test_plugin_job_reports_rows_saved(
                 {
                     "sensor": sensors[0].id,
                     "num-computed-beliefs": 1,
-                    "num-saved-beliefs": 0,
+                    "num-recorded-beliefs": 0,
                 }
             ]
         },

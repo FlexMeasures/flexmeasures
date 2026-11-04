@@ -475,7 +475,7 @@ def test_schedule_result_lists_per_output_what_was_computed_and_saved(
         return {
             output["sensor"]: (
                 output["num-computed-beliefs"],
-                output["num-saved-beliefs"],
+                output["num-recorded-beliefs"],
             )
             for output in result["outputs"]
         }

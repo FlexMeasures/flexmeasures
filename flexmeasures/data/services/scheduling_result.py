@@ -22,8 +22,8 @@ class SchedulingJobResult:
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
     - ``outputs``: List of the sensors the schedule records on, one entry per sensor
       - Each entry is a dict with ``"sensor"`` field (sensor ID), ``"num-computed-beliefs"`` (the beliefs the scheduler computed for it),
-        and ``"num-saved-beliefs"`` (those saved, which leaves out beliefs that repeat what is already on record).
-      - On a dry run, nothing is saved, so each entry's ``"num-saved-beliefs"`` is 0.
+        and ``"num-recorded-beliefs"`` (those recorded, which leaves out beliefs that repeat what is already on record).
+      - On a dry run, nothing is recorded, so each entry's ``"num-recorded-beliefs"`` is 0.
     - ``num-beliefs``: Total number of beliefs (scheduled values) passed to the save, which is 0 on a dry run.
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
@@ -50,7 +50,7 @@ class SchedulingJobResult:
                 }
             ],
             "outputs": [
-                {"sensor": 5, "num-computed-beliefs": 96, "num-saved-beliefs": 96},
+                {"sensor": 5, "num-computed-beliefs": 96, "num-recorded-beliefs": 96},
             ],
             "num-beliefs": 96
         }

@@ -257,7 +257,7 @@ def test_get_job_status_finished(
     assert result["resolved"] == []
     assert set(result.keys()) == {"unresolved", "resolved", "outputs", "num-beliefs"}
     assert result["outputs"] == [
-        {"sensor": sensor.id, "num-computed-beliefs": 96, "num-saved-beliefs": 96}
+        {"sensor": sensor.id, "num-computed-beliefs": 96, "num-recorded-beliefs": 96}
     ]
     assert result["num-beliefs"] == 96
     assert data["exc-info"] is None

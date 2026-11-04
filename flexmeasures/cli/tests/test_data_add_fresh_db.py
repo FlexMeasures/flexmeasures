@@ -1233,7 +1233,7 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
         ),
     )
     check_command_ran_without_error(result)
-    assert "Saved 5 beliefs of the report for sensor" in result.output
+    assert "Recorded 5 beliefs of the report for sensor" in result.output
 
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
@@ -1305,10 +1305,10 @@ def test_add_report_says_when_a_rerun_saves_nothing_new(
 
     check_command_ran_without_error(rerun)
     assert (
-        "repeats beliefs already on record, so nothing new was saved (computed 5, saved 0)"
+        "repeats beliefs already on record, so nothing new was recorded (computed 5, recorded 0)"
         in rerun.output
     )
-    assert "Success. Saved" not in rerun.output
+    assert "Success. Recorded" not in rerun.output
     assert _count_beliefs(fresh_db, report_sensor_id) == recorded
 
 
@@ -1536,20 +1536,20 @@ def test_add_schedule_dry_run_saves_no_beliefs(
     sensor = fresh_db.session.get(Sensor, process_power_sensor)
     assert len(sensor.search_beliefs()) == 0
     # A dry run still says how much it computed, which a normal run then saves in full.
-    n_computed = int(re.search(r"computed (\d+), saved 0", result.output).group(1))
+    n_computed = int(re.search(r"computed (\d+), recorded 0", result.output).group(1))
     assert n_computed > 0
 
     # A normal run does record the schedule, so the dry run really skipped that step
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
-    assert f"New schedule is stored: saved {n_computed} beliefs." in result.output
+    assert f"New schedule is stored: recorded {n_computed} beliefs." in result.output
     assert len(sensor.search_beliefs()) == n_computed
 
     # Running it again computes the same schedule, which is already on record, so nothing new is saved.
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
     assert (
-        f"repeats beliefs already on record, so nothing new was stored (computed {n_computed}, saved 0)"
+        f"repeats beliefs already on record, so nothing new was stored (computed {n_computed}, recorded 0)"
         in result.output
     )
     assert len(sensor.search_beliefs()) == n_computed

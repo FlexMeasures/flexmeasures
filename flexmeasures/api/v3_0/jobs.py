@@ -93,7 +93,7 @@ class JobAPI(FlaskView):
             the sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power values only.
             The ``outputs`` field lists one entry per sensor the schedule records on:
             the ``sensor`` (its ID), the number of beliefs (scheduled values) the scheduler computed for it (``num-computed-beliefs``),
-            and the number saved to the database (``num-saved-beliefs``), which leaves out beliefs that were already on record.
+            and the number recorded in the database (``num-recorded-beliefs``), which leaves out beliefs that were already on record.
             The ``num-beliefs`` field holds the total number of beliefs passed to the save.
 
             For a finished reporting job, ``result`` is an object holding the same ``outputs`` field, with one entry per output sensor of the report.
@@ -137,7 +137,7 @@ class JobAPI(FlaskView):
                           a ``StorageScheduler`` job populates it with ``unresolved``/``resolved`` soft state-of-charge constraint analysis
                           (empty arrays when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used).
                           Its ``outputs`` field lists, per sensor the schedule records on, the ``sensor`` (its ID),
-                          ``num-computed-beliefs`` and ``num-saved-beliefs``,
+                          ``num-computed-beliefs`` and ``num-recorded-beliefs``,
                           and its ``num-beliefs`` field holds the total number of beliefs passed to the save.
                           For a finished reporting job, this is an object holding the same ``outputs`` field.
                         nullable: true
@@ -223,7 +223,7 @@ class JobAPI(FlaskView):
                           outputs:
                             - sensor: 5
                               num-computed-beliefs: 96
-                              num-saved-beliefs: 96
+                              num-recorded-beliefs: 96
                           num-beliefs: 96
                         func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling

@@ -1996,12 +1996,12 @@ def test_run_report_automation_with_two_outputs_saves_both(
             {
                 "sensor": report_sensor_id,
                 "num-computed-beliefs": 5,
-                "num-saved-beliefs": 5,
+                "num-recorded-beliefs": 5,
             },
             {
                 "sensor": report_sensor_2_id,
                 "num-computed-beliefs": 5,
-                "num-saved-beliefs": 5,
+                "num-recorded-beliefs": 5,
             },
         ]
     }
@@ -2278,7 +2278,7 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     first = run_report_job(**job.kwargs)
     assert first == {
         "outputs": [
-            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-saved-beliefs": 5}
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 5}
             for sensor_id in (report_sensor_id, report_sensor_2_id)
         ]
     }
@@ -2290,7 +2290,7 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     # The rerun computed as much as the first run did, which tells it apart from a run that computed nothing.
     assert second == {
         "outputs": [
-            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-saved-beliefs": 0}
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 0}
             for sensor_id in (report_sensor_id, report_sensor_2_id)
         ]
     }
