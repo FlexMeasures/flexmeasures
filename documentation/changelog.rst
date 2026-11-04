@@ -102,7 +102,7 @@ Infrastructure / Support
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
-* Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, and connect to the database through psycopg 3 when ``SQLALCHEMY_DATABASE_URI`` names no driver (``postgresql://``), where to keep using psycopg2 you can name it (``postgresql+psycopg2://``), while ``flexmeasures db-ops dump`` and ``restore`` now also work with a URI that names a driver [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_ and `PR #2601 <https://www.github.com/FlexMeasures/flexmeasures/pull/2601>`_]
+* Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, and connect to the database through psycopg 3 when ``SQLALCHEMY_DATABASE_URI`` names no driver (``postgresql://``), where to keep using psycopg2 you can name it (``postgresql+psycopg2://``), while ``flexmeasures db-ops dump`` and ``restore`` now also work with a URI that names a driver [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_, `PR #2601 <https://www.github.com/FlexMeasures/flexmeasures/pull/2601>`_ and `PR #2808 <https://www.github.com/FlexMeasures/flexmeasures/pull/2808>`_]
 * Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 * Logging out now takes a POST request, so that another site cannot log users out by linking to ``/logout``; the UI's *Log out* button submits a form, and plugins that link to ``/logout`` should do the same [see `PR #2604 <https://www.github.com/FlexMeasures/flexmeasures/pull/2604>`_]
 * ``uv run poe clean-db`` now hands the database it creates to the ``--db-user``, so that setting up a development database also works on PostgreSQL 15 and newer, where only a database's owner may create tables in its ``public`` schema [see `PR #2590 <https://www.github.com/FlexMeasures/flexmeasures/pull/2590>`_]
@@ -110,13 +110,14 @@ Infrastructure / Support
 * A forecast that repeats the belief right before it is no longer stored again, like any other data, so a report input that asks only for forecasts made at most some time ahead (``horizons_at_most``) can find fewer of them; plugins that save forecasts through ``save_forecast`` can pass ``save_changed_beliefs_only=False`` to record every belief [see `PR #2688 <https://www.github.com/FlexMeasures/flexmeasures/pull/2688>`_]
 * Every kind of data generator (e.g. a ``Forecaster``, ``Scheduler`` or ``Reporter``) now has its results checked and saved in the same way: all of a run's outputs are saved or none of them, and recording on a sensor the generator was not checked against raises ``GeneratorWritesUncheckedSensor`` [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
 * Stop installing the libraries for passkey, authenticator-app and SMS sign-in, which FlexMeasures does not support, as it ships email-based two-factor authentication only; to enable the ``authenticator`` method anyway, install ``qrcode`` [see `PR #2564 <https://www.github.com/FlexMeasures/flexmeasures/pull/2564>`_]
+* Speed up loading chart data for an asset with many sensors, by skipping two queries that were repeated for each sensor: the look-up of the materialized view of most recent beliefs, which is now done once for all sensors (and the view is still used if a host created it), and the query for the parent asset of each sensor [see `PR #2759 <https://www.github.com/FlexMeasures/flexmeasures/pull/2759>`_]
 * Add a concepts page on data pipelining, which describes in one place how time-series data is referenced (sensor references, source filters, fallback values), cleaned on the way in and bounded on the way out, and link to it from the feature pages and tutorials [see `PR #2721 <https://www.github.com/FlexMeasures/flexmeasures/pull/2721>`_]
 * On an asset with charge points, the Default chart no longer loads the charging-session sensors it doesn't draw, and the Charge Points chart loads only the sensors it draws; switching between them loads that chart's data [see `PR #2790 <https://www.github.com/FlexMeasures/flexmeasures/pull/2790>`_]
 
 Bugfixes
 -----------
 * In the Docker image, ``pip install``, which our docs and the compose stack use to add plugins and their requirements, now installs into the environment FlexMeasures runs from, rather than where FlexMeasures could not import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
-* Scheduling workers no longer print the HiGHS solver's banner and log to the console, unless ``LOGGING_LEVEL`` is ``DEBUG``; setting ``output_flag`` in ``FLEXMEASURES_LP_SOLVER_OPTIONS`` now also suppresses the banner [see `PR #2794 <https://www.github.com/FlexMeasures/flexmeasures/pull/2794>`_]
+* Scheduling workers no longer print the HiGHS solver's banner and log to the console, unless ``LOGGING_LEVEL`` is ``DEBUG``; setting ``output_flag`` in ``FLEXMEASURES_LP_SOLVER_OPTIONS`` now also suppresses the banner. And with ``appsi_highs`` (or another Pyomo appsi solver), the solver's output no longer passes through FlexMeasures' log handlers, which repeated each line with ever more prefixes and could hang a worker; that output now goes to stdout only, so it no longer reaches the log file [see `PR #2794 <https://www.github.com/FlexMeasures/flexmeasures/pull/2794>`_ and `PR #2807 <https://www.github.com/FlexMeasures/flexmeasures/pull/2807>`_]
 * Allow consultants to create assets in client organisations, and reject attempts to change an asset’s organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_]
 * The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
@@ -1241,7 +1242,7 @@ New features
 * Support a less verbose way of setting the same :abbr:`SoC (state of charge)` constraint for a given time window [see `PR #899 <https://github.com/FlexMeasures/flexmeasures/pull/899>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Deprecate use of flask's ``FLASK_ENV`` variable and replace it with ``FLEXMEASURES_ENV`` [see `PR #907 <https://github.com/FlexMeasures/flexmeasures/pull/907>`_]
 * Streamline CLI option naming by favoring ``--<entity>`` over ``--<entity>-id`` [see `PR #946 <https://github.com/FlexMeasures/flexmeasures/pull/946>`_]
 * Documentation: improve index page, installation overview, feature overview incl. flex-model overview and UI screenshots [see `PR #953 <https://github.com/FlexMeasures/flexmeasures/pull/953>`_]
@@ -1288,7 +1289,7 @@ New features
 * Define time-varying charging and discharging efficiencies as sensors or as constant values which allows to define the :abbr:`COP (coefficient of performance)` [see `PR #933 <https://github.com/FlexMeasures/flexmeasures/pull/933>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Align database and models of ``annotations``, ``data_sources``, and ``timed_belief`` [see `PR #929 <https://github.com/FlexMeasures/flexmeasures/pull/929>`_]
 * New documentation section on constructing a flex model for :abbr:`V2G (vehicle-to-grid)` [see `PR #885 <https://github.com/FlexMeasures/flexmeasures/pull/885>`_]
 * Allow charts in plugins to show currency codes (such as EUR) as currency symbols (€) [see `PR #922 <https://github.com/FlexMeasures/flexmeasures/pull/922>`_]
@@ -1326,7 +1327,7 @@ New features
 - New accounts can set a consultancy relationship with another account to give read access to external consultants [see `PR #877 <https://github.com/FlexMeasures/flexmeasures/pull/877>`_ and `PR #892 <https://github.com/FlexMeasures/flexmeasures/pull/892>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 - Introduce a new one-to-many relation between assets, allowing the definition of an asset's parent (which is also an asset), which leads to a hierarchical relationship that enables assets to be related in a structured manner [see `PR #855 <https://github.com/FlexMeasures/flexmeasures/pull/855>`_ and `PR #874 <https://github.com/FlexMeasures/flexmeasures/pull/874>`_]
 - Introduce a new format for the output of ``Scheduler`` to prepare for multiple outputs [see `PR #879 <https://github.com/FlexMeasures/flexmeasures/pull/879>`_]
 
@@ -1354,7 +1355,7 @@ New features
 * API users (and hosts) are warned in case a fallback scheduling policy has been used to create their schedule (as part of the the `[GET] /sensors/<id>/schedules/<uuid>` response message) [see `PR #859 <https://github.com/FlexMeasures/flexmeasures/pull/859>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Allow additional datetime conversions to quantitative time units, specifically, from timezone-naive and/or dayfirst datetimes, which can be useful when importing data [see `PR #831 <https://github.com/FlexMeasures/flexmeasures/pull/831>`_]
 * Add a new tutorial to explain the use of the ``AggregatorReporter`` to compute the headroom and the ``ProfitOrLossReporter`` to compute the cost of running a process [see `PR #825 <https://github.com/FlexMeasures/flexmeasures/pull/825>`_ and `PR #856 <https://github.com/FlexMeasures/flexmeasures/pull/856>`_]
 * Updated admin dashboard for inspecting asynchronous tasks (scheduling, forecasting, reporting, etc.), and improved performance and security of the server by upgrading Flask and Flask extensions [see `PR #838 <https://github.com/FlexMeasures/flexmeasures/pull/838>`_]
@@ -1417,7 +1418,7 @@ Bugfixes
 * Add binary constraint to avoid energy leakages during periods with negative prices [see `PR #770 <https://www.github.com/FlexMeasures/flexmeasures/pull/770>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Add support for profiling Flask API calls using ``pyinstrument`` (if installed). Can be enabled by setting the environment variable ``FLEXMEASURES_PROFILE_REQUESTS`` to ``True`` [see `PR #722 <https://www.github.com/FlexMeasures/flexmeasures/pull/722>`_]
 * The endpoint `[POST] /health/ready <api/v3_0.html#get--api-v3_0-health-ready>`_ returns the status of the Redis connection, if configured [see `PR #699 <https://www.github.com/FlexMeasures/flexmeasures/pull/699>`_]
 * Document the ``device_scheduler`` linear program [see `PR #764 <https://www.github.com/FlexMeasures/flexmeasures/pull/764>`_]
@@ -1475,7 +1476,7 @@ Bugfixes
 * Fix charts not always loading over https in secured scenarios [see `PR #716 <https://www.github.com/FlexMeasures/flexmeasures/pull/716>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Introduction of the classes ``Reporter``, ``PandasReporter`` and ``AggregatorReporter`` to help customize your own reporter functions (experimental) [see `PR #641 <https://www.github.com/FlexMeasures/flexmeasures/pull/641>`_ and `PR #712 <https://www.github.com/FlexMeasures/flexmeasures/pull/712>`_]
 * The setting ``FLEXMEASURES_PLUGINS`` can be set as environment variable now (as a comma-separated list) [see `PR #660 <https://www.github.com/FlexMeasures/flexmeasures/pull/660>`_]
 * Packaging was modernized to stop calling setup.py directly [see `PR #671 <https://www.github.com/FlexMeasures/flexmeasures/pull/671>`_]
@@ -1538,7 +1539,7 @@ Bugfixes
 * GET `/api/v3_0/assets/public` should ask for token authentication and not forward to login page [see `PR #649 <https://www.github.com/FlexMeasures/flexmeasures/pull/649>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Support blackout tests for sunset API versions [see `PR #651 <https://www.github.com/FlexMeasures/flexmeasures/pull/651>`_]
 * Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
 * Sunset several API fields for `[POST] /sensors/<id>/schedules/trigger` that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
@@ -1603,7 +1604,7 @@ Bugfixes
 * Faster loading of initial charts and calendar date selection [see `PR #533 <https://www.github.com/FlexMeasures/flexmeasures/pull/533>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <https://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Allow extra requirements to be freshly installed when running ``docker-compose up`` [see `PR #528 <https://www.github.com/FlexMeasures/flexmeasures/pull/528>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <https://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
@@ -1679,7 +1680,7 @@ Bugfixes
 * Account admins cannot add assets to other accounts any more; and they are shown a button for asset creation in UI [see `PR #488 <https://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Docker compose stack now with Redis worker queue [see `PR #455 <https://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Allow access tokens to be passed as env vars as well [see `PR #443 <https://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 * Queue workers can get initialised without a custom name and name collisions are handled [see `PR #455 <https://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
@@ -1700,7 +1701,7 @@ v0.10.0 | May 8, 2022
 ===========================
 
 New features
------------
+------------
 * New design for FlexMeasures' UI back office [see `PR #425 <https://www.github.com/FlexMeasures/flexmeasures/pull/425>`_]
 * Improve legibility of chart axes [see `PR #413 <https://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
 * API provides health readiness check at /api/v3_0/health/ready [see `PR #416 <https://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
@@ -1712,7 +1713,7 @@ Bugfixes
 * Fix small problems in support for the admin-reader role & role-based authorization [see `PR #422 <https://www.github.com/FlexMeasures/flexmeasures/pull/422>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Dockerfile to run FlexMeasures in container; also docker-compose file [see `PR #416 <https://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 * Unit conversion prefers shorter units in general [see `PR #415 <https://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
 * Shorter CI builds in Github Actions by caching Python environment [see `PR #361 <https://www.github.com/FlexMeasures/flexmeasures/pull/361>`_]
@@ -1760,7 +1761,7 @@ v0.9.0 | March 25, 2022
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
------------
+------------
 * Three new CLI commands for cleaning up your database: delete 1) unchanged beliefs, 2) NaN values or 3) a sensor and all of its time series data [see `PR #328 <https://www.github.com/FlexMeasures/flexmeasures/pull/328>`_]
 * Add CLI option to pass a data unit when reading in time series data from CSV, so data can automatically be converted to the sensor unit [see `PR #341 <https://www.github.com/FlexMeasures/flexmeasures/pull/341>`_]
 * Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <https://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
@@ -1778,7 +1779,7 @@ New features
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/090-cli-developer-power/>`__.
 
 Infrastructure / Support
-----------------------
+------------------------
 * Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <https://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
 * Adapt CLI command for entering some initial structure (``flexmeasures add structure``) to new datamodel [see `PR #349 <https://www.github.com/FlexMeasures/flexmeasures/pull/349>`_]
 * Align documentation requirements with pip-tools [see `PR #384 <https://www.github.com/FlexMeasures/flexmeasures/pull/384>`_]
@@ -1790,10 +1791,10 @@ v0.8.0 | January 24, 2022
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 .. warning:: In case you use FlexMeasures for simulations using ``FLEXMEASURES_MODE = "play"``, allowing to overwrite data is now set separately using :ref:`overwrite-config`. Add ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = True`` to your config settings to keep the old behaviour.
-.. note:: v0.8.0 is doing much of the work we need to do to move to the new data model (see :ref:`note_on_datamodel_transition`). We hope to keep the migration steps for users very limited. One thing you'll notice is that we are copying over existing data to the new model (which will be kept in sync) with the ``db upgrade`` command (see warning above), which can take a few minutes.
+.. note:: v0.8.0 is doing much of the work we need to do to move to the new data model (see the `note on the data model transition <https://flexmeasures.readthedocs.io/v1.0.1/dev/note-on-datamodel-transition.html>`_). We hope to keep the migration steps for users very limited. One thing you'll notice is that we are copying over existing data to the new model (which will be kept in sync) with the ``db upgrade`` command (see warning above), which can take a few minutes.
 
 New features
------------
+------------
 * Bar charts of sensor data for individual sensors, that can be navigated using a calendar [see `PR #99 <https://www.github.com/FlexMeasures/flexmeasures/pull/99>`_ and `PR #290 <https://www.github.com/FlexMeasures/flexmeasures/pull/290>`_]
 * Charts with sensor data can be requested in one of the supported [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <https://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
 * Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <https://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
@@ -1814,7 +1815,7 @@ Bugfixes
 * Fix bug in sensor data charts where data from multiple sources would be stacked, which incorrectly suggested that the data should be summed, whereas the data represents alternative beliefs [see `PR #228 <https://www.github.com/FlexMeasures/flexmeasures/pull/228>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <https://www.github.com/FlexMeasures/flexmeasures/pull/210>`_]
 * Central authorization policy which lets database models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <https://www.github.com/FlexMeasures/flexmeasures/pull/234>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <https://www.github.com/FlexMeasures/flexmeasures/pull/154>`_]
@@ -1845,7 +1846,7 @@ v0.7.0 | October 26, 2021
 .. warning:: The config setting ``FLEXMEASURES_PLUGIN_PATHS`` has been renamed to ``FLEXMEASURES_PLUGINS``. The old name still works but is deprecated.
 
 New features
------------
+------------
 * Set a logo for the top left corner with the new ``FLEXMEASURES_MENU_LOGO_PATH`` setting [see `PR #184 <https://www.github.com/FlexMeasures/flexmeasures/pull/184>`_]
 * Add an extra style-sheet which applies to all pages with the new ``FLEXMEASURES_EXTRA_CSS_PATH`` setting [see `PR #185 <https://www.github.com/FlexMeasures/flexmeasures/pull/185>`_]
 * Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <https://www.github.com/FlexMeasures/flexmeasures/pull/215>`_]
@@ -1860,7 +1861,7 @@ Bugfixes
 * Fix `/sensors/<id>/chart` view [see `PR #223 <https://www.github.com/FlexMeasures/flexmeasures/pull/223>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * FlexMeasures plugins can be Python packages now, and we provide `a cookie-cutter template <https://github.com/FlexMeasures/flexmeasures-plugin-template>`_ for this approach [see `PR #182 <https://www.github.com/FlexMeasures/flexmeasures/pull/182>`_]
 * Set default timezone for new users using the ``FLEXMEASURES_TIMEZONE`` config setting [see `PR #190 <https://www.github.com/FlexMeasures/flexmeasures/pull/190>`_]
 * To avoid databases from filling up with irrelevant information, only beliefs data representing *changed beliefs are saved*, and *unchanged beliefs are dropped* [see `PR #194 <https://www.github.com/FlexMeasures/flexmeasures/pull/194>`_]
@@ -1891,7 +1892,7 @@ v0.6.0 | September 3, 2021
 .. warning:: Plugins now need to set their version on their module rather than on their blueprint. See the `documentation for writing plugins <https://flexmeasures.readthedocs.io/en/v0.6.0/dev/plugins.html>`_.
 
 New features
------------
+------------
 * Multi-tenancy: Supporting multiple customers per FlexMeasures server, by introducing the ``Account`` concept, where accounts have users and assets associated [see `PR #159 <https://www.github.com/FlexMeasures/flexmeasures/pull/159>`_ and `PR #163 <https://www.github.com/FlexMeasures/flexmeasures/pull/163>`_]
 * In the UI, the root view ("/"), the platform name and the visible menu items can now be more tightly controlled (per account roles of the current user) [see also `PR #163 <https://www.github.com/FlexMeasures/flexmeasures/pull/163>`_]
 * Analytics view offers grouping of all assets by location [see `PR #148 <https://www.github.com/FlexMeasures/flexmeasures/pull/148>`_]
@@ -1900,7 +1901,7 @@ New features
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v060-multi-tenancy-error-monitoring/>`__.
 
 Infrastructure / Support
-----------------------
+------------------------
 * Add possibility to send errors to Sentry [see `PR #143 <https://www.github.com/FlexMeasures/flexmeasures/pull/143>`_]
 * Add CLI task to monitor if tasks ran successfully and recently enough [see `PR #146 <https://www.github.com/FlexMeasures/flexmeasures/pull/146>`_]
 * Document how to use a custom favicon in plugins [see `PR #152 <https://www.github.com/FlexMeasures/flexmeasures/pull/152>`_]
@@ -1915,7 +1916,7 @@ v0.5.0 | June 7, 2021
 .. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
 
 New features
------------
+------------
 * Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <https://www.github.com/FlexMeasures/flexmeasures/pull/106>`_]
 * Allow plugins to customise the copyright notice and credits in the UI footer [see `PR #123 <https://www.github.com/FlexMeasures/flexmeasures/pull/123>`_]
 * Display loaded plugins in footer and support plugin versioning [see `PR #139 <https://www.github.com/FlexMeasures/flexmeasures/pull/139>`_]
@@ -1928,7 +1929,7 @@ Bugfixes
 * Choose better forecasting horizons when weather data is posted [see `PR #131 <https://www.github.com/FlexMeasures/flexmeasures/pull/131>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Add tutorials on how to add and read data from FlexMeasures via its API [see `PR #130 <https://www.github.com/FlexMeasures/flexmeasures/pull/130>`_]
 * For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <https://www.github.com/FlexMeasures/flexmeasures/pull/113>`_]
 * Entity address improvements: add new id-based `fm1` scheme, better documentation and more validation support of entity addresses [see `PR #81 <https://www.github.com/FlexMeasures/flexmeasures/pull/81>`_]
@@ -1955,7 +1956,7 @@ v0.4.0 | April 29, 2021
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
------------
+------------
 * Allow for views and CLI functions to come from plugins [see also `PR #91 <https://github.com/FlexMeasures/flexmeasures/pull/91>`_]
 * Configure the UI menu with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/FlexMeasures/flexmeasures/pull/91>`_]
 
@@ -1966,7 +1967,7 @@ Bugfixes
 * Asset edit form displayed wrong error message. Also enabled the asset edit form to display the invalid user input back to the user [see `PR #93 <https://www.github.com/FlexMeasures/flexmeasures/pull/93>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Upgraded dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
 * Improved documentation after user feedback [see `PR #97 <https://www.github.com/FlexMeasures/flexmeasures/pull/97>`_]
 * Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: ``Sensor`` data as ``TimedBelief`` objects [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
@@ -1986,7 +1987,7 @@ v0.3.0 | April 2, 2021
 ===========================
 
 New features
------------
+------------
 * FlexMeasures can be installed with ``pip`` and its CLI commands can be run with ``flexmeasures`` [see `PR #54 <https://www.github.com/FlexMeasures/flexmeasures/pull/54>`_]
 * Optionally setting recording time when posting data [see `PR #41 <https://www.github.com/FlexMeasures/flexmeasures/pull/41>`_]
 * Add assets and weather sensors with CLI commands [see `PR #74 <https://github.com/FlexMeasures/flexmeasures/pull/74>`_]
@@ -2002,7 +2003,7 @@ Bugfixes
 * Missing *postPrognosis* endpoint for >1.0 API blueprints [part of `PR #41 <https://www.github.com/FlexMeasures/flexmeasures/pull/41>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Added concept pages to documentation [see `PR #65 <https://www.github.com/FlexMeasures/flexmeasures/pull/65>`_]
 * Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/FlexMeasures/flexmeasures/pull/68>`_]
 * Improved installation tutorial as part of [`PR #54 <https://www.github.com/FlexMeasures/flexmeasures/pull/54>`_]
@@ -2028,7 +2029,7 @@ Bugfixes
 * Password reset link on account page was broken [see `PR #23 <https://www.github.com/FlexMeasures/flexmeasures/pull/23>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * CI via Github Actions [see `PR #1 <https://www.github.com/FlexMeasures/flexmeasures/pull/1>`_]
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`__ lib: Sensors [see `PR #13 <https://www.github.com/FlexMeasures/flexmeasures/pull/13>`_]
 * Apache 2.0 license [see `PR #16 <https://www.github.com/FlexMeasures/flexmeasures/pull/16>`_]

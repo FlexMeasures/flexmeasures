@@ -1,8 +1,8 @@
 .. _cli-changelog:
 
-**********************
+**************************
 FlexMeasures CLI Changelog
-**********************
+**************************
 
 since v1.1.0 | September XX, 2026
 =================================
@@ -89,7 +89,7 @@ since v0.29.0 | October 14, 2025
 * The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
 
 since v0.28.0 | September 10, 2025
-=================================
+==================================
 * Removed command ``flexmeasures db-ops save`` and ``flexmeasures db-ops load`` for folder&file - base backup management.
 
 since v0.27.0 | July 20, 2025
@@ -204,7 +204,7 @@ since v0.12.0 | January 04, 2023
 
 
 since v0.11.0 | August 28, 2022
-==============================
+===============================
 * Add ``flexmeasures jobs show-queues`` to show contents of computation job queues.
 * ``--name`` parameter in ``flexmeasures jobs run-worker`` is now optional.
 * Add ``--custom-message`` param to ``flexmeasures monitor tasks``.
@@ -232,19 +232,19 @@ since v0.8.0 | January 26, 2022
 
 
 since v0.6.0 | April 2, 2021
-=====================
+============================
 
 * Add ``flexmeasures add account``, ``flexmeasures delete account``, and the ``--account-id`` param to ``flexmeasures add user``.
 
 
 since v0.4.0 | April 2, 2021
-=====================
+============================
 
 * Add the ``dev-add`` command group for experimental features around the upcoming data model refactoring.
 
 
 since v0.3.0 | April 2, 2021
-=====================
+============================
 
 * Refactor CLI into the main groups ``add``, ``delete``, ``jobs`` and ``db-ops``
 * Add ``flexmeasures add asset``,  ``flexmeasures add user`` and ``flexmeasures add weather-sensor``

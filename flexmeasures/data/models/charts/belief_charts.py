@@ -788,15 +788,12 @@ def chart_for_multiple_sensors(
 ):
     """Create a chart for multiple sensors.
 
-    Args:
-        sensors_to_show: List of sensor entries to display
-        event_starts_after: Start of time window
-        event_ends_before: End of time window
-        combine_legend: Whether to combine legends
-        **override_chart_specs: Additional chart spec overrides
-
-    Returns:
-        Vega-Lite chart specification dictionary
+    :param sensors_to_show:         List of sensor entries to display.
+    :param event_starts_after:      Start of time window.
+    :param event_ends_before:       End of time window.
+    :param combine_legend:          Whether to combine legends.
+    :param override_chart_specs:    Additional chart spec overrides.
+    :returns:                       Vega-Lite chart specification dictionary.
     """
     all_shown_sensors = flatten_unique(sensors_to_show)
     real_sensors = [

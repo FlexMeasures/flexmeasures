@@ -67,7 +67,7 @@ To load a configuration file into the container when starting up, we make use of
 .. note:: The server and the FlexMeasures CLI in the container both read the instance folder at ``/app/instance``. Settings in ``flexmeasures.cfg`` take effect when the container starts, so restart the container after changing them; signalling gunicorn to reload (``kill -HUP``) restarts its workers but does not reload FlexMeasures, which gunicorn loads only once.
 
 Installing plugins within the container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 At this point, the FlexMeasures container is up and running without including any plugins you might need to use. To integrate a plugin into the container, follow these steps:
 

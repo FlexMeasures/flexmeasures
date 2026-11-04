@@ -86,6 +86,7 @@ You will see similar results in your `FlexMeasures UI <http://localhost:5000/ass
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
     :align: center
+
 |
 
 
