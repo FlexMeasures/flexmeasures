@@ -7,6 +7,7 @@
 # http://www.sphinx-doc.org/en/stable/config
 
 import os
+import re
 import shutil
 
 from datetime import datetime
@@ -110,6 +111,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_templates"]
 
 # Todo: these are not mature enough yet for release, or should be removed
 exclude_patterns.append("int/*.rst")
+# Descriptions generated below for pages to include, rather than pages of their own.
+exclude_patterns.append("_autodoc/*.rst")
 exclude_patterns.append("concepts/assets.rst")
 exclude_patterns.append("concepts/markets.rst")
 exclude_patterns.append("concepts/users.rst")
@@ -236,6 +239,295 @@ copybutton_line_continuation_character = "\\"
 # -- Options for ifconfig extension ---------------------------------------
 
 
+def drop_openapi_spec(app, what, name, obj, options, lines):
+    """Leave out the OpenAPI spec that an API endpoint's docstring holds below a line of just ``---``.
+
+    The API docs render that spec themselves, and read as reStructuredText, its YAML only produces indentation errors.
+    """
+    for index, line in enumerate(lines):
+        if line.strip() == "---":
+            del lines[index:]
+            break
+
+
+LIST_ITEM = re.compile(r"(\s*)([-*+]|\d+[.)]|\(\d+\)|#\.) +\S")
+FIELD = re.compile(r"(\s*):[^:\s][^:]*:( +(?=\S)|\s*$)")
+DIRECTIVE = re.compile(r"\s*\.\. ([\w:-]+)::(.*)")
+CODE_DIRECTIVES = ("code-block", "code", "sourcecode")
+
+
+def indent_of(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def list_item_indent(line: str) -> int | None:
+    """Return the indent of a list item's bullet, or None if the line does not start a list item."""
+    match = LIST_ITEM.match(line)
+    return len(match.group(1)) if match else None
+
+
+def text_indent_of(line: str) -> int:
+    """Return where a line's text starts, which for a list item or a field is after its bullet or marker."""
+    if (match := LIST_ITEM.match(line)) is not None:
+        return len(match.group(0)) - 1
+    if (match := FIELD.match(line)) is not None:
+        # If nothing follows the marker, the field's text starts on the next line.
+        return match.end() if match.end() < len(line.rstrip()) else len(line)
+    return indent_of(line)
+
+
+def indented_block(lines: list[str], text_indent: int) -> list[str]:
+    """Return the lines up to the first one indented no further than text_indent, leaving out blank lines at the end."""
+    block = []
+    for line in lines:
+        if line.strip() and indent_of(line) <= text_indent:
+            break
+        block.append(line)
+    while block and not block[-1].strip():
+        block.pop()
+    return block
+
+
+CODE_START = re.compile(r"""\s*([{\[("'<@]|[\w.]+\(|\S+ = |(def|class) )""")
+
+
+def looks_like_code(block: list[str]) -> bool:
+    """Tell whether an indented block reads as code rather than as text.
+
+    Code opens with a bracket, a quote, a decorator, a call, an assignment or a definition,
+    or its indent shifts from one of its outermost lines to the next, other than after a line that introduces a block of its own.
+    """
+    text = [line for line in block if line.strip()]
+    if any(line.rstrip().endswith("::") or DIRECTIVE.match(line) for line in text):
+        return False  # the block marks up its own literal blocks
+    if CODE_START.match(text[0]):
+        return True
+    outermost = min(indent_of(line) for line in text)
+    for above, below in zip(block, block[1:]):
+        if (
+            above.strip()
+            and indent_of(above) == outermost
+            and below.strip()
+            and not above.rstrip().endswith(":")
+            and not FIELD.match(above)
+            and list_item_indent(below) is None
+            and indent_of(below) != text_indent_of(above)
+        ):
+            return True
+    return False
+
+
+def field_body_returns_to(lines: list[str], text_indent: int) -> bool:
+    """Tell whether a field's body, of which these are the next lines, comes back to the indent of its first line of text.
+
+    Only then does a more indented block in the body stand out from it, as docutils indents a field's body as far as its least indented line.
+    """
+    for line in lines:
+        if line.strip():
+            if indent_of(line) <= text_indent:
+                return indent_of(line) == text_indent
+    return False
+
+
+def add_markup_that_sphinx_needs(app, what, name, obj, options, lines):  # noqa: C901
+    """Add the reStructuredText markup that our docstrings leave out, so they can read as plain text in the source.
+
+    - A blank line goes before a list, before a nested list and back out of one, before a field list, before a ``>>>`` example, and before a directive and its code.
+    - A paragraph ending in a single colon, followed by a more indented block that reads as code, introduces a literal block, as if it had ended in ``::``.
+      A block that reads as text stays a definition or a block quote, and a blank line goes after it.
+
+    Anything inside a literal block or directive is left alone.
+    """
+    normalized = []
+    previous_text = None  # index in normalized of the last non-blank line outside literal blocks and doctests
+    list_item = None  # (bullet indent, text indent) of the list item that the previous line belongs to
+    field_indent = None  # the indent of the field marker that the previous line belongs to, in a field list
+    quote_indent = None  # where the text starts of the line introducing the definition or block quote we are in
+    literal_indent = None  # where the text starts of the line that opened the literal block or directive we are in
+    directive_header = False  # whether a blank line is still due before the content of the directive or literal block we are in
+    in_doctest = False  # a doctest block runs up to the next blank line
+    for index, line in enumerate(lines):
+        after_blank = not normalized or not normalized[-1].strip()
+        if not line.strip():
+            normalized.append(line)
+            list_item = field_indent = None
+            in_doctest = False
+            continue
+        indent = indent_of(line)
+        if literal_indent is not None:
+            if indent > literal_indent:
+                if directive_header and not line.lstrip().startswith(":"):
+                    # The content starts after a blank line, which also ends a directive's options.
+                    if not after_blank:
+                        normalized.append("")
+                    directive_header = False
+                normalized.append(line)
+                continue
+            literal_indent = None
+            directive_header = False
+            # A literal block, like a directive's content, also ends with a blank line.
+            if not after_blank:
+                normalized.append("")
+                after_blank = True
+        if in_doctest:
+            normalized.append(line)
+            continue
+        bullet_indent = list_item_indent(line)
+        if (
+            bullet_indent is None
+            and list_item is not None
+            and not after_blank
+            and list_item[0] <= indent < list_item[1]
+            and line.lstrip()[0].islower()
+            and not normalized[-1].rstrip().endswith((".", ":", "!", "?"))
+        ):
+            # A list item's sentence that wraps back to its bullet still belongs to it.
+            line = " " * list_item[1] + line.lstrip()
+            indent = list_item[1]
+        directive = DIRECTIVE.match(line)
+        doctest = line.lstrip().startswith(">>>")
+        field = FIELD.match(line)
+        if (
+            previous_text is not None
+            and bullet_indent is None
+            and not directive
+            and not doctest
+        ):
+            introduction = normalized[previous_text].rstrip()
+            introduction_field = FIELD.match(introduction)
+            text_indent = text_indent_of(introduction)
+            if (
+                indent > text_indent
+                and introduction.endswith(":")
+                and not introduction.endswith("::")
+                and not DIRECTIVE.match(introduction)
+                and not (
+                    introduction_field and introduction_field.end() == len(introduction)
+                )
+                and not (
+                    introduction_field
+                    and not field_body_returns_to(lines[index:], text_indent)
+                )
+            ):
+                if introduction_field or looks_like_code(
+                    indented_block(lines[index:], text_indent)
+                ):
+                    normalized[previous_text] = introduction + ":"
+                    if not after_blank:
+                        normalized.append("")
+                    normalized.append(line)
+                    literal_indent = text_indent
+                    continue
+                if quote_indent is None:
+                    quote_indent = text_indent
+                starts_paragraph = (
+                    previous_text == 0 or not normalized[previous_text - 1].strip()
+                )
+                if not after_blank and not starts_paragraph:
+                    # Only a paragraph's first line can be the term of a definition, so the block can only be quoted.
+                    normalized.append("")
+                    after_blank = True
+        if quote_indent is not None and indent <= quote_indent:
+            if not after_blank:
+                normalized.append("")
+                after_blank = True
+            quote_indent = None
+        if not after_blank and (
+            # A list, or a list nested in it, starts after a blank line, and so does the text after it.
+            (
+                bullet_indent is not None
+                and (list_item is None or list_item[0] != bullet_indent)
+            )
+            or (
+                bullet_indent is None
+                and list_item is not None
+                and indent < list_item[1]
+            )
+            # A field list starts after a blank line, and so does the text after it.
+            or (field and field_indent is None)
+            or (not field and field_indent is not None and indent <= field_indent)
+            or doctest
+            or directive
+        ):
+            normalized.append("")
+        if bullet_indent is not None:
+            list_item = (bullet_indent, text_indent_of(line))
+        elif list_item is not None and indent < list_item[1]:
+            list_item = None
+        if field:
+            field_indent = indent
+        elif field_indent is not None and indent <= field_indent:
+            field_indent = None
+        if directive or line.rstrip().endswith("::"):
+            literal_indent = text_indent_of(line)
+            # Code starts after a blank line, while other directives may continue the text on their first line.
+            directive_header = (
+                not directive
+                or directive.group(1) in CODE_DIRECTIVES
+                or not directive.group(2).strip()
+            )
+        in_doctest = doctest
+        normalized.append(line)
+        previous_text = len(normalized) - 1
+    lines[:] = normalized
+
+
+def json_lexer_with_placeholders():
+    """Make a JSON lexer that also accepts the placeholders our examples use: ``...`` for left-out items, ``<house>`` for a value to fill in, and ``${SENSOR_ID}`` for a shell variable.
+
+    Pygments marks these as errors, after which Sphinx would skip highlighting the whole block and warn.
+    This lexer renders them as comments instead, and still marks any other invalid JSON as an error, so typos keep producing warnings.
+    """
+    from pygments.lexers.data import JsonLexer
+    from pygments.token import Comment, Error
+
+    placeholder = re.compile(r"\.\.\.|<[\w-]+>|\$\{\w+\}")
+
+    class JsonWithPlaceholdersLexer(JsonLexer):
+        def get_tokens_unprocessed(self, text):
+            tokens = list(super().get_tokens_unprocessed(text))
+            errors = [index for index, token, _ in tokens if token is Error]
+            # A placeholder is one that JSON cannot read, so leave alone any lookalike within a string.
+            spans = [
+                match.span()
+                for match in placeholder.finditer(text)
+                if any(match.start() <= index < match.end() for index in errors)
+            ]
+            for index, token, value in tokens:
+                end = index + len(value)
+                position = index
+                while position < end:
+                    span = next((s for s in spans if s[0] <= position < s[1]), None)
+                    if span is not None:
+                        # Render the whole placeholder as one comment, where it starts.
+                        if position == span[0]:
+                            yield span[0], Comment, text[span[0] : span[1]]
+                        position = min(end, span[1])
+                    else:
+                        stop = min([end] + [s[0] for s in spans if s[0] > position])
+                        yield position, token, text[position:stop]
+                        position = stop
+
+    return JsonWithPlaceholdersLexer
+
+
+def render_swagger_ui_links_as_text():
+    """Render links to SwaggerUI anchors in the OpenAPI spec's descriptions as their text only.
+
+    In SwaggerUI, a Markdown link like ``[the Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger)`` jumps to that endpoint.
+    In the Sphinx docs, the same anchor becomes a reference to a label that does not exist, while the endpoint is described on the same page anyway.
+    """
+    from sphinxcontrib.openapi import utils as openapi_utils
+
+    get_text_converter = openapi_utils.get_text_converter
+
+    def get_text_converter_without_swagger_ui_links(options):
+        convert = get_text_converter(options)
+        return lambda text: convert(re.sub(r"\[([^\]]+)\]\(#/[^)]*\)", r"\1", text))
+
+    openapi_utils.get_text_converter = get_text_converter_without_swagger_ui_links
+
+
 def setup(sphinx_app):
     """
     Here you can set config variables for Sphinx or even pass config variables from FlexMeasures to Sphinx.
@@ -248,6 +540,11 @@ def setup(sphinx_app):
 
     """
     os.environ["FLEXMEASURES_ENV"] = "documentation"
+    sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
+    sphinx_app.connect("autodoc-process-docstring", add_markup_that_sphinx_needs)
+    sphinx_app.add_lexer("json", json_lexer_with_placeholders())
+    # Patch sphinxcontrib.openapi here, before its directives render the API pages, or their SwaggerUI links each produce an undefined-label warning.
+    render_swagger_ui_links_as_text()
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
@@ -285,8 +582,8 @@ for name in dir(metadata_module):
 
     # Create an autodoc file for the description, because the replace:: syntax does not support multi-line descriptions
     filename = os.path.join(output_dir, f"{name}.rst")
+    # The file holds no title, as pages include it in a table cell, which allows no section titles.
     with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"{name}\n{'=' * len(name)}\n\n")
         f.write(metadata.description)
 
 rst_epilog = "\n".join(sub_lines)

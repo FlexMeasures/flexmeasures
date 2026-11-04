@@ -207,7 +207,7 @@ Default ``[]``
 .. _menu-config:
 
 FLEXMEASURES_MENU_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of the view names which are listed in the menu.
 
@@ -221,7 +221,7 @@ Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a Font Awesome icon name for each view name listed in the menu.
 For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
@@ -232,7 +232,7 @@ Default: ``{}``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_TITLES
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a string title for each view name listed in the menu.
 For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
@@ -419,6 +419,12 @@ Solver options passed to the scheduling solver, overriding the defaults FlexMeas
 
 HiGHS writes its log straight to the console, bypassing FlexMeasures' logging, so FlexMeasures switches it off (``output_flag``) unless ``LOGGING_LEVEL`` is ``DEBUG``.
 Set ``output_flag`` here to override that either way.
+
+Under ``appsi_highs`` (and Pyomo's other appsi solvers), FlexMeasures likewise shows the solver's output on stdout without passing it through its log handlers,
+because Pyomo captures that output and log handlers writing to the console would feed it back into the capture, which can hang a worker.
+One difference: ``appsi_highs`` applies the options only after HiGHS has printed its banner, so ``output_flag`` cannot suppress the banner there.
+Bypassing the log handlers also means the solver's output no longer reaches FlexMeasures' log file.
+To keep a HiGHS log in a file, set HiGHS' own ``log_file`` option here, together with ``"output_flag": "true"`` unless ``LOGGING_LEVEL`` is ``DEBUG``, since HiGHS writes nothing to that file while ``output_flag`` is off.
 
 When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
 
@@ -1099,7 +1105,7 @@ Reporters
 ---------
 
 FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type: list of strings or comma-separated string
 

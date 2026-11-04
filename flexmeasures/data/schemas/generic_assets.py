@@ -313,7 +313,7 @@ class SensorsToShowSchema(fields.Field):
            `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
         6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
            containing a field name or a list of field names:
-            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+           `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
         7. Mixed formats:
            `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 

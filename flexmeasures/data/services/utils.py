@@ -326,8 +326,7 @@ def job_cache(queue: str):
     same arguments. Input arguments are hashed and stored as Redis keys with the values being the job IDs `input_arguments_hash:job_id`).
 
     The benefits of using redis to store the input arguments over a local cache, such as LRU Cache, are:
-    1) It will work in distributed environments (in computing clusters), where multiple workers will avoid repeating
-      work as the cache will be shared across them.
+    1) It will work in distributed environments (in computing clusters), where multiple workers will avoid repeating work as the cache will be shared across them.
     2) Cached calls are logged, which means that we can easily debug.
     3) Cache will still be there on restarts.
 
