@@ -255,8 +255,10 @@ def test_get_job_status_finished(
     result = data["result"]
     assert result["unresolved"] == []
     assert result["resolved"] == []
-    assert result["num-beliefs"] == 96
     assert result["num-computed-beliefs"] == 96
+    assert result["num-saved-beliefs"] == 96
+    # The deprecated num-beliefs keeps counting the beliefs passed to the save.
+    assert result["num-beliefs"] == 96
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
 
@@ -321,10 +323,12 @@ def test_get_job_status_finished_with_unresolved_soc_minima(
         "resolved",
         "num-beliefs",
         "num-computed-beliefs",
+        "num-saved-beliefs",
     }
-    assert isinstance(result["num-beliefs"], int)
-    assert result["num-beliefs"] > 0
-    assert result["num-computed-beliefs"] == result["num-beliefs"]
+    assert isinstance(result["num-saved-beliefs"], int)
+    assert result["num-saved-beliefs"] > 0
+    assert result["num-computed-beliefs"] == result["num-saved-beliefs"]
+    assert result["num-beliefs"] == result["num-computed-beliefs"]
 
     asset_id = add_battery_assets["Test battery"].id
     unresolved_entry = next(

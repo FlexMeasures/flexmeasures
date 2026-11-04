@@ -2205,7 +2205,7 @@ def add_schedule(  # noqa C901
             **scheduling_kwargs,
         )
         n_computed = scheduling_result["num-computed-beliefs"]
-        n_saved = scheduling_result["num-beliefs"]
+        n_saved = scheduling_result["num-saved-beliefs"]
         if dry_run:
             click.secho(
                 f"The schedule above was computed but not stored (because of --dry-run): computed {n_computed}, saved 0.",

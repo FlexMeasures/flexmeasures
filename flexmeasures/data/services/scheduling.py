@@ -972,7 +972,8 @@ def make_schedule(  # noqa: C901
 ) -> dict:
     """
     This function computes a schedule. It returns a dict (see ``SchedulingJobResult``),
-    which counts the beliefs the schedule computed (``num-computed-beliefs``) and those it saved (``num-beliefs``).
+    which counts the beliefs the schedule computed (``num-computed-beliefs``) and those it saved (``num-saved-beliefs``).
+    It also holds the deprecated ``num-beliefs``, which counts the beliefs passed to the save, as it did in v1.0.
     If the scheduler produced soft state-of-charge constraint analysis,
     the dict also holds that analysis under ``unresolved`` and ``resolved`` keys, which are empty lists otherwise.
 
@@ -1163,8 +1164,12 @@ def make_schedule(  # noqa: C901
     # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so that count is 0.
     # The beliefs computed are counted as well, also on a dry run, so that saving none does not read as computing none.
     saved = save_generator_results(to_save) if to_save else []
-    scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
     scheduling_result_dict["num-computed-beliefs"] = n_computed
+    scheduling_result_dict["num-saved-beliefs"] = sum(
+        entry["n_rows"] for entry in saved
+    )
+    # The deprecated num-beliefs keeps its v1.0 meaning: the beliefs passed to the save, which are none on a dry run.
+    scheduling_result_dict["num-beliefs"] = sum(entry["n_computed"] for entry in saved)
 
     if not dry_run:
         scheduler.persist_flex_model()

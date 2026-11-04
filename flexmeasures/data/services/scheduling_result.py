@@ -20,10 +20,12 @@ class SchedulingJobResult:
     - ``resolved``: List of soft constraints that were satisfied with available headroom
       - Each entry is a dict with ``"asset"`` field and constraint-type keys
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
-    - ``num-beliefs``: Total number of beliefs (scheduled values) saved to the database,
-      which leaves out beliefs that repeat what is already on record.
     - ``num-computed-beliefs``: Total number of beliefs (scheduled values) the scheduler computed,
       including those that were not saved because they were already on record.
+    - ``num-saved-beliefs``: Total number of beliefs (scheduled values) saved to the database,
+      which leaves out beliefs that repeat what is already on record.
+    - ``num-beliefs``: Deprecated, kept with its v1.0 meaning:
+      the total number of beliefs passed to the save, which equals ``num-computed-beliefs``, except on a dry run, where it is 0.
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
     Only hard constraint failures cause job failure.
@@ -48,8 +50,9 @@ class SchedulingJobResult:
                     ],
                 }
             ],
-            "num-beliefs": 96,
-            "num-computed-beliefs": 96
+            "num-computed-beliefs": 96,
+            "num-saved-beliefs": 96,
+            "num-beliefs": 96
         }
 
     For usage examples and interpretation guidance, see :ref:`scheduling_constraint_results`.
@@ -57,16 +60,19 @@ class SchedulingJobResult:
 
     unresolved: list = field(default_factory=list)
     resolved: list = field(default_factory=list)
-    num_beliefs: int = 0
     num_computed_beliefs: int = 0
+    num_saved_beliefs: int = 0
+    #: Deprecated, see ``num-beliefs`` above.
+    num_beliefs: int = 0
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-compatible dict."""
         return {
             "unresolved": self.unresolved,
             "resolved": self.resolved,
-            "num-beliefs": self.num_beliefs,
             "num-computed-beliefs": self.num_computed_beliefs,
+            "num-saved-beliefs": self.num_saved_beliefs,
+            "num-beliefs": self.num_beliefs,
         }
 
     @classmethod
@@ -75,6 +81,7 @@ class SchedulingJobResult:
         return cls(
             unresolved=d.get("unresolved", []),
             resolved=d.get("resolved", []),
-            num_beliefs=d.get("num-beliefs", 0),
             num_computed_beliefs=d.get("num-computed-beliefs", 0),
+            num_saved_beliefs=d.get("num-saved-beliefs", 0),
+            num_beliefs=d.get("num-beliefs", 0),
         )

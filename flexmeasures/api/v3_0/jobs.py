@@ -91,9 +91,11 @@ class JobAPI(FlaskView):
             Both arrays are empty when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used.
             This is the only place constraint analysis is available:
             the sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power values only.
-            The ``num-beliefs`` field holds the total number of beliefs (scheduled values) saved to the database,
-            and ``num-computed-beliefs`` the total number the scheduler computed,
-            which also counts beliefs not saved because they were already on record.
+            The ``num-computed-beliefs`` field holds the total number of beliefs (scheduled values) the scheduler computed,
+            and ``num-saved-beliefs`` the total number saved to the database,
+            which leaves out beliefs not saved because they were already on record.
+            The ``num-beliefs`` field is deprecated in favour of these two:
+            it holds the number of beliefs passed to the save, as it did before, which equals ``num-computed-beliefs``.
 
             For a finished reporting job, ``result`` is a list holding, per output,
             the ``sensor_id``, the number of beliefs computed (``n_computed``) and the number of beliefs saved (``n_rows``).
@@ -136,8 +138,9 @@ class JobAPI(FlaskView):
                           For a finished scheduling job, this is an object;
                           a ``StorageScheduler`` job populates it with ``unresolved``/``resolved`` soft state-of-charge constraint analysis
                           (empty arrays when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used).
-                          The ``num-beliefs`` field holds the total number of beliefs (scheduled values) saved to the database,
-                          and ``num-computed-beliefs`` the total number computed.
+                          The ``num-computed-beliefs`` field holds the total number of beliefs (scheduled values) computed,
+                          and ``num-saved-beliefs`` the total number saved to the database.
+                          The ``num-beliefs`` field is deprecated: it equals ``num-computed-beliefs``.
                           For a finished reporting job, this is a list holding, per output,
                           ``sensor_id``, ``n_computed`` and ``n_rows`` (the number of beliefs saved).
                         nullable: true
@@ -220,8 +223,9 @@ class JobAPI(FlaskView):
                                 - datetime: "2024-01-01T10:15:00+00:00"
                                   violation: "180.0 kWh"
                           resolved: []
-                          num-beliefs: 96
                           num-computed-beliefs: 96
+                          num-saved-beliefs: 96
+                          num-beliefs: 96
                         func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
                         enqueued-at: "2026-04-28T10:00:00+00:00"
