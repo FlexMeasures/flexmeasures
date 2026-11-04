@@ -224,6 +224,7 @@ Bugfixes
 * Show dates in the organisation audit log in the same local format as the asset and user audit logs, with the full date and time on hover [see `PR #2664 <https://www.github.com/FlexMeasures/flexmeasures/pull/2664>`_]
 * Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * Creating an organisation now records the action in its audit log, whether it is created in the UI, through the API or from the CLI [see `PR #2580 <https://www.github.com/FlexMeasures/flexmeasures/pull/2580>`_]
+* A chart row that combined a sensor with a fixed value from the flex-model or flex-context, such as ``soc-min``, drew the sensor's data with sloped lines between events, as if the sensor were instantaneous, instead of as steps [see `PR #2356 <https://www.github.com/FlexMeasures/flexmeasures/pull/2356>`_ and `issue #2253 <https://github.com/FlexMeasures/flexmeasures/issues/2253>`_]
 
 **Access and security**
 
