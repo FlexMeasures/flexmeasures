@@ -5,20 +5,55 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-35 | September 9, 2026
+v3.0-34 | November XX, 2026
+""""""""""""""""""""""""""""
+
+**Automations**
+
+- Added ``GET /api/v3_0/assets/<id>/automations``, ``POST /api/v3_0/assets/<id>/automations``, ``GET /api/v3_0/assets/<id>/automations/<automation-id>``, ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation-id>`` for listing, inspecting and managing an asset's automations, including the sensors an automation reads from and writes to. Managing them requires the same permission as writing data under the asset, and an automation may only involve sensors its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Creation and update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the asset's own timezone, taken from the asset's timezone attribute or one of its sensors, and to the server's ``FLEXMEASURES_TIMEZONE`` if the asset has neither.
+- Automation responses report the IANA ``timezone``, a ``cursor`` (the most recent run the automation committed to, which advances just before queueing, so it does not indicate that queueing or the run itself succeeded), a ``next_run`` (the next scheduled run, excluding any catch-up run still pending, and null while the automation is inactive), both as clock times in the automation's own timezone, and a ``schedule-revision``, which counts the execution-affecting edits made to the automation's schedule. Their ``job-stats`` and ``redis-connection-err`` fields are spelled in kebab-case, like the rest.
+- Automation detail responses add a ``run-stats`` object, summarising the automation's durable runs and describing the most recent ones: their scheduled time, dispatch state (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), execution state (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``), attempt count, intended and queued job counts, timestamps, last error, latest attempt, and the individual jobs they created. They also report the data generator's stored configuration as ``config`` on the automation's ``source``, such as the model a forecaster trains and the period it trains over.
+- ``GET /api/v3_0/assets/<id>/automations`` also lists the automations of the assets below the asset, at any depth, as far as the caller may read them, and each entry names the asset it is defined on in ``asset`` and ``asset-name``. Pass ``include-child-assets=false`` to list only the asset's own automations.
+- Added ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger``, to run one automation now, once, on top of its recurring runs, which leaves its recurrence alone and works for inactive automations, too. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. Triggering requires the same permission as writing data under the asset, and falls under the trigger rate limit.
+- ``POST /api/v3_0/assets/<id>/automations`` accepts ``source``, the ID of an existing data source to reuse, instead of a ``data-generator`` and its ``config``; the automation then runs the data generator the source stores, and records its results under that same source. Naming a source is refused with a ``403`` unless the caller may read it, and with a ``422`` where it is combined with ``data-generator`` or ``config``, where it stores no data generator of the automation's type, or where the automation schedules (a schedule automation's source follows from the asset and the flex config). This holds for automation types registered by a plugin, too.
+- ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too, inactive and with a fresh cursor, so a copy inherits neither the original's run history nor its queued jobs. Sensor references in a copied automation's parameters and generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where both the destination organisation and the user making the copy may read it. A copy that lands in another organisation records under a data source of that organisation. Schedule automations are skipped for now, as is any automation that cannot be copied safely, and the response lists each skipped one under a new ``skipped-automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
+
+**Data sources and sensor data**
+
+- Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
+- ``GET /api/v3_0/sources`` now accepts ``filter``, matching search terms against a source's name, its model and its id prefix, ``type``, narrowing the list to one source type, and ``limit``, returning only that many sources, the most recently created ones first. The ``types`` in the response still cover every source the caller may read.
+- ``GET /api/v3_0/sources`` and ``GET /api/v3_0/sources/<id>`` now decide access per data source: a source is readable when it belongs to an organisation the caller may read, when an automation they may read computes under it, or when it has recorded data on a sensor they may read. The listing holds only the first two kinds, which are the sources the caller may reuse for an automation of their own, and ``attributes`` is returned only for those, because a data generator's configuration names the sensors it runs on. A data source which names no organisation is no longer readable by every authenticated user for that reason alone.
+- Data sources returned by ``GET /api/v3_0/sources`` and ``GET /api/v3_0/sources/<id>`` now carry the ``account_id`` of the organisation they record for, where only sources of type ``user`` used to. Source filters that select by organisation, such as ``source-account`` on ``GET /api/v3_0/sensors/<id>/data`` and inside sensor references in a flex-model or flex-context, therefore also match data computed by forecasters, schedulers and reporters. A source belonging to no organisation is one the host runs for everyone.
+- ``POST /api/v3_0/sensors/<id>/data/upload`` now accepts ``prior``, as ``POST /api/v3_0/sensors/<id>/data`` does: all uploaded data has been recorded prior to this belief time. It cannot be combined with ``belief-time-measured-instantly``.
+- A sensor reference inside a flex-model or flex-context takes the keys listed under :ref:`api_notation` and no others: an unknown key now gets a ``422`` naming the nearest key the reference does take, rather than being read past. Mind the source filters: a data request takes ``"source"`` and ``"source-type"``, each naming one value, while a sensor reference takes ``"sources"`` and ``"source-types"``, each with a list.
+- Deleting a sensor leaves ``"sensor": null`` in the stored flex-model and flex-context references to it that carry a default, bounds or source filters, which ``GET /api/v3_0/assets/<id>`` returns as such (see :ref:`deleted_referenced_sensor`). A sensor reference with ``"sensor": null`` sent to the API gets a ``422``, so a flex-context or flex-model holding one can only be saved again once a sensor is picked for it.
+- ``GET /api/v3_0/sensors/<id>/stats`` now reports an ``All sources`` entry summarising every data source, whenever more than one recorded. Its mean divides by the values that were summed, not by ``Number of values``, which also counts rows holding NaN.
+- Added ``DELETE /api/v3_0/sensors/<id>/annotations``, which deletes a sensor's annotations, optionally only those of one ``source`` or lying entirely between ``start`` and ``until``, and reports how many it removed as ``deleted``. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor. It requires permission to delete the sensor, like ``DELETE /api/v3_0/sensors/<id>/data``.
+- ``POST /api/v3_0/accounts/<id>/annotations``, ``POST /api/v3_0/assets/<id>/annotations`` and ``POST /api/v3_0/sensors/<id>/annotations`` now accept an ``end`` equal to the ``start``, which makes an instantaneous annotation, where they used to reply with a ``422``. An ``end`` before the ``start`` is still refused.
+
+**Plans and rate limits**
+
+- The default rate limit, which applies to every endpoint, is now counted per account rather than per user, so that all users and integrations (anything calling the API with a token) of an account share one budget. Unauthenticated requests are still counted per IP address, and a consultant counts against their own account, also when acting on a client account's assets. The trigger limit is unaffected.
+- Requests which the UI makes with a user's session, rather than with an API token, count against a budget of their own, per user (``FLEXMEASURES_UI_RATE_LIMIT``), rather than against the account's default rate limit.
+
+**Reporting**
+
+- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off report as a background job. It returns ``202 Accepted`` with the canonical ``job`` and ``job-url`` fields, and shares the trigger rate limit with forecast and schedule endpoints.
+
+**Assets, jobs and charts**
+
+- ``GET /api/v3_0/assets/<id>/jobs`` now accepts ``page`` and ``per-page`` to return jobs newest first, with ``num-records`` and ``filtered-records`` counts. Paginated results can be sorted by enqueue time or queue with ``sort-by`` and ``sort-dir``. Requests without ``page`` retain the full list and previous response shape.
+- ``GET /api/v3_0/assets/<id>/jobs`` also lists the jobs of the assets below the asset, at any depth, as far as the caller may read them; pass ``include-child-assets=false`` to list only the asset's own jobs. Its entries include ``created_via`` provenance, and the automation that created a job only where the caller may read that automation.
+- ``GET /api/v3_0/jobs/<uuid>`` reports, for a finished reporting or scheduling job, how many beliefs it computed and how many it recorded, per output sensor. A reporting job's ``result`` is an object holding an ``outputs`` list, and a scheduling job's ``result`` gains the same ``outputs`` list, next to its unchanged ``num-beliefs`` (the total of ``num-computed-beliefs`` across ``outputs``). Each entry holds the ``sensor`` (its ID), ``num-computed-beliefs`` and ``num-recorded-beliefs``. The recorded count leaves out beliefs that were already on record (and NaN values), so a rerun that only repeats what is on record records 0 of the beliefs it computed.
+- ``GET /api/v3_0/assets/<id>/jobs`` renames its ``redis_connection_err`` field, which shipped in v1.0.0, to ``redis-connection-err``, as the automation endpoints spell it. It is read by FlexMeasures' own UI rather than by the FlexMeasures client.
+- ``GET /api/v3_0/assets`` now scopes a listing the way its parameters say. ``num-records`` respects the ``root`` and ``depth`` constraints, where it used to count every asset in the account and asset-type scope. And an explicit ``include_public=false`` is now honoured, also next to ``all_accessible`` or ``root``; leaving the parameter out keeps the behaviour it had, where ``all_accessible`` and ``root`` include public assets and a listing of a single account does not.
+- ``GET /api/v3_0/sensors/<id>/status`` now accepts an optional ``asset_id`` query parameter, naming the asset whose status page the sensor is reported on. It only affects the reported ``relation``, which used to claim that the sensor belongs to the asset shown, also for a sensor that is only listed because the asset's flex-context or graphs page refers to it. Reading the status of a sensor in the context of an asset requires read permission on that asset, too.
+- ``GET /api/v3_0/sensors/<id>/status`` now returns ``missing-members`` for reporter data whose most recent aggregate of a device group, old enough to count as stale, had to leave out members that did not report: the ``id``, ``name`` and ``asset-name`` of each of those sensors. The field is left out where no member is missing.
+- ``GET /api/v3_0/assets/<id>/chart`` now answers an unknown ``chart-type`` with a ``422``.
+
+v3.0-33 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
-
-v3.0-34 | September 2, 2026
-"""""""""""""""""""""""""""
-- Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.
-
-v3.0-33 | September 1, 2026
-"""""""""""""""""""""""""""
-- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off report as a background job. It returns ``202 Accepted`` with the canonical ``job`` and ``job-url`` fields, and shares the trigger rate limit with forecast and schedule endpoints.
-- Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
-- Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
-- ``GET /api/v3_0/sensors/<id>/stats`` now reports an ``All sources`` entry summarising every data source, whenever more than one recorded. Its mean divides by the values that were summed, not by ``Number of values``, which also counts rows holding NaN.
 
 v3.0-32 | August 11, 2026
 """""""""""""""""""""""""
@@ -579,16 +614,18 @@ v1.2-1 | 2018-09-24
 - Revised the subsection about posting power data in the Simulation section
 - Revised the entity address for UDI events to include the type of the event
 
-.. code-block:: json
+i.e.
 
-    i.e.
+.. code-block:: json
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc"
     }
 
-    rather than the erroneously double-keyed:
+rather than the erroneously double-keyed:
+
+.. code-block:: json
 
     {
         "type": "PostUdiEventRequest",
@@ -712,3 +749,13 @@ v1.0-0 | 2018-07-10
 - Added a description of the *getService* endpoint in the Introduction section
 - Added a description of the *postMeterData* endpoint in the MDC section
 - Added a description of the *getMeterData* endpoint in the Prosumer section
+
+
+Endpoints supporting the FlexMeasures UI
+""""""""""""""""""""""""""""""""""""""""
+
+.. note:: The endpoints below are not part of the official API, and not meant for external UIs. They support the FlexMeasures UI, live under ``/api/ui``, and can change or disappear with any FlexMeasures version.
+
+- September 22, 2026: The endpoints under ``/api/dev`` moved to ``/api/ui``: ``GET /api/ui/sensor/<id>``, with its ``/chart``, ``/chart_data`` and ``/chart_annotations``, and ``GET /api/ui/asset/<id>``. They are still served under ``/api/dev`` as well, until FlexMeasures v2.
+- September 22, 2026: Added ``POST /api/ui/session/default-asset-view``, ``POST /api/ui/session/keep-legends-below-graphs``, ``POST /api/ui/session/status-page-tab``, ``POST /api/ui/session/status-page-child-jobs`` and ``POST /api/ui/session/automations-page-child-assets``, which store the current user's choices in the FlexMeasures UI in their session.
+  The first two take over from ``POST /api/v3_0/assets/default_asset_view`` and ``POST /api/v3_0/assets/keep_legends_below_graphs``, which are no longer documented, but keep working in v3 of the API.

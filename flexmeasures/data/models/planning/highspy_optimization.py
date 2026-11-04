@@ -272,6 +272,7 @@ def device_scheduler_highspy(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     coupling_device_specs = problem.coupling_device_specs
@@ -380,8 +381,8 @@ def device_scheduler_highspy(  # noqa C901
         lower[col_csign : col_csign + C] = 0
         upper[col_csign : col_csign + C] = 1
     if band_pairs:
-        lower[col_band:ncol] = 0
-        upper[col_band:ncol] = 1
+        lower[col_band:col_alpha] = 0
+        upper[col_band:col_alpha] = 1
 
     # Per-subcommitment data: prices (objective), quantities and bounds.
     # Prices are constant down a commitment, so they come from the headers read once
@@ -664,6 +665,13 @@ def device_scheduler_highspy(  # noqa C901
     # ---------------------------------------------------------------
     h = highspy.Highs()
 
+    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches on "highs"),
+    # so the two backends cannot disagree on tolerances.
+    # Apply them before building the model: HiGHS prints its banner as soon as the model is first changed,
+    # so an output_flag set any later would not suppress it.
+    for option_name, option_value in solver_options("highspy").items():
+        h.setOptionValue(option_name, option_value)
+
     h.addVars(ncol, lower, upper)
     h.changeColsCost(ncol, np.arange(ncol, dtype=np.int32), cost)
 
@@ -672,7 +680,7 @@ def device_scheduler_highspy(  # noqa C901
     if col_csign is not None:
         integer_cols.append(np.arange(col_csign, col_csign + C, dtype=np.int32))
     if band_pairs:
-        integer_cols.append(np.arange(col_band, ncol, dtype=np.int32))
+        integer_cols.append(np.arange(col_band, col_alpha, dtype=np.int32))
     integer_cols = np.concatenate(integer_cols)
     if len(integer_cols) > 0:
         h.changeColsIntegrality(
@@ -686,11 +694,6 @@ def device_scheduler_highspy(  # noqa C901
     nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value = rows.build()
     if nrow > 0:
         h.addRows(nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value)
-
-    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches on "highs"),
-    # so the two backends cannot disagree on tolerances.
-    for option_name, option_value in solver_options("highspy").items():
-        h.setOptionValue(option_name, option_value)
 
     h.run()
 
@@ -737,8 +740,14 @@ def device_scheduler_highspy(  # noqa C901
 
     planned_power = planned_power_per_device(ems_values, start, end, resolution)
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (float(col_value[col_cup + c]), float(col_value[col_cdown + c]))
+        for c in range(C)
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(
         commitment_headers, subcommitment_costs

@@ -20,9 +20,10 @@ import { decompressChartData } from "./chart-data-utils.js";
  * @param {Date} options.start - Start of the event window (inclusive).
  * @param {Date} options.end - End of the event window (exclusive).
  * @param {boolean} [options.mostRecentBeliefsOnly] - Pass false to get every recorded belief, as the replay does.
+ * @param {string} [options.chartType] - On an asset, get only the data this chart type draws.
  * @returns {string} - The URL to fetch.
  */
-export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly }) {
+export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly, chartType }) {
   let url =
     dataPath +
     "/chart_data?event_starts_after=" +
@@ -31,6 +32,9 @@ export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly 
     end.toISOString();
   if (mostRecentBeliefsOnly === false) {
     url += "&most_recent_beliefs_only=false";
+  }
+  if (chartType) {
+    url += "&chart-type=" + encodeURIComponent(chartType);
   }
   return url + "&compress_json=true";
 }

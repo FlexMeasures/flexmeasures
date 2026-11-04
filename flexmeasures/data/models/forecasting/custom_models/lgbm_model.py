@@ -1,5 +1,3 @@
-from darts.models import LightGBMModel
-
 from flexmeasures.data.models.forecasting.custom_models.base_model import (
     BaseModel,
     resolve_n_jobs,
@@ -234,6 +232,9 @@ class CustomLGBM(BaseModel):
         return darts_lags
 
     def _setup(self) -> None:
+        # Imported here rather than at module level to reduce module import time: darts.models.LightGBMModel pulls in lightgbm, which pulls in sklearn and scipy.sparse.
+        from darts.models import LightGBMModel
+
         for horizon in range(self.max_forecast_horizon):
             model_params = self.models_params.copy()
             model_params["output_chunk_shift"] = (

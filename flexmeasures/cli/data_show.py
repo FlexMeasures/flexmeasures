@@ -17,9 +17,11 @@ import vl_convert as vlc
 from string import Template
 import json
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User, Role
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -27,16 +29,27 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField,
     SensorsToShowSchema,
 )
+from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    TimezoneField,
+)
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    describe_cronstr,
+    resolve_automation_sensors,
+)
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     determine_minimum_resampling_resolution,
     server_now,
 )
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     validate_unique,
     tabulate_account_assets,
@@ -50,7 +63,7 @@ from flexmeasures.cli.utils import (
 )
 
 
-@click.group("show")
+@click.group("show", cls=LoggedClickExceptionGroup)
 def fm_show_data():
     """FlexMeasures: Show data."""
 
@@ -101,7 +114,6 @@ def list_plans():
             plan.name,
             plan.default_rate_limit,
             plan.trigger_rate_limit,
-            plan.rate_limit_key.value if plan.rate_limit_key else None,
             "yes" if plan.legacy else "no",
         )
         for plan in plans
@@ -114,7 +126,6 @@ def list_plans():
                 "Name",
                 "Default rate limit",
                 "Trigger rate limit",
-                "Rate limit key",
                 "Legacy",
             ],
         )
@@ -175,6 +186,32 @@ def show_account(account):
         )
     else:
         click.secho("Account has no roles.", **MsgStyle.WARN)
+    click.echo()
+
+    plan = account.plan
+    plan_name = (
+        f"{plan.name}{' (legacy)' if plan.legacy else ''}"
+        if plan is not None
+        else "No plan (server defaults apply)"
+    )
+    click.echo(f"Plan: {plan_name}")
+    click.echo("------")
+    click.echo(
+        "Default API rate limit: "
+        + (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+    )
+    click.echo(
+        "Trigger rate limit: "
+        + (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+    )
     click.echo()
 
     users = db.session.scalars(
@@ -403,6 +440,193 @@ def _format_sensor_plot(plot: dict) -> str:
             else asset_text
         )
     return str(plot)
+
+
+@fm_show_data.command("automations")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=False,
+    type=AutomationIdField(),
+    help="ID of a single automation, to show that automation in more detail.",
+)
+@click.option(
+    "--asset", type=GenericAssetIdField(), help="Only show automations on this asset."
+)
+@click.option(
+    "--as-json",
+    is_flag=True,
+    help="Include stored configuration and parameters as JSON.",
+)
+def list_automations(
+    automation: Automation | None = None,
+    asset: GenericAsset | None = None,
+    as_json: bool = False,
+):
+    """
+    Show automations, or one automation in detail.
+
+    Without --id, all automations are listed, including inactive ones.
+    Their IDs are the ones to pass to `flexmeasures edit automation`, `flexmeasures delete automation` and `flexmeasures jobs run-automation`.
+    """
+    from flexmeasures.data.automations import get_automation_types
+    from flexmeasures.data.schemas.automations import AutomationSchema
+
+    if automation is not None and asset is not None:
+        raise click.UsageError("--id and --asset cannot be combined.")
+    handlers = get_automation_types()
+    if automation is not None and not as_json:
+        _show_automation(automation)
+        return
+
+    query = (
+        select(Automation)
+        .options(selectinload(Automation.asset))
+        .order_by(Automation.asset_id, Automation.id)
+    )
+    if automation is not None:
+        query = query.filter_by(id=automation.id)
+    elif asset is not None:
+        query = query.filter_by(asset_id=asset.id)
+    automations = db.session.scalars(query).all()
+    if as_json:
+        records = []
+        for item in automations:
+            record = AutomationSchema().dump(item)
+            record["available"] = item.type in handlers
+            record["parameters"] = item.parameters
+            generator = item.generator
+            record["source"] = (
+                {
+                    "id": item.generator_id,
+                    "model": generator.model,
+                    "version": generator.version,
+                    "config": generator.attributes.get("data_generator", {}).get(
+                        "config", {}
+                    ),
+                }
+                if generator is not None
+                else None
+            )
+            records.append(record)
+        click.echo(
+            json.dumps(records[0] if automation is not None else records, indent=2)
+        )
+        return
+    if not automations:
+        click.secho(
+            "No automations created yet. Create one with `flexmeasures add automation`.",
+            **MsgStyle.WARN,
+        )
+        return
+
+    click.echo("All automations:\n")
+    click.echo(
+        tabulate(
+            [
+                (
+                    automation.id,
+                    f"{automation.asset.name} (ID: {automation.asset_id})",
+                    automation.name,
+                    (
+                        automation.type
+                        if automation.type in handlers
+                        else f"{automation.type} (plugin unavailable)"
+                    ),
+                    "yes" if automation.active else "no",
+                    automation.cronstr,
+                    automation.timezone,
+                )
+                for automation in automations
+            ],
+            headers=[
+                "ID",
+                "Asset",
+                "Name",
+                "Type",
+                "Active",
+                "Cron",
+                "Timezone",
+            ],
+        )
+    )
+
+
+def _show_automation(automation: Automation):
+    """Show one automation in detail, including the sensors it reads from and writes to."""
+    title = f"Automation {automation.id}: {automation.name}"
+    click.echo("=" * len(title))
+    click.echo(title)
+    click.echo("=" * len(title) + "\n")
+
+    generator = automation.generator
+    click.echo(
+        tabulate(
+            [
+                ("Asset", f"{automation.asset.name} (ID: {automation.asset_id})"),
+                ("Type", automation.type),
+                ("Active", "yes" if automation.active else "no"),
+                (
+                    "Recurrence",
+                    f"{automation.cronstr} ({describe_cronstr(automation.cronstr)})",
+                ),
+                ("Timezone", automation.timezone),
+                ("Created at", automation.created_at.isoformat()),
+                ("Cursor", automation.cursor.isoformat()),
+                (
+                    "Generator",
+                    (
+                        f"{generator.name} (ID: {generator.id}, model: {generator.model})"
+                        if generator is not None
+                        else "none"
+                    ),
+                ),
+                ("Parameters", json.dumps(automation.parameters, indent=4)),
+            ],
+            headers=["Field", "Value"],
+        )
+    )
+    click.echo(
+        "\nThe cursor is the most recent scheduled run this automation committed to; runs at or before it are never queued again."
+    )
+    click.echo(
+        "It advances just before queueing, so it does not tell you that the run itself succeeded."
+    )
+
+    try:
+        sensors = resolve_automation_sensors(automation)
+    except AutomationSensorsUnknown as e:
+        # One automation whose sensors no longer resolve should still show its other details,
+        # which are often exactly what is needed to work out why they do not.
+        # A schedule automation's message names its asset rather than itself, so name the automation here,
+        # as an asset may carry several of them.
+        click.secho(
+            f"\nAutomation {automation.id} ('{automation.name}'): {e}", **MsgStyle.WARN
+        )
+        return
+    for role, header in (
+        ("input_sensors", "Reads from"),
+        ("output_sensors", "Writes to"),
+    ):
+        click.echo(f"\n{header}:\n")
+        if not sensors[role]:
+            click.echo("  (no sensors)")
+            continue
+        click.echo(
+            tabulate(
+                [
+                    (
+                        sensor.id,
+                        sensor.name,
+                        sensor.unit,
+                        f"{sensor.generic_asset.name} (ID: {sensor.generic_asset.id})",
+                    )
+                    for sensor in sorted(sensors[role], key=lambda sensor: sensor.id)
+                ],
+                headers=["ID", "Name", "Unit", "Asset"],
+            )
+        )
 
 
 @fm_show_data.command("data-sources")
@@ -752,9 +976,9 @@ def chart(
 @click.option(
     "--timezone",
     "timezone",
-    type=str,
+    type=TimezoneField(),
     required=False,
-    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
+    help="Timezone of the data, when exported with --to-file (the terminal plot shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -858,9 +1082,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    if timezone is not None:
-        timezone = sensors[0].timezone
-    df.index = df.index.tz_convert(timezone)
+    df.index = df.index.tz_convert(get_export_timezone(timezone, filepath, sensors))
 
     # Build title
     if len(sensors) == 1:
@@ -876,7 +1098,8 @@ def plot_beliefs(
 
     uniplot.plot(
         ys=[df[col] for col in df.columns],
-        xs=[df.index for _ in df.columns],
+        # uniplot shows UTC whatever the timezone, and warns about a timezone-aware index, so it gets UTC without one.
+        xs=[df.index.tz_convert(None) for _ in df.columns],
         title=title,
         color=True,
         lines=True,
@@ -891,6 +1114,26 @@ def plot_beliefs(
         )
         df.to_csv(filepath)
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
+
+
+def get_export_timezone(
+    timezone: str | None, filepath: str | None, sensors: list[Sensor]
+) -> str:
+    """Find the timezone to export beliefs in, warning when one was given without a file to export to.
+
+    :param timezone:    The timezone given with --timezone, if any.
+    :param filepath:    The file given with --to-file, if any.
+    :param sensors:     The sensors with data, the first of which gives the default timezone.
+    :returns:           The given timezone, or else the timezone of the first sensor.
+    """
+    if timezone is not None and filepath is None:
+        click.secho(
+            "--timezone only applies to the file written with --to-file, as the plot shows UTC.",
+            **MsgStyle.WARN,
+        )
+    if timezone is None:
+        return sensors[0].timezone
+    return timezone
 
 
 def find_duplicates(_list: list, attr: str | None = None) -> list:

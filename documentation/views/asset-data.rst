@@ -9,6 +9,7 @@ The asset page is divided into different views. The default selection is the "Co
 .. contents::
     :local:
     :depth: 1
+
 |
 
 
@@ -71,7 +72,12 @@ A simple asset form, including a map selector:
 
 |
 
-You can also copy an exisiting asset, including its child assets, sensors and flex-config.
+You can also copy an existing asset, including its child assets, sensors and flex-config.
+The automations on the copied assets come along, pointed at the copied sensors, but switched off and without any run history,
+so you can go through them and try them out before you let them run.
+An automation that cannot be copied safely, for instance because it reads a sensor that you or the receiving organisation cannot read,
+is left out and reported, while the rest of the copy goes ahead.
+Schedule automations are left out for now: their parameters point at sensors in ways a copy cannot follow.
 You can search for the asset you want to copy:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_copy.png
@@ -170,7 +176,7 @@ You can also delete the asset by clicking on the "Delete this asset" button.
 Editing an asset's flex-model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+Per asset, you can set fields in :ref:`the flex-model <flex_models_and_schedulers>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
     :align: center
@@ -200,6 +206,7 @@ Setting a field value
     * Other fields may accept either a sensor or a fixed value.
 
 |
+
 .. _view_asset_status:
 
 Status page
@@ -208,6 +215,11 @@ Status page
 For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay.
 
 For data connectivity, all sensors on the asset's graph page and from its flex context are tracked.
+Those can sit on a sub-asset or on another asset entirely, so the *Asset* column names the asset each sensor belongs to.
+
+For jobs, those of the asset's sub-assets are listed as well, so that a site asset shows what happened anywhere below it, even when jobs are triggered on a child asset.
+Here too, an *Asset* column names the asset each job happened on, which is what tells the levels apart.
+Switch off "Include jobs of sub-assets" to list only the jobs of the asset itself, and we will remember that for the rest of your session.
 
 Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
 
@@ -234,12 +246,28 @@ was configured. Here is an example:
 .. _view_asset_auditlog:
 
 Audit log 
----------
+----------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-auditlog.PNG
+    :align: center
+..    :scale: 40%
+
+|
+
+.. _view_asset_automations:
+
+Automations page
+----------------
+
+The automations page lists the recurring tasks that compute forecasts, schedules or reports for the asset, one tab per kind.
+By default, it includes the automations of the asset's sub-assets, and names the asset each automation belongs to.
+From here, you can create a new automation, and view, run, edit, deactivate or delete an existing one.
+See :ref:`automations` for how they work.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_automations.png
     :align: center
 ..    :scale: 40%
 

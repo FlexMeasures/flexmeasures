@@ -9,7 +9,6 @@ from flask import current_app
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
-from flask_security import current_user
 from sqlalchemy import select
 
 if TYPE_CHECKING:
@@ -21,11 +20,10 @@ from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
 )
-from flexmeasures.auth.policy import user_has_admin_access
-from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.utils.unit_utils import split_into_magnitude_and_unit
 
 
@@ -315,7 +313,7 @@ class SensorsToShowSchema(fields.Field):
            `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
         6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
            containing a field name or a list of field names:
-            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+           `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
         7. Mixed formats:
            `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
@@ -566,22 +564,27 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                     "Parent asset must belong to the same account as the child asset."
                 )
 
+    @validates_schema
+    def validate_parent_account_on_creation(self, data, **kwargs):
+        """Keep a new asset in the same account as its parent."""
+        if self.partial or getattr(self, "context", {}).get("asset") is not None:
+            return
+        parent_id = data.get("parent_asset_id")
+        if parent_id is None:
+            return
+        parent = db.session.get(GenericAsset, parent_id)
+        if parent and parent.account_id != data.get("account_id"):
+            raise ValidationError(
+                f"account_id must match the account of the parent asset ({parent.account_id}).",
+                "parent_asset_id",
+            )
+
     @validates("account_id")
     def validate_account(self, account_id: int | None, **kwargs):
-        if account_id is None and (
-            running_as_cli() or user_has_admin_access(current_user, "update")
-        ):
+        if account_id is None:
             return
-        account = db.session.get(Account, account_id)
-        if not account:
+        if db.session.get(Account, account_id) is None:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
-        if not running_as_cli() and (
-            not user_has_admin_access(current_user, "update")
-            and account_id != current_user.account_id
-        ):
-            raise ValidationError(
-                "User is not allowed to create assets for this account."
-            )
 
     @validates("attributes")
     def validate_attributes(self, attributes: dict, **kwargs):
@@ -625,7 +628,7 @@ class AssetTypeIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAssetType:
         """Turn a generic asset type id into a GenericAssetType."""
         asset_type_id: int = super()._deserialize(value, attr, data, **kwargs)
-        asset_type = db.session.get(GenericAssetType, asset_type_id)
+        asset_type = get_by_id(GenericAssetType, asset_type_id)
         if asset_type is None:
             raise FMValidationError(
                 f"No generic asset type found with id {asset_type_id}."
@@ -647,9 +650,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset_id: int = super()._deserialize(value, attr, data, **kwargs)
-        generic_asset: GenericAsset = db.session.execute(
-            select(GenericAsset).filter_by(id=generic_asset_id)
-        ).scalar_one_or_none()
+        generic_asset: GenericAsset | None = get_by_id(GenericAsset, generic_asset_id)
         if generic_asset is None:
             message = f"No asset found with ID {value}."
             if self.status_if_not_found == HTTPStatus.NOT_FOUND:

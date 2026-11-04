@@ -7,7 +7,10 @@ from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.services.sensors import _get_sensor_bdfs_by_source_type
+from flexmeasures.data.services.sensors import (
+    _get_sensor_bdfs_by_source_type,
+    serialize_sensor_status_data,
+)
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.tests.utils import get_test_sensor
 
@@ -103,3 +106,21 @@ def test_excluded_source_types_are_honoured(setup_beliefs, db):
 
     assert set(bdfs) == {"demo script"}
     assert search_spy.call_count == 1
+
+
+def test_sensor_status_names_the_asset_the_sensor_belongs_to(setup_beliefs, db):
+    """A sensor's status names its own asset, which need not be the asset whose status page lists it.
+
+    The status page of a site lists sensors from its sub-assets and from its flex-context,
+    so a row has to say which asset its sensor actually sits on.
+    """
+    sensor = get_test_sensor(db)
+
+    statuses = serialize_sensor_status_data(sensor=sensor)
+
+    assert (
+        statuses
+    ), "the fixture records beliefs, so there is at least one status to report"
+    for status in statuses:
+        assert status["asset_id"] == sensor.generic_asset.id
+        assert status["asset_name"] == sensor.generic_asset.name

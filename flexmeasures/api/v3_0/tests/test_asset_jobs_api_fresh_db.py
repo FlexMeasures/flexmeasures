@@ -70,7 +70,7 @@ def test_asset_jobs_redact_inaccessible_automation_provenance(
             },
         },
     )
-    app.job_cache.add(
+    app.job_map.add(
         target_sensor.id,
         job.id,
         queue="forecasting",

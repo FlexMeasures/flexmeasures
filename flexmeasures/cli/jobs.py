@@ -27,6 +27,7 @@ from rq.registry import (
     StartedJobRegistry,
 )
 from marshmallow import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
@@ -34,21 +35,34 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
+from werkzeug.exceptions import Forbidden
+
 from flexmeasures.data.services.automations import (
-    claim_due_automation,
+    AutomationSensorsUnknown,
+    AutomationRunClaimLost,
+    dispatch_automation_run,
     floor_to_minute,
-    get_due_automations,
+    get_dispatchable_automation_runs,
     run_automation,
+)
+from flexmeasures.data.services.data_sources import (
+    find_duplicate_sources,
+    find_referenced_source_ids,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
+from flexmeasures.data.services.utils import (
+    failed_job_exc_info,
+    job_status_description,
+    store_job_exception,
+)
 
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
@@ -66,7 +80,7 @@ QUEUE_EXCEPTION_HANDLERS = dict(
 )
 
 
-@click.group("jobs")
+@click.group("jobs", cls=LoggedClickExceptionGroup)
 def fm_jobs():
     """FlexMeasures: Job queueing."""
 
@@ -84,51 +98,35 @@ def run_automations():
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard allows at most one queueing attempt per scheduled run.
-    A failed attempt is not retried automatically, because it may already have queued some jobs.
+    Durable automation run records claim each scheduled run and make queueing resumable.
+    Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
     """
     now = floor_to_minute(server_now())
-    due_automations = get_due_automations(now)
-    if not due_automations:
+    claimed_runs = get_dispatchable_automation_runs(now)
+    if not claimed_runs:
         click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
         return
 
-    connection = app.queues["forecasting"].connection
     n_run = 0
     n_failed = 0
-    for due_automation in due_automations:
-        automation = due_automation.automation
-        # Guard the canonical run, including catch-ups and repeated wall times.
-        guard_key = (
-            f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
-        )
-        if not connection.set(guard_key, 1, nx=True, ex=120):
-            click.secho(
-                f"Automation {automation.id} ('{automation.name}') was already attempted for {due_automation.scheduled_at}. "
-                "Skipping to avoid duplicate jobs.",
-                **MsgStyle.WARN,
-            )
-            continue
-        if not claim_due_automation(due_automation):
-            click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
-                **MsgStyle.WARN,
-            )
-            continue
+    for claimed_run in claimed_runs:
+        automation = claimed_run.run.automation
         try:
-            returns = run_automation(automation)
-            n_jobs = returns.get("n_jobs") if returns else 0
+            returns = dispatch_automation_run(claimed_run)
+            n_jobs = returns["n_jobs"]
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1
+        except AutomationRunClaimLost as e:
+            # Another runner took this run over, which is how a long batch hands its tail on. Not this runner's failure.
+            db.session.rollback()
+            click.secho(str(e), **MsgStyle.WARN)
         except Exception as e:
             db.session.rollback()
-            # Queueing a multi-cycle forecast is not transactional. Keep the guard
-            # because this attempt may have queued some jobs before failing.
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {e}",
                 **MsgStyle.ERROR,
             )
             n_failed += 1
@@ -164,7 +162,13 @@ def run_one_automation(automation: Automation):
     """
     try:
         returns = run_automation(automation)
-    except (NotImplementedError, ValueError, ValidationError) as e:
+    except (
+        NotImplementedError,
+        ValueError,
+        ValidationError,
+        AutomationSensorsUnknown,
+        Forbidden,
+    ) as e:
         db.session.rollback()
         click.secho(
             f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
@@ -174,7 +178,8 @@ def run_one_automation(automation: Automation):
     if not returns or returns.get("job_id") is None:
         db.session.rollback()
         click.secho(
-            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            (returns or {}).get("message")
+            or f"Automation {automation.id} ('{automation.name}') did not queue any job.",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
@@ -185,7 +190,7 @@ def run_one_automation(automation: Automation):
     )
     db.session.commit()
     click.secho(
-        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
 
@@ -560,6 +565,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
     else:
         worker = Worker(
@@ -567,6 +574,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
 
     click.echo("\n=========================================================")
@@ -583,7 +592,32 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     )
     click.echo("=========================================================\n")
 
+    release_database_connections_before_forking()
     worker.work(with_scheduler=with_scheduler)
+
+
+def release_database_connections_before_forking():
+    """Keep forked job processes from sharing the worker's database connections.
+
+    RQ's Worker forks a process for every job, and a fork copies the parent's connection pool, sockets included.
+    A job would then talk to Postgres over the same session as the worker and as every job before it,
+    so a job exiting mid-transaction would make the next job's first query fail (#2806).
+    Therefore, the worker gives up its own connections before it starts,
+    and every forked process starts from an empty pool, leaving the parent's sockets alone.
+    See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    """
+    global _fork_hook_registered
+
+    db.session.remove()
+    db.engine.dispose()
+    # Platforms that cannot fork, such as Windows, have no fork hooks either.
+    # A fork hook cannot be unregistered, so register it once per process, however often this is called.
+    if hasattr(os, "register_at_fork") and not _fork_hook_registered:
+        os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
+        _fork_hook_registered = True
+
+
+_fork_hook_registered = False
 
 
 @fm_jobs.command("show-queues")
@@ -760,6 +794,88 @@ def save_last(
     click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
 
 
+@fm_jobs.command("check-source-references")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    help="State which queue(s) to check (using '|' as separator), e.g. 'forecasting' or 'forecasting|scheduling'. Defaults to all queues.",
+)
+def check_source_references(queue: str | None):
+    """
+    List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
+
+    Jobs can refer to data sources by ID, for instance where a sensor reference in a flex-context filters on its sources.
+    Such a job fails once the data source it refers to is gone.
+    Upgrading to FlexMeasures v1.1 merges each group of identical data sources into one of them,
+    so run this before `flexmeasures db upgrade` to see which jobs that affects, and again after,
+    to find the jobs that still refer to a merged data source.
+    Queued, deferred, scheduled and started jobs are checked.
+
+    This command exists for that one upgrade, so it is expected to be dropped again in v1.2:
+    from v1.1 on, the database refuses duplicate data sources, so there are no further merges to prepare for.
+    """
+    q_list = parse_queue_list(queue) if queue else list(app.queues.values())
+    configure_mappers()
+    duplicates = find_duplicate_sources()
+    # First collect what each waiting job refers to, so that the data sources are looked up in one query.
+    references = []
+    for the_queue in q_list:
+        registries = dict(
+            queued=the_queue,
+            deferred=the_queue.deferred_job_registry,
+            scheduled=the_queue.scheduled_job_registry,
+            started=the_queue.started_job_registry,
+        )
+        for registry_name, registry in registries.items():
+            job_ids = registry.get_job_ids()
+            for job in Job.fetch_many(job_ids, connection=the_queue.connection):
+                if job is None:
+                    continue
+                source_ids = find_referenced_source_ids([job.args, job.kwargs])
+                if source_ids:
+                    references.append(
+                        (job.id, the_queue.name, registry_name, source_ids)
+                    )
+    referenced_ids = set().union(*(ids for *_, ids in references))
+    existing_ids = (
+        set(
+            db.session.scalars(
+                select(DataSource.id).where(DataSource.id.in_(referenced_ids))
+            )
+        )
+        if referenced_ids
+        else set()
+    )
+    rows = []
+    for job_id, queue_name, registry_name, source_ids in references:
+        for source_id in sorted(source_ids):
+            if source_id not in existing_ids:
+                problem = "does not exist"
+            elif source_id in duplicates:
+                problem = f"will be merged into data source {duplicates[source_id]}"
+            else:
+                continue
+            rows.append((job_id, queue_name, registry_name, source_id, problem))
+    if not rows:
+        click.secho(
+            "No waiting job refers to a data source that no longer exists, or that a database upgrade will merge.",
+            **MsgStyle.SUCCESS,
+        )
+        return
+    click.echo(
+        tabulate(
+            rows,
+            headers=["Job", "Queue", "Registry", "Data source", "Problem"],
+        )
+    )
+    click.secho(
+        f"{len(set(row[0] for row in rows))} waiting job(s) refer to a data source that no longer exists, or that a database upgrade will merge. "
+        "Let them finish before upgrading, or cancel them and have them created again after upgrading.",
+        **MsgStyle.WARN,
+    )
+
+
 @fm_jobs.command("clear-queue")
 @with_appcontext
 @click.option(
@@ -877,8 +993,8 @@ def handle_worker_exception(
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
-    job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
-    job.save_meta()
+    # Meta must hold JSON-serializable data, for the RQ dashboard's job page; the helper stores a summary that is.
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_exception_handler(queue_name: str) -> Callable:

@@ -207,7 +207,7 @@ Default ``[]``
 .. _menu-config:
 
 FLEXMEASURES_MENU_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of the view names which are listed in the menu.
 
@@ -221,7 +221,7 @@ Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a Font Awesome icon name for each view name listed in the menu.
 For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
@@ -232,7 +232,7 @@ Default: ``{}``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_TITLES
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a string title for each view name listed in the menu.
 For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
@@ -267,7 +267,38 @@ Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_e
 FLEXMEASURES_JS_VERSIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+Versions of the UI's JavaScript and CSS libraries to load, in place of the versions listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+Only list the libraries you want to differ, as a listed version stays in place when an upgrade of FlexMeasures bumps that library.
+A library's key maps to its version, optionally together with the SHA-256 hashes of its files:
+
+.. code-block:: python
+
+    FLEXMEASURES_JS_VERSIONS = {
+        # A version only: browsers load the library from its CDN without checking it.
+        "vega": "5.33.1",
+        # A version and the hash of the library's one file.
+        "vegaembed": ("6.26.0", "<sha256>"),
+        # A version and the hash of each of the library's files.
+        "leaflet": ("1.9.5", {"dist/leaflet.css": "<sha256>", "dist/leaflet-src.min.js": "<sha256>", ...}),
+    }
+
+With hashes, browsers check each file they load from a CDN, and the library can be served by FlexMeasures itself (see :ref:`install-ui-libraries`).
+FlexMeasures expects another version to have the same files as the listed one.
+This prints the setting for another version, with the hashes of its files:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes vega --version 5.33.1
+
+Default: ``{}``
+
+FLEXMEASURES_FETCH_UI_LIBRARIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures fetches the files of the UI's JavaScript and CSS libraries which it is missing, so that it serves them itself rather than browsers loading them from CDNs.
+The first request that a web server process serves starts the download, in the background (see :ref:`install-ui-libraries`).
+
+Default: ``True``
 
 
 Timing
@@ -385,6 +416,15 @@ FLEXMEASURES_LP_SOLVER_OPTIONS
 Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
 
     FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+HiGHS writes its log straight to the console, bypassing FlexMeasures' logging, so FlexMeasures switches it off (``output_flag``) unless ``LOGGING_LEVEL`` is ``DEBUG``.
+Set ``output_flag`` here to override that either way.
+
+Under ``appsi_highs`` (and Pyomo's other appsi solvers), FlexMeasures likewise shows the solver's output on stdout without passing it through its log handlers,
+because Pyomo captures that output and log handlers writing to the console would feed it back into the capture, which can hang a worker.
+One difference: ``appsi_highs`` applies the options only after HiGHS has printed its banner, so ``output_flag`` cannot suppress the banner there.
+Bypassing the log handlers also means the solver's output no longer reaches FlexMeasures' log file.
+To keep a HiGHS log in a file, set HiGHS' own ``log_file`` option here, together with ``"output_flag": "true"`` unless ``LOGGING_LEVEL`` is ``DEBUG``, since HiGHS writes nothing to that file while ``output_flag`` is off.
 
 When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
 
@@ -523,6 +563,7 @@ SECURITY_TWO_FACTOR_ENABLED_METHODS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Which 2FA methods are enabled. FlexMeasures currently supports ``email``; authenticator-app support may be added later.
+Enabling ``authenticator`` anyway requires installing ``qrcode``.
 
 Default: ``["email"]``
 
@@ -538,7 +579,7 @@ SECURITY_TWO_FACTOR_LOGIN_VALIDITY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How long a successful 2FA validation remains valid when ``SECURITY_TWO_FACTOR_ALWAYS_VALIDATE`` is ``False``.
-Uses a human-readable duration string (as understood by Flask-Security).
+A duration such as ``"1 week"`` or ``"7 days"``, or an ISO 8601 duration such as ``"P1W"`` (in units of a fixed length, so no months or years).
 
 Default: ``"1 week"``
 
@@ -893,36 +934,38 @@ Default: ``True``
 FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
-if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+How often a client may call the API. This is one budget for the whole API, counted per account (or per IP address,
+if unauthenticated), so that all users and integrations of an account share it. A consultant counts against their own
+account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
+itself out.
+The calls which the UI makes with a user's session do not spend this budget, but ``FLEXMEASURES_UI_RATE_LIMIT``.
 
 Default: ``"500 per minute"``
+
+FLEXMEASURES_UI_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often the UI may call the API on behalf of a user who is logged in.
+The UI's pages fetch the data they show from the API, using the user's session rather than an API token,
+and those requests count against this budget, one per user, rather than against the account's ``FLEXMEASURES_API_DEFAULT_RATE_LIMIT``.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Plans do not change this budget (see :ref:`rate-limiting-plans`).
+
+The setting holds one limit, like ``"100 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
+or with one which holds several limits (Flask-Limiter's notation for that, separated by semicolons, is not supported).
+
+Default: ``"100 per minute"``
 
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
 than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
+It is counted per account, so all users and assets of an account share it, too.
+Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
-
-FLEXMEASURES_API_RATE_LIMIT_KEY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
-schedule is a business decision, so you decide what shares a budget:
-
-- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
-  usually works, so it is the default.
-- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
-  that this multiplies the limit by the number of assets an account has.
-- ``"user"``: each user gets their own budget.
-
-An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
-to ``"account"`` rather than raising an error.
-
-Default: ``"account"``
-
 
 Demonstrations
 --------------
@@ -1062,7 +1105,7 @@ Reporters
 ---------
 
 FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type: list of strings or comma-separated string
 
@@ -1162,3 +1205,16 @@ Overrides the default sunset link across all sunset API versions if
 API version.
 
 Default: ``None``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.1.0
+
+    Triggers are always counted per account now, so this setting is ignored.
+    FlexMeasures logs a warning at startup if it is set to anything other than ``"account"``.
+    To give accounts more room, raise ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, or the trigger rate limit of their plan.
+
+It used to choose what ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` was counted against: ``"account"``, ``"account+asset"`` or ``"user"``.
+
+Default: ``"account"``

@@ -1,7 +1,11 @@
 import pytest
 from marshmallow import ValidationError
 
-from flexmeasures.data.schemas.automations import CronField, TimezoneField
+from flexmeasures.data.schemas import automations, times
+from flexmeasures.data.schemas.automations import (
+    AutomationCreationSchema,
+    CronField,
+)
 
 
 def test_cron_field_accepts_five_field_expression():
@@ -21,11 +25,40 @@ def test_cron_field_rejects_non_five_field_expression(cronstr):
         CronField().deserialize(cronstr)
 
 
-@pytest.mark.parametrize("timezone", ("UTC", "Europe/Amsterdam", "Etc/GMT+1"))
-def test_timezone_field_accepts_iana_names(timezone):
-    assert TimezoneField().deserialize(timezone) == timezone
+def test_timezone_field_can_still_be_imported_from_the_automations_schemas():
+    """TimezoneField moved to the times schemas, and code importing it from here, such as plugins, keeps working."""
+    assert automations.TimezoneField is times.TimezoneField
 
 
-def test_timezone_field_rejects_unknown_name():
+@pytest.mark.parametrize(
+    "payload, expected_timezone",
+    [
+        ({}, None),
+        ({"timezone": None}, None),
+        ({"timezone": "Europe/Amsterdam"}, "Europe/Amsterdam"),
+    ],
+)
+def test_a_creation_leaves_the_timezone_to_the_asset_unless_it_names_one(
+    payload, expected_timezone
+):
+    """Both omitting the timezone and sending an explicit null leave it to be resolved from the asset.
+
+    `load_default=None` makes marshmallow treat the field as nullable, so neither form reaches validation,
+    and `create_automation` is the one that decides what None means.
+    """
+    loaded = AutomationCreationSchema().load(
+        {"name": "Day-ahead forecasts", "cron": "0 6 * * *", **payload}
+    )
+
+    assert loaded["timezone"] == expected_timezone
+
+
+def test_a_creation_still_rejects_a_timezone_that_does_not_exist():
     with pytest.raises(ValidationError, match="does not exist"):
-        TimezoneField().deserialize("Europe/NotAmsterdam")
+        AutomationCreationSchema().load(
+            {
+                "name": "Day-ahead forecasts",
+                "cron": "0 6 * * *",
+                "timezone": "Mars/Olympus",
+            }
+        )

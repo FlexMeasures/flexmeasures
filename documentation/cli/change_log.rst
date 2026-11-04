@@ -1,15 +1,53 @@
 .. _cli-changelog:
 
-**********************
+**************************
 FlexMeasures CLI Changelog
-**********************
+**************************
 
-since v1.1.0 | September XX, 2026
+since v1.1.0 | November XX, 2026
 =================================
 
-* Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
-* Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
+**Automations**
+
+* Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset, with ``--type forecasting``, ``--type scheduling`` or ``--type reporting`` saying which task to automate). Each automation carries its own IANA timezone (``--timezone``), in which its cron expression is interpreted.
+* Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.
+* Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions; run this command once per minute. Each scheduled run is claimed and recorded durably, so its jobs are queued exactly once even when several runners overlap, and a forecast or schedule run whose queueing did not finish is retried, resuming from its stored plan with the job IDs it already queued. Another runner only takes over a run once the claim lease of the runner holding it has expired. Runs missed while the runner was down are caught up once, with several missed forecast runs coalesced into the latest useful forecast, and a run at a skipped or repeated daylight-saving-time hour happens exactly once. The command reports the run and attempt it is working on, and records each attempt's owner, outcome and error.
+* Add ``flexmeasures jobs run-automation --automation <id>`` to queue the jobs for a single run of one automation, now, on top of its recurring runs. This leaves the automation's cursor alone, so its next recurring run still happens as scheduled, and inactive automations can be run this way, too.
+* ``flexmeasures add automation`` refuses a fixed ``start``, ``end`` or ``prior`` in the parameters of any automation, as every run would share that moment. The parameters take ``start-offset`` and ``end-offset`` instead, or either one with a ``duration``, applied to the time each run was due, on the automation's own clock, and so do the new ``--start-offset`` and ``--end-offset`` options, next to ``--duration``.
+* ``flexmeasures add automation --type scheduling`` refuses a flex config field which fixes a moment in time, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, naming the field, as such a value would be stale on the next run.
+* ``flexmeasures edit automation`` counts up the automation's schedule revision whenever it rebases the cursor (on a changed cron string or timezone, or on reactivation), which keeps the durable runs of the old and the new schedule apart.
+* ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
+
+**Data sources and sensor data**
+
+* Add ``flexmeasures jobs check-source-references`` to list waiting jobs, including reporting jobs, that refer to a data source which no longer exists, or which the database upgrade to v1.1 will merge into an identical one. Run it before upgrading, so that you can wait for the jobs it lists or cancel them yourself, and again after. It is expected to be dropped again in v1.2, as from v1.1 the database refuses duplicate data sources.
+* Fix ``flexmeasures show beliefs --timezone``, which used the timezone of the first sensor instead of the given one. By default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, where it used to have them in UTC without an offset. An unknown timezone name is now refused, and the option warns when it is given without ``--to-file``, as the terminal plot shows UTC.
+
+**Plans and rate limits**
+
+* Add ``flexmeasures edit reset-rate-limit --account <id>`` to reset an organisation's rate limits, so that its requests are accepted again straight away. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
+* ``flexmeasures show account`` now displays the organisation's plan and its effective default API and trigger rate limits, including server defaults.
+* ``flexmeasures add plan`` and ``flexmeasures edit plan`` refuse a rate limit which holds several limits (separated by semicolons), as each rate limit is now one limit.
+* Remove the ``--rate-limit-key`` option from ``flexmeasures add plan`` and ``flexmeasures edit plan`` (including ``--clear rate-limit-key``), and its column from ``flexmeasures show plans``, as triggers are now always counted per organisation.
+
+**Reporting and forecasting**
+
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
+* Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
+* ``flexmeasures add report`` saves the reporter's config on its data source by default. As a report then records under a new source, anything referring to its old source by ID should be pointed at the new one after the first run. Pass ``--no-save-config`` to leave the config out and keep recording under the old source; ``--save-config`` is still accepted.
+* ``flexmeasures add report`` saves all of a report's outputs or none of them, where each output used to be committed on its own, and says for each output how many beliefs it computed and how many of those it recorded.
+* ``flexmeasures add forecasts`` saves the forecasts of a forecaster that a plugin registers, which used to be dropped while the command reported them as created.
+* ``flexmeasures add forecasts`` no longer fails when it runs again from the same ``--from-date``, and says how many of the forecast beliefs it computed were new and saved.
+* ``flexmeasures add forecasts`` no longer keeps every trained model as a file; pass ``--model-save-dir`` to keep them.
+
+**Scheduling**
+
+* ``flexmeasures add schedule`` says how many beliefs it computed and how many of those it recorded, so that a rerun which only repeats what is on record no longer reads as storing a new schedule.
+* Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
+
+**Assets**
+
+* ``flexmeasures delete asset`` now records the deletion in the asset's audit log, notes the membership changes it makes in the audit logs of device groups, and removes the asset from the graphs of other assets, as deleting an asset through the API or the UI does.
 
 since v1.0.1 | September 9, 2026
 =================================
@@ -24,11 +62,6 @@ since v1.0.0 | August 11, 2026
 * Add ``flexmeasures add plan``, ``flexmeasures show plans`` and ``flexmeasures edit plan``, to manage the rate limits and quotas which apply to the accounts on a plan.
 * Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
-* Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset, with ``--type forecasting`` or ``--type scheduling`` saying which task to automate). Each automation carries its own IANA timezone (``--timezone``), in which its cron expression is interpreted.
-* ``flexmeasures add automation --type scheduling`` refuses a flex config field which fixes a moment in time, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, naming the field: a recurring schedule automation computes a fresh schedule on every run, so such a value would be stale on the next one.
-* Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs. Runs missed while the runner was down are caught up once, with several missed forecast runs coalesced into the latest useful forecast, and a run at a skipped or repeated daylight-saving-time hour happens exactly once.
-* Add ``flexmeasures jobs run-automation --automation <id>`` to queue the jobs for a single run of one automation, now, on top of its recurring runs. This leaves the automation's cursor alone, so its next recurring run still happens as scheduled, and inactive automations can be run this way, too.
-* ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures show data-sources`` now shows the account a data source belongs to, and lists the sensors holding data recorded by a single source with ``--show-sensors``.
 
 since v0.33.0 | June 01, 2026
@@ -75,7 +108,7 @@ since v0.29.0 | October 14, 2025
 * The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
 
 since v0.28.0 | September 10, 2025
-=================================
+==================================
 * Removed command ``flexmeasures db-ops save`` and ``flexmeasures db-ops load`` for folder&file - base backup management.
 
 since v0.27.0 | July 20, 2025
@@ -190,7 +223,7 @@ since v0.12.0 | January 04, 2023
 
 
 since v0.11.0 | August 28, 2022
-==============================
+===============================
 * Add ``flexmeasures jobs show-queues`` to show contents of computation job queues.
 * ``--name`` parameter in ``flexmeasures jobs run-worker`` is now optional.
 * Add ``--custom-message`` param to ``flexmeasures monitor tasks``.
@@ -218,19 +251,19 @@ since v0.8.0 | January 26, 2022
 
 
 since v0.6.0 | April 2, 2021
-=====================
+============================
 
 * Add ``flexmeasures add account``, ``flexmeasures delete account``, and the ``--account-id`` param to ``flexmeasures add user``.
 
 
 since v0.4.0 | April 2, 2021
-=====================
+============================
 
 * Add the ``dev-add`` command group for experimental features around the upcoming data model refactoring.
 
 
 since v0.3.0 | April 2, 2021
-=====================
+============================
 
 * Refactor CLI into the main groups ``add``, ``delete``, ``jobs`` and ``db-ops``
 * Add ``flexmeasures add asset``,  ``flexmeasures add user`` and ``flexmeasures add weather-sensor``

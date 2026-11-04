@@ -17,6 +17,7 @@ from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import JSONB
 import timely_beliefs as tb
+from timely_beliefs.beliefs.materialized_views import get_most_recent_beliefs_mview
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
@@ -71,13 +72,18 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         "GenericAsset",
         foreign_keys=[generic_asset_id],
         backref=db.backref(
-            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "sensors",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Sensor.id",  # creation order, so that sensors[0] does not depend on the physical row order the database returns
         ),
     )
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_sensors",
-        backref=db.backref("sensors", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("sensors", lazy="dynamic", order_by="Sensor.id"),
     )
 
     def get_path(self, separator: str = ">"):
@@ -154,50 +160,48 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def __acl__(self):
         """
         We allow reading to whoever can read the asset.
-        Editing as well as deletion is left to account admins.
+        Editing is left to account admins and consultants.
+        Members may delete a sensor that holds no data; deleting data is left to account admins and consultants.
         Everyone in the account and its consultant can add beliefs.
         """
-        return {
-            "create-children": [
+        post_data_access = [
+            f"account:{self.generic_asset.account_id}",
+            (
+                (
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        manage_sensor_access = [
+            (
                 f"account:{self.generic_asset.account_id}",
+                f"role:{ACCOUNT_ADMIN_ROLE}",
+            ),
+            (
                 (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        return {
             "read": self.generic_asset.__acl__()["read"],
-            "update": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+            "post-data": post_data_access,
+            "trigger-schedules": post_data_access,
+            "trigger-forecasts": post_data_access,
+            "annotate": post_data_access,
+            # PATCH can change units and resolution, so field editing remains limited to account admins and consultants.
+            "edit-sensors": manage_sensor_access,
+            "delete-data": manage_sensor_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": post_data_access,
+            "update": manage_sensor_access,
+            "delete": manage_sensor_access,
         }
 
     @property
@@ -284,8 +288,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        """Sets the attribute on the Sensor itself, creating it if it does not exist yet.
+
+        If the GenericAsset has the same attribute, the Sensor's value takes precedence over it from then on.
+        Note that :meth:`get_attribute` first looks for a Sensor property or column of that name,
+        so an attribute named like one (e.g. ``name`` or ``unit``) is stored, but never read back.
+        """
+        self.attributes[attribute] = value
 
     def check_required_attributes(
         self,
@@ -531,7 +540,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param chart_type: one of the SENSOR_CHART_TYPES (see flexmeasures.data.models.charts), such as "bar_chart"
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -623,21 +632,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def timerange(self) -> dict[str, datetime_type]:
         """Time range for which sensor data exists.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
-
-    @property
-    def _ui_unit(self) -> str:
-        """Used to customize how the sensor unit is shown in the UI."""
-        if self.unit == "":
-            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-        return self.unit
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
@@ -651,9 +654,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         # never attempt a DB look-up for a row that does not exist.
         if hasattr(self, "_as_dict_override") and self._as_dict_override:
             return self._as_dict_override
-        parent_asset = db.session.execute(
-            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
-        ).scalar_one_or_none()
+        parent_asset = self.generic_asset.parent_asset
         return dict(
             asset_id=self.generic_asset.id,
             id=self.id,
@@ -935,7 +936,11 @@ def _select_latest_version_and_belief_per_event(
     Sources are therefore grouped into families sharing a name, type and model,
     and versions are only ever compared inside a family.
 
-    Within a family, the latest version wins, then the most recent belief, then the highest source id.
+    Within a family, the latest version wins, then the most recent belief,
+    then a source that left nothing out over one that names the members it was missing (see `DataSource.missing_members`),
+    then the highest source id.
+    Two sources of one family differ that way when an `AggregatorReporter` recorded a partial aggregate before the complete one,
+    and a complete aggregate recorded with the same belief time as the partial one should replace it.
 
     Between families, the order the caller named its sources in wins, for a caller that named any,
     then the most recent belief, then the highest source id.
@@ -969,6 +974,9 @@ def _select_latest_version_and_belief_per_event(
     id_per_source = np.array(
         [source.id if source.id is not None else -1 for source in unique_sources]
     )
+    incomplete_per_source = np.array(
+        [bool(getattr(source, "missing_members", None)) for source in unique_sources]
+    )
     # Sources the caller did not name rank behind the ones it did, in the order it gave them.
     # An entry that named nothing this database knows still holds its place,
     # so the rank for the unnamed has to clear every entry, not merely the ones that matched.
@@ -990,11 +998,12 @@ def _select_latest_version_and_belief_per_event(
     family = family_per_source[source_codes]
     version = version_per_source[source_codes]
     source_id = id_per_source[source_codes]
+    incomplete = incomplete_per_source[source_codes]
     position = position_per_source[source_codes]
 
     # np.lexsort takes its keys least significant first.
     within_family = _first_of_each_group(
-        np.lexsort((-source_id, -recency, -version, family, events)),
+        np.lexsort((-source_id, incomplete, -recency, -version, family, events)),
         (events, family),
     )
     between_families = _first_of_each_group(
@@ -1138,23 +1147,24 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
-        :param source_types: Optional list of source type names to query only specific source types *
-        :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param source_types: Optional list of source type names to query only specific source types (*)
+        :param exclude_source_types: Optional list of source type names to exclude specific source types (*)
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source). Where several sources report an event, the one to keep is chosen by version within a family of sources sharing a name, type and model, and between families by the order the sources were passed in, then by the most recent belief, then by the highest source id.
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
-        :param resolution: Optional timedelta or pandas freqstr used to resample the results **
+        :param resolution: Optional timedelta or pandas freqstr used to resample the results (**)
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
 
-        *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
-           Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
-        ** Note that:
-           - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
-           - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
-           - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)
+        (*) If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
+        Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
+
+        (**) Note that:
+        - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
+        - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
+        - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)
         """
         # todo: deprecate the 'sensor' argument in favor of 'sensors' (announced v0.8.0)
         sensors = tb_utils.replace_deprecated_argument(
@@ -1204,6 +1214,24 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
 
+        # timely-beliefs would otherwise look up its materialized view of most recent beliefs once per sensor.
+        # It uses the view only without belief timing filters, so only look it up then.
+        most_recent_beliefs_mview = (
+            get_most_recent_beliefs_mview(db.session)
+            if most_recent_beliefs_only
+            and not most_recent_only
+            and all(
+                pd.isnull(f)
+                for f in (
+                    beliefs_after,
+                    beliefs_before,
+                    horizons_at_least,
+                    horizons_at_most,
+                )
+            )
+            else None
+        )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -1220,6 +1248,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
+                # Look the view up once for all sensors, not once per sensor.
+                use_materialized_view=most_recent_beliefs_mview is not None,
+                most_recent_beliefs_mview=most_recent_beliefs_mview,
             )
             if use_latest_version_per_event and not one_deterministic_belief_per_event:
                 # Asking for one belief per event settles the versions itself, family by family,

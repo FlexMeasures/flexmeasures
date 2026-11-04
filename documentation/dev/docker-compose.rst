@@ -20,8 +20,8 @@ This pulls the images you need, and re-builds the FlexMeasures ones from code. I
 
 This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image from DockerHub.
 
-If you wanted, you could stop building from source, and directly use the official flexmeasures image for the server and worker container
-(set ``image: lfenergy/flexmeasures`` in the file ``docker-compose.yml``).
+If you wanted, you could stop building from source, and directly use the official flexmeasures image for the FlexMeasures services
+(set ``image: lfenergy/flexmeasures`` for the server, worker and automation-runner services in ``docker-compose.yml``).
 
 
 Run the compose stack
@@ -51,6 +51,10 @@ Check ``docker ps`` or ``docker compose ps`` to see if your containers are runni
 
 
 The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
+The ``automation-runner`` container starts when that health check passes and calls ``flexmeasures jobs run-automations`` at each minute boundary.
+It only queues due automation jobs; the worker executes them.
+You can follow the dispatcher's output with ``docker compose logs -f automation-runner``.
+Do not also schedule a host cron job for the same deployment.
 
 You can use the terminal or ``docker compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
 We'll see the latter more in this tutorial.
@@ -148,6 +152,7 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+
 |
 
 .. note::
@@ -192,6 +197,11 @@ After you've started the compose stack with ``docker compose up``, run:
 
 .. code-block:: bash
 
-    $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
+    $ docker exec -it flexmeasures-server-1 python -m pip install pytest pytest-flask fakeredis lupa pytest-mock requests-mock
+    $ docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 python -m pytest --pyargs flexmeasures
+
+The image comes without test dependencies, so the first command installs the ones the tests need, and the second runs the tests that ship with FlexMeasures.
+This leaves out ``selenium``, which only the tests of the UI's JavaScript need, together with a Chrome browser; see ``flexmeasures/ui/tests/js/README.md``.
+To run the tests of the code you are working on instead, mount your source tree at ``/app/flexmeasures``: the image puts ``/app`` first on the Python path, so the server, the CLI and the tests all use the mounted code.
 
 This rounds up the developer experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 

@@ -3,15 +3,88 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import delete
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import (
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from flexmeasures.data.services.group_membership_audit import (
+    note_deletion as note_group_membership_deletion,
+)
 
 """Services for managing assets"""
+
+
+def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
+    """Return whether an asset subtree holds beliefs or annotations.
+
+    The subtree's assets and sensors are looked up first, and the probes name them by ID.
+    Probing ``timed_belief`` with a subquery for its sensors instead lets Postgres plan a join that reads the whole table's index,
+    which takes seconds on a large database whenever the subtree holds no beliefs.
+    """
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    subtree = (
+        sa.select(GenericAsset.id)
+        .where(GenericAsset.id == asset.id)
+        .cte(recursive=True)
+    )
+    subtree = subtree.union_all(
+        sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
+    )
+    asset_query = sa.select(GenericAsset.id).where(
+        GenericAsset.id.in_(sa.select(subtree.c.id))
+    )
+    if lock:
+        asset_query = asset_query.with_for_update()
+    asset_ids = db.session.scalars(asset_query).all()
+    sensor_query = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        sensor_query = sensor_query.with_for_update()
+    sensor_ids = db.session.scalars(sensor_query).all()
+    for model, condition in (
+        (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
+        (
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id.in_(asset_ids),
+        ),
+        (
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.sensor_id.in_(sensor_ids),
+        ),
+    ):
+        if db.session.scalar(
+            sa.select(sa.literal(True)).select_from(model).where(condition).limit(1)
+        ):
+            return True
+    return False
+
+
+def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
+    """The assets below this one, at any depth, which the current user may read.
+
+    Being below a readable asset grants nothing by itself: a child asset can belong to another account than its parent,
+    so each one is checked on its own.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    readable = []
+    for descendant in asset.offspring:
+        try:
+            check_access(descendant, "read")
+        except (Forbidden, Unauthorized):
+            continue
+        readable.append(descendant)
+    return readable
 
 
 def create_asset(asset_data: dict) -> GenericAsset:
@@ -380,7 +453,7 @@ def cleanup_asset_references_in_assets(
                 GenericAsset.id != asset_id,
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.asset ? (@ == $aid)",
+                    sa.cast("$.**.asset ? (@ == $aid)", JSONPATH),
                     vars_json,
                 ),
             )
@@ -609,6 +682,8 @@ def delete_asset(asset: GenericAsset):
     asset_name, asset_id = asset.name, asset.id
     cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
+    # the statement below deletes the asset, its offspring and their sensors without a flush, which is where group changes are noted otherwise
+    note_group_membership_deletion(asset)
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)

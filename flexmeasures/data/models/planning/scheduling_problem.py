@@ -15,6 +15,7 @@ It also gives both backends a single place to grow support for a new scheduling 
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -88,8 +89,10 @@ def solver_options(solver_name: str) -> dict:
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
         }
-        # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-        if current_app.config["LOGGING_LEVEL"] == "INFO":
+        # HiGHS writes its log straight to the console, bypassing our loggers,
+        # so only let it through when debugging.
+        # The app logger's level reflects LOGGING_LEVEL, whether that was configured as a name (e.g. "INFO") or a number (e.g. logging.INFO).
+        if current_app.logger.getEffectiveLevel() > logging.DEBUG:
             profile["output_flag"] = "false"
 
     configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
@@ -109,8 +112,10 @@ class SubCommitmentFrames(Sequence):
     cost more than the rest of the split put together, and for the default backend it
     bought nothing.
 
-    Each entry knows the frame it came from, the row positions of its group, and the
-    price column its half of a two-sided group drops.
+    Each entry knows the frame it came from, the row positions of its group, the
+    price column its half of a two-sided group drops, and, for a sub-commitment that
+    carries a merged group (see :func:`merge_interchangeable_subcommitments`), the
+    prices it carries in place of its own.
     """
 
     def __init__(self, specs: list[tuple]):
@@ -125,12 +130,27 @@ class SubCommitmentFrames(Sequence):
             return [self[i] for i in range(*index.indices(len(self)))]
         frame = self._frames.get(index)
         if frame is None:
-            source, positions, dropped_column = self._specs[index]
+            source, positions, dropped_column, *rest = self._specs[index]
             frame = source.iloc[positions]
             if dropped_column is not None:
                 frame = frame.drop(columns=dropped_column)
+            prices = rest[0] if rest else None
+            if prices:
+                frame = frame.copy()
+                for column, price in prices.items():
+                    if column in frame.columns:
+                        frame[column] = price
             self._frames[index] = frame
         return frame
+
+    def select(self, kept: list[int], prices: dict[int, dict]) -> SubCommitmentFrames:
+        """The sub-commitments at ``kept``, in that order, with ``prices`` set on those (by new index) that carry a merged group."""
+        return SubCommitmentFrames(
+            [
+                (*self._specs[c][:3], prices.get(new_index))
+                for new_index, c in enumerate(kept)
+            ]
+        )
 
 
 def convert_commitments_to_subcommitments(
@@ -223,6 +243,11 @@ def convert_commitments_to_subcommitments(
             active = ~(np.isnan(quantity) | (quantity == -infinity))
             return quantity[active], j_values[pos][active], lb, ub
 
+        def _rows(group_key) -> tuple:
+            """Every row of one group, as (time step indices, quantities), for :func:`_subcommitment_shape`."""
+            pos = group_positions[group_key]
+            return j_values[pos], quantity_values[pos]
+
         def _grouping(group_key) -> dict:
             """The device/device_group values of one group, as arrays."""
             if device_values is None:
@@ -246,6 +271,7 @@ def convert_commitments_to_subcommitments(
             down_price = down_by_group.get(group_key)
             up_price = None if _is_missing(up_price) else up_price
             down_price = None if _is_missing(down_price) else down_price
+            rows = _rows(group_key)
             if len(positions) == 1:
                 commitment_mapping[len(sub_commitments)] = c
                 sub_commitments.append((without_group, positions, None))
@@ -255,6 +281,10 @@ def convert_commitments_to_subcommitments(
                         **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": down_price,
+                        "price columns": tuple(
+                            column for column in PRICE_COLUMNS if column in df.columns
+                        ),
+                        "rows": rows,
                         "active rows": _active_rows(group_key, 0.0, 0.0),
                     }
                 )
@@ -274,6 +304,8 @@ def convert_commitments_to_subcommitments(
                         **grouping,
                         "upwards deviation price": None,
                         "downwards deviation price": down_price,
+                        "price columns": ("downwards deviation price",),
+                        "rows": rows,
                         "active rows": _active_rows(group_key, -infinity, 0.0),
                     }
                 )
@@ -283,10 +315,238 @@ def convert_commitments_to_subcommitments(
                         **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": None,
+                        "price columns": ("upwards deviation price",),
+                        "rows": rows,
                         "active rows": _active_rows(group_key, 0.0, infinity),
                     }
                 )
     return SubCommitmentFrames(sub_commitments), commitment_mapping, scalars
+
+
+def deviation_price(commitment: pd.DataFrame, column: str) -> float:
+    """The single deviation price that the optimizers apply to a commitment, for the given price column.
+
+    A commitment carries one pair of deviation variables, priced by one pair of prices,
+    so the price in its first row stands for the whole commitment.
+    ``convert_commitments_to_subcommitments`` guarantees that is well defined, by rejecting a group whose prices differ per row.
+    A missing column, or a missing price, means no price at all.
+    """
+    if column not in commitment.columns:
+        return 0.0
+    price = commitment[column].iloc[0]
+    if pd.isna(price):
+        return 0.0
+    return float(price)
+
+
+PRICE_COLUMNS = ("upwards deviation price", "downwards deviation price")
+
+
+def header_price(header: dict, column: str) -> float:
+    """:func:`deviation_price`, read off a sub-commitment's constant columns (see :func:`convert_commitments_to_subcommitments`) rather than its frame."""
+    price = header.get(column)
+    if price is None or pd.isna(price):
+        return 0.0
+    return float(price)
+
+
+def _header_from_frame(commitment: pd.DataFrame) -> dict:
+    """The constant columns :func:`_subcommitment_shape` and the merge read, taken from a sub-commitment frame.
+
+    :func:`convert_commitments_to_subcommitments` gathers these while splitting;
+    this is for callers that hand over the frames themselves.
+    """
+    stock = None
+    if "stock" in commitment.columns and pd.notna(commitment["stock"].iloc[0]):
+        stock = commitment["stock"].iloc[0]
+    commodity = None
+    if "commodity" in commitment.columns and not _is_missing(
+        commitment["commodity"].iloc[0]
+    ):
+        commodity = commitment["commodity"].iloc[0]
+    price_columns = tuple(
+        column for column in PRICE_COLUMNS if column in commitment.columns
+    )
+    return {
+        "class": commitment["class"].iloc[0],
+        "stock": stock,
+        "commodity": commodity,
+        "price columns": price_columns,
+        "rows": (
+            commitment["j"].to_numpy(dtype=np.int64),
+            commitment["quantity"].to_numpy(dtype=float),
+        ),
+        **{
+            column: (commitment[column].iloc[0] if column in price_columns else None)
+            for column in PRICE_COLUMNS
+        },
+    }
+
+
+def _subcommitment_shape(header: dict, scope: dict) -> tuple:
+    """What makes two sub-commitments impose the identical constraint.
+
+    A sub-commitment contributes ``quantity[j] + downwards + upwards - (the scoped flow at j)``, bounded below by zero where it carries an upwards price and above by zero where it carries a downwards price.
+    So two sub-commitments constrain the solver identically when they agree on all of: which prices they carry (that is what sets the bounds), what they bind (flow or stock, and for a stock which stock), the devices they are scoped to, and their quantity at every time step they cover.
+    They may still differ in the *level* of those prices, which is the whole point: that is what distinguishes the commitments while leaving their constraints interchangeable.
+    The commodity is part of the shape too, since costs are reported per commodity off the sub-commitment that carried them.
+
+    Read off the sub-commitment's constant columns and row arrays, gathered while splitting:
+    a group is usually a single time step, so reading them off every one-row frame again cost a few pandas lookups per time step per commitment.
+    """
+    j_values, quantity_values = header["rows"]
+    quantities = tuple(
+        (int(j), None if np.isnan(q) else float(q))
+        for j, q in zip(j_values.tolist(), quantity_values.tolist())
+    )
+    stock = header["stock"]
+    return (
+        header["class"],
+        header["price columns"],
+        None if stock is None else int(stock),
+        header["commodity"],
+        quantities,
+        frozenset(
+            (label, frozenset(devices))
+            for label, devices in sorted(scope.items(), key=repr)
+        ),
+    )
+
+
+def interchangeable_subcommitments(
+    commitments: Sequence[pd.DataFrame],
+    device_group_lookup: dict[int, dict],
+    headers: list[dict] | None = None,
+) -> list[list[int]]:
+    """Sub-commitments that impose the identical constraint, grouped, singletons dropped.
+
+    Such sub-commitments pin the same deviation in any bounded solution, because their constraints say the same thing,
+    so one of them can carry the group: the duplicates add a variable pair and a constraint row each without adding any information.
+    Replacing a group by one sub-commitment carrying the summed prices is what lets a commitment that is not convex on its own be priced
+    against a partner that more than compensates, since there is then one deviation to inflate rather than one each (GH#2534).
+
+    :param headers: the sub-commitments' constant columns, as :func:`convert_commitments_to_subcommitments` returns them;
+                    read off the frames when not given.
+    """
+    if headers is None:
+        headers = [_header_from_frame(commitment) for commitment in commitments]
+    groups: dict[tuple, list[int]] = {}
+    for c, header in enumerate(headers):
+        shape = _subcommitment_shape(header, device_group_lookup.get(c, {}))
+        groups.setdefault(shape, []).append(c)
+    return [members for members in groups.values() if len(members) > 1]
+
+
+def _merge_interchangeable(
+    commitments: Sequence[pd.DataFrame],
+    headers: list[dict],
+    commitment_mapping: dict[int, int],
+    device_group_lookup: dict[int, dict],
+    worth_merging,
+) -> tuple[
+    Sequence[pd.DataFrame],
+    list[dict],
+    dict[int, int],
+    dict[int, dict],
+    dict[int, list[tuple]],
+]:
+    """:func:`merge_interchangeable_subcommitments`, on the sub-commitments' constant columns.
+
+    Returns the merged headers as well, aligned with the merged sub-commitments.
+    A :class:`SubCommitmentFrames` stays lazy: the sub-commitment carrying a merged group is only built, with its summed prices, when asked for.
+    """
+    groups = [
+        members
+        for members in interchangeable_subcommitments(
+            commitments, device_group_lookup, headers=headers
+        )
+        if worth_merging(members)
+    ]
+    if not groups:
+        return commitments, headers, commitment_mapping, device_group_lookup, {}
+
+    absorbed = {member for members in groups for member in members[1:]}
+    leaders = {members[0]: members for members in groups}
+
+    kept: list[int] = []
+    summed_prices: dict[int, dict] = {}
+    merged_headers: list[dict] = []
+    merged_mapping: dict[int, int] = {}
+    merged_lookup: dict[int, dict] = {}
+    merged_constituents: dict[int, list[tuple]] = {}
+    for c, header in enumerate(headers):
+        if c in absorbed:
+            continue
+        new_index = len(kept)
+        kept.append(c)
+        members = leaders.get(c)
+        if members is None:
+            merged_headers.append(header)
+        else:
+            summed = {
+                column: sum(header_price(headers[member], column) for member in members)
+                for column in header["price columns"]
+            }
+            summed_prices[new_index] = summed
+            merged_headers.append({**header, **summed})
+            merged_constituents[new_index] = [
+                (
+                    commitment_mapping[member],
+                    header_price(headers[member], PRICE_COLUMNS[0]),
+                    header_price(headers[member], PRICE_COLUMNS[1]),
+                )
+                for member in members
+            ]
+        merged_mapping[new_index] = commitment_mapping[c]
+        merged_lookup[new_index] = device_group_lookup.get(c, {})
+
+    if isinstance(commitments, SubCommitmentFrames):
+        merged = commitments.select(kept, summed_prices)
+    else:
+        merged = []
+        for new_index, c in enumerate(kept):
+            commitment = commitments[c]
+            if new_index in summed_prices:
+                commitment = commitment.copy()
+                for column, price in summed_prices[new_index].items():
+                    commitment[column] = price
+            merged.append(commitment)
+    return merged, merged_headers, merged_mapping, merged_lookup, merged_constituents
+
+
+def merge_interchangeable_subcommitments(
+    commitments: Sequence[pd.DataFrame],
+    commitment_mapping: dict[int, int],
+    device_group_lookup: dict[int, dict],
+    worth_merging,
+) -> tuple[
+    Sequence[pd.DataFrame], dict[int, int], dict[int, dict], dict[int, list[tuple]]
+]:
+    """Replace each group of interchangeable sub-commitments that ``worth_merging`` selects by one carrying their summed prices.
+
+    The duplicates say nothing the first one does not, so the merged sub-commitment constrains the solver exactly as the group did,
+    with one pair of deviation variables and one constraint row in place of one each.
+    What the group's members do *not* share is the level of their prices, so the merged sub-commitment is priced on their sum,
+    and each member's own prices are recorded against it so that its share of the cost can be worked out again after the solve.
+
+    :param worth_merging: called with a group's member indices; a group it rejects is left alone, so a problem that gains nothing keeps its model unchanged.
+    :returns: the sub-commitments, their mapping back to the original commitments, their device-group lookup, and, per merged index, the ``(original index, upwards price, downwards price)`` of each member.
+    """
+    headers = [_header_from_frame(commitment) for commitment in commitments]
+    (
+        merged,
+        _,
+        merged_mapping,
+        merged_lookup,
+        merged_constituents,
+    ) = _merge_interchangeable(
+        commitments,
+        headers,
+        commitment_mapping,
+        device_group_lookup,
+        worth_merging,
+    )
+    return merged, merged_mapping, merged_lookup, merged_constituents
 
 
 def _is_missing(value) -> bool:
@@ -385,8 +645,13 @@ class SchedulingProblem:
     #: sub-commitment index -> {device group label -> member device indices}
     device_group_lookup: dict[int, dict]
 
-    #: Whether the summed deviation prices describe a convex cost curve
+    #: Per merged sub-commitment index, the ``(original index, upwards price, downwards price)`` of each
+    #: commitment merged into it, so that its share of the realised cost can be worked out again.
+    merged_constituents: dict[int, list[tuple]]
+
+    #: Whether every commitment's deviation prices describe a convex cost curve
     #: (a non-convex curve needs binary commitment-sign variables).
+    #: A merged sub-commitment is judged on the summed prices it carries, which is the point of merging it.
     convex_cost_curve: bool
 
     #: Big-Ms bounding the search space for device power (Md) and commitment deviations (Mc)
@@ -664,26 +929,58 @@ def prepare_scheduling_problem(  # noqa C901
 
         device_group_lookup[c] = groups
 
-    # Oversimplified check for a convex cost curve.
-    # Summed over the commitments as passed in, not over the sub-commitments: splitting
-    # a commitment partitions its rows between groups, and a group that yields both a
-    # downwards and an upwards sub-commitment contributes each price exactly once, just
-    # as the row it came from does. The sums are therefore the same, and there are far
-    # fewer frames to concatenate -- one per commitment rather than one per group, and a
-    # group is usually a single time step.
-    if commitments:
-        df = pd.concat(original_commitments)[
-            ["upwards deviation price", "downwards deviation price"]
-        ]
-        df = df.groupby(level=0).sum()
-        convex_cost_curve = (
-            len(df[df["upwards deviation price"] < df["downwards deviation price"]])
-            == 0
+    # Each commitment carries its own pair of deviation variables, priced by its own pair of prices,
+    # so a convex cost curve is a property of one commitment at a time:
+    # deviating upwards has to cost at least what deviating downwards pays.
+    # Summing the prices of every commitment per time step instead would let one commitment's prices mask another's non-convexity,
+    # which leaves out the commitment-sign variables that keep such a commitment bounded (GH#2534).
+    # The prices come from the constant columns gathered while splitting, not from the one-row frames, of which there is usually one per time step.
+    def _is_convex(header: dict) -> bool:
+        """Deviating upwards costs at least what deviating downwards pays."""
+        return header_price(header, "upwards deviation price") >= header_price(
+            header, "downwards deviation price"
         )
-    else:
-        # No commitments at all: nothing can make the cost curve non-convex.
-        # The Pyomo path used to raise on the empty pd.concat here.
-        convex_cost_curve = True
+
+    split_headers = commitment_headers
+
+    def _worth_merging(members: list[int]) -> bool:
+        """Whether merging this group of interchangeable sub-commitments saves the sign variables.
+
+        A group that is already convex throughout needs none to begin with, so merging it would change a model for nothing.
+        A group whose summed prices are still not convex needs them either way, and merging it would only hide which member asked for them.
+        What is left is the group this is for: one that is not convex member by member, and is once its prices are added up.
+        """
+        if all(_is_convex(split_headers[member]) for member in members):
+            return False
+        summed = {
+            column: sum(
+                header_price(split_headers[member], column) for member in members
+            )
+            for column in PRICE_COLUMNS
+        }
+        return summed["upwards deviation price"] >= summed["downwards deviation price"]
+
+    # Sub-commitments whose constraints are interchangeable say the same thing, so one of them can carry the group,
+    # priced on their summed prices. That leaves one deviation to inflate rather than one each,
+    # which is what lets a commitment that is not convex on its own be carried by a partner that more than compensates,
+    # and it drops the duplicates' variables and rows rather than constraining them to agree (GH#2534).
+    (
+        commitments,
+        commitment_headers,
+        commitment_mapping,
+        device_group_lookup,
+        merged_constituents,
+    ) = _merge_interchangeable(
+        commitments,
+        commitment_headers,
+        commitment_mapping,
+        device_group_lookup,
+        _worth_merging,
+    )
+
+    # With no commitments at all, there is nothing to make the curve non-convex.
+    # A merged sub-commitment is judged on the summed prices it now carries, which is the point of having merged it.
+    convex_cost_curve = all(_is_convex(header) for header in commitment_headers)
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for our Big-Ms
@@ -738,6 +1035,7 @@ def prepare_scheduling_problem(  # noqa C901
         commitment_mapping=commitment_mapping,
         commitment_scalars=commitment_headers,
         device_group_lookup=device_group_lookup,
+        merged_constituents=merged_constituents,
         convex_cost_curve=convex_cost_curve,
         Md=Md,
         Mc=Mc,
@@ -798,14 +1096,37 @@ def _identify_commitment(header: dict, original_index: int) -> str:
 
 
 def aggregate_subcommitment_costs(
-    subcommitment_costs: dict, commitment_mapping: dict
+    subcommitment_costs: dict,
+    commitment_mapping: dict,
+    merged_constituents: dict | None = None,
+    deviations: dict | None = None,
 ) -> dict:
-    """Sum sub-commitment costs back onto the commitments they were split from."""
+    """Sum sub-commitment costs back onto the commitments they were split from.
+
+    A merged sub-commitment stands for several commitments at once, so its realised cost is shared out by their own prices
+    against the deviation they share: a commitment priced ``up_i`` and ``down_i`` carries ``u * up_i + d * down_i`` of it.
+    That is exact rather than apportioned, because the deviation is one and the same for every commitment merged into it,
+    which is why merging them costs nothing in what can be reported afterwards.
+
+    Costs come back ordered by commitment, since callers read them off alongside the commitments themselves.
+
+    :param deviations: per sub-commitment index, its realised ``(upwards, downwards)`` deviation, signed as the solver holds them.
+    """
     commitment_costs: dict = {}
+    merged_constituents = merged_constituents or {}
+    deviations = deviations or {}
     for g, v in subcommitment_costs.items():
-        c = commitment_mapping[g]
-        commitment_costs[c] = commitment_costs.get(c, 0) + v
-    return commitment_costs
+        constituents = merged_constituents.get(g)
+        if constituents is None:
+            c = commitment_mapping[g]
+            commitment_costs[c] = commitment_costs.get(c, 0) + v
+            continue
+        upwards, downwards = deviations.get(g, (0.0, 0.0))
+        for c, up_price, down_price in constituents:
+            commitment_costs[c] = (
+                commitment_costs.get(c, 0) + upwards * up_price + downwards * down_price
+            )
+    return dict(sorted(commitment_costs.items()))
 
 
 def aggregate_commodity_costs(
