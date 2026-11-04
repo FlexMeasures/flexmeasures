@@ -100,11 +100,9 @@ class Transformation(Schema):
         and that the provided arguments (`args` and `kwargs`) are valid for the method's
         signature.
 
-        :param data:        A dictionary containing the method name (`method`) and optionally
-                            the method arguments (`args` as a list and `kwargs` as a dictionary).
+        :param data:        A dictionary containing the method name (`method`) and optionally the method arguments (`args` as a list and `kwargs` as a dictionary).
         :param kwargs:      Additional keyword arguments passed by the validation framework.
-        :raises ValidationError: If the method is not callable in any of the base classes or
-                                 if the provided arguments do not match the method signature.
+        :raises ValidationError: If the method is not callable in any of the base classes or if the provided arguments do not match the method signature.
         """
 
         method = data.get("method")
