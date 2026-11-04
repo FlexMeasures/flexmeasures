@@ -72,15 +72,13 @@ class DataGenerator:
 
             The configuration requires two parameters for the PV and consumption sensors.
 
-            Option 1::
-
+            Option 1:
                 dg = DataGenerator(config = {
                     "sensor_pv" : 1,
                     "sensor_consumption" : 2
                 })
 
-            Option 2::
-
+            Option 2:
                 sensor_pv = Sensor.query.get(1)
                 sensor_consumption = Sensor.query.get(2)
 
@@ -180,8 +178,7 @@ class DataGenerator:
         """Overwrite with the actual computation of your data generator.
 
         :returns: list of dictionaries,
-            for example::
-
+            for example:
                 [
                     {
                         "sensor": 501,
@@ -340,8 +337,7 @@ class DataGenerator:
             A DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
             to be persisted.
 
-            Parameters provided to the `compute` method (input of the method `_clean_parameters`)::
-
+            Parameters provided to the `compute` method (input of the method `_clean_parameters`):
                 parameters = {
                     "start" : "2023-01-01T00:00:00+02:00",
                     "end" : "2023-01-02T00:00:00+02:00",
@@ -349,8 +345,7 @@ class DataGenerator:
                     "field2" : 2
                 }
 
-            Parameters persisted to the DB (output of the method `_clean_parameters`)::
-
+            Parameters persisted to the DB (output of the method `_clean_parameters`):
                 parameters = {"field1" : 1,"field2" : 2}
         """
         _parameters = deepcopy(parameters)

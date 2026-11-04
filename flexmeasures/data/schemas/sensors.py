@@ -505,7 +505,6 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         but will let pass any sensor that has recorded negative values.
 
         :param to_unit:             Unit to which the sensor, time series or quantity should be convertible.
-
                                     - Sensors are checked for convertibility, but the original sensor is returned,
                                       so its values are not yet converted.
                                     - Time series and quantities are already converted to the given unit.

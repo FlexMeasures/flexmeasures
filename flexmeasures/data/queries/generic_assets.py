@@ -73,12 +73,9 @@ def get_location_queries(
     Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first(). Note that this function will still load and inspect assets to do its job.
 
     The Charge Points are named on the basis of the first EVSE in their list,
-    using either the whole EVSE name or that part that comes before a " -" delimiter. For example, if::
-
+    using either the whole EVSE name or that part that comes before a " -" delimiter. For example, if:
         evse_name = "Seoul Hilton - charger 1"
-
-    then::
-
+    then:
         charge_point_name = "Seoul Hilton (Charge Point)"
 
     A Charge Point is a special case. If all assets on a location are of type EVSE,

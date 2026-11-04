@@ -116,7 +116,6 @@ class SensorUI(FlaskView):
     def get(self, id: int, **kwargs):
         """GET from /sensors/<id>
         The following query parameters are supported (should be used only together):
-
         - start_time: minimum time of the events to be shown
         - end_time: maximum time of the events to be shown
 

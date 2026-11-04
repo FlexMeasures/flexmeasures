@@ -265,7 +265,6 @@ def get_series_from_quantity_or_sensor(
 
     :param variable_quantity:       Variable quantity measuring e.g. power capacity or efficiency.
                                     One of the following types:
-
                                     - a timely-beliefs Sensor recording the data
                                     - a :class:`~flexmeasures.data.schemas.sensors.SensorReference`
                                       wrapping a Sensor with optional source filters
@@ -282,7 +281,6 @@ def get_series_from_quantity_or_sensor(
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
     :param fill_sides:              If True, values are extended to the edges of the query window:
-
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :return:                        Pandas Series with the requested time series data.
@@ -399,7 +397,6 @@ def process_time_series_segments(
                                 - 'value': The value of the event (can be a Quantity or scalar).
                                 - 'start': The start datetime of the event.
                                 - 'end': The end datetime of the event.
-
     :param unit:                The unit to convert the value into if it's a Quantity.
     :param resolution:          The resolution to subtract from the 'end' to avoid overlap.
     :param resolve_overlaps:    How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
@@ -487,7 +484,6 @@ def get_continuous_series_sensor_or_quantity(
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
     :param fill_sides:              If True, values are extended to the edges of the query window:
-
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.

@@ -2,7 +2,6 @@
 These descriptions are used in documentation/features/scheduling.rst and in OpenAPI.
 If you need to use a new .rst directive, update make_openapi_compatible accordingly, so it shows up nicely in OpenAPI.
 For instance:
-
 - the ``:abbr:`X (Y)``` directive is converted to a ``<abbr title="Y">X</abbr>`` HTML tag.
 - any footnote references, such as ``[#quantity_field]_``, are stripped
   (these are meant for .rst docs to explain field types, which in OpenAPI is redundant,

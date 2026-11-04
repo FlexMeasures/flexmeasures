@@ -62,14 +62,14 @@ def optional_arg_decorator(fn):
     """
     A decorator which _optionally_ accepts arguments.
 
-    So a decorator like this::
+    So a decorator like this:
 
         @optional_arg_decorator
         def register_something(fn, optional_arg = 'Default Value'):
             ...
             return fn
 
-    will work in both of these usage scenarios::
+    will work in both of these usage scenarios:
 
         @register_something('Custom Name')
         def custom_name():

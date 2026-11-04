@@ -78,8 +78,7 @@ class Forecaster(DataGenerator):
 
         :param as_job:  If True, runs as a job.
         :returns:       List of dictionaries,
-            for example::
-
+            for example:
                 [
                     {
                         "sensor": 501,

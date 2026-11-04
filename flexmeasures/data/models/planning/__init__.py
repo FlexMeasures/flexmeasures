@@ -250,11 +250,9 @@ class Scheduler(DataGenerator):
 
         TODO: We might adapt the class design, so that a Scheduler object is initialized with configuration parameters,
         and can then be used multiple times (via compute()) to compute schedules of different kinds, e.g.
-
         - If we started later (put in a later start), what would the schedule be?
         - If we could change set points less often (put in a coarser resolution), what would the schedule be?
         - If we knew what was going to happen (put in a later belief_time), what would the schedule have been?
-
         For now, we don't see the best separation between config and state parameters (esp. within flex models).
         E.g. start and flex_model[soc_at_start] are intertwined.
         """
@@ -564,7 +562,6 @@ class Commitment:
     """Contractual commitment specifying prices for deviating from a given position.
 
     Attributes:
-
     :name:      Name of the commitment.
     :device:    Device to which the commitment pertains. If None, the commitment pertains to the EMS.
     :index:     Pandas DatetimeIndex defining the time slots to which the commitment applies.

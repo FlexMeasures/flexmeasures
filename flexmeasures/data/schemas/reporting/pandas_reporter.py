@@ -184,7 +184,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
     """
     This schema lists fields that can be used to describe sensors in the optimised portfolio
 
-    Example::
+    Example:
 
         {
             "required_input" : [

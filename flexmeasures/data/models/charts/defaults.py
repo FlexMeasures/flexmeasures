@@ -203,16 +203,12 @@ def create_annotation_layers(
     This way, the data tooltip keeps working inside annotation bands.
 
     Returns two lists of layers:
-
     - background layers (drawn behind the data):
-
       - a full-height rect band for annotations with a non-zero duration
       - a rule for instant annotations
       - an invisible, wider rule for pointing at instant annotations
       - a triangle marker at the top of each instant-annotation rule
-
     - foreground layers (drawn on top of the data):
-
       - a text mark showing the annotation content below the subchart
         (in the gap between the axis labels and the next subchart)
         when the annotation is hovered or pinned

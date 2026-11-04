@@ -21,9 +21,7 @@ class ProfitOrLossReporterConfigSchema(ReporterConfigSchema):
     """Schema for the ProfitOrLossReporter configuration
 
     Example:
-
     .. code-block:: json
-
         {
             "production-price-sensor" : 1,
             "consumption-price-sensor" : 2,
@@ -79,9 +77,7 @@ class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
     """Schema for the ProfitOrLossReporter parameters
 
     Example:
-
     .. code-block:: json
-
         {
             "input": [
                 {

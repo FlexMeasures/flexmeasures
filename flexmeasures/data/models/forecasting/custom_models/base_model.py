@@ -37,7 +37,6 @@ class BaseModel(ABC):
     It supports probabilistic forecasting.
 
     Design principles for forecasting pipeline:
-
     - This design follows the *fixed viewpoint forecasting* paradigm: each forecasting cycle retrains
       the model(s) on an extended training window, then generates predictions.
     - A **cycle** consists of training on a chosen window of historical data (the train period),

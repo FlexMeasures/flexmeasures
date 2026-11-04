@@ -35,26 +35,20 @@ class AggregatorConfigSchema(ReporterConfigSchema):
     so a report over a group needs no topology of its own.
 
     Example, aggregating the group on asset 2:
-
     .. code-block:: json
-
         {
             "group" : {"asset" : 2}
         }
 
     Example, aggregating only the PV installations of the group on asset 1:
-
     .. code-block:: json
-
         {
             "group" : {"asset" : 1},
             "members" : {"asset-type" : "solar"}
         }
 
     Example, aggregating sensors named in the parameters, which needs no group:
-
     .. code-block:: json
-
         {
             "method" : "sum",
             "weights" : {
@@ -135,9 +129,7 @@ class AggregatorParametersSchema(ReporterParametersSchema):
     a report over a device group takes its sensors, and the sensor it records on, from the flex-config.
 
     Example:
-
     .. code-block:: json
-
         {
             "input": [
                 {

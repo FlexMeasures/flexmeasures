@@ -63,13 +63,13 @@ def select_schema_to_ensure_list_of_floats(
 ) -> fields.List | SingleValueField:
     """Allows both a single float and a list of floats. Always returns a list of floats.
 
-    Meant to improve user experience by not needing to make a list out of a single item, such that::
+    Meant to improve user experience by not needing to make a list out of a single item, such that:
 
         {
             "values": [3.7]
         }
 
-    can be written as::
+    can be written as:
 
         {
             "values": 3.7

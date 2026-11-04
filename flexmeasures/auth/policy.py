@@ -353,7 +353,6 @@ def can_modify_role(  # noqa: C901
     :return: True if the user can modify each of the roles, False otherwise.
 
     The roles are:
-
     - admin: can only be changed in CLI / directly in the DB, so not here
     - admin-reader: can be added and removed by admins
     - account-admin: can be added and removed by admins and consultants (in consultancy account)

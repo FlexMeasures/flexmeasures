@@ -8,12 +8,10 @@ class LatLngGrid(object):
     The class provides two ways of conceptualising cells which nicely cover the grid: square cells and hexagonal cells.
     For both, locations can be computed which represent the corners of said cells.
     Examples:
-
     - 4 cells in square: 9 unique locations in a 2x2 grid (4*4 locations, of which 7 are covered by another cell)
     - 4 cells in hex: 13 unique locations in a 2x2 grid (4*6 locations, of which 11 are already covered)
     - 10 cells in square: 18 unique locations in a 5x2 grid (10*4 locations, of which 11 are already covered)
     - 10 cells in hex: 34 unique locations in a 5x2 grid (10*6 locations, of which 26 are already covered)
-
     The top-right and bottom-left locations are always at the center of a cell, unless the grid has 1 row or 1 column.
     In those case, these locations are closer to one side of the cell.
     """

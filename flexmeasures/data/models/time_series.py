@@ -632,8 +632,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         """Time range for which sensor data exists.
 
         :returns: dictionary with start and end,
-            for example::
-
+            for example:
                 {
                     'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
                     'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
@@ -1164,7 +1163,6 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
 
         (**) Note that:
-
         - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
         - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
         - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)

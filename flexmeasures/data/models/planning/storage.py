@@ -123,7 +123,7 @@ class MetaStorageScheduler(Scheduler):
     def _get_commodity_contexts(self) -> dict[str, dict]:
         """Return commodity-specific flex-contexts.
 
-        Supports the new format::
+        Supports the new format:
 
             "commodities": [
                 {"commodity": "electricity", ...},
@@ -3287,7 +3287,6 @@ class StorageScheduler(MetaStorageScheduler):
         that defines aggregate-consumption and/or aggregate-production sensors in its commodity context.
 
         The sign convention and split logic follows the same pattern as _build_consumption_production_schedules:
-
         - Only aggregate-consumption defined: full aggregate schedule (consumption +, production -)
         - Only aggregate-production defined: full aggregate schedule (consumption +, production -)
           (sign will be flipped by make_schedule based on consumption_is_positive=False)

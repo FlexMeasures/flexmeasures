@@ -108,8 +108,7 @@ class Reporter(DataGenerator):
         """Overwrite with the actual computation of your report.
 
         :returns: list of dictionaries,
-            for example::
-
+            for example:
                 [
                     {
                         "sensor": 501,
