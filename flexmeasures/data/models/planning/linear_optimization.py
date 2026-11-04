@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import inspect
-import logging
-import os
-import sys
-from contextlib import contextmanager
 from functools import lru_cache
 
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from flask import current_app
 import pandas as pd
@@ -17,6 +13,9 @@ from flexmeasures.data.models.planning import (
     Commitment,
     FlowCommitment,
     StockCommitment,
+)
+from flexmeasures.data.models.planning.utils import (
+    solver_output_kept_off_our_log_handlers,
 )
 from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     aggregate_commodity_costs,
@@ -118,49 +117,6 @@ def _arguments_for_highspy_backend(passed_arguments: dict) -> dict:
     return {
         name: value for name, value in passed_arguments.items() if name in forwardable
     }
-
-
-@contextmanager
-def _solver_output_kept_off_our_log_handlers(solver) -> Iterator[None]:
-    """Show an appsi solver's console output once, without passing it through the application's log handlers.
-
-    Pyomo's appsi solvers (e.g. ``appsi_highs``) solve inside ``capture_output(capture_fd=True)``,
-    which points file descriptors 1 and 2 at a pipe that a reader thread drains into ``config.solver_output_logger``.
-    By default, that is a Pyomo logger that propagates to the root,
-    so a console handler writes each line back into the pipe it came from.
-    Lines then pile up with one more prefix per pass,
-    and once a line no longer fits in the pipe, the reader thread blocks on its own write while holding the handler's lock,
-    which hangs the next thread that logs (see issue #2742).
-
-    So we hand the solver a logger of its own, whose one handler writes to a copy of stdout taken before the capture starts.
-    Whatever reaches the captured descriptors then appears on the console exactly once:
-    the solver's log, when ``output_flag`` lets HiGHS print one (see :func:`solver_options`),
-    and anything our own handlers wrote there during the solve, such as Pyomo's warnings, already formatted by them.
-    """
-    config = getattr(solver, "config", None)
-    if config is None or "solver_output_logger" not in config:
-        # Not an appsi solver, so nothing captures its output into a logger.
-        yield
-        return
-
-    # Instantiated directly rather than through logging.getLogger, so that it is registered nowhere:
-    # it has no parent to propagate to, and no logging setup can give it another handler or level.
-    solver_output_logger = logging.Logger(f"{__name__}.solver_output")
-    try:
-        console = os.fdopen(os.dup(sys.stdout.fileno()), "w")
-    except (AttributeError, OSError, ValueError):
-        # stdout has no descriptor to copy (e.g. it was swapped for an in-memory stream),
-        # so there is no console to show the output on.
-        console = None
-        solver_output_logger.addHandler(logging.NullHandler())
-    else:
-        solver_output_logger.addHandler(logging.StreamHandler(console))
-    config.solver_output_logger = solver_output_logger
-    try:
-        yield
-    finally:
-        if console is not None:
-            console.close()
 
 
 def device_scheduler(  # noqa C901
@@ -854,7 +810,7 @@ def device_scheduler(  # noqa C901
         solver.options[option_name] = option_value
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    with _solver_output_kept_off_our_log_handlers(solver):
+    with solver_output_kept_off_our_log_handlers(solver):
         results = solver.solve(model, load_solutions=False)
 
     # load the results only if a feasible solution has been found
