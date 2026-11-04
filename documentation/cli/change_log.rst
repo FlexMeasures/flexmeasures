@@ -35,13 +35,14 @@ since v1.1.0 | November XX, 2026
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
 * Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
 * ``flexmeasures add report`` saves the reporter's config on its data source by default. As a report then records under a new source, anything referring to its old source by ID should be pointed at the new one after the first run. Pass ``--no-save-config`` to leave the config out and keep recording under the old source; ``--save-config`` is still accepted.
-* ``flexmeasures add report`` saves all of a report's outputs or none of them, where each output used to be committed on its own, and says for each output how many beliefs it saved.
+* ``flexmeasures add report`` saves all of a report's outputs or none of them, where each output used to be committed on its own, and says for each output how many beliefs it computed and how many of those it saved.
 * ``flexmeasures add forecasts`` saves the forecasts of a forecaster that a plugin registers, which used to be dropped while the command reported them as created.
 * ``flexmeasures add forecasts`` no longer fails when it runs again from the same ``--from-date``, and says how many of the forecast beliefs it computed were new and saved.
 * ``flexmeasures add forecasts`` no longer keeps every trained model as a file; pass ``--model-save-dir`` to keep them.
 
 **Scheduling**
 
+* ``flexmeasures add schedule`` says how many beliefs it computed and how many of those it saved, so that a rerun which only repeats what is on record no longer reads as storing a new schedule.
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 
 **Assets**
