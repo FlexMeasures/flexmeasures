@@ -296,6 +296,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         </div>
 
         <!-- EDIT AUTOMATION MODAL -->
+        <div class="modal fade" id="runPlanModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="runPlanTitle"></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="runPlanBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="runPlanConfirm"></button>
+            </div>
+          </div></div>
+        </div>
+
         <div class="modal fade" id="editAutomationModal" tabindex="-1" role="dialog">
           <div class="modal-dialog"><div class="modal-content">
             <div class="modal-header">
@@ -686,6 +700,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   function actionButtons(automation) {
+    const runWithAscendantsItem = (automation["depends-on"] || []).length ? `
+      <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-with-ascendants="true"
+        title="Run the automations this one waits for, directly or through others, and then this one, to bring it up to date. What waits for it does not run. You get to see what runs first.">Run with ascendants</button></li>
+    ` : "";
     const runWithDependentsItem = hasListedDependents(automation) ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-with-dependents="true"
         title="Run this automation once, now, along with the active automations that wait for it, directly or through others. Each of them runs once the runs it waits for ended, and is skipped if one of those failed. Their recurrence is not affected.">Run with dependents</button></li>
@@ -693,6 +711,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const runItem = userCanRunAutomations ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}"
         title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button></li>
+      ${runWithAscendantsItem}
       ${runWithDependentsItem}
     ` : "";
     const manageItems = userCanManage ? `
@@ -828,6 +847,89 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const automation = automationsById.get(Number(automationId));
     const owningAssetId = automation ? automation.asset : assetId;
     return `/api/v3_0/assets/${encodeURIComponent(owningAssetId)}/automations/${encodeURIComponent(automationId)}${suffix}`;
+  }
+
+  /* Which automations of a run plan run, in the order of the plan.
+     Going up from the automation, whatever does not run takes along what is above it, as the server does (see `get_ascendant_automations`). */
+  function runPlanSelection(plan) {
+    if (plan.direction === "dependents") {
+      return plan.steps.filter((step) => step["will-run"]).map((step) => step.automation);
+    }
+    const steps = new Map(plan.steps.map((step) => [step.automation, step]));
+    const selected = new Set();
+    const frontier = [plan.automationId];
+    while (frontier.length) {
+      const id = frontier.pop();
+      selected.add(id);
+      for (const upstream of steps.get(id)?.["waits-for"] || []) {
+        if (steps.get(upstream)?.["will-run"] && !plan.leftOut.has(upstream) && !selected.has(upstream)) {
+          frontier.push(upstream);
+        }
+      }
+    }
+    return plan.steps.map((step) => step.automation).filter((id) => selected.has(id));
+  }
+
+  // The IDs that run, as a line from first to last, with those that can run side by side next to each other.
+  function runPlanStructure(plan) {
+    const selected = new Set(runPlanSelection(plan));
+    const steps = new Map(plan.steps.map((step) => [step.automation, step]));
+    const depthOf = (id) => Math.max(0, ...steps.get(id)["waits-for"].filter((upstream) => selected.has(upstream)).map((upstream) => 1 + depthOf(upstream)));
+    const levels = [];
+    for (const id of selected) {
+      (levels[depthOf(id)] ||= []).push(id);
+    }
+    return levels.map((level) => level.join(", ")).join(" → ");
+  }
+
+  // The automations to choose between: those that come together in an automation waiting for several of them.
+  function runPlanBranches(plan) {
+    if (plan.direction !== "ascendants") {
+      return new Set();
+    }
+    const runnable = new Set(plan.steps.filter((step) => step["will-run"]).map((step) => step.automation));
+    return new Set(plan.steps
+      .filter((step) => step["waits-for"].filter((upstream) => runnable.has(upstream)).length > 1)
+      .flatMap((step) => step["waits-for"].filter((upstream) => runnable.has(upstream))));
+  }
+
+  function runPlanHtml(plan) {
+    const selected = new Set(runPlanSelection(plan));
+    const branches = runPlanBranches(plan);
+    const rows = plan.steps.map((step) => {
+      const id = step.automation;
+      const running = selected.has(id);
+      const waitsFor = step["waits-for"].filter((upstream) => selected.has(upstream));
+      const name = step.name ? `${id}: ${esc(step.name)}` : `Automation ${id}`;
+      const details = [
+        ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
+        ...(id === plan.automationId ? ["This automation"] : []),
+        ...(waitsFor.length && running ? [`Waits for ${waitsFor.join(", ")}`] : []),
+        ...(step.reason ? [`Won't run. ${esc(step.reason)}`] : []),
+        ...(!step.reason && !running ? ["Won't run."] : []),
+      ].join(" · ");
+      const mark = branches.has(id)
+        ? `<input type="checkbox" class="form-check-input me-2 run-plan-branch" value="${id}"${plan.leftOut.has(id) ? "" : " checked"}>`
+        : `<span class="me-2">${running ? "✓" : "✗"}</span>`;
+      return `<li class="list-group-item${running ? "" : " text-muted"}" data-automation-id="${id}">
+        <label class="d-block">${mark}${name}<div class="small text-muted">${details}</div></label>
+      </li>`;
+    });
+    const held = plan.steps.filter((step) => !step["will-run"]);
+    const warning = !held.length ? "" : plan.direction === "dependents"
+      ? `<p class="text-danger mt-2 mb-0">You need permission to run all of these, so this cannot be run.</p>`
+      : `<p class="text-muted mt-2 mb-0">The rest goes by the latest results of those that won't run.</p>`;
+    return `<p class="fs-5 mb-2" id="runPlanStructure">${runPlanStructure(plan)}</p>
+      ${branches.size ? `<p class="small text-muted mb-2">Untick a branch to leave it out, along with what only it needs.</p>` : ""}
+      <ul class="list-group">${rows.join("")}</ul>${warning}`;
+  }
+
+  // The query that asks for what a run plan shows.
+  function runPlanQuery(plan) {
+    if (plan.direction === "dependents") {
+      return "with-dependents=true";
+    }
+    return ["with-ascendants=true", ...[...plan.leftOut].map((id) => `leave-out=${id}`)].join("&");
   }
 
   function dependsOnText(dependencies) {
@@ -1507,14 +1609,60 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
+    let runPlan = null;
+
+    function showRunPlan() {
+      const count = runPlanSelection(runPlan).length;
+      const refused = runPlan.direction === "dependents" && runPlan.steps.some((step) => !step["will-run"]);
+      $("#runPlanBody").html(runPlanHtml(runPlan));
+      $("#runPlanConfirm").text(`Run ${count} automation${count === 1 ? "" : "s"}`).prop("disabled", refused);
+    }
+
+    $(document).on("change", ".run-plan-branch", function () {
+      const id = Number(this.value);
+      if (this.checked) {
+        runPlan.leftOut.delete(id);
+      } else {
+        runPlan.leftOut.add(id);
+      }
+      showRunPlan();
+    });
+
+    $("#runPlanConfirm").on("click", function () {
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("runPlanModal")).hide();
+      triggerAutomation(runPlan.automationId, `?${runPlanQuery(runPlan)}`, $(this));
+    });
+
     $(document).on("click", ".run-automation", function () {
       const button = $(this);
-      const automationId = button.data("automation-id");
-      const withDependents = button.data("with-dependents") === true;
+      const automationId = Number(button.data("automation-id"));
+      const direction = button.data("with-ascendants") === true ? "ascendants"
+        : button.data("with-dependents") === true ? "dependents" : null;
+      if (direction === null) {
+        triggerAutomation(automationId, "", button);
+        return;
+      }
+      // What a chain comes down to can reach beyond this page, so the server says, before anything runs.
+      $.ajax({
+        url: automationUrl(automationId, `/run-plan?direction=${direction}`),
+        method: "GET",
+        success: function (res) {
+          runPlan = { automationId, direction, steps: res.steps, leftOut: new Set() };
+          $("#runPlanTitle").text(`Run with ${direction}`);
+          showRunPlan();
+          bootstrap.Modal.getOrCreateInstance(document.getElementById("runPlanModal")).show();
+        },
+        error: function (xhr) {
+          showAutomationsError(`Could not look up what would run: ${automationAjaxErrorMessage(xhr)}.`);
+        },
+      });
+    });
+
+    function triggerAutomation(automationId, query, button) {
       const label = button.text();
       button.prop("disabled", true).text("Queueing ...");
       $.ajax({
-        url: automationUrl(automationId, withDependents ? "/trigger?with-dependents=true" : "/trigger"),
+        url: automationUrl(automationId, `/trigger${query}`),
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
@@ -1524,9 +1672,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           const dependents = dependentRuns.length
             ? ` Automation(s) ${dependentRuns.map((run) => run.automation).join(", ")} run once the runs they wait for ended.`
             : "";
-          showAutomationsMessage(
-            `${queued} for automation ${automationId}.${dependents} Recent jobs are listed on the status page.`
-          );
+          const ascendants = res.runs
+            ? `${res.message} Automation ${automationId} runs last.`
+              + (res["left-out"].length ? ` Automation(s) ${res["left-out"].join(", ")} do not run.` : "")
+            : `${queued} for automation ${automationId}.${dependents}`;
+          showAutomationsMessage(`${ascendants} Recent jobs are listed on the status page.`);
           loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
         error: function (xhr) {
@@ -1539,7 +1689,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           button.prop("disabled", false).text(label);
         },
       });
-    });
+    }
   });
 </script>
 {% endblock %}
