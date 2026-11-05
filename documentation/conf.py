@@ -88,9 +88,15 @@ else:
     # These references point to pages omitted when code documentation is disabled.
     nitpick_ignore = [
         ("py:mod", "flexmeasures.utils.unit_utils"),
-        ("py:func", "flexmeasures.data.models.planning.linear_optimization.device_scheduler"),
+        (
+            "py:func",
+            "flexmeasures.data.models.planning.linear_optimization.device_scheduler",
+        ),
         ("py:mod", "flexmeasures.data.models.planning.highspy_optimization"),
-        ("py:func", "flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem"),
+        (
+            "py:func",
+            "flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem",
+        ),
         ("py:func", "flexmeasures.utils.calculations.apply_stock_changes_and_losses"),
         ("py:mod", "flexmeasures.utils.secrets_utils"),
         ("py:func", "flexmeasures.utils.secrets_utils.set_secret"),
