@@ -98,7 +98,7 @@ def test_the_scope_decides_what_the_waits_for_list_and_the_chain_go_by(assert_js
         // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
         window.$ = () => ({{ready: () => {{}}}});
         const page = new Function({json.dumps(script)} + `
-            \\nreturn {{ fillDependsOnPicker, chainGraph, automationsById, scopedAutomations, setScope: (scope) => {{ automationScope = scope; }} }};`)();
+            \\nreturn {{ fillDependsOnPicker, chainGraph, automationsById, scopedAutomations, setScope: (scope) => {{ automationScope = scope; }}, showAll: (all) => {{ chainShowsAll = all; }} }};`)();
         document.body.insertAdjacentHTML("beforeend", '<div id="picker"></div>');
         const details = {{type: "forecasting", "asset-name": "site", cron: "0 * * * *", timezone: "UTC", "recurrence-description": "Every hour", active: true}};
         // 7 is on this asset (3), 8 on a sub-asset waiting for 7, and 20 on a public asset, which 7 waits for.
@@ -137,6 +137,15 @@ def test_the_scope_decides_what_the_waits_for_list_and_the_chain_go_by(assert_js
         check("with all there is to tell about one beyond this page", title.textContent.includes("Every hour"));
         page.setScope("public");
         eq("and stops where the scope ends, at what is waited for", drawn(8), [7, 8]);
+
+        page.setScope("listed");
+        page.automationsById.set(10, {{...details, id: 10, name: "Unrelated", asset: 3, "depends-on": []}});
+        eq("by default, an unrelated automation stays out", drawn(8), [7, 8, 20]);
+        page.showAll(true);
+        eq("showing all brings it in", drawn(8), [7, 8, 10, 20]);
+        check("also for an automation outside any chain", !page.chainGraph(10).includes("No automation listed here"));
+        page.showAll(false);
+        check("which otherwise says so", page.chainGraph(10).includes("No automation listed here"));
     """)
 
 

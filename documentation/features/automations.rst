@@ -258,7 +258,7 @@ Some cases where the upstream run does not happen:
 
 The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for.
 By default, you pick among those listed on the page, and you can switch to this asset only, to public assets, or to every automation you can see.
-The chain in an automation's details follows the same choice.
+The chain in an automation's details follows the same choice, and can show all of these automations rather than only those linked to this one.
 Deleting an automation others wait for warns you first, as they then run without it.
 
 When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.

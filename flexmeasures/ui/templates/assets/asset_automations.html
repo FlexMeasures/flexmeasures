@@ -412,6 +412,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     all: "Every automation you can see",
   };
   let automationScope = "listed";
+  // Whether a chain drawing shows every automation in scope, rather than only those linked to the automation being read.
+  let chainShowsAll = false;
   const scopedAutomations = new Map();
   // The automation a link from a chain came here for, opened only once, as the listing goes on refreshing.
   let linkedAutomationId = Number(new URLSearchParams(window.location.search).get("automation")) || null;
@@ -1000,8 +1002,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const downstreamOf = (id) => [...automations.values()]
       .filter((other) => upstreamOf(other.id).some((dependency) => dependency.automation === id))
       .map((other) => other.id);
-    const nodes = new Set([automationId]);
-    const queue = [automationId];
+    const nodes = new Set(chainShowsAll ? [automationId, ...automations.keys()] : [automationId]);
+    const queue = [...nodes];
     while (queue.length) {
       const id = queue.shift();
       for (const next of [...upstreamOf(id).map((dependency) => dependency.automation), ...downstreamOf(id)]) {
@@ -1182,7 +1184,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6 title="Each run waits for the latest runs of these automations that are due at or before its own time.">Waits for</h6>
           <p>${dependsOnText(res["depends-on"])}</p>
           <h6 title="The automations listed here that this one waits for, and those that wait for it, directly or through others. A dashed arrow means the waiting automation runs even when the one it waits for failed.">Chain</h6>
-          <select class="form-select form-select-sm w-auto mb-2 automation-scope" aria-label="Which automations to draw">${automationScopeOptions()}</select>
+          <select class="form-select form-select-sm w-auto mb-1 automation-scope" aria-label="Which automations to draw">${automationScopeOptions()}</select>
+          <div class="form-check mb-2">
+            <label class="form-check-label"><input type="checkbox" class="form-check-input automation-chain-all"${chainShowsAll ? " checked" : ""}> Show all of these automations, not only this chain</label>
+          </div>
           <div class="automation-chain-holder" data-automation-id="${automationId}">${chainGraph(Number(automationId))}</div>
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
@@ -1562,15 +1567,25 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       fillDependsOnPicker(selector, excludedId, ticked);
     }
 
+    function redrawChains() {
+      $(".automation-chain-holder").each(function () {
+        $(this).html(chainGraph(Number(this.dataset.automationId)));
+      });
+    }
+
     function applyAutomationScope(scope) {
       automationScope = scope;
       $(".automation-scope").val(scope);
       refillDependsOnPicker("#automationDependsOn", null);
       refillDependsOnPicker("#editAutomationDependsOn", Number($("#editAutomationId").val()) || null);
-      $(".automation-chain-holder").each(function () {
-        $(this).html(chainGraph(Number(this.dataset.automationId)));
-      });
+      redrawChains();
     }
+
+    $(document).on("change", ".automation-chain-all", function () {
+      chainShowsAll = this.checked;
+      $(".automation-chain-all").prop("checked", chainShowsAll);
+      redrawChains();
+    });
 
     $(document).on("change", ".automation-scope", function () {
       const scope = this.value;
