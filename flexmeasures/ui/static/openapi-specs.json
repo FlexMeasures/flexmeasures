@@ -1180,7 +1180,7 @@
           },
           {
             "in": "query",
-            "name": "asset_id",
+            "name": "asset",
             "required": false,
             "description": "ID of the asset whose status page the sensor is reported on.\nThis asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.\nIt only affects the reported relation between the sensor and the asset.\nDefaults to the asset that the sensor belongs to.\n",
             "schema": {
@@ -3408,7 +3408,7 @@
       },
       "patch": {
         "summary": "Update an asset given its identifier.",
-        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n\nThe optional `account_id` field is deprecated. If supplied, it must match\nthe asset's current account; it cannot change ownership.\n",
+        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n\nThe optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.\n",
         "security": [
           {
             "ApiKeyAuth": []

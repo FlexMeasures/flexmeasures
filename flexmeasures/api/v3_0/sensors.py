@@ -2089,7 +2089,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        {"asset": AssetIdField(data_key="asset", required=False, load_default=None)},
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
@@ -2112,7 +2112,7 @@ class SensorAPI(FlaskView):
               description: ID of the sensor to fetch status for.
               schema: SensorId
             - in: query
-              name: asset_id
+              name: asset
               required: false
               description: |
                 ID of the asset whose status page the sensor is reported on.
