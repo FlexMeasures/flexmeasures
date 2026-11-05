@@ -5621,7 +5621,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source this listing can hold,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\nThis lists the sources which are the user's to work with, which is what a source has to be to be reused.\nThat is a stricter rule than the one for reading one source with <code>GET /api/v3_0/sources/<id></code>,\nwhich also covers a source that recorded data on a sensor the user may read.\n\n- Admins see all data sources.\n- Everyone else sees the sources of their own organisation, of any organisation they consult for,\n  and the sources an automation they may read computes under.\n- A source which belongs to no organisation is not listed for that reason alone.\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nthe <code>generator-type</code> parameter to the sources whose data generator is of one kind, such as <code>reporter</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source this listing can hold,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\nThis lists the sources which are the user's to work with, which is what a source has to be to be reused.\nThat is a stricter rule than the one for reading one source with <code>GET /api/v3_0/sources/<id></code>,\nwhich also covers a source that recorded data on a sensor the user may read.\n\n- Admins see all data sources.\n- Everyone else sees the sources of their own organisation, of any organisation they consult for,\n  and the sources an automation they may read computes under.\n- A source which belongs to no organisation is not listed for that reason alone.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5655,6 +5655,16 @@
             "schema": {
               "type": "string",
               "example": "forecaster"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "generator-type",
+            "description": "Only return sources whose data generator is of this kind, such as forecaster, scheduler or reporter, whatever type of source it saves under. A reporter can save under a source of another type (see its `output-source-type`), so this tells which sources can set up a report, for instance.",
+            "schema": {
+              "type": "string",
+              "example": "reporter"
             },
             "required": false
           },

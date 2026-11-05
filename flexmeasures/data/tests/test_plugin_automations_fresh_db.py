@@ -18,6 +18,7 @@ from flexmeasures.data.automations import (
     register_automation_handler,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.services.automations import (
@@ -608,3 +609,43 @@ def test_a_job_that_failed_before_its_run_recorded_it_is_caught_up_on_with_its_e
         "ValueError",
         "no readings to ingest",
     )
+
+
+@pytest.mark.parametrize(
+    "config, source_type",
+    [
+        ({"method": "sum"}, "reporter"),
+        ({"method": "sum", "output-source-type": "forecaster"}, "forecaster"),
+    ],
+)
+def test_plugin_automation_of_a_reporter_records_under_the_source_type_its_config_names(
+    fresh_db, app, ingestion_plugin, ingestion_assets, config, source_type
+):
+    """The source an automation sets up for its data generator is of the type the generator says it saves under, and a rebuilt generator is that source's."""
+    register_automation_handler(
+        app,
+        AutomationHandler(
+            "aggregated-report", "Aggregated report", AggregatorReporter, "reporting"
+        ),
+    )
+    root, sensors = ingestion_assets
+
+    automation, _ = create_automation(
+        root,
+        "Aggregated report",
+        "0 * * * *",
+        automation_type="aggregated-report",
+        config=config,
+        parameters={
+            "input": [{"sensor": sensors[0].id}],
+            "output": [{"sensor": sensors[1].id}],
+            "start": "2026-10-01T00:00:00+00:00",
+            "end": "2026-10-02T00:00:00+00:00",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    assert automation.generator.model == "AggregatorReporter"
+    assert automation.generator.type == source_type
+    assert automation.generator.data_generator.source_type == source_type

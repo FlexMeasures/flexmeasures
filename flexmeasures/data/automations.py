@@ -135,6 +135,7 @@ class AutomationHandler:
             from flexmeasures.data.services.data_sources import get_or_create_source
 
             source_info = generator.get_data_source_info()
+            source_info["source_type"] = generator.source_type
             source_info["version"] = str(
                 Version(str(getattr(self.generator_class, "__version__", "0.1")))
             )
