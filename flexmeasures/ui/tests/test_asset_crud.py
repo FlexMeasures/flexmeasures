@@ -210,28 +210,42 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     assert b"Must be one of: sum, min, max, mean." in response.data
 
 
-def test_delete_asset(client, db, as_admin, setup_assets):
-    """Deleting a top-level asset redirects to the asset index and shows a toast."""
-    assets = list(setup_assets.values())
-    top_level = next(
-        (a for a in assets if a.parent_asset_id is None),
-        None,
-    )
-    assert top_level is not None, "No top-level asset found in fixtures"
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=top_level.id),
-        follow_redirects=True,
-    )
-    assert response.status_code == 200
-    assert b"have been deleted" in response.data
-
-
-def test_delete_child_asset_redirects_to_parent(
-    client, db, as_admin, setup_accounts, setup_generic_asset_types
+def test_ui_route_no_longer_deletes_an_asset_of_another_account(
+    client, db, setup_accounts, setup_generic_asset_types, as_prosumer_user1
 ):
-    """Deleting a child asset should redirect to the parent asset's context page."""
+    """A GET on /assets/delete_with_data/<id> deleted any asset, of any account, for any logged-in user."""
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+    asset = GenericAsset(
+        name="asset of another account",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=other_account,
+    )
+    db.session.add(asset)
+    db.session.commit()
+    asset_id = asset.id
+
+    response = client.get(f"/assets/delete_with_data/{asset_id}")
+
+    assert (
+        response.status_code == 404
+    ), "The UI route that deleted assets on a GET should be gone."
+    db.session.expire_all()
+    assert (
+        db.session.get(GenericAsset, asset_id) is not None
+    ), "The other account's asset should still exist."
+
+
+@pytest.mark.parametrize("is_child", [False, True])
+def test_delete_button_names_the_parent_and_the_ui_route_is_gone(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types, is_child
+):
+    """The delete button names the asset's parent, which the page moves on to after deleting the asset through the API.
+
+    The button's script, which calls the API, is not run here.
+    Deleting is no longer possible through a GET on a UI route.
+    """
     parent = GenericAsset(
-        name="parent-for-deletion-test",
+        name=f"parent-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -239,9 +253,8 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(parent)
     db.session.flush()
-
     child = GenericAsset(
-        name="child-for-deletion-test",
+        name=f"child-for-deletion-test-{is_child}",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
         latitude=10,
@@ -250,13 +263,64 @@ def test_delete_child_asset_redirects_to_parent(
     )
     db.session.add(child)
     db.session.commit()
+    asset = child if is_child else parent
 
-    response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=child.id),
-        follow_redirects=False,
+    page = client.get(url_for("AssetCrudUI:properties", id=asset.id))
+    expected_parent = str(parent.id) if is_child else ""
+    assert (
+        f'data-asset-id="{asset.id}" data-parent-asset-id="{expected_parent}"'.encode()
+        in page.data
+    ), "The delete button should name the asset and its parent, if any."
+
+    assert (
+        client.get(f"/assets/delete_with_data/{asset.id}").status_code == 404
+    ), "Deleting should no longer be possible through a GET on a UI route."
+    assert (
+        db.session.get(GenericAsset, asset.id) is not None
+    ), "The asset should still exist."
+
+
+def test_assets_of_an_account_need_read_access_to_it(
+    client, db, setup_assets, as_prosumer_user1
+):
+    """The page listing an account's assets names the account, so it is only for those who may read the account."""
+    own_account = find_user_by_email("test_prosumer_user@seita.nl").account
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+
+    assert (
+        client.get(f"/assets/owned_by/{own_account.id}").status_code == 200
+    ), "A member should see the page listing their own account's assets."
+    response = client.get(f"/assets/owned_by/{other_account.id}")
+    assert (
+        response.status_code == 403
+    ), "The page listing another account's assets should be forbidden."
+    assert (
+        other_account.name.encode() not in response.data
+    ), "The other account's name should not be shown."
+
+
+def test_sensor_page_needs_read_access_to_the_sensor(
+    client, db, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """The sensor page shows a sensor's name, unit and asset, so it is only for those who may read the sensor."""
+    other_account = find_user_by_email("test_dummy_user_3@seita.nl").account
+    asset = GenericAsset(
+        name="asset of another account with a sensor",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=other_account,
     )
-    assert response.status_code == 302
-    assert url_for("AssetCrudUI:context", id=parent.id) in response.location
+    sensor = Sensor(name="sensor of another account", unit="kW", generic_asset=asset)
+    db.session.add_all([asset, sensor])
+    db.session.commit()
+
+    response = client.get(f"/sensors/{sensor.id}")
+
+    assert (
+        response.status_code == 403
+    ), "The page of another account's sensor should be forbidden."
+    assert (
+        b"sensor of another account" not in response.data
+    ), "The other account's sensor should not be named."
 
 
 def test_inherited_flex_context_in_editor(

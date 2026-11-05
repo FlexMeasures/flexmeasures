@@ -103,12 +103,13 @@ def test_trigger_forecast_panel_hidden_for_other_account(
     db, client, setup_assets, as_supplier_user
 ):
     """
-    A user from a different account (no ``create-children`` permission on the
-    sensor) does not see the "Trigger forecast" panel at all.
+    A user from a different account may not read the sensor, so does not see its page, let alone the "Trigger forecast" panel.
     """
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
-    assert response.status_code == 200
+    assert (
+        response.status_code == 403
+    ), "The page of another account's sensor should be forbidden."
     assert b"Trigger forecast" not in response.data
     assert b"firstAvailableEventStartForForecastTraining" not in response.data
 
@@ -200,8 +201,7 @@ def test_get_timerange_not_called_without_permission(
     db, client, setup_assets, as_supplier_user
 ):
     """
-    ``get_timerange`` must not be called when ``user_can_create_children``
-    returns ``False`` — the view short-circuits to avoid an unnecessary DB query.
+    ``get_timerange`` must not run when sensor reading is denied.
     """
     sensor = _get_prosumer_sensor(db)
 
@@ -210,5 +210,5 @@ def test_get_timerange_not_called_without_permission(
             url_for("SensorUI:get", id=sensor.id), follow_redirects=True
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 403
     mock_get_timerange.assert_not_called()

@@ -11,6 +11,7 @@ v1.0.2 | November XX, 2026
 Bugfixes
 -----------
 * An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
+* Deleting an asset and resetting a password in the UI now go through the API, which checks permissions, where any logged-in user could delete any asset with its data by opening a link; the sensor page, the user audit log page and the page listing an organisation's assets now check access, too [see `GHSA-vmgf-59hm-j9m7 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-vmgf-59hm-j9m7>`_ and `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 
 
 v1.0.1 | September 9, 2026

@@ -6,6 +6,7 @@ from flask_security import login_required
 from werkzeug.exceptions import NotFound
 from webargs.flaskparser import use_kwargs
 
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.timerange import get_timerange
@@ -47,6 +48,7 @@ class SensorUI(FlaskView):
         sensor = db.session.get(Sensor, id)
         if sensor is None:
             raise NotFound
+        check_access(sensor, "read")
         can_create_children = user_can_create_children(sensor)
         has_enough_data = False
         planning_horizon: timedelta = current_app.config.get(

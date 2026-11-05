@@ -164,7 +164,7 @@
                 {% if user_can_delete_asset %}
                 <div>
                     <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
-                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
+                        type="button" data-asset-id="{{ asset.id }}" data-parent-asset-id="{{ asset.parent_asset_id or '' }}">Delete this asset
                     </button>
                 </div>
                 {% endif %}

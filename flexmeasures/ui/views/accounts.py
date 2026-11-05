@@ -166,7 +166,7 @@ class AccountCrudUI(FlaskView):
     def auditlog(self, account_id: str):
         """/accounts/auditlog/<account_id>"""
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
-        check_access(account, "read")
+        check_access(AuditLog.account_table_acl(account), "read")
 
         audit_logs = get_audit_log_records(account)
 
