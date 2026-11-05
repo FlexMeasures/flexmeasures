@@ -38,8 +38,11 @@ def test_delete_unchanged_beliefs_when_none_are_unchanged(
 
     check_command_ran_without_error(result)
     assert "0 unchanged beliefs found" in result.output
-    assert fresh_db.session.scalar(
-        select(func.count())
-        .select_from(TimedBelief)
-        .where(TimedBelief.sensor_id == sensor_id)
-    ) == 200
+    assert (
+        fresh_db.session.scalar(
+            select(func.count())
+            .select_from(TimedBelief)
+            .where(TimedBelief.sensor_id == sensor_id)
+        )
+        == 200
+    )
