@@ -220,6 +220,7 @@ jobs:
 
       - name: Run tutorials 1-5
         run: |
+          set -euo pipefail
           for script in documentation/tut/scripts/run-tutorial-in-docker.sh \
                         documentation/tut/scripts/run-tutorial2-in-docker.sh \
                         documentation/tut/scripts/run-tutorial3-in-docker.sh \
@@ -227,7 +228,9 @@ jobs:
                         documentation/tut/scripts/run-tutorial5-in-docker.sh; do
             echo "::group::Running $script"
             # The scripts use `docker exec -it`, which requires a tty we don't have here.
-            sed 's/docker exec -it/docker exec -i/' "$script" | bash
+            # Run from a file so docker exec cannot consume the script from Bash's stdin.
+            sed 's/docker exec -it/docker exec -i/' "$script" > "$RUNNER_TEMP/tutorial-runner.sh"
+            bash -euo pipefail "$RUNNER_TEMP/tutorial-runner.sh" </dev/null
             echo "::endgroup::"
           done
 
