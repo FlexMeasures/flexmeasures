@@ -388,6 +388,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
   const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
+  // The automation a link from a chain came here for, opened only once, as the listing goes on refreshing.
+  let linkedAutomationId = Number(new URLSearchParams(window.location.search).get("automation")) || null;
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
   const automationDetailsById = new Map();
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
@@ -888,8 +890,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const arrows = [...nodes].flatMap((id) => upstreamOf(id).map((dependency) => {
       const from = positions.get(dependency.automation);
       const to = positions.get(id);
-      return `<path class="chain-arrow" d="M ${from.x + boxWidth} ${from.y + boxHeight / 2} C ${from.x + boxWidth + gapX / 2} ${from.y + boxHeight / 2}, ${to.x - gapX / 2} ${to.y + boxHeight / 2}, ${to.x} ${to.y + boxHeight / 2}"
-        fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#chain-arrowhead)"${dependency["allow-failure"] ? ` stroke-dasharray="5 4"` : ""}/>`;
+      const curve = `M ${from.x + boxWidth} ${from.y + boxHeight / 2} C ${from.x + boxWidth + gapX / 2} ${from.y + boxHeight / 2}, ${to.x - gapX / 2} ${to.y + boxHeight / 2}, ${to.x} ${to.y + boxHeight / 2}`;
+      return `<g><title>${esc(chainArrowText(id, dependency))}</title>
+        <path class="chain-arrow" d="${curve}"
+          fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#chain-arrowhead)"${dependency["allow-failure"] ? ` stroke-dasharray="5 4"` : ""}/>
+        <path d="${curve}" fill="none" stroke="transparent" stroke-width="12"/>
+      </g>`;
     }));
     const boxes = [...nodes].map((id) => {
       const { x, y } = positions.get(id);
@@ -897,12 +903,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const label = automation ? `${id}: ${automation.name}` : `${id} (not listed here)`;
       const shown = label.length > 24 ? `${label.slice(0, 23)}…` : label;
       const current = id === automationId;
-      return `<g class="chain-node${current ? " chain-node-current" : ""}" data-automation-id="${id}">
-        <title>${esc(label)}</title>
-        <rect x="${x + 1}" y="${y + 1}" width="${boxWidth}" height="${boxHeight}" rx="6"
+      const box = `<rect x="${x + 1}" y="${y + 1}" width="${boxWidth}" height="${boxHeight}" rx="6"
           fill="${current ? "var(--bs-primary)" : "var(--bs-body-bg)"}" stroke="var(--bs-primary)" stroke-width="1.5"/>
         <text x="${x + 1 + boxWidth / 2}" y="${y + 1 + boxHeight / 2}" text-anchor="middle" dominant-baseline="central"
-          font-size="13" fill="${current ? "var(--bs-white)" : "var(--bs-body-color)"}">${esc(shown)}</text>
+          font-size="13" fill="${current ? "var(--bs-white)" : "var(--bs-body-color)"}">${esc(shown)}</text>`;
+      // An automation's own asset always lists it, whatever scope that page was left in.
+      const linked = automation && !current;
+      return `<g class="chain-node${current ? " chain-node-current" : ""}" data-automation-id="${id}">
+        <title>${esc(chainNodeText(id))}</title>
+        ${linked ? `<a href="/assets/${automation.asset}/automations?automation=${id}">${box}</a>` : box}
       </g>`;
     });
     return `<div style="overflow-x: auto"><svg class="automation-chain" width="${width + 8}" height="${height}" role="img"
@@ -910,7 +919,42 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       <defs><marker id="chain-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
       ${arrows.join("")}${boxes.join("")}
-    </svg></div>`;
+    </svg></div>
+    <p class="text-muted small mt-1">An automation runs once those with an arrow to it ended, and is skipped if one of them failed, unless that arrow is dashed. Hover over an automation for more about it, or click it to open it.</p>`;
+  }
+
+  // What hovering over an automation in a chain tells about it.
+  function chainNodeText(id) {
+    const automation = automationsById.get(id);
+    if (!automation) {
+      return `${id} (not listed here)`;
+    }
+    return [
+      `${id}: ${automation.name}`,
+      automationTypes[automation.type] || automation.type,
+      `On ${automation["asset-name"]} (asset ${automation.asset})`,
+      `${automation["recurrence-description"]}, ${automation.timezone}`,
+      automation.active ? "Active" : "Inactive",
+    ].join("\n");
+  }
+
+  // What hovering over an arrow in a chain tells about the automation it points at.
+  function chainArrowText(id, dependency) {
+    const nameOf = (automationId) => automationsById.get(automationId)?.name || `Automation ${automationId}`;
+    const outcome = dependency["allow-failure"] ? "runs even if" : "is skipped if";
+    return `${nameOf(id)} ${outcome} ${nameOf(dependency.automation)} fails`;
+  }
+
+  /* Open the details of the automation a link from a chain points at.
+     Its panel sits in the tab of its type, and cannot open while that tab is hidden. */
+  function openLinkedAutomation(automationId) {
+    const automation = automationsById.get(automationId);
+    if (!automation) {
+      showAutomationsError(`Automation ${automationId} is not listed here.`);
+      return;
+    }
+    bootstrap.Tab.getOrCreateInstance(document.getElementById(`${automation.type}-tab`)).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(`AutomationInfoModal-${automationId}`)).show();
   }
 
   function loadAutomationInfo(automationId) {
@@ -1080,6 +1124,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           showAutomationsError(res["redis-connection-err"]);
         } else {
           clearAutomationsError();
+        }
+        if (linkedAutomationId !== null) {
+          openLinkedAutomation(linkedAutomationId);
+          linkedAutomationId = null;
         }
       },
       error: function (xhr) {

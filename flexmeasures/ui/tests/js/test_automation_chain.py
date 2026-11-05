@@ -26,7 +26,9 @@ def test_the_chain_of_an_automation_is_drawn_from_first_to_last(assert_js):
             {{id: 9, name: "Forecast the net consumption of the community", "depends-on": [{{automation: 8, "allow-failure": true}}]}},
             {{id: 10, name: "Unrelated", "depends-on": []}},
         ]) {{
-            page.automationsById.set(automation.id, automation);
+            page.automationsById.set(automation.id, {{
+                type: "forecasting", asset: 3, "asset-name": "site", "recurrence-description": "Every hour", timezone: "UTC", active: true, ...automation,
+            }});
         }}
         const svg = new DOMParser().parseFromString(page.chainGraph(8), "text/html").querySelector("svg");
         const nodes = [...svg.querySelectorAll(".chain-node")];
@@ -40,10 +42,46 @@ def test_the_chain_of_an_automation_is_drawn_from_first_to_last(assert_js):
            [...svg.querySelectorAll(".chain-arrow")].map((arrow) => arrow.hasAttribute("stroke-dasharray")).sort(), [false, false, true]);
         check("a long name is cut short, and kept whole in its tooltip",
               svg.querySelector('.chain-node[data-automation-id="9"] text').textContent.endsWith("…")
-              && svg.querySelector('.chain-node[data-automation-id="9"] title').textContent.endsWith("community"));
+              && svg.querySelector('.chain-node[data-automation-id="9"] title').textContent.includes("community"));
         check("an automation outside any chain says so", page.chainGraph(10).includes("No automation listed here"));
         eq("only an automation that another listed one waits for offers to run with dependents",
            [7, 8, 9, 10].map((id) => page.hasListedDependents({{id}})), [true, true, false, false]);
+    """)
+
+
+def test_a_chain_tells_more_on_hover_and_links_to_its_automations(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const opened = [];
+        const opener = {{getOrCreateInstance: (element) => ({{show: () => opened.push(element.id)}})}};
+        window.bootstrap = {{Tab: opener, Modal: opener}};
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ chainGraph, automationsById, openLinkedAutomation }};")();
+        for (const automation of [
+            {{id: 7, type: "mock-ingestion", name: "Pull <meter> data", asset: 3, "asset-name": "site", "recurrence-description": "Every hour", timezone: "UTC", active: true, "depends-on": []}},
+            {{id: 8, type: "forecasting", name: "Forecast", asset: 12, "asset-name": "battery", "recurrence-description": "Every day", timezone: "Europe/Amsterdam", active: false,
+              "depends-on": [{{automation: 7, "allow-failure": true}}, {{automation: 5, "allow-failure": false}}]}},
+        ]) {{
+            page.automationsById.set(automation.id, automation);
+        }}
+        const doc = new DOMParser().parseFromString(page.chainGraph(7), "text/html");
+        const node = (id) => doc.querySelector(`.chain-node[data-automation-id="${{id}}"]`);
+        eq("hovering tells the type, the asset and its ID, the recurrence and whether it is active",
+           node(8).querySelector("title").textContent.split("\\n"),
+           ["8: Forecast", "Forecasts", "On battery (asset 12)", "Every day, Europe/Amsterdam", "Inactive"]);
+        eq("another automation links to its own asset, with its details open",
+           node(8).querySelector("a").getAttribute("href"), "/assets/12/automations?automation=8");
+        eq("the one being read links nowhere", node(7).querySelector("a"), null);
+        eq("one that is not listed here has nowhere to link to", node(5).querySelector("a"), null);
+        eq("hovering over an arrow says what a failure does",
+           [...doc.querySelectorAll(".chain-arrow")].map((arrow) => arrow.parentNode.querySelector("title").textContent),
+           ["Forecast runs even if Pull <meter> data fails", "Forecast is skipped if Automation 5 fails"]);
+        check("what the arrows mean is spelled out", doc.body.textContent.includes("unless that arrow is dashed"));
+
+        document.body.insertAdjacentHTML("beforeend", '<button id="mock-ingestion-tab"></button><div id="AutomationInfoModal-7"></div>');
+        page.openLinkedAutomation(7);
+        eq("the tab of its type comes first, as a panel in a hidden tab does not open", opened, ["mock-ingestion-tab", "AutomationInfoModal-7"]);
     """)
 
 

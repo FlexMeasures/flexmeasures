@@ -273,6 +273,7 @@ and the *Automations* page offers *Run with dependents* for an automation that a
 
 The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
 what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.
+Hovering over an automation there tells its type, asset and recurrence, hovering over an arrow tells what a failure does, and clicking an automation opens its details, on the page of its own asset.
 
 Running automations
 -------------------
