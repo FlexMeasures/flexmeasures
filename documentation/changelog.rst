@@ -174,8 +174,6 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-* Fix local documentation builds and stop immediately when a build step fails
-
 **Automations**
 
 * Offset chains, as in an automation's window or ``flexmeasures add report --start-offset``, now count days as calendar days across a DST transition, so that a window no longer collapses or skips a day when run in the hour around midnight on such a weekend, and ``HB`` and ``DB`` no longer raise an error in the repeated hour or in a DST gap [see `PR #2771 <https://www.github.com/FlexMeasures/flexmeasures/pull/2771>`_]
@@ -250,6 +248,8 @@ Bugfixes
 **Hosting**
 
 * In the Docker image, ``pip install`` (which the docs and the compose stack use to add plugins) now installs where FlexMeasures can import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
+* Fix local documentation builds and stop immediately when a build step fails [see `PR #2827 <https://www.github.com/FlexMeasures/flexmeasures/pull/2827>`_]
+
 
 
 Automations, in detail
