@@ -2099,7 +2099,7 @@ function computeAssetLabels(sessions) {
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
 // Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
-function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash, fromLabel, toLabel) {
+function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash) {
   const series = [];
   for (const s of sessions) {
     const from = s[fromKey];
@@ -2108,41 +2108,6 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
     const catIdx = categoryIndex.get(s.assetId);
     const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
     const data = [[from, catIdx], [to, catIdx]];
-    const tooltip = {
-      formatter: () =>
-        tooltipTable([
-          [fromLabel, formatFullDate(from)],
-          [toLabel, formatFullDate(to)],
-          ["Asset", s.assetLabel],
-        ]),
-    };
-    // A line series only answers hover through its symbols (ECharts attaches a data index, which the item tooltip needs, to symbols alone),
-    // and a session segment has just 2 points, its start and end, often hours apart.
-    // So draw an invisible companion series of densely interpolated points, each with a large invisible symbol,
-    // and put it above the visible line: the visible line would otherwise be the element under the cursor, and it carries no data index.
-    // The hit series shares the visible line's name, so it adds no legend entry and is not toggled independently.
-    const hitPointCount = 100;
-    const hitData = [];
-    for (let i = 0; i <= hitPointCount; i++) {
-      hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
-    }
-    series.push({
-      name: s.assetLabel,
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      symbol: "circle",
-      showSymbol: true,
-      symbolSize: Math.max(lineWidth, 16),
-      animation: false,
-      legendHoverLink: false,
-      lineStyle: { opacity: 0 },
-      itemStyle: { opacity: 0.001 },
-      emphasis: { disabled: true },
-      data: hitData,
-      tooltip: tooltip,
-      z: 3,
-    });
     series.push({
       name: s.assetLabel,
       type: "line",
@@ -2153,14 +2118,66 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
       animation: false,
       color: color,
       lineStyle: { width: lineWidth, type: lineDash || "solid" },
-      emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
       data: data,
-      tooltip: tooltip,
+      silent: true, // hover is handled by the session's own hit area (see buildSessionHitSeries)
       z: 2,
     });
   }
   return series;
 }
+
+// The timestamps a session tooltip lists, in the order a session runs through them.
+const SESSION_TOOLTIP_ROWS = [
+  ["arrival", "Arrival"], ["plug in", "Plug-in"], ["start charging", "Start charging"],
+  ["stop charging", "Stop charging"], ["plug out", "Plug-out"], ["departure", "Departure"],
+];
+
+// One invisible hit area per session, spanning the whole session (its earliest to its latest timestamp),
+// so hovering anywhere along it, including between its layers, shows one tooltip with all of its timestamps.
+// A custom series draws a rectangle in pixel space, so the area stays hoverable at every zoom level
+// (a line's symbols are spaced in time, and leave gaps once zoomed in), and its items carry the data index the item tooltip needs.
+// It is named after the asset, like the visible lines, so it adds no legend entry and follows the legend's toggling.
+function buildSessionHitSeries(sessions, categoryIndex) {
+  const series = [];
+  for (const s of sessions) {
+    const times = SESSION_TOOLTIP_ROWS.map(([key]) => s[key]).filter((t) => typeof t === "number");
+    if (times.length === 0) continue;
+    const from = Math.min(...times);
+    const to = Math.max(...times);
+    const catIdx = categoryIndex.get(s.assetId);
+    const rows = SESSION_TOOLTIP_ROWS.filter(([key]) => typeof s[key] === "number").map(([key, label]) => [label, formatFullDate(s[key])]);
+    rows.push(["Asset", s.assetLabel]);
+    series.push({
+      name: s.assetLabel,
+      type: "custom",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      color: SENSOR_COLORS[catIdx % SENSOR_COLORS.length],
+      animation: false,
+      legendHoverLink: false,
+      clip: true,
+      emphasis: { disabled: true },
+      encode: { x: [0, 1], y: 2 },
+      data: [[from, to, catIdx]],
+      tooltip: { formatter: () => tooltipTable(rows) },
+      renderItem: (params, api) => {
+        const start = api.coord([api.value(0), api.value(2)]);
+        const end = api.coord([api.value(1), api.value(2)]);
+        const half = SESSION_HIT_HEIGHT / 2;
+        const shape = echarts.graphic.clipRectByRect(
+          { x: start[0], y: start[1] - half, width: Math.max(end[0] - start[0], 1), height: SESSION_HIT_HEIGHT },
+          { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height }
+        );
+        return shape ? { type: "rect", shape: shape, style: { fill: "rgba(0,0,0,0.001)" } } : null;
+      },
+      z: 3,
+    });
+  }
+  return series;
+}
+
+// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
+const SESSION_HIT_HEIGHT = 16;
 
 // The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
 // from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
@@ -2210,9 +2227,10 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   }
 
   const sessionSeries = [
-    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed", "Arrival", "Departure"),
-    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid", "Plug-in", "Plug-out"),
-    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid", "Start charging", "Stop charging"),
+    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed"),
+    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid"),
+    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid"),
+    ...buildSessionHitSeries(sessions, categoryIndex),
   ];
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
@@ -2374,6 +2392,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
+  // By default zooming drops every point outside the window, and a session line is only its two end points,
+  // so zooming into the middle of a session would make the whole session vanish. Keep the points, and let the grid clip them.
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "none";
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2400,6 +2421,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
       {
         type: "inside",
         xAxisIndex: allAxisIndices,
+        filterMode: "none", // see the toolbox zoom above
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,

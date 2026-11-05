@@ -209,20 +209,21 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
 
         check("the session chart renders", option.series.length >= 2);
-        const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
-        const tooltip = visibleSession.tooltip.formatter();
+        const session = option.series.find((series) => series.tooltip && series.tooltip.formatter);
+        const tooltip = session.tooltip.formatter();
         check("session start stays visible", tooltip.includes("Arrival"));
         check("session end stays visible", tooltip.includes("Departure"));
         check("session asset stays visible", tooltip.includes("Charger 4"));
         """)
 
 
-def test_hovering_a_session_bar_shows_its_tooltip(assert_js, echarts_available):
-    """Hovering anywhere along a session bar, on each of its layers, shows that segment's tooltip.
+def test_hovering_anywhere_over_a_session_shows_its_tooltip(
+    assert_js, echarts_available
+):
+    """Hovering anywhere over a session, on any of its layers or just beside them, shows one tooltip for the whole session.
 
-    A line series answers hover only through its symbols,
-    so a bar drawn as a bare 2-point line shows no tooltip at all;
-    this drives the real ECharts library with real mouse events to catch that.
+    A line series answers hover only through its symbols, and those are spaced in time,
+    so this drives the real ECharts library with real mouse events, including after zooming in.
     """
     assert_js("""
         await new Promise((resolve, reject) => {
@@ -250,32 +251,35 @@ def test_hovering_a_session_bar_shows_its_tooltip(assert_js, echarts_available):
         });
         const chart = echarts.getInstanceByDom(container);
 
-        const hoverAt = async (hours) => {
+        const hoverAt = async (hours, pixelsBelow) => {
             const [x, y] = chart.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [start + hours * hour, 0]);
             const rect = container.getBoundingClientRect();
-            const init = {clientX: rect.left + x, clientY: rect.top + y, bubbles: true};
+            const init = {clientX: rect.left + x, clientY: rect.top + y + pixelsBelow, bubbles: true};
             const target = container.querySelector("canvas");
             target.dispatchEvent(new MouseEvent("mousemove", init));
             target.dispatchEvent(new MouseEvent("mousemove", {...init, clientX: init.clientX + 1}));
             await new Promise((resolve) => setTimeout(resolve, 300));
             const shown = [...container.querySelectorAll("div")].filter((el) => el.style.display === "block");
-            return shown.map((el) => el.textContent).join(" ");
-        };
-        const clear = async () => {
+            const text = shown.map((el) => el.textContent).join(" ");
             chart.dispatchAction({type: "hideTip"});
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return text;
+        };
+        const lists = (label, text) => {
+            for (const name of ["Arrival", "Plug-in", "Start charging", "Stop charging", "Plug-out", "Departure", "Charger 4"]) {
+                check(label + ": lists " + name, text.includes(name), text);
+            }
         };
 
-        // Inside the thick start/stop charging bar, only reachable through it.
-        const charging = await hoverAt(2.5);
-        check("the charging bar names its start", charging.includes("Start charging"), charging);
-        check("the charging bar names its end", charging.includes("Stop charging"), charging);
-        await clear();
-        // Outside the charging bar and the plug-in bar, on the thin dashed arrival/departure bar only.
-        const arrival = await hoverAt(4.8);
-        check("the arrival bar names its start", arrival.includes("Arrival"), arrival);
-        check("the arrival bar names its end", arrival.includes("Departure"), arrival);
-        check("the tooltip names the asset", arrival.includes("Charger 4"), arrival);
+        lists("on the charging bar", await hoverAt(2.5, 0));
+        lists("on the arrival bar, outside the charging bar", await hoverAt(4.8, 0));
+        lists("beside the bars", await hoverAt(2.5, 6));
+        check("well off the session, no tooltip", (await hoverAt(2.5, 60)) === "");
+
+        // Zoomed in, a long session spans many times the chart's width.
+        chart.dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: start + 2.4 * hour, endValue: start + 2.6 * hour});
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        lists("zoomed in", await hoverAt(2.5, 0));
     """)
 
 
