@@ -196,7 +196,7 @@ def _copy_automation(
     if automation.type not in COPYABLE_AUTOMATION_TYPES:
         raise AutomationNotCopyable(
             f"An automation of type '{automation.type}' cannot be copied yet:"
-            " its parameters hold sensor references that a copy cannot point at the copied sensors."
+            " its flex config can hold sensor references that a copy cannot point at the copied sensors."
         )
     data_generator = _load_data_generator(automation)
     remapper = _ReferenceRemapper(

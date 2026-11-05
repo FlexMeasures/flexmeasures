@@ -686,6 +686,7 @@ def test_a_schedule_automation_is_skipped_with_a_reason_of_its_own(
     ]
     assert len(skipped) == 1
     assert "cannot be copied yet" in skipped[0].reason
+    assert "flex config" in skipped[0].reason
 
 
 def test_a_copy_records_under_a_data_source_of_its_own_organisation(
