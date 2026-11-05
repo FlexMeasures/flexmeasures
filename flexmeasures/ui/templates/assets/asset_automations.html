@@ -430,13 +430,29 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return type === "display" ? data.display : data.order;
   }
 
+  /* Turn what the API says went wrong into a sentence, as a validation error comes as lists of messages per field.
+     A field is named, unless its messages say enough by themselves. */
+  function readableApiMessage(message) {
+    if (Array.isArray(message)) {
+      return message.map(readableApiMessage).join(" ");
+    }
+    if (message && typeof message === "object") {
+      return Object.entries(message).map(([field, messages]) => (
+        ["json", "query", "depends-on"].includes(field)
+          ? readableApiMessage(messages)
+          : `${field}: ${readableApiMessage(messages)}`
+      )).join(" ");
+    }
+    return String(message);
+  }
+
   function automationAjaxErrorMessage(xhr) {
     const responseMessage = xhr.responseJSON?.message;
     if (typeof responseMessage === "string" && responseMessage) {
       return responseMessage;
     }
     if (responseMessage) {
-      return JSON.stringify(responseMessage);
+      return readableApiMessage(responseMessage);
     }
     return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
   }
@@ -1307,7 +1323,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const response = JSON.parse(xhr.responseText);
       const message = response.message || response;
       // A message is usually a plain string, which JSON.stringify would hand back in quotes.
-      return typeof message === "string" ? message : JSON.stringify(message);
+      return readableApiMessage(message);
     } catch (e) {
       return fallbackMessage;
     }

@@ -92,6 +92,22 @@ def test_a_chain_tells_more_on_hover_and_links_to_its_automations(assert_js):
     """)
 
 
+def test_a_validation_error_reads_as_a_sentence(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ automationAjaxErrorMessage, apiError }};")();
+        const loop = "Automation 3 would end up waiting for itself.";
+        const body = {{message: {{json: {{"depends-on": [loop]}}}}}};
+        eq("the loop error says just that", page.apiError({{responseText: JSON.stringify(body)}}, "fallback"), loop);
+        eq("the same goes for the other way of reporting one", page.automationAjaxErrorMessage({{responseJSON: body}}), loop);
+        eq("another field is named", page.apiError({{responseText: JSON.stringify({{message: {{cron: ["Not a valid cron string."]}}}})}}, "fallback"),
+           "cron: Not a valid cron string.");
+        eq("a plain message stays as it is", page.apiError({{responseText: JSON.stringify({{message: "Nope"}})}}, "fallback"), "Nope");
+    """)
+
+
 def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_left_out(assert_js):
     script = automation_script(can_manage=True, can_run=True)
     assert_js(f"""
