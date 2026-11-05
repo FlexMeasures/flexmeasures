@@ -100,7 +100,9 @@ def test_duration_exceeds_planning_window(
     assert (schedule == 4).all()
 
 
-def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
+def test_process_scheduler_time_restrictions(
+    add_battery_assets, add_market_prices, process, db
+):
     """
     Test ProcessScheduler with a time restrictions consisting of a block of 2h starting
     at 8am. The resulting schedules avoid the 8am-10am period and schedules for a valid period.

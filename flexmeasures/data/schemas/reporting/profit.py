@@ -25,7 +25,7 @@ class ProfitOrLossReporterConfigSchema(ReporterConfigSchema):
         {
             "production-price-sensor" : 1,
             "consumption-price-sensor" : 2,
-            "loss_is_positive" : True
+            "loss_is_positive" : true
         }
     """
 
@@ -81,16 +81,16 @@ class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
         {
             "input": [
                 {
-                    "sensor": 1,
-                },
+                    "sensor": 1
+                }
             ],
             "output": [
                 {
-                    "sensor": 2,
+                    "sensor": 2
                 }
             ],
             "start" : "2023-01-01T00:00:00+00:00",
-            "end" : "2023-01-03T00:00:00+00:00",
+            "end" : "2023-01-03T00:00:00+00:00"
         }
     """
 

@@ -22,7 +22,9 @@ from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.data_ingestion import (
+    BeliefReplacementNotAllowed,
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
+    is_belief_replacement,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
@@ -222,26 +224,22 @@ def process_sensor_data_ingestion(
     return invalid_replacement()
 
 
-UNIQUE_VIOLATION = "23505"  # SQLSTATE
-
-
 def catch_timed_belief_replacements(error: IntegrityError):
     """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
 
     Return a more informative message.
-    The error is recognised by its SQLSTATE rather than by its class,
-    because the class depends on the database driver:
-    psycopg2 exposes the SQLSTATE as pgcode, and psycopg 3 as sqlstate.
     """
-    sqlstate = getattr(error.orig, "sqlstate", None) or getattr(
-        error.orig, "pgcode", None
-    )
-    if sqlstate == UNIQUE_VIOLATION and "timed_belief_pkey" in str(error.orig):
+    if is_belief_replacement(error):
         # Some beliefs represented replacements, which was forbidden
         return invalid_replacement()
 
     # Forward to our generic error handler
     return error_handling_router(error)
+
+
+def handle_belief_replacement_not_allowed(error: BeliefReplacementNotAllowed):
+    """Answer a refused replacement with the INVALID_REPLACEMENT response."""
+    return invalid_replacement()
 
 
 def get_accessible_accounts() -> list[Account]:

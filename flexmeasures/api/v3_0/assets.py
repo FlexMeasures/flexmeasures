@@ -25,6 +25,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    asset_contains_data,
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
@@ -67,6 +68,7 @@ from flexmeasures.data.services.automations import (
     run_automation,
     update_automation,
 )
+from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -88,7 +90,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
-    SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
@@ -124,7 +125,6 @@ annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
@@ -178,6 +178,12 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
             description="Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
+
+
+def validate_asset_chart_type(chart_type: str):
+    """Refuse a chart type an asset cannot be drawn as."""
+    if chart_type not in ASSET_CHART_BUILDERS:
+        raise ValidationError(f"Unknown chart type '{chart_type}'.")
 
 
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
@@ -243,8 +249,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
+        validate=validate_asset_chart_type,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description="The chart to draw; leave it out for the asset's default chart.",
         ),
     )
 
@@ -280,6 +288,16 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
+    # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
+    # its values are the names of the chart functions, which public chart type names replace in v1.2.0 (see issue #2795).
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
+            example="chart_for_multiple_sensors",
+        ),
+    )
 
 
 class AssetChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
@@ -309,10 +327,16 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
 
 
 class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
-    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`.
+
+    It also hides `chart_type`, which only the asset page uses for now.
+    """
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + [
+            "beliefs_after",
+            "chart_type",
+        ]
         super().__init__(*args, **kwargs)
 
 
@@ -910,12 +934,12 @@ class AssetAPI(FlaskView):
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if parent_asset is None:
                 abort(404, f"Parent asset with id {parent_asset_id} not found.")
-            check_access(parent_asset, "create-children")
+            check_access(parent_asset, "edit-assets")
         else:
             account_id = asset_data.get("account_id")
             if account_id is not None:
                 account = db.session.get(Account, account_id)
-                check_access(account, "create-children")
+                check_access(account, "edit-assets")
             elif not running_as_cli() and not user_has_admin_access(
                 current_user, "update"
             ):
@@ -995,7 +1019,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @permission_required_for_context("update", ctx_arg_name="db_asset")
+    @permission_required_for_context("edit-assets", ctx_arg_name="db_asset")
     @as_json
     def patch(self, id: int, db_asset: GenericAsset):
         """
@@ -1009,7 +1033,8 @@ class AssetAPI(FlaskView):
 
             The following fields are not allowed to be updated:
             - id
-            - account_id
+
+            The optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1059,6 +1084,8 @@ class AssetAPI(FlaskView):
         asset_data = request.get_json()
         if not asset_data:
             return unprocessable_entity("No JSON data provided.")
+        if {"flex_context", "flex_model"} & asset_data.keys():
+            check_access(db_asset, "edit-flex-config")
 
         asset_schema = AssetSchema(partial=True)
         asset_schema.context = {
@@ -1070,6 +1097,12 @@ class AssetAPI(FlaskView):
         except ValidationError as e:
             return unprocessable_entity(e.messages)
 
+        if "account_id" in validated_data:
+            if validated_data.pop("account_id") != db_asset.account_id:
+                return unprocessable_entity(
+                    {"account_id": ["Cannot change the account of an asset."]}
+                )
+
         try:
             db_asset = patch_asset(db_asset, validated_data)
         except ValidationError as e:
@@ -1077,7 +1110,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
@@ -1088,7 +1121,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    @permission_required_for_context("edit-assets", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
         """
@@ -1119,6 +1152,10 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        for descendant in asset.offspring:
+            check_access(descendant, "edit-assets")
+        if asset_contains_data(asset):
+            check_access(asset, "delete-data")
         delete_asset(asset)
         db.session.commit()
         return {}, 204
@@ -1227,7 +1264,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        sensors = asset.chart_sensors(kwargs.pop("chart_type", None))
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)
@@ -1745,7 +1782,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def post_automation(self, automation_data: dict, id: int, asset: GenericAsset):
         """
@@ -1865,7 +1902,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def patch_automation(
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
@@ -1942,7 +1979,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -2002,7 +2039,7 @@ class AssetAPI(FlaskView):
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
     # and its output scope is checked again on each run (see validate_automation_output_scope).
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -2048,7 +2085,7 @@ class AssetAPI(FlaskView):
                       description: |
                         The automation queued its jobs, which will be picked up by a worker.
                         The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
-                        and `n_jobs` says how many jobs the run queued in total.
+                        and `n-jobs` says how many jobs the run queued in total.
                       value:
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -2245,7 +2282,7 @@ class AssetAPI(FlaskView):
     @route("/<id>/reports/trigger", methods=["POST"])
     @limit_triggers()
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("trigger-reports", ctx_arg_name="asset")
     @as_json
     def trigger_report(self, id: int, asset: GenericAsset):
         """
@@ -2370,7 +2407,7 @@ class AssetAPI(FlaskView):
     @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("trigger-schedules", ctx_arg_name="asset")
     @permission_required_for_context(
         "read",
         ctx_arg_name="flex_model",
@@ -2717,7 +2754,7 @@ class AssetAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("annotate", ctx_arg_name="asset")
     def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
         """.. :quickref: Assets; Add an annotation to an asset.
         ---
@@ -2866,9 +2903,9 @@ class AssetAPI(FlaskView):
         # create-children check, which requires account-admin or consultant.
         # Special case: public-to-public copies (both None) require site admin.
         if resolved_parent is not None:
-            check_access(resolved_parent, "create-children")
+            check_access(resolved_parent, "edit-assets")
         elif resolved_account is not None:
-            check_access(resolved_account, "create-children")
+            check_access(resolved_account, "edit-assets")
         else:
             # Public asset copy (account_id=None, parent_asset_id=None).
             # Only site admins may create public assets.

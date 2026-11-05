@@ -8,7 +8,7 @@ FlexMeasures is designed as a multi-tenant platform. This means that one FlexMea
 Tenants are represented by accounts. Users belong to exactly one account, and FlexMeasures applies authorization checks throughout the UI and API so that regular tenant users cannot see or change another tenant's data.
 
 Consultancy and B2B2B
---------------------
+---------------------
 
 Consultancy extends this model to multi-level multi-tenancy, sometimes called B2B2B. A consultancy account can have client accounts. Users in the consultancy account with the ``consultant`` user role can access consultancy-related data in those client accounts and can create new client accounts themselves.
 

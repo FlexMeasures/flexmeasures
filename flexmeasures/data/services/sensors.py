@@ -26,6 +26,7 @@ from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import SensorAnnotationRelationship
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -33,33 +34,40 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
+from flexmeasures.data.schemas.sensors import (
+    sensor_reference_keys,
+    unset_sensor_reference_paths,
+)
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import failed_job_reason
 
 # Source types from which we expect data about future events.
 FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
 
 _REMOVE = object()
 
-#: The keys a stored sensor reference may carry (see SensorReferenceSchema):
-#: a dict with the "sensor" key and no keys beyond these is a pure sensor reference.
-_SENSOR_REFERENCE_KEYS = {
-    "sensor",
-    "source-types",
-    "exclude-source-types",
-    "sources",
-    "source-account",
-}
+
+def _is_reference_to(value: Any, sensor_id: int) -> bool:
+    """Whether a value is a sensor reference to the given sensor, possibly with source filters, a default or bounds."""
+    return (
+        isinstance(value, dict)
+        and value.get("sensor") == sensor_id
+        and set(value.keys()) <= sensor_reference_keys()
+    )
 
 
 def _prune_flex_config_sensor_refs(
     value: dict[str, Any] | list[Any] | int | str | None, sensor_id: int
 ) -> tuple[dict[str, Any] | list[Any] | int | str | None | object, bool]:
-    """Recursively remove sensor references from nested flex_model/flex_context JSON structures.
+    """Recursively unset or remove sensor references from nested flex_model/flex_context JSON structures.
 
     This function handles deeply nested JSON objects and lists from flex_model and flex_context
-    JSONB columns. It scans for sensor references in two forms:
-    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filter keys
-      (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
+    JSONB columns. It scans for sensor references in three forms:
+    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filters, a default or bounds.
+      Their sensor is unset ({"sensor": None, ...}), so that the rest is still in place when a new sensor is picked.
+      A reference with nothing besides its sensor is removed.
+    - Objects in lists (e.g. entries of "inflexible-consumption"/"inflexible-production" lists):
+      these are removed, as a list entry without a sensor has nothing to read.
     - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
 
     Args:
@@ -69,27 +77,24 @@ def _prune_flex_config_sensor_refs(
 
     Returns:
         A tuple (pruned_value, changed):
-        - pruned_value: The value with sensor references removed. Can be:
+        - pruned_value: The value with sensor references unset or removed. Can be:
             - `_REMOVE` (sentinel object): Remove this entire entry from parent
-            - A pruned dict/list/scalar: The value with refs removed
-        - changed (bool): True if any references were actually removed.
+            - A pruned dict/list/scalar: The value with refs unset or removed
+        - changed (bool): True if any references were actually unset or removed.
 
     Example:
-        >>> value = {"soc-max": {"sensor": 42}, "limit": "10 kW"}
+        >>> value = {"soc-max": {"sensor": 42}, "soc-min": {"sensor": 42, "default": "1 kWh"}, "limit": "10 kW"}
         >>> pruned, did_change = _prune_flex_config_sensor_refs(value, sensor_id=42)
         >>> pruned
-        {'limit': '10 kW'}
+        {'soc-min': {'sensor': None, 'default': '1 kWh'}, 'limit': '10 kW'}
         >>> did_change
         True
     """
     if isinstance(value, dict):
-        # Direct sensor reference object (for example {"sensor": 12}),
-        # optionally with source filter keys (see SensorReferenceSchema)
-        if (
-            value.get("sensor") == sensor_id
-            and set(value.keys()) <= _SENSOR_REFERENCE_KEYS
-        ):
-            return _REMOVE, True
+        if _is_reference_to(value, sensor_id):
+            if set(value.keys()) == {"sensor"}:
+                return _REMOVE, True
+            return {**value, "sensor": None}, True
 
         changed = False
         pruned_dict: dict[str, Any] = {}
@@ -113,6 +118,9 @@ def _prune_flex_config_sensor_refs(
         changed = False
         pruned_list: list[Any] = []
         for item in value:
+            if _is_reference_to(item, sensor_id):
+                changed = True
+                continue
             new_item, was_changed = _prune_flex_config_sensor_refs(item, sensor_id)
             changed = changed or was_changed
             if new_item is _REMOVE:
@@ -415,6 +423,53 @@ def cleanup_sensor_references_in_assets(
     return changed_assets
 
 
+def flex_config_fields_left_without_sensor(
+    sensor_id: int,
+) -> list[tuple[GenericAsset, str, list[str]]]:
+    """Which flex-config fields deleting a sensor would leave without a sensor, so that the user can be told before and after deleting it.
+
+    These are the references that keep a default, bounds or source filters,
+    and so stay in place with their sensor unset.
+    References that hold only the sensor are removed instead, and need no new sensor.
+    The deletion itself is simulated in memory, so that what is reported is what deleting the sensor does.
+
+    :returns: For each asset and flex-config ("flex-context" or "flex-model") that has such fields, their paths.
+    """
+    vars_json = sa.func.jsonb_build_object("sid", sensor_id)
+    sensor_path = sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH)
+    candidates = db.session.scalars(
+        sa.select(GenericAsset)
+        .where(
+            sa.or_(
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context, sensor_path, vars_json
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_model, sensor_path, vars_json
+                ),
+            )
+        )
+        .order_by(GenericAsset.id)
+    ).all()
+
+    found = []
+    for asset in candidates:
+        for config_name, config in (
+            ("flex-context", asset.flex_context),
+            ("flex-model", asset.flex_model),
+        ):
+            pruned, _ = _prune_flex_config_sensor_refs(config, sensor_id)
+            already_unset = set(unset_sensor_reference_paths(config))
+            paths = [
+                path
+                for path in unset_sensor_reference_paths(pruned)
+                if path not in already_unset
+            ]
+            if paths:
+                found.append((asset, config_name, paths))
+    return found
+
+
 def get_sensors(
     account: Account | list[Account] | None,
     include_public_assets: bool = False,
@@ -604,6 +659,71 @@ def get_stalenesses(
     return stalenesses
 
 
+def get_missing_members(
+    sensor: Sensor, staleness_search: dict, now: datetime, max_staleness: timedelta
+) -> list[Sensor]:
+    """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
+
+    An `AggregatorReporter` records an event that some members of its group did not report under a data source naming them (see `DataSource.missing_members`).
+    Whether the most recent aggregate is such a partial one says something about the current state of the group,
+    so it belongs on the status page rather than in a log.
+    Only an aggregate at least `max_staleness` old is judged, which is when the sensor's data would count as stale,
+    and only once the member with the coarsest resolution had the chance to report on it.
+    A member that reports a little later than the report runs leaves the newest events partial every time, and the next run completes them,
+    so judging the newest event would flag such a group all the time.
+    A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
+    """
+    reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
+    partial = [source for source in reporters if source.missing_members]
+    if not partial:
+        return []
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+    belief_search["beliefs_before"] = min(now, belief_search.get("beliefs_before", now))
+    # A member recording at a coarser resolution reports on an event only once its own, longer event is over,
+    # so the aggregate is judged only once its slowest member had the chance to report on it, too.
+    # The sensor's own resolution is the least margin, since `event_ends_before` only bounds when events start.
+    members = [
+        db.session.get(Sensor, sensor_id)
+        for sensor_id in {i for source in partial for i in source.missing_members}
+    ]
+    margin = max(
+        [sensor.event_resolution]
+        + [member.event_resolution for member in members if member is not None]
+    )
+    settled = now - max_staleness - margin
+    belief_search["event_ends_before"] = min(
+        settled, belief_search.get("event_ends_before", settled)
+    )
+    latest = TimedBelief.search(
+        sensors=sensor,
+        most_recent_only=True,
+        source=reporters,
+        **belief_search,
+    )
+    if latest.empty:
+        return []
+    # A partial and a complete aggregate of the latest event may share a belief time, which the query above does not choose between,
+    # so that event is read again the way any consumer of one belief per event reads it.
+    event_start = latest.index.get_level_values("event_start")[-1]
+    belief_search.update(
+        event_starts_after=event_start,
+        event_ends_before=event_start + sensor.event_resolution,
+        one_deterministic_belief_per_event=True,
+    )
+    bdf = TimedBelief.search(sensors=sensor, source=reporters, **belief_search)
+    if bdf.empty:
+        return []
+    source = bdf.index.get_level_values("source")[0]
+    missing = [
+        db.session.get(Sensor, sensor_id) for sensor_id in source.missing_members
+    ]
+    return [member for member in missing if member is not None]
+
+
 def get_status_specs(sensor: Sensor) -> dict:
     """Get status specs from a given sensor."""
 
@@ -635,6 +755,8 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
+    For reporter data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
+    and is left out where it left out none, which is the case for most sensors.
     """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
@@ -687,15 +809,36 @@ def get_statuses(
             staleness = staleness if staleness > timedelta(0) else -staleness
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
-        statuses.append(
-            dict(
-                staleness=staleness,
-                stale=stale,
-                staleness_since=staleness_since,
-                reason=reason,
-                source_type=source_type,
+        missing_members = []
+        if source_type == "reporter":
+            missing_members = get_missing_members(
+                sensor, staleness_search, now, max_staleness
             )
+            if missing_members:
+                # members are often all called "power", so the asset says which device it is
+                left_out = ", ".join(
+                    f"'{member.generic_asset.name}' / {member.name} ({member.id})"
+                    for member in missing_members
+                )
+                reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
+
+        status = dict(
+            staleness=staleness,
+            stale=stale,
+            staleness_since=staleness_since,
+            reason=reason,
+            source_type=source_type,
         )
+        if missing_members:
+            status["missing-members"] = [
+                {
+                    "id": member.id,
+                    "name": member.name,
+                    "asset-name": member.generic_asset.name,
+                }
+                for member in missing_members
+            ]
+        statuses.append(status)
 
     return statuses
 
@@ -724,6 +867,26 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
+def _get_flex_context_sensors(asset: Asset) -> dict[str, Sensor]:
+    """The sensors an asset's flex-context refers to, by the field that refers to them.
+
+    A flex-context holds sensor ids, and a sensor can be deleted without those references being cleaned up,
+    for instance when it was deleted directly in the database.
+    A field whose sensor is gone names no sensor to report on, so it is left out here.
+    """
+    context_sensors = {}
+    for field, value in asset.flex_context.items():
+        if not isinstance(value, dict) or field in INFLEXIBLE_DEVICE_KEYS:
+            continue
+        sensor_id = value.get("sensor")
+        if sensor_id is None:
+            continue
+        sensor = db.session.get(Sensor, sensor_id)
+        if sensor is not None:
+            context_sensors[field] = sensor
+    return context_sensors
+
+
 def get_asset_sensors_metadata(
     asset: Asset,
     now: datetime = None,
@@ -742,12 +905,7 @@ def get_asset_sensors_metadata(
     sensors = []
     sensor_ids = set()
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
@@ -797,12 +955,7 @@ def serialize_sensor_status_data(
         asset = sensor_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
     sensors = []
     for sensor_status in sensor_statuses:
         sensor_status["id"] = sensor.id
@@ -988,19 +1141,15 @@ def build_asset_jobs_data(
     ) in jobs:
         for job in jobs:
             status = job.get_status(refresh=False)
-            e = job.meta.get(
-                "exception",
-                Exception(
-                    "The job does not state why it failed. "
+            job_err = None
+            if status == JobStatus.FAILED:
+                # Read the failure the same way as the API and the CLI do.
+                reason = failed_job_reason(job) or (
+                    "Exception: The job does not state why it failed. "
                     "The worker may be missing an exception handler, "
                     "or its exception handler is not storing the exception as job meta data."
-                ),
-            )
-            job_err = (
-                f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
-                if status == JobStatus.FAILED
-                else None
-            )
+                )
+                job_err = f"{queue.capitalize()} job failed with {reason}"
 
             # Show how the job was created (e.g. via the CLI, the API or an automation)
             metadata_dict = {**job.meta, "job_id": job.id}
@@ -1226,6 +1375,28 @@ def get_sensor_stats(
         _sensor_stats_cache[key] = result
 
     return result
+
+
+def sensor_contains_data(sensor: Sensor, lock: bool = True) -> bool:
+    """Return whether a sensor holds beliefs or annotations."""
+    if lock:
+        db.session.scalar(
+            sa.select(Sensor.id).where(Sensor.id == sensor.id).with_for_update()
+        )
+    return bool(
+        db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(TimedBelief)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        or db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(SensorAnnotationRelationship)
+            .where(SensorAnnotationRelationship.sensor_id == sensor.id)
+            .limit(1)
+        )
+    )
 
 
 def delete_sensor(sensor: Sensor):

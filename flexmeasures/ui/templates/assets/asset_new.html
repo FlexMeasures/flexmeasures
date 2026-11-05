@@ -188,7 +188,8 @@
 </div>
 
 <!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+{% import "includes/vendor.html" as vendor %}
+{{ vendor.leaflet_js() }}
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 <script type="text/javascript">

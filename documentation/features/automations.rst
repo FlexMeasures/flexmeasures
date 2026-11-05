@@ -15,6 +15,15 @@ Timing parameters are resolved on each run — for instance, the forecast or sch
 Creating an automation
 ----------------------
 
+In the UI, the *New automation* button on the asset's *Automations* page opens a form for a new automation on that asset.
+It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the task's parameters, and either an existing data source to reuse or the data generator and its configuration.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_new.png
+    :align: center
+..    :scale: 40%
+
+|
+
 Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
 
 .. code-block:: bash
@@ -30,6 +39,13 @@ That data source is required while the automation exists, so it cannot be delete
 
 The API takes the same choice as the ``source`` field of `[POST] /assets/(id)/automations <../api/v3_0.html#post--api-v3_0-assets-id-automations>`_, which cannot be combined with ``data-generator`` or ``config``.
 In the UI, the asset's *Automations* page searches the data sources you may work with, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_source_search.png
+    :align: center
+..    :scale: 40%
+
+|
+
 A data source is yours to work with when it belongs to your organisation, or when an automation you may read already computes under it, which is how a source becomes yours before it has recorded anything.
 Those are the sources you may name, and the only ones whose stored configuration you are shown.
 Reading a data source is allowed more widely: one that has recorded data on a sensor you may read answers the question of what computed a number you can see.
@@ -99,7 +115,8 @@ A run that only happens after midnight, because the runner was delayed, still co
 A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
 A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
-An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+An automation's forecast is believed at the time its run is dispatched, also when the period it covers starts later,
+and it uses only the data recorded by then, also when its jobs wait in the queue for a while.
 
 A single field can also be given alone, where the automation has a default for the rest.
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
@@ -243,17 +260,25 @@ This is what makes a retry safe.
 A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
 Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
-Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
+A forecast start the automation left to the run time is resolved on the first attempt and stored with those parameters, so a run resumed hours later still forecasts the window its first attempt started on.
+The same goes for the time up to which a forecast uses recorded data, so a resumed run forecasts with the data its first attempt had, not with data recorded since.
 
 A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
 A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
 and the run's record says what went wrong on each attempt.
 
-Retrying a failed dispatch this way is what a forecast run does.
-A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
+A forecast run and a schedule run are both retried this way.
+Each names its jobs after the run it belongs to, rather than letting them take a fresh identity on every dispatch,
+which is what lets a second attempt tell the jobs the first one queued from the ones it still owes:
+a schedule run that queued two of its three devices queues the third, and schedules no device twice.
+A schedule start the automation left to the run time is resolved on the first attempt and stored with the run's parameters,
+so the devices a resumed run still owes are scheduled for the same window as the devices it already queued.
 
-A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
-A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+A run also records each job it created, and how that job ended, which is what its *execution* state describes.
+This holds for every type of automation: a schedule run records its scheduling job (or, for a sequential schedule, each device job and the job wrapping them up),
+a report run its reporting job, and a plugin run the job its plugin queued.
+A run which queued no jobs, such as a report run with nothing new to report on, has succeeded.
+A job which a schedule queues to fall back on a simpler scheduler is not one of the run's jobs, so a run whose schedule fell back has failed, with the error that made it fall back.
 
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
@@ -272,7 +297,14 @@ This is useful to try out a new automation, to re-run one after fixing what made
 
     flexmeasures jobs run-automation --automation 4
 
-The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as *Run now* in the automation's *Actions* menu on the asset's *Automations* page.
+That menu also lets you edit, copy, deactivate (or activate) and delete the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_actions.png
+    :align: center
+..    :scale: 40%
+
+|
 
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
@@ -289,6 +321,12 @@ Turn *Include automations of sub-assets* off to see only the automations defined
 The API endpoint does the same, and takes ``include-child-assets=false`` to narrow the listing.
 Either way, only the assets you may read are included.
 
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_automations.png
+    :align: center
+..    :scale: 40%
+
+|
+
 The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
 Hovering it gives the exact time, read on the automation's own timezone, together with the recurrence it follows.
 Created At reads on that same clock.
@@ -297,6 +335,12 @@ The page brings itself up to date once a minute, so runs and job counts appear w
 An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
 It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_info.png
+    :align: center
+..    :scale: 40%
+
+|
 
 Each row's *Actions* menu also offers *Copy*, which opens the creation form with that automation's type, recurrence, timezone and parameters filled in, and its data source already selected.
 It is a starting point for a variation on an existing automation, such as the same forecast on a different recurrence, rather than a command of its own: nothing is created until you submit the form, and you can change anything in it first.

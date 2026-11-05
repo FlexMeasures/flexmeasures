@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from functools import wraps
 from numpy import pi
 from typing import Callable
-
-import altair as alt
 
 FONT_SIZE = 16
 STROKE_WIDTH = 2
@@ -468,6 +467,10 @@ def apply_chart_defaults(fn):
     @wraps(fn)
     def decorated_chart_specs(*args, **kwargs) -> dict:
         """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
+        # Deferred, because altair is only needed here,
+        # so we keep it out of FlexMeasures' eager app-boot import chain.
+        import altair as alt
+
         dataset_name = kwargs.pop("dataset_name", None)
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
@@ -479,6 +482,10 @@ def apply_chart_defaults(fn):
         if isinstance(chart_specs, alt.TopLevelMixin):
             chart_specs = chart_specs.to_dict()
             chart_specs.pop("$schema")
+        else:
+            # Chart builders embed module-level specs (such as REPLAY_RULER and FIELD_DEFINITIONS),
+            # which the steps below would otherwise change for every later chart.
+            chart_specs = deepcopy(chart_specs)
 
         # Add transform function to calculate full date
         if "transform" not in chart_specs:
@@ -520,7 +527,7 @@ def apply_chart_defaults(fn):
 
         # Improve default legibility
         chart_specs = merge_vega_lite_specs(
-            LEGIBILITY_DEFAULTS,
+            deepcopy(LEGIBILITY_DEFAULTS),
             chart_specs,
         )
 

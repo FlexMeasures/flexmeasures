@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
 
-from flask import current_app
+from http import HTTPStatus
+
+from flask import abort, current_app
 from flask_security import current_user
 from marshmallow import (
     Schema,
@@ -64,7 +66,11 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 from flexmeasures.data.schemas.attributes import JSON
-from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    AwareDateTimeField,
+    validate_storable_belief_time,
+)
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -305,18 +311,26 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
 
 class SensorIdField(MarshmallowClickMixin, fields.Int):
-    """Field that deserializes to a Sensor and serializes back to an integer."""
+    """Field that deserializes to a Sensor and serializes back to an integer.
+
+    A sensor which does not exist is a validation error by default.
+    An endpoint whose path names the sensor can pass ``status_if_not_found=HTTPStatus.NOT_FOUND`` instead,
+    to answer 404, as the asset endpoints do,
+    so that a client can tell a sensor which is gone apart from a request it got wrong.
+    """
 
     def __init__(
         self,
         asset: GenericAsset | None = None,
         unit: str | ur.Quantity | None = None,
         *args,
+        status_if_not_found: HTTPStatus | None = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         self.asset = asset
+        self.status_if_not_found = status_if_not_found
 
         if isinstance(unit, str):
             self.to_unit = ur.Quantity(unit)
@@ -338,7 +352,10 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         sensor = get_by_id(Sensor, sensor_id)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with ID {sensor_id}.")
+            message = f"No sensor found with ID {sensor_id}."
+            if self.status_if_not_found == HTTPStatus.NOT_FOUND:
+                raise abort(404, message)
+            raise FMValidationError(message)
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
@@ -375,6 +392,81 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 
 #: The keys that clean a referenced sensor's readings before they are used.
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
+
+
+def sensor_reference_keys() -> frozenset[str]:
+    """Every key a sensor reference may carry, as the schema that defines them names them.
+
+    Read off the schema rather than written out again, so that a key added there is accepted here without a second list to remember.
+    """
+    return frozenset(
+        field.data_key or name for name, field in SensorReferenceSchema().fields.items()
+    )
+
+
+def is_unset_sensor_reference(value: Any) -> bool:
+    """Whether a value is a sensor reference whose sensor was unset, which deleting the sensor leaves behind.
+
+    Deleting a sensor keeps the rest of each flex-config reference to it, such as its default, bounds and source filters,
+    so that they are still in place when a new sensor is picked for the field.
+    Only sensor deletion writes such a reference: the API refuses one.
+    """
+    return (
+        isinstance(value, dict)
+        and "sensor" in value
+        and value["sensor"] is None
+        and set(value) <= sensor_reference_keys()
+    )
+
+
+def unset_sensor_reference_paths(value: Any, path: tuple[str, ...] = ()) -> list[str]:
+    """Where a flex-config holds references whose sensor was deleted, so that the UI can point the user at them.
+
+    Such a reference can sit at any depth, such as in a commodity's flex-context or inside a commitment,
+    so each one is named by its path, e.g. "commodities > 2 > consumption-price", counting list positions from 1.
+    """
+    if is_unset_sensor_reference(value):
+        return [" > ".join(path)]
+    if isinstance(value, dict):
+        children = [(str(k), v) for k, v in value.items()]
+    elif isinstance(value, list):
+        children = [(str(i), v) for i, v in enumerate(value, start=1)]
+    else:
+        return []
+    return [p for k, v in children for p in unset_sensor_reference_paths(v, (*path, k))]
+
+
+def refuse_unknown_sensor_reference_keys(
+    value: dict[str, Any], known: frozenset[str] | set[str] | None = None
+) -> None:
+    """Refuse a key no sensor reference has, rather than reading past it.
+
+    A sensor reference used to be read for the keys it knows, so anything else was accepted and did nothing:
+    a filter written as `source` rather than `sources` dropped the filtering it was meant to apply, silently.
+
+    Which spelling belongs where is a question of its own, recorded in issue #2659.
+
+    :param value:              A sensor reference, as given.
+    :param known:              The keys this reference may carry, where that is more than a flex-config reference takes,
+                               as for a schema which extends `SensorReferenceSchema` with fields of its own.
+    :raises FMValidationError: naming the keys it does not know, and what to write instead.
+    """
+    known = sensor_reference_keys() if known is None else frozenset(known)
+    unknown = [key for key in value if key not in known]
+    if not unknown:
+        return
+    reports = []
+    for key in unknown:
+        nearest = get_close_matches(str(key), sorted(known), n=1, cutoff=0.6)
+        reports.append(
+            f"`{key}`" + (f" (did you mean `{nearest[0]}`?)" if nearest else "")
+        )
+    raise FMValidationError(
+        f"A sensor reference does not take {', '.join(reports)}."
+        f" It takes {', '.join(f'`{key}`' for key in sorted(known))}."
+        " A sensor reference filters by source in the plural, where a data request filters in the singular:"
+        " `sources` and `source-types` here, `source` and `source-type` on `GET /sensors/<id>/data`."
+    )
 
 
 def _sets_bounds(reference: dict[str, Any]) -> bool:
@@ -567,6 +659,12 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if value["sensor"] is None:
+            raise FMValidationError(
+                'This sensor reference has no sensor (`"sensor": null`), which is how FlexMeasures marks a reference whose sensor was deleted.'
+                " Pick a sensor for it, or replace the reference with a fixed value."
+            )
+        refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -869,10 +967,29 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    prior = AwareDateTimeField(
+        required=False,
+        allow_none=True,
+        data_key="prior",
+        validate=validate_storable_belief_time,
+        metadata=dict(
+            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
+            example="2026-10-15T12:00:00+02:00",
+        ),
+    )
     unit = fields.String(
         required=False,
         data_key="unit",
     )
+
+    @validates_schema
+    def validate_prior(self, data, **kwargs):
+        """Refuse a prior that conflicts with measured-instantly."""
+        if data.get("prior") is not None and data.get("belief_time_measured_instantly"):
+            raise ValidationError(
+                field_name="prior",
+                message="A prior cannot be combined with belief-time-measured-instantly.",
+            )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -946,6 +1063,9 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        belief_time = fields.pop("prior", None)
+        if belief_time is None and not belief_time_measured_instantly:
+            belief_time = pd.Timestamp.utcnow()
 
         errors = {}
         for i, file in enumerate(files):
@@ -954,11 +1074,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     file,
                     sensor,
                     source=get_or_create_source(self.source_user or current_user),
-                    belief_time=(
-                        pd.Timestamp.utcnow()
-                        if not belief_time_measured_instantly
-                        else None
-                    ),
+                    belief_time=belief_time,
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
@@ -1184,6 +1300,21 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
     class Meta:
         description = "Sensor reference from which to look up a variable quantity."
+
+    @pre_load
+    def refuse_keys_no_reference_has(self, data, **kwargs):
+        """Refuse a key this reference does not have, with the same message the field reading a flex config by hand gives.
+
+        Shared so that the same reference is read the same way wherever it is written.
+        The keys come from this schema rather than from this class,
+        so that a schema extending it with fields of its own, such as a plugin's, accepts what it declares.
+        """
+        if isinstance(data, dict):
+            refuse_unknown_sensor_reference_keys(
+                data,
+                known={field.data_key or name for name, field in self.fields.items()},
+            )
+        return data
 
     source_types = fields.List(
         fields.String(),

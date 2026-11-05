@@ -23,9 +23,16 @@ It stops and names the sources and the organisations sharing them, and the same 
 
 A split keeps the source id for the organisation which recorded under it most recently, since a source id is something installations pin,
 and moves the other organisations' beliefs, annotations, sensor links and automations onto newly created sources of their own.
+
+A shared source of an older version of its generator is not split, and does not stop the upgrade either.
+Nothing records under an older version again, as a generator looks its source up by its current version,
+so there is no second source for the split to prevent, and splitting would only rewrite history,
+which is where most beliefs of a long-running installation sit.
+Such a source is left belonging to no organisation, unless a host names the organisation that keeps it with `-x keep-source`.
 """
 
 from alembic import context, op
+from packaging.version import InvalidVersion, Version
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
@@ -151,6 +158,37 @@ def _verified_organisations(connection, source_id: int, accounts: set[int]) -> s
         for account_id in accounts
         if _still_recorded_for(connection, source_id, account_id)
     }
+
+
+def _superseded(connection, source_ids: list[int]) -> set[int]:
+    """The sources among these which a newer version of the same generator has replaced.
+
+    A generator looks its source up by its current version, so nothing records under an older one again.
+    A version that does not parse is never called older, so its source is treated like any other.
+    """
+    if not source_ids:
+        return set()
+    rows = connection.execute(
+        sa.text("""
+            SELECT ds.id, ds.version, other.version
+              FROM data_source ds
+              JOIN data_source other
+                ON other.name = ds.name
+               AND other.type = ds.type
+               AND other.model IS NOT DISTINCT FROM ds.model
+               AND other.version <> ds.version
+             WHERE ds.id = ANY(:ids)
+            """),
+        {"ids": source_ids},
+    ).fetchall()
+    superseded = set()
+    for source_id, version, other_version in rows:
+        try:
+            if Version(other_version) > Version(version):
+                superseded.add(source_id)
+        except InvalidVersion:
+            continue
+    return superseded
 
 
 def _describe(connection, source_ids: list[int]) -> dict[int, str]:
@@ -295,12 +333,16 @@ def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
 
     Naming the organisation that keeps a source's id is something only the host can answer,
     since a source id can be referred to from configurations FlexMeasures cannot interpret for them.
+    A `keep-source` without an organisation is left to migration 7c4e1a9d2b58, which reads it as the duplicate source that keeps its id,
+    because both migrations read the same arguments when a host upgrades past both of them at once.
     """
     keepers: dict[int, int] = {}
     for argument in arguments:
         if not argument.startswith("keep-source="):
             continue
         value = argument.split("=", 1)[1]
+        if ":" not in value:
+            continue
         try:
             source_id, account_id = (int(part) for part in value.split(":", 1))
         except ValueError:
@@ -309,6 +351,16 @@ def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
             )
         keepers[source_id] = account_id
     return keepers
+
+
+def _sources_named_without_organisation(arguments: list[str]) -> set[int]:
+    """Read the source ids that `-x keep-source=<source id>` names, which is how migration 7c4e1a9d2b58 is told which duplicate keeps its id."""
+    return {
+        int(value)
+        for argument in arguments
+        if argument.startswith("keep-source=")
+        and (value := argument.split("=", 1)[1]).isdigit()
+    }
 
 
 def upgrade():
@@ -321,11 +373,15 @@ def upgrade():
         op.get_bind(),
         splitting=splitting,
         keepers=_keepers_from_x_arguments(list(arguments)),
+        named_without_organisation=_sources_named_without_organisation(list(arguments)),
     )
 
 
 def couple_sources_to_organisations(
-    connection, splitting: bool, keepers: dict[int, int] | None = None
+    connection,
+    splitting: bool,
+    keepers: dict[int, int] | None = None,
+    named_without_organisation: set[int] | None = None,
 ) -> None:
     """Couple each data source to the organisation it recorded for, splitting the shared ones only when told to.
 
@@ -355,6 +411,8 @@ def couple_sources_to_organisations(
         for source_id, accounts in per_source.items()
         if len(accounts) > 1
     }
+    # Naming an organisation for a source asks for it to be split, also when its generator has moved on to a newer version.
+    left_unowned = sorted(_superseded(connection, list(shared)) - set(keepers or {}))
 
     for source_id, account_id in single.items():
         connection.execute(
@@ -368,11 +426,26 @@ def couple_sources_to_organisations(
             f"Coupled {len(single)} data source(s) to the organisation they recorded for."
         )
 
+    names = _describe(connection, list(shared))
+    if left_unowned:
+        lines = [
+            f"  data source {source_id} ({names.get(source_id, 'unknown')}): organisations {sorted(shared[source_id])}"
+            for source_id in left_unowned
+        ]
+        for source_id in left_unowned:
+            del shared[source_id]
+        print(
+            "These data sources recorded for more than one organisation, but a newer version of their generator has replaced them,"
+            " so nothing will record under them again. They are left belonging to no organisation rather than split:\n"
+            + "\n".join(lines)
+            + "\nTo split one anyway, name the organisation that keeps its id:\n\n"
+            "    flexmeasures db upgrade -x split-shared-sources=true -x keep-source=42:3\n"
+        )
+
     if not shared:
         _report_unowned(connection)
         return
 
-    names = _describe(connection, list(shared))
     if not splitting:
         lines = [
             f"  data source {source_id} ({names.get(source_id, 'unknown')}): organisations {sorted(accounts)}"
@@ -391,6 +464,15 @@ def couple_sources_to_organisations(
         )
 
     keepers = keepers or {}
+    # A host who forgot the organisation would otherwise see nothing happen, as migration 7c4e1a9d2b58 only reads it for duplicates.
+    unpaired = sorted(
+        set(named_without_organisation or ()) & set(shared) - set(keepers)
+    )
+    if unpaired:
+        raise RuntimeError(
+            f"Asked to keep data source(s) {unpaired}, which several organisations share, without naming the organisation that keeps them."
+            f" Name one, as in -x keep-source={unpaired[0]}:<organisation id>."
+        )
     unknown = set(keepers) - set(shared)
     if unknown:
         raise RuntimeError(

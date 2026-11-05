@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -177,13 +177,14 @@ class DataGenerator:
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.
 
-        :returns list of dictionaries, for example:
-                 [
-                     {
-                         "sensor": 501,
-                         "data": <a BeliefsDataFrame>,
-                     },
-                 ]
+        :returns: list of dictionaries,
+            for example:
+                [
+                    {
+                        "sensor": 501,
+                        "data": <a BeliefsDataFrame>,
+                    },
+                ]
         """
         raise NotImplementedError()
 
@@ -273,19 +274,7 @@ class DataGenerator:
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
 
-            attributes = {"data_generator": {}}
-
-            if self._save_config:
-                attributes["data_generator"]["config"] = self._config_schema.dump(
-                    self._config
-                )
-
-            if self._save_parameters:
-                attributes["data_generator"]["parameters"] = self._clean_parameters(
-                    self._parameters_schema.dump(self._parameters)
-                )
-
-            data_source_info["attributes"] = attributes
+            data_source_info["attributes"] = self.get_data_source_attributes()
 
             self._data_source = get_or_create_source(
                 **data_source_info, account=self.source_account
@@ -325,6 +314,19 @@ class DataGenerator:
             )
         return None
 
+    def get_data_source_attributes(self) -> dict:
+        """Describe this generator's source without creating a database record."""
+        attributes = {"data_generator": {}}
+        if self._save_config:
+            attributes["data_generator"]["config"] = self._config_schema.dump(
+                self._config
+            )
+        if self._save_parameters:
+            attributes["data_generator"]["parameters"] = self._clean_parameters(
+                self._parameters_schema.dump(self._parameters)
+            )
+        return attributes
+
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the
         fields that are not to be persisted to the DB as data source attributes (when save_parameters=True),
@@ -336,15 +338,15 @@ class DataGenerator:
             to be persisted.
 
             Parameters provided to the `compute` method (input of the method `_clean_parameters`):
-            parameters = {
-                            "start" : "2023-01-01T00:00:00+02:00",
-                            "end" : "2023-01-02T00:00:00+02:00",
-                            "field1" : 1,
-                            "field2" : 2
-                        }
+                parameters = {
+                    "start" : "2023-01-01T00:00:00+02:00",
+                    "end" : "2023-01-02T00:00:00+02:00",
+                    "field1" : 1,
+                    "field2" : 2
+                }
 
             Parameters persisted to the DB (output of the method `_clean_parameters`):
-            parameters = {"field1" : 1,"field2" : 2}
+                parameters = {"field1" : 1,"field2" : 2}
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = ["start", "end", "resolution", "belief_time"]
@@ -413,13 +415,33 @@ class SensorDataSource(db.Model):
         return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
 
 
+# The unique index that refuses identical data sources.
+DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
+# What identifies a data source.
+# A unique constraint on these columns would treat NULLs as distinct, and so never refuse a second identical source without a user or account.
+# PostgreSQL can be told otherwise, with NULLS NOT DISTINCT, but only from version 15, which FlexMeasures does not require.
+# Indexing expressions that replace NULLs needs no such minimum: it makes NULLs count as equal whatever the version,
+# where they also count as equal to an empty string (or to -1, or to an empty hash).
+DATA_SOURCE_IDENTITY_EXPRESSIONS = (
+    "name",
+    "coalesce(type, '')",
+    "coalesce(user_id, -1)",
+    "coalesce(account_id, -1)",
+    "coalesce(model, '')",
+    "coalesce(version, '')",
+    "coalesce(attributes_hash, '\\x'::bytea)",
+)
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        db.Index(
+            DATA_SOURCE_UNIQUE_INDEX,
+            *(text(expression) for expression in DATA_SOURCE_IDENTITY_EXPRESSIONS),
+            unique=True,
         ),
     )
 
@@ -434,7 +456,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "User",
         primaryjoin="DataSource.user_id == User.id",
         foreign_keys="[DataSource.user_id]",
-        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_source", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -445,7 +469,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Account",
         primaryjoin="DataSource.account_id == Account.id",
         foreign_keys="[DataSource.account_id]",
-        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_sources", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -557,6 +583,22 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return self._data_generator
 
     @property
+    def missing_members(self) -> list[int]:
+        """The sensors that a data generator says it had to leave out of the data recorded under this source.
+
+        An `AggregatorReporter` records an event that some of its group's members did not report under a source naming them,
+        so its data can be told apart from a complete aggregate, which names none.
+
+            >>> DataSource("Seita", type="reporter", attributes={"data_generator": {"config": {"missing-members": [3]}}}).missing_members
+            [3]
+            >>> DataSource("Seita", type="reporter").missing_members
+            []
+
+        """
+        config = (self.attributes or {}).get("data_generator", {}).get("config") or {}
+        return list(config.get("missing-members") or [])
+
+    @property
     def label(self):
         """Human-readable label (preferably not starting with a capital letter, so it can be used in a sentence)."""
         if self.type == "user":
@@ -658,14 +700,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def source_priorities(sources) -> dict:
-    """Rank sources by version (then by id), with a higher rank meaning a more recent version.
+    """Rank sources by version, then complete over partial, then by id, with a higher rank meaning a more recent version.
 
     Sources without a version are assumed to have version 0.0.0.
+    A source that names no missing members outranks one that does (see `DataSource.missing_members`),
+    so a complete aggregate replaces a partial one recorded with the same belief time, as `_select_latest_version_and_belief_per_event` also has it.
     """
     priority_order = sorted(
         sources,
         key=lambda s: (
             Version(s.version or "0.0.0"),
+            not getattr(s, "missing_members", None),
             s.id if s.id is not None else -1,
         ),
     )
@@ -679,7 +724,7 @@ def keep_latest_version(
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     Sources are grouped by (name, type, model); within each group, only data from
-    the latest version (breaking ties by highest id) is kept, per event or per belief.
+    the latest version (breaking ties in favour of a source naming no missing members, and then by highest id) is kept, per event or per belief.
     Probabilistic beliefs are kept intact.
 
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.

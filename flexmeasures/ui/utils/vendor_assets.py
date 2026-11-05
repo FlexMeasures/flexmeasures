@@ -1,0 +1,616 @@
+"""Third-party libraries which the UI loads, and where it loads them from.
+
+Each library is served by FlexMeasures from static/vendor/<key>/<version>/ when its files were fetched there,
+and loaded from its CDN otherwise, with the hash recorded below as the tag's integrity attribute.
+The Docker image comes with the files fetched.
+A pip-installed FlexMeasures fetches them in the background once it serves its first request,
+unless the FLEXMEASURES_FETCH_UI_LIBRARIES setting is switched off; then fetch them with:
+
+    python -m flexmeasures.ui.utils.fetch_vendor_assets
+
+Fetching also stores each library's licence next to its files, with any notice file the licence requires to be shipped along, and fails on any file whose hash does not match.
+Templates load these libraries through the macros in templates/includes/vendor.html.
+
+To bump a library, change its version below, then print the hashes of its files at that version, and paste them in:
+
+    python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes <key>
+
+Hosts can load other versions through the FLEXMEASURES_JS_VERSIONS setting, see libraries_with_overrides.
+
+Every week, .github/workflows/ui-library-advisories.yml looks up these versions in the OSV database of security advisories.
+
+This is a leaf module, so flexmeasures/ui/__init__.py can import it without an import cycle.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import logging
+import os
+import re
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import Callable
+
+from flask import current_app, has_app_context, url_for
+from markupsafe import Markup, escape
+
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None  # type: ignore[assignment]
+
+VENDOR_DIR = Path(__file__).resolve().parents[1] / "static" / "vendor"
+NPM_CDN = "https://cdn.jsdelivr.net/npm/{name}@{version}/"
+
+
+@dataclass(frozen=True)
+class VendorLibrary:
+    """A library's version, its files with their SHA-256 hashes, and where to download them."""
+
+    # The npm package name, or the library's own name if it does not come from npm.
+    name: str
+    version: str
+    # Path relative to the base URL -> SHA-256 hash, or None for a file that hosts load without a hash, see libraries_with_overrides.
+    files: dict[str, str | None]
+    license: str  # path relative to the base URL, or a full URL
+    license_sha256: str | None
+    base_url: str = NPM_CDN  # formatted with the name and version
+    # Further files which the licence requires to be shipped with the library, such as an Apache-2.0 NOTICE file.
+    # Path relative to the base URL -> SHA-256 hash, or None for another version, see libraries_with_overrides.
+    notices: dict[str, str | None] = field(default_factory=dict)
+    # For a library not served from npm, the npm package to look up advisories for.
+    npm_package: str | None = None
+
+    @property
+    def npm_name(self) -> str | None:
+        """The npm package which this library is published as, if any, which advisory databases know it by."""
+        if self.npm_package:
+            return self.npm_package
+        return self.name if self.base_url == NPM_CDN else None
+
+    def url(self, path: str) -> str:
+        return self.base_url.format(name=self.name, version=self.version) + path
+
+    @property
+    def license_url(self) -> str:
+        return self.license if "://" in self.license else self.url(self.license)
+
+    @property
+    def license_path(self) -> str:
+        """Where the licence is stored, relative to the library's local directory."""
+        return (
+            self.license.rsplit("/", 1)[-1] if "://" in self.license else self.license
+        )
+
+    def licence_files(self) -> list[tuple[str, str, str | None]]:
+        """The licence and notices to store next to the library's files, each as its local path, URL and SHA-256 hash."""
+        return [
+            (self.license_path, self.license_url, self.license_sha256),
+            *((path, self.url(path), sha256) for path, sha256 in self.notices.items()),
+        ]
+
+
+VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
+    "vega": VendorLibrary(
+        name="vega",
+        version="5.33.1",
+        files={
+            "build/vega.min.js": "463f3db6a40b20e9747b4ed38f37ed0add508838f9141b1cf8366784b07b30c8",
+        },
+        # The npm package of this version has no licence file, so take it from the release's tag.
+        license="https://cdn.jsdelivr.net/gh/vega/vega@v5.33.1/LICENSE",
+        license_sha256="63727832aaf62004a2b249c933e327f3c90caf49e41a72f4bf436edf632cbda8",
+    ),
+    "vegaembed": VendorLibrary(
+        name="vega-embed",
+        version="6.21.0",
+        files={
+            "build/vega-embed.min.js": "fd72eab487018408e196630e6b3db75005f30604329b3eb40fbdfe3dfacadb8c",
+        },
+        license="LICENSE",
+        license_sha256="32df67148f0fc3db0eb9e263a7b75d07f1eb14c61955005a4a39c6918d10d137",
+    ),
+    "vegalite": VendorLibrary(
+        name="vega-lite",
+        version="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
+        files={
+            "build/vega-lite.min.js": "4804d726d5eb7f7d0335ce234481c6a51ceb3ef2f0031d544a80f381d1f4163d",
+        },
+        license="LICENSE",
+        license_sha256="f618900fd0d64046963b29f40590cdd1e341a2f41449f99110d82fd81fea808c",
+    ),
+    "echarts": VendorLibrary(
+        name="echarts",
+        version="5.6.0",  # used for the fast (canvas-based) chart mode
+        files={
+            "dist/echarts.min.js": "bf4a223524e40b77c304bec67e1222cf551f14880cf42c69dc046558e11c07b1",
+        },
+        license="LICENSE",
+        license_sha256="634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+        notices={
+            "NOTICE": "fa99ac3af859d0e13166906dc53a73ad34a08898da7e8ae83407275496e9e30c",
+        },
+    ),
+    "currencysymbolmap": VendorLibrary(
+        name="currency-symbol-map",
+        version="5.1.0",
+        files={
+            "map.js": "22c8c8381435b89abbc8786bb7d8c41ea06236113117c61bdb38c6c3a51b4e50",
+        },
+        license="LICENSE.md",
+        license_sha256="db6bef538dd26785fb7b22de741b04a85121ccaa19568af310b97dcd3629a331",
+    ),
+    "jsoneditor": VendorLibrary(
+        name="@json-editor/json-editor",
+        version="2.15.2",
+        files={
+            "dist/jsoneditor.min.js": "e1339ef686f3e750ee520f534a24512df9f0891e5848b271ae03cb9d8629428f",
+        },
+        license="LICENSE",
+        license_sha256="2c3d6f6bad4123d4f2abf92666e17adc3fc30a956e3b03c78b108c2a29630252",
+    ),
+    "leaflet": VendorLibrary(
+        name="leaflet",
+        version="1.9.4",
+        files={
+            "dist/leaflet.css": "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6",
+            "dist/leaflet-src.min.js": "3c3ccb000ef205c785428a4385281c8ca0aadfc00df0a686d3ddd4332131f2ce",
+            "dist/images/layers-2x.png": "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf",
+            "dist/images/layers.png": "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6",
+            "dist/images/marker-icon-2x.png": "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528",
+            "dist/images/marker-icon.png": "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437",
+            "dist/images/marker-shadow.png": "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da",
+        },
+        license="LICENSE",
+        license_sha256="53e8dc25862014e4324741ca18fbe3611e11d42ef69f59f86ea8c5389647d4cb",
+    ),
+    "leafletmarkercluster": VendorLibrary(
+        name="leaflet.markercluster",
+        version="1.5.3",
+        files={
+            "dist/MarkerCluster.css": "614dea0a98ff3f4ead74f04918f6b1d1b9ba435c25b5fc23b21a394d1e3e4d87",
+            "dist/MarkerCluster.Default.css": "61258232d98d64dc2a7b1e02130d67421bc5b9bda5994eef70228ff97570c170",
+            "dist/leaflet.markercluster.js": "1e4e1d22972a3926f48598e0caf14e3fe7049835d428a344fed4f9e3665b3508",
+        },
+        license="MIT-LICENCE.txt",
+        license_sha256="3133dacd38250bd1f524d8166cc60a016a382522e062fce143691c65bf5e4b3d",
+    ),
+    "leafletmarkerclusterlayersupport": VendorLibrary(
+        name="leaflet.markercluster.layersupport",
+        version="2.0.1",
+        files={
+            "dist/leaflet.markercluster.layersupport.js": "7a61dfa8cb8829a81800a309ab8d4ebbe81fb309db22df670286dce66acd6bd8",
+        },
+        license="LICENSE",
+        license_sha256="ca934ce716095f28879e54a71b5dddd742bdf7cb72ca0d7cc9d1a6892d66aca6",
+    ),
+    "jquery": VendorLibrary(
+        name="jquery",
+        version="3.5.1",
+        files={
+            "dist/jquery.min.js": "f7f6a5894f1d19ddad6fa392b2ece2c5e578cbf7da4ea805b6885eb6985b6e3d",
+        },
+        license="LICENSE.txt",
+        license_sha256="1ff603118efdb313799567cb4a408594954384f40843ca6f29c596f5b1f8907d",
+    ),
+    "floatthead": VendorLibrary(
+        name="floatthead",
+        version="2.2.1",
+        files={
+            "dist/jquery.floatThead.min.js": "020bcbcff534803c840937a0eab0f671cd3ecb4240ed49656aaf76ae99bab730",
+        },
+        license="LICENSE",
+        license_sha256="99c0cb82d16f11c4e3d92b856664ccc820f4d369a962c00ab16856926fe9accf",
+    ),
+    "bootstrap": VendorLibrary(
+        name="bootstrap",
+        version="5.3.3",
+        files={
+            "dist/css/bootstrap.min.css": "3c8f27e6009ccfd710a905e6dcf12d0ee3c6f2ac7da05b0572d3e0d12e736fc8",
+            "dist/js/bootstrap.bundle.min.js": "0833b2e9c3a26c258476c46266e6877fc75218625162e0460be9a3a098a61c6c",
+        },
+        license="LICENSE",
+        license_sha256="8c14611ae41ac6fd543c13349f22188eb12c69b3e59105c5eca3925a8e4eca3e",
+    ),
+    "bootstrapicons": VendorLibrary(
+        name="bootstrap-icons",
+        version="1.10.5",
+        files={
+            "font/bootstrap-icons.css": "d8824f7067cdfea38afec7e9ffaf072125266824206d69ef1f112d72153a505e",
+            "font/fonts/bootstrap-icons.woff": "999550fafbfbc0e0474b3b5c945df287b079d2a23dc07dcc6240a7d2f18e081d",
+            "font/fonts/bootstrap-icons.woff2": "cfe45b981d1b91b173361a34cfce5f60893dbd1ac4af2c3ac11fc17552c5401f",
+        },
+        license="LICENSE",
+        license_sha256="0623348b57e817b6897c41b6065380b599d5befe2839d83270566c605e430441",
+    ),
+    "fontawesome": VendorLibrary(
+        name="font-awesome",
+        version="4.7.0",
+        files={
+            "css/font-awesome.min.css": "799aeb25cc0373fdee0e1b1db7ad6c2f6a0e058dfadaa3379689f583213190bd",
+            "fonts/FontAwesome.otf": "444dd4366615ffc4a16d012b2fa90137065d3ccb410fa6fd5e4ddd7b5e4ffcd5",
+            "fonts/fontawesome-webfont.eot": "7bfcab6db99d5cfbf1705ca0536ddc78585432cc5fa41bbd7ad0f009033b2979",
+            "fonts/fontawesome-webfont.svg": "ad6157926c1622ba4e1d03d478f1541368524bfc46f51e42fe0d945f7ef323e4",
+            "fonts/fontawesome-webfont.ttf": "aa58f33f239a0fb02f5c7a6c45c043d7a9ac9a093335806694ecd6d4edc0d6a8",
+            "fonts/fontawesome-webfont.woff": "ba0c59deb5450f5cb41b3f93609ee2d0d995415877ddfa223e8a8a7533474f07",
+            "fonts/fontawesome-webfont.woff2": "2adefcbc041e7d18fcf2d417879dc5a09997aa64d675b7a3c4b6ce33da13f3fe",
+        },
+        license="README.md",
+        license_sha256="610427fe917f2b51ef69b5bfa9a7bfe3fcba59b1ccaf86a500a47e5fa1da322b",
+    ),
+    "ionrangeslider": VendorLibrary(
+        name="ion-rangeslider",
+        version="2.3.1",
+        files={
+            "css/ion.rangeSlider.css": "683c3601c8c673010044e3fbad99c8da5741fbf5f2b93c1b647e43af5222b8ca",
+            "js/ion.rangeSlider.min.js": "67adfdac93b9ec1899cd00e55ac1b217e109dc5b379c3e2940f91f8a64f2dd2f",
+        },
+        license="License.md",
+        license_sha256="eab00c5f6ec0a56b255565aa3f2e624e53e220bc916f1fab4cbdac14e051569e",
+    ),
+    "datatables": VendorLibrary(
+        name="DataTables",
+        version="1.13.11",
+        base_url="https://cdn.datatables.net/{version}/",
+        npm_package="datatables.net",
+        files={
+            "js/jquery.dataTables.min.js": "a33146fad8c7228dc4dc90043e3e50d51cead8b2267aeac32b0a8f3be8a52b86",
+            "css/jquery.dataTables.min.css": "b113506cbced802d49dd3f2fdec2d9de60c9cbfe53ab13b87337e34ef10200eb",
+        },
+        license="https://cdn.jsdelivr.net/npm/datatables.net@1.13.11/License.txt",
+        license_sha256="62b5fdd54371b4f6bd07a60dbc78b38814f49a8028213f540dc2733cad605382",
+    ),
+    "datatablesconditionalpaging": VendorLibrary(
+        name="DataTables conditionalPaging plug-in",
+        version="1.13.6",
+        base_url="https://cdn.datatables.net/plug-ins/{version}/features/conditionalPaging/",
+        npm_package="datatables.net-plugins",
+        files={
+            "dataTables.conditionalPaging.js": "b2474d8a4335060d3498248a0980471a2e772eb3655dae4d59e60dc26d12ff72",
+        },
+        license="https://cdn.jsdelivr.net/npm/datatables.net-plugins@1.13.6/License.txt",
+        license_sha256="46daf76193ec5496a09285dfc4c58127f68d895c4de20ded97aff6d58b452a35",
+    ),
+    "d3": VendorLibrary(
+        name="d3",
+        version="6.7.0",
+        files={
+            "dist/d3.min.js": "fbb8da602a76f4ed49bac3561da62d8149fa121b8fd15685bacc21355d3a3322",
+        },
+        license="LICENSE",
+        license_sha256="0747bebeb06b10954913149be9b9a8bdf6fad3e6fdcbd9f9524e7a94c13d2cea",
+    ),
+    "litepicker": VendorLibrary(
+        name="litepicker",
+        version="2.0.12",
+        files={
+            "dist/litepicker.js": "7fa62995b2417110edd2dfc18d43256816f705f9107b290d758fb9c8705e3e27",
+            "dist/plugins/ranges.js": "ec92df7d80691bef3d935208ddf0e0d1b4d9efc58c1b1132358c3ee47b4de48c",
+            "dist/plugins/keyboardnav.js": "2f1f56813045d77aa790718fb31ce1d0da7c6e01f674ceb2d36d7137181a56f1",
+        },
+        license="LICENSE.md",
+        license_sha256="a14d94572e372b6ec3bd884f394b43ea2e80ab068bd37a5a7cb243662b543922",
+    ),
+    "jstimezonedetect": VendorLibrary(
+        name="jstimezonedetect",
+        version="1.0.7",
+        files={
+            "dist/jstz.js": "4323ac38f342b0b7b1eee332e7278c67f4d01fe21c35ab03a684d49679a4feee",
+        },
+        license="LICENCE.txt",
+        license_sha256="70e94d1525a9cfeaec737aef0d21391b8585420add847742647cf1d916957555",
+    ),
+    "poppins": VendorLibrary(
+        name="Poppins",
+        version="v20",
+        base_url="https://fonts.gstatic.com/s/poppins/{version}/",
+        files={
+            "pxiEyp8kv8JHgFVrJJbecmNE.woff2": "478b3ab728aaa25a76c8cd8bb04addde92c43d72e643d0fdc455340b44c3f074",
+            "pxiEyp8kv8JHgFVrJJnecmNE.woff2": "cb8bdeabc838774d9808eb7c4cfcea963b57855e34f84b54797076940c8e5986",
+            "pxiEyp8kv8JHgFVrJJfecg.woff2": "7d93459d86585bfcdbb7e0376056226adb25821ee54b96236fe2123e9560929f",
+        },
+        license="https://cdn.jsdelivr.net/gh/google/fonts@7dc16b7de42db624b902f2292b68ed9e489e5053/ofl/poppins/OFL.txt",
+        license_sha256="6be04893d770899a015649c7aa3b582f871b272f8747a92b78b17c3e5c8b2573",
+    ),
+}
+
+# Each library's version, by key, available in templates as `js_versions`.
+# Plugin templates may read the keys which the deprecated FLEXMEASURES_JS_VERSIONS setting had, such as `js_versions.vega`.
+JS_VERSIONS: dict[str, str] = {
+    key: library.version for key, library in VENDOR_LIBRARIES.items()
+}
+
+# Where the app keeps its libraries, with the versions that FLEXMEASURES_JS_VERSIONS sets.
+APP_EXTENSION = "flexmeasures_vendor_libraries"
+
+SHA256 = re.compile(r"[0-9a-f]{64}")
+
+# Held by the process that fetches the libraries, so the other processes on the host leave it to that one.
+LOCK_FILE = ".fetch.lock"
+
+
+def _logger() -> logging.Logger:
+    """The app's logger, or this module's outside an app, such as in the fetch command.
+
+    A module-level logger in an app would be disabled when FlexMeasures configures logging after importing this module.
+    """
+    return current_app.logger if has_app_context() else logging.getLogger(__name__)
+
+
+def libraries_with_overrides(setting: dict | None) -> dict[str, VendorLibrary]:
+    """The libraries to load, with the versions that the FLEXMEASURES_JS_VERSIONS setting sets in place of the recorded ones.
+
+    The setting maps a library's key to its version, in one of three forms:
+
+    - ``"5.33.1"``: browsers load the library from its CDN without checking it, and it is not fetched.
+    - ``("5.33.1", "<sha256>")``: the hash of the library's one file.
+    - ``("1.9.5", {"dist/leaflet.css": "<sha256>", ...})``: the hash of each of the library's files.
+
+    With hashes, the library is handled like the recorded ones: browsers check its files, and it can be fetched.
+    The new version is expected to have the same files as the recorded one, as the templates name them.
+    ``python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes <key> --version <version>`` prints the setting for a version.
+    """
+    libraries = dict(VENDOR_LIBRARIES)
+    for key, value in (setting or {}).items():
+        if key not in libraries:
+            _logger().warning(
+                f"FLEXMEASURES_JS_VERSIONS sets {key}, which is not one of the UI's libraries, so it is ignored. "
+                f"The libraries are: {', '.join(VENDOR_LIBRARIES)}."
+            )
+            continue
+        library = libraries[key]
+        version, hashes = _unpack_override(key, value)
+        if hashes is None:
+            if version == library.version:
+                # For example, a copy of the setting's old defaults.
+                continue
+            files = dict.fromkeys(library.files)
+        elif isinstance(hashes, str):
+            if len(library.files) != 1:
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets one hash for {key}, which has {len(library.files)} files. "
+                    f"Set a dict with the hash of each of them instead: {', '.join(library.files)}."
+                )
+            files = {path: hashes for path in library.files}
+        else:
+            if set(hashes) != set(library.files):
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets hashes for {key}'s files {', '.join(sorted(hashes))}, "
+                    f"but needs them for exactly these files: {', '.join(library.files)}."
+                )
+            files = {path: hashes[path] for path in library.files}
+        for path, sha256 in files.items():
+            if sha256 is not None and not SHA256.fullmatch(sha256):
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets {sha256!r} as the hash of {key}'s {path}, which is not a SHA-256 hash in hexadecimal."
+                )
+        libraries[key] = replace(
+            library,
+            version=version,
+            files=files,
+            # A licence is not executed, so a licence of another version is fetched without a hash.
+            license_sha256=(
+                library.license_sha256 if version == library.version else None
+            ),
+            notices=(
+                library.notices
+                if version == library.version
+                else dict.fromkeys(library.notices)
+            ),
+        )
+    return libraries
+
+
+def _unpack_override(key: str, value) -> tuple[str, str | dict | None]:
+    if isinstance(value, str):
+        return value, None
+    if (
+        isinstance(value, (tuple, list))
+        and len(value) == 2
+        and isinstance(value[0], str)
+        and isinstance(value[1], (str, dict))
+    ):
+        return value[0], value[1]
+    raise ValueError(
+        f"FLEXMEASURES_JS_VERSIONS sets {key} to {value!r}. "
+        "Set a version, a version and the hash of the library's file, or a version and a dict with the hash of each of its files."
+    )
+
+
+def active_libraries() -> dict[str, VendorLibrary]:
+    """The libraries which the current app loads, or the recorded ones outside an app."""
+    if has_app_context():
+        return current_app.extensions.get(APP_EXTENSION, VENDOR_LIBRARIES)
+    return VENDOR_LIBRARIES
+
+
+def local_file(
+    key: str, path: str, libraries: dict[str, VendorLibrary] | None = None
+) -> Path:
+    """Where a library's file is stored when it was fetched."""
+    library = (active_libraries() if libraries is None else libraries)[key]
+    return VENDOR_DIR / key / library.version / path
+
+
+def vendor_url(key: str, path: str) -> str:
+    """URL of a library's file: served by FlexMeasures if it was fetched, or else from the library's CDN."""
+    library = active_libraries()[key]
+    if local_file(key, path).is_file():
+        return url_for(
+            "flexmeasures_ui.static",
+            filename=f"vendor/{key}/{library.version}/{path}",
+        )
+    return library.url(path)
+
+
+def vendor_attrs(key: str, path: str, attribute: str = "src") -> Markup:
+    """Attributes for a <script> or <link> tag that loads a library's file.
+
+    When the file comes from a CDN, the browser checks it against its hash, unless FLEXMEASURES_JS_VERSIONS sets a version without one.
+    """
+    url = vendor_url(key, path)
+    attrs = f'{attribute}="{escape(url)}"'
+    sha256 = active_libraries()[key].files[path]
+    if "://" in url and sha256 is not None:
+        digest = bytes.fromhex(sha256)
+        attrs += f' integrity="sha256-{base64.b64encode(digest).decode()}" crossorigin="anonymous"'
+    return Markup(attrs)
+
+
+def missing_files(libraries: dict[str, VendorLibrary] | None = None) -> list[Path]:
+    """Files of the libraries which were not fetched, so browsers load them from CDNs.
+
+    Files without a hash are left out, as they are never fetched.
+    """
+    libraries = active_libraries() if libraries is None else libraries
+    return [
+        local_file(key, path, libraries)
+        for key, library in libraries.items()
+        for path, sha256 in library.files.items()
+        if sha256 is not None and not local_file(key, path, libraries).is_file()
+    ]
+
+
+def unhashed_libraries(
+    libraries: dict[str, VendorLibrary] | None = None,
+) -> list[str]:
+    """Libraries which FLEXMEASURES_JS_VERSIONS sets to a version without hashes, so browsers load them unchecked."""
+    libraries = active_libraries() if libraries is None else libraries
+    return [
+        key
+        for key, library in libraries.items()
+        if any(sha256 is None for sha256 in library.files.values())
+    ]
+
+
+def download(url: str) -> bytes:
+    # Some CDNs refuse urllib's default User-Agent.
+    request = urllib.request.Request(url, headers={"User-Agent": "FlexMeasures"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.read()
+
+
+def fetch(
+    keys: list[str] | None = None,
+    download: Callable[[str], bytes] = download,
+    libraries: dict[str, VendorLibrary] | None = None,
+) -> int:
+    """Download the libraries' files, licences and notices into static/vendor/, checking each against its hash.
+
+    Files that are already there with the right hash are skipped, and so are libraries without hashes.
+    Returns the number of files written.
+    """
+    libraries = active_libraries() if libraries is None else libraries
+    written = 0
+    for key in keys or libraries:
+        library = libraries[key]
+        if key in unhashed_libraries(libraries):
+            continue
+        for path, sha256 in library.files.items():
+            written += _store(key, path, library.url(path), sha256, download, libraries)
+        for path, url, sha256 in library.licence_files():
+            try:
+                written += _store(key, path, url, sha256, download, libraries)
+            except urllib.error.HTTPError as exc:
+                if sha256 is not None:
+                    raise
+                # A version set through FLEXMEASURES_JS_VERSIONS may keep its licence elsewhere.
+                _logger().warning(
+                    f"Could not fetch the licence file {path} of {key} {library.version} from {url}: {exc}."
+                )
+    return written
+
+
+def _store(
+    key: str,
+    path: str,
+    url: str,
+    sha256: str | None,
+    download: Callable[[str], bytes],
+    libraries: dict[str, VendorLibrary],
+) -> int:
+    """Download a file and store it, unless it is already there. Returns the number of files written."""
+    target = local_file(key, path, libraries)
+    if target.is_file() and (sha256 is None or _sha256(target.read_bytes()) == sha256):
+        return 0
+    content = download(url)
+    if sha256 is not None and _sha256(content) != sha256:
+        raise ValueError(
+            f"{url} does not match the hash recorded for {key} {libraries[key].version}."
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Named after the process, so two processes fetching at once do not write into the same file.
+    partial = target.with_name(f"{target.name}.{os.getpid()}.part")
+    partial.write_bytes(content)
+    partial.replace(target)
+    return 1
+
+
+def fetch_unless_fetching(
+    libraries: dict[str, VendorLibrary],
+    download: Callable[[str], bytes] = download,
+) -> int | None:
+    """Fetch the libraries' missing files, unless another process on this host is fetching them.
+
+    Returns the number of files written, or None if another process holds the lock.
+    """
+    if not missing_files(libraries):
+        return 0
+    VENDOR_DIR.mkdir(parents=True, exist_ok=True)
+    with open(VENDOR_DIR / LOCK_FILE, "w") as lock:
+        if fcntl is not None:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return None
+        # The lock is released when the file closes, also when the process dies.
+        return fetch(download=download, libraries=libraries)
+
+
+def fetched_before() -> bool:
+    """Whether any library files were fetched into static/vendor/, for example before an upgrade bumped some versions."""
+    return VENDOR_DIR.is_dir() and any(
+        path.is_file() and path.name != LOCK_FILE for path in VENDOR_DIR.rglob("*")
+    )
+
+
+def print_hashes(
+    key: str,
+    download: Callable[[str], bytes] = download,
+    version: str | None = None,
+):
+    """Print the hashes of a library's files.
+
+    At its recorded version, they are printed ready to paste into VENDOR_LIBRARIES.
+    At another version, they are printed as an entry of the FLEXMEASURES_JS_VERSIONS setting.
+    """
+    library = VENDOR_LIBRARIES[key]
+    if version is None:
+        print("files={")
+        for path in library.files:
+            print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
+        print("},")
+        print(f'license_sha256="{_sha256(download(library.license_url))}",')
+        if library.notices:
+            print("notices={")
+            for path in library.notices:
+                print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
+            print("},")
+        return
+    library = replace(library, version=version)
+    hashes = {path: _sha256(download(library.url(path))) for path in library.files}
+    if len(hashes) == 1:
+        print(f'"{key}": ("{version}", "{next(iter(hashes.values()))}"),')
+        return
+    print(f'"{key}": ("{version}", {{')
+    for path, sha256 in hashes.items():
+        print(f'    "{path}": "{sha256}",')
+    print("}),")
+
+
+def _sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()

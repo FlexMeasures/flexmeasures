@@ -107,7 +107,11 @@ class Automation(db.Model, AuthModelMixin):
         "GenericAsset",
         foreign_keys=[asset_id],
         backref=db.backref(
-            "automations", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "automations",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Automation.id",
         ),
     )
     generator = db.relationship("DataSource", foreign_keys=[generator_id])
@@ -138,8 +142,10 @@ class Automation(db.Model, AuthModelMixin):
         asset_acl = self.asset.__acl__()
         return {
             "read": asset_acl["read"],
-            "update": asset_acl["create-children"],
-            "delete": asset_acl["create-children"],
+            "manage-automations": asset_acl["manage-automations"],
+            # Compatibility for callers still checking broad CRUD permissions.
+            "update": asset_acl["manage-automations"],
+            "delete": asset_acl["manage-automations"],
         }
 
     def __repr__(self):

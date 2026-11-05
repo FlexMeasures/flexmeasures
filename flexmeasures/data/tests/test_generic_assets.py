@@ -1,11 +1,15 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 
-from flexmeasures.data.services.generic_assets import format_json_field_change
+from flexmeasures.data.services.generic_assets import (
+    asset_contains_data,
+    format_json_field_change,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 
@@ -393,3 +397,124 @@ def test_get_inflexible_device_sensors_across_keys(
     expected_sensors = {load_sensor, pv_sensor, boiler_sensor}
     assert set(leaf.get_inflexible_device_sensors()) == expected_sensors
     assert set(site.get_inflexible_device_sensors()) == expected_sensors
+
+
+def test_set_attribute_creates_missing_attribute_on_asset(
+    fresh_db, setup_generic_assets_fresh_db
+):
+    asset = setup_generic_assets_fresh_db["test_wind_turbine"]
+    assert not asset.has_attribute("timezone")
+
+    asset.set_attribute("timezone", "Europe/Amsterdam")
+
+    assert asset.has_attribute("timezone")
+    assert asset.attributes["timezone"] == "Europe/Amsterdam"
+
+
+def test_set_attribute_creates_missing_attribute_on_sensor(
+    fresh_db, setup_generic_assets_fresh_db
+):
+    asset = setup_generic_assets_fresh_db["test_wind_turbine"]
+    sensor = Sensor(name="a sensor", generic_asset=asset, unit="kW")
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+    assert not sensor.has_attribute("soc_in_mwh")
+
+    sensor.set_attribute("soc_in_mwh", 42)
+
+    assert sensor.has_attribute("soc_in_mwh")
+    assert sensor.attributes["soc_in_mwh"] == 42
+
+
+def test_asset_sensors_are_listed_in_creation_order(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    """An asset lists its sensors by id, whatever physical row order the database returns.
+
+    Updating the first sensor makes PostgreSQL store its new row version after the second sensor's row,
+    so a plain sequential scan would return the second sensor first.
+    """
+    asset = GenericAsset(
+        name="asset with two sensors",
+        generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
+    )
+    first = Sensor(name="power", generic_asset=asset, unit="MW")
+    second = Sensor(name="consumption-capacity", generic_asset=asset, unit="MW")
+    fresh_db.session.add_all([asset, first, second])
+    fresh_db.session.commit()
+
+    first.unit = "kW"
+    fresh_db.session.commit()
+
+    assert [sensor.name for sensor in asset.sensors] == [
+        "power",
+        "consumption-capacity",
+    ]
+
+
+def _asset_tree_with_a_sensor_on_the_grandchild(db, asset_types, name):
+    root = GenericAsset(name=f"{name} root", generic_asset_type=asset_types["battery"])
+    child = GenericAsset(
+        name=f"{name} child",
+        generic_asset_type=asset_types["battery"],
+        parent_asset=root,
+    )
+    grandchild = GenericAsset(
+        name=f"{name} grandchild",
+        generic_asset_type=asset_types["battery"],
+        parent_asset=child,
+    )
+    sensor = Sensor(name="power", generic_asset=grandchild, unit="MW")
+    db.session.add_all([root, child, grandchild, sensor])
+    db.session.flush()
+    return root, sensor
+
+
+def test_asset_contains_data_finds_beliefs_on_a_grandchild_sensor(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_sources_fresh_db
+):
+    """A sensor without beliefs holds no data, and a belief on a grandchild's sensor counts as data of the root."""
+    root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
+        fresh_db, setup_generic_asset_types_fresh_db, "contains-data"
+    )
+    assert not asset_contains_data(root, lock=False)
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            belief_horizon=timedelta(0),
+            event_value=1,
+        )
+    )
+    fresh_db.session.flush()
+    assert asset_contains_data(root, lock=False)
+    assert asset_contains_data(root)
+
+
+def test_asset_contains_data_names_the_sensors_it_probes(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    """The probe on timed_belief lists the subtree's sensor IDs, so Postgres looks each one up in the index.
+
+    With a subquery in their place, Postgres may read the whole table's index instead,
+    which on a large database takes seconds whenever the subtree holds no beliefs.
+    """
+    root, sensor = _asset_tree_with_a_sensor_on_the_grandchild(
+        fresh_db, setup_generic_asset_types_fresh_db, "probe-shape"
+    )
+    statements = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append((statement.lower(), parameters))
+
+    event.listen(fresh_db.engine, "before_cursor_execute", record_statement)
+    try:
+        asset_contains_data(root, lock=False)
+    finally:
+        event.remove(fresh_db.engine, "before_cursor_execute", record_statement)
+
+    [(probe, parameters)] = [s for s in statements if "from timed_belief" in s[0]]
+    assert probe.count("select") == 1
+    assert sensor.id in parameters.values()

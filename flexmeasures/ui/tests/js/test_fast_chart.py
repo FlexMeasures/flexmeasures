@@ -1,5 +1,9 @@
 """Tests for flexmeasures/ui/static/js/fast-chart.js."""
 
+import json
+
+from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):
     """The visible time range follows mouse zoom and resets to the full domain."""
@@ -502,3 +506,127 @@ def test_shift_click_pins_several_annotations(assert_js):
         click(250, false);
         eq("a plain click outside releases all pins", pinnedTexts(), []);
         """)
+
+
+def test_replay_ruler_survives_empty_data(assert_js):
+    """Belief-time filtering must not remove the ruler along with the data series."""
+    assert_js("""
+        import { renderFastChart, setFastChartReplayTime, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "replay-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const start = Date.parse("2026-01-01T00:00:00Z");
+        const row = {
+            event_start: start, event_value: 5, belief_horizon: 0,
+            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: 0},
+            source: {id: 1, name: "Meter"},
+        };
+        const rulers = () => option.series.flatMap(s => s.markLine?.data || [])
+            .filter(mark => mark.lineStyle.color === "#555");
+        for (const chartType of ["line", "bar_chart"]) {
+            const opts = {
+                chartType, isSensorPage: true,
+                groupSpec: [{title: "Power", sensorIds: [1]}],
+                timeWindow: {start, end: start + 86400000},
+            };
+            renderFastChart(container.id, [], opts);
+            for (const [index, data] of [[], [row], [], [row]].entries()) {
+                const time = start + (index + 1) * 3600000;
+                setFastChartReplayTime(container.id, time);
+                renderFastChart(container.id, data, opts);
+                eq(`${chartType}: exactly one ruler even without visible data`, rulers().length, 1);
+                eq("the ruler follows playback", rulers()[0]?.xAxis, time);
+                eq("the carrier opts out of automatic data colors",
+                   option.series[0].itemStyle?.color, "transparent");
+                eq("the requested time window is retained", option.xAxis[0].min, start);
+                check("the ruler is independent of data", option.series.some(
+                    s => s.data.length === 0 && s.markLine?.data.some(m => m.xAxis === time)));
+            }
+            setFastChartReplayTime(container.id, null);
+            renderFastChart(container.id, [], opts);
+            eq("stopping replay clears the ruler", rulers().length, 0);
+        }
+        disposeFastChart(container.id);
+        container.remove();
+        """)
+
+
+def test_fixed_value_sensor_does_not_force_linear_interpolation(assert_js):
+    """Fixed-value sensors (negative sensor id, event_resolution=0) must not force a row to linear interpolation (#2253)."""
+    assert_js("""
+        import { groupData, isGroupInstantaneous } from "/js/fast-chart.js";
+
+        const t0 = 1700000000000;
+        const step = 15 * 60 * 1000;
+        const makeRow = (ts, val, id, name, res) => ({
+            event_start: ts,
+            event_value: val,
+            sensor: {id, name, unit: "kWh", event_resolution: res},
+            source: {id: id < 0 ? -1 : 1, name: id < 0 ? "flex-model" : "meter", type: "other"},
+        });
+
+        // 1. Real 15-min interval sensor (id=1, res=900) + fixed-value sensor (id=-1, res=0) -> step-after.
+        const mixedIntervalAndFixed = groupData(
+            [
+                makeRow(t0, 10, 1, "energy", 900),
+                makeRow(t0 + step, 12, 1, "energy", 900),
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+            ],
+            [{title: "Mixed interval", sensorIds: [1, -1]}],
+        );
+
+        // 2. Real instantaneous sensor (id=2, res=0) + fixed-value sensor (id=-1, res=0) -> linear.
+        const mixedInstantAndFixed = groupData(
+            [
+                makeRow(t0, 50, 2, "state of charge", 0),
+                makeRow(t0 + step, 55, 2, "state of charge", 0),
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+            ],
+            [{title: "Mixed instantaneous", sensorIds: [2, -1]}],
+        );
+
+        // 3. Only fixed-value sensors (id=-1, id=-2, res=0) -> step-after.
+        const onlyFixed = groupData(
+            [
+                makeRow(t0, 20, -1, "soc-min", 0),
+                makeRow(t0 + step, 20, -1, "soc-min", 0),
+                makeRow(t0, 80, -2, "soc-max", 0),
+                makeRow(t0 + step, 80, -2, "soc-max", 0),
+            ],
+            [{title: "Bounds only", sensorIds: [-1, -2]}],
+        );
+
+        eq("sensor ids are preserved on grouped series", mixedIntervalAndFixed[0].series.map((s) => s.sensorId), [1, -1]);
+        eq("interval sensor + fixed-value sensor stays step-after", isGroupInstantaneous(mixedIntervalAndFixed[0]), false);
+        eq("instantaneous sensor + fixed-value sensor stays linear", isGroupInstantaneous(mixedInstantAndFixed[0]), true);
+        eq("a row with only fixed-value sensors uses step-after", isGroupInstantaneous(onlyFixed[0]), false);
+        """)
+
+
+def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_letter(
+    assert_js,
+):
+    """Like the Vega-Lite chart, the fast chart capitalizes a graph title before matching it."""
+    assert_js("""
+        import { isChargePointCompanionTitle } from "/js/fast-chart.js";
+        const names = CHARGE_POINT_CHART_NAMES;
+        for (const title of ["Prices", "prices", "Power flow by type", "power flow by type"]) {
+            eq(`"${title}" is a companion graph`, isChargePointCompanionTitle(title, names), true);
+        }
+        for (const title of ["Weather", "Charge Point sessions", "PRICES", "", null, undefined]) {
+            eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
+        }
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))

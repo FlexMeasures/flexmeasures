@@ -90,10 +90,10 @@
 
 
 <!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@{{ js_versions.leaflet }}/dist/leaflet-src.min.js"></script>
+{% import "includes/vendor.html" as vendor %}
+{{ vendor.leaflet_js() }}
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}?v={{ flexmeasures_version }}"></script>
-<script src="https://unpkg.com/leaflet.markercluster@{{ js_versions.leafletmarkercluster }}/dist/leaflet.markercluster.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster.layersupport@{{ js_versions.leafletmarkerclusterlayersupport }}/dist/leaflet.markercluster.layersupport.js"></script>
+{{ vendor.markercluster_js() }}
 
 <script type="text/javascript">
 
@@ -258,6 +258,14 @@
     {% endif %}
 
 </script>
+
+{% if session_cleared %}
+<!-- The graphs remember their date range in the browser, which the server-side session cannot reach. -->
+<script type="module">
+    import { forgetChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
+    forgetChartDateRange();
+</script>
+{% endif %}
 
 
 {% endblock %}
