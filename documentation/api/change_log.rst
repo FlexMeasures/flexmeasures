@@ -53,6 +53,10 @@ v3.0-34 | November XX, 2026
 - ``GET /api/v3_0/sensors/<id>/status`` now returns ``missing-members`` for reporter data whose most recent aggregate of a device group, old enough to count as stale, had to leave out members that did not report: the ``id``, ``name`` and ``asset-name`` of each of those sensors. The field is left out where no member is missing.
 - ``GET /api/v3_0/assets/<id>/chart`` now answers an unknown ``chart-type`` with a ``422``.
 
+**Errors**
+
+- A request for a URL under ``/api`` that matches no route (such as a typo in the URL, or an API version that does not exist) is now answered with a JSON ``404``, with ``message`` and ``status`` fields, like any other API error. So is a request with a method that an API route does not take, with a JSON ``405``. Both used to get the HTML error page, unless the request carried a JSON content type.
+
 v3.0-33 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
