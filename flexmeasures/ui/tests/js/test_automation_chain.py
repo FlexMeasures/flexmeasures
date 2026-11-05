@@ -165,6 +165,23 @@ def test_a_validation_error_reads_as_a_sentence(assert_js):
     """)
 
 
+def test_a_run_says_what_it_set_off(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ runMessage }};")();
+        eq("a run with jobs counts them", page.runMessage(7, {{"n-jobs": 2}}), "Queued 2 job(s) for automation 7.");
+        eq("a run without a count still says so", page.runMessage(7, {{}}), "Queued the jobs for automation 7.");
+        eq("nothing to queue is no zero count, and the chain still runs",
+           page.runMessage(7, {{"n-jobs": 0, "dependent-runs": [{{automation: 8}}, {{automation: 9}}]}}),
+           "Automation 7 had nothing to queue. Automation(s) 8, 9 run once the runs they wait for ended.");
+        eq("running with ascendants says what became of the rest",
+           page.runMessage(7, {{runs: [], message: "Started 1 run(s), and 1 run(s) wait for them.", "left-out": [5]}}),
+           "Started 1 run(s), and 1 run(s) wait for them. Automation 7 runs last. Automation(s) 5 do not run.");
+    """)
+
+
 def test_deleting_an_automation_tells_what_waits_for_it(assert_js):
     script = automation_script(can_manage=True, can_run=True)
     assert_js(f"""

@@ -975,6 +975,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       <ul class="list-group">${rows.join("")}</ul>${warning}`;
   }
 
+  // What came of asking for a run, in which an automation with nothing to do can still set off the ones waiting for it.
+  function runMessage(automationId, res) {
+    if (res.runs) {
+      return `${res.message} Automation ${automationId} runs last.`
+        + (res["left-out"].length ? ` Automation(s) ${res["left-out"].join(", ")} do not run.` : "");
+    }
+    const nJobs = res["n-jobs"];
+    const dependentRuns = res["dependent-runs"] || [];
+    const queued = nJobs === 0 ? `Automation ${automationId} had nothing to queue.`
+      : `${nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`} for automation ${automationId}.`;
+    const dependents = dependentRuns.length
+      ? ` Automation(s) ${dependentRuns.map((run) => run.automation).join(", ")} run once the runs they wait for ended.`
+      : "";
+    return `${queued}${dependents}`;
+  }
+
   // The query that asks for what a run plan shows.
   function runPlanQuery(plan) {
     if (plan.direction === "dependents") {
@@ -1801,17 +1817,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
-          const nJobs = res["n-jobs"];
-          const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
-          const dependentRuns = res["dependent-runs"] || [];
-          const dependents = dependentRuns.length
-            ? ` Automation(s) ${dependentRuns.map((run) => run.automation).join(", ")} run once the runs they wait for ended.`
-            : "";
-          const ascendants = res.runs
-            ? `${res.message} Automation ${automationId} runs last.`
-              + (res["left-out"].length ? ` Automation(s) ${res["left-out"].join(", ")} do not run.` : "")
-            : `${queued} for automation ${automationId}.${dependents}`;
-          showAutomationsMessage(`${ascendants} Recent jobs are listed on the status page.`);
+          showAutomationsMessage(`${runMessage(automationId, res)} Recent jobs are listed on the status page.`);
           loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
         error: function (xhr) {
