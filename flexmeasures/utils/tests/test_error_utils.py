@@ -44,6 +44,14 @@ def test_wrong_method_on_api_route_gets_json_405(bare_app):
     assert "message" in response.json
 
 
+def test_url_merely_starting_with_api_still_gets_html_404(bare_app):
+    """A path such as /apiary is not under /api, so a plain request gets the HTML error page."""
+    response = bare_app.test_client().get("/apiary")
+    assert response.status_code == 404
+    assert not response.is_json
+    assert response.get_data(as_text=True) == "<html>not found</html>"
+
+
 def test_unknown_non_api_url_still_gets_html_404(bare_app):
     """Outside /api, the HTML error page is still used for a plain (non-JSON) request."""
     response = bare_app.test_client().get("/no-such-page")
