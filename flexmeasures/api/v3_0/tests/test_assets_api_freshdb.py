@@ -1,8 +1,19 @@
+from datetime import datetime
+
 import pytest
 from flask import url_for
+from sqlalchemy import select
 
+from flexmeasures.api.tests.utils import AccountContext
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+# The first 10-minute event of "some gas sensor", which both of its sources recorded as 91.3 (see add_incineration_line).
+KPI_WINDOW = {
+    "start": "2021-05-02T00:00:00+02:00",
+    "end": "2021-05-02T00:10:00+02:00",
+}
 
 
 def _unused_id_with_prefix(db, model, id_prefix: str) -> int:
@@ -125,3 +136,181 @@ def test_fetch_asset_sensors_can_filter_by_sensor_id_prefix(
     assert full_id_response.status_code == 200
     assert full_id_response.json["filtered-records"] == 1
     assert [s["id"] for s in full_id_response.json["data"]] == [matching_sensor.id]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_patch_asset_kpis_rejects_cross_account_sensor(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """A member cannot save another organisation's sensor as a KPI."""
+    victim_sensor = setup_api_fresh_test_data["some gas sensor"]
+    with AccountContext("Test Prosumer Account") as account:
+        own_asset_id = account.generic_assets[0].id
+
+    response = client.patch(
+        url_for("AssetAPI:patch", id=own_asset_id),
+        json={
+            "sensors_to_show_as_kpis": [
+                {"title": "Gas", "sensor": victim_sensor.id, "function": "max"}
+            ]
+        },
+    )
+
+    assert (
+        response.status_code == 403
+    ), "Saving a KPI on a sensor of another organisation should be forbidden."
+    assert (
+        fresh_db.session.get(GenericAsset, own_asset_id).sensors_to_show_as_kpis == []
+    ), "The refused KPI should not have been stored on the asset."
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_asset_kpis_rejects_cross_account_sensor(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """A member cannot create an asset that shows another organisation's sensor as a KPI."""
+    victim_sensor = setup_api_fresh_test_data["some gas sensor"]
+    with AccountContext("Test Prosumer Account") as account:
+        own_asset = account.generic_assets[0]
+        own_asset_id, account_id, asset_type_id = (
+            own_asset.id,
+            account.id,
+            own_asset.generic_asset_type_id,
+        )
+
+    def post_child_asset(name: str, kpis: list):
+        data = get_asset_post_data(account_id=account_id, asset_type_id=asset_type_id)
+        data.update(name=name, parent_asset_id=own_asset_id)
+        data["sensors_to_show_as_kpis"] = kpis
+        return client.post(url_for("AssetAPI:post"), json=data)
+
+    response = post_child_asset(
+        "child showing someone else's gas",
+        [{"title": "Gas", "sensor": victim_sensor.id, "function": "max"}],
+    )
+    assert (
+        response.status_code == 403
+    ), "Creating an asset with a KPI on a sensor of another organisation should be forbidden."
+    assert (
+        fresh_db.session.scalar(
+            select(GenericAsset).filter_by(name="child showing someone else's gas")
+        )
+        is None
+    ), "The refused asset should not have been created."
+    assert (
+        post_child_asset("child showing no KPIs", []).status_code == 201
+    ), "The same request without the KPI should be allowed, which shows it was the KPI that was refused."
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize(
+    "kpis",
+    [
+        pytest.param(
+            [{"title": "Gas", "sensor": 999999, "function": "max"}],
+            id="nonexistent-sensor",
+        ),
+        pytest.param([{"title": "Gas", "sensor": "1"}], id="sensor-not-an-int"),
+        pytest.param({"title": "Gas", "sensor": 1}, id="not-a-list"),
+        pytest.param(
+            [{"title": "Gas", "sensor": 1, "function": "median"}],
+            id="unknown-function",
+        ),
+    ],
+)
+def test_post_asset_kpis_rejects_invalid_entries(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db, kpis
+):
+    """Invalid KPI input on asset creation gets a 422 naming the field, as it does on PATCH."""
+    some_asset = fresh_db.session.scalars(select(GenericAsset)).first()
+    data = get_asset_post_data(
+        account_id=some_asset.account_id,
+        asset_type_id=some_asset.generic_asset_type_id,
+    )
+    data["sensors_to_show_as_kpis"] = kpis
+
+    response = client.post(url_for("AssetAPI:post"), json=data)
+
+    assert (
+        response.status_code == 422
+    ), "Invalid KPI input should be refused as unprocessable, rather than crash the request."
+    assert "sensors_to_show_as_kpis" in str(
+        response.json["message"]
+    ), "The error should name the field that holds the invalid input."
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_asset_kpis_omits_stored_cross_account_sensor(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """A readable asset cannot expose data through an old KPI reference."""
+    victim_sensor = setup_api_fresh_test_data["some gas sensor"]
+    assert (
+        fresh_db.session.scalar(
+            select(TimedBelief.event_value).where(
+                TimedBelief.sensor_id == victim_sensor.id,
+                TimedBelief.event_start == datetime.fromisoformat(KPI_WINDOW["start"]),
+            )
+        )
+        == 91.3
+    ), "The other organisation's sensor should hold a value within the KPI window, so that an empty response below means it was left out, not that there was nothing to show."
+    with AccountContext("Test Prosumer Account") as account:
+        own_asset_id = account.generic_assets[0].id
+
+    own_asset = fresh_db.session.get(GenericAsset, own_asset_id)
+    own_asset.sensors_to_show_as_kpis = [
+        {"title": "Gas", "sensor": victim_sensor.id, "function": "max"}
+    ]
+    fresh_db.session.commit()
+
+    response = client.get(
+        url_for("AssetAPI:get_kpis", id=own_asset_id), query_string=KPI_WINDOW
+    )
+
+    assert (
+        response.status_code == 200
+    ), "Reading the KPIs of one's own asset should be allowed."
+    assert response.json == {
+        "data": []
+    }, "A stored KPI on a sensor of another organisation should be left out, rather than reveal that sensor's value."
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_kpis_returns_readable_sensor(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """An authorized KPI still returns its sensor's value."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    asset_id = sensor.generic_asset_id
+
+    patch_response = client.patch(
+        url_for("AssetAPI:patch", id=asset_id),
+        json={
+            "sensors_to_show_as_kpis": [
+                {"title": "Gas", "sensor": sensor.id, "function": "max"}
+            ]
+        },
+    )
+    assert (
+        patch_response.status_code == 200
+    ), "Saving a KPI on a sensor of one's own organisation should be allowed."
+
+    response = client.get(
+        url_for("AssetAPI:get_kpis", id=asset_id), query_string=KPI_WINDOW
+    )
+
+    assert response.status_code == 200, "Reading the asset's KPIs should be allowed."
+    assert (
+        response.json["data"][0]["sensor"] == sensor.id
+    ), "The KPI on a readable sensor should still be shown."
+    assert (
+        response.json["data"][0]["downsample_value"] == 91.3
+    ), "The KPI should report the maximum within the KPI window, which holds only the sensor's first event, 91.3."

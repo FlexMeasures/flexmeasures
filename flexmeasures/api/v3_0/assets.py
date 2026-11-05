@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 
 from flask import abort, request, current_app
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -951,7 +951,11 @@ class AssetAPI(FlaskView):
                     "Only site admins may create public assets (account_id=None)."
                 )
 
-        asset = create_asset(asset_data)
+        try:
+            asset = create_asset(asset_data)
+        except ValidationError as e:
+            db.session.rollback()
+            return unprocessable_entity(e.messages)
         db.session.commit()
 
         return asset_schema.dump(asset), 201
@@ -2717,8 +2721,24 @@ class AssetAPI(FlaskView):
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
         kpis = []
-        for kpi in asset_kpis:
-            sensor = Sensor.query.get(kpi["sensor"])
+        for kpi in asset_kpis if isinstance(asset_kpis, list) else []:
+            # The JSONB configuration stores sensor IDs; skip malformed saved entries.
+            if (
+                not isinstance(kpi, dict)
+                or type(kpi.get("sensor")) is not int
+                or not isinstance(kpi.get("title"), str)
+                or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+            ):
+                continue
+            sensor = db.session.get(Sensor, kpi["sensor"])
+            if sensor is None:
+                # A deleted sensor must not break the other KPIs.
+                continue
+            try:
+                check_access(sensor, "read")
+            except (Forbidden, Unauthorized):
+                # Access can change after a KPI is saved; hide this sensor's data.
+                continue
             # One value per event, which is what a KPI reduces.
             # Aggregating belief rows instead would count a revision on top of the belief it revised,
             # and would count each source separately when several report the same event,

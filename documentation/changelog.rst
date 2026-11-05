@@ -232,6 +232,7 @@ Bugfixes
 * Allow consultants to create assets in client organisations, and reject attempts to change an asset's organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_ and `PR #2825 <https://www.github.com/FlexMeasures/flexmeasures/pull/2825>`_]
 * The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 * A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
+* An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
 
 **API, CLI and jobs**
 
