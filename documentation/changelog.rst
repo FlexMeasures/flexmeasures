@@ -5,6 +5,14 @@ FlexMeasures Changelog
 
 
 
+v1.0.2 | November XX, 2026
+============================
+
+Bugfixes
+-----------
+* An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
+
+
 v1.0.1 | September 9, 2026
 ============================
 
