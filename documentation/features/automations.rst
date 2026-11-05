@@ -242,6 +242,7 @@ Rather than staggering their cron strings and hoping the first one finishes in t
 Each run of the waiting automation then waits for the latest run of automation 7 that is due at or before its own scheduled time.
 It queues its jobs as soon as that run has ended successfully, and is *skipped* if it failed, so that it never computes on input that was never produced.
 A skipped run says which upstream run it was skipped for, and anything waiting for a skipped run is skipped, too.
+A job that gets killed cannot report how it ended, so the runner looks that up in Redis on each tick: its run counts as failed, rather than leaving what waits for it waiting forever.
 To have a run go ahead even when the run it waits for failed, also pass ``--allow-failure-of 7``.
 
 An automation can wait for several others (repeat ``--depends-on``), and these can be on any asset you can read.

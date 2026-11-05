@@ -4,6 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
+from collections import defaultdict
 from contextlib import contextmanager
 import functools
 from copy import copy, deepcopy
@@ -23,6 +24,7 @@ from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
 from rq import get_current_job
+from redis.exceptions import RedisError
 from rq.job import Job, JobStatus
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -323,10 +325,12 @@ def get_dispatchable_automation_runs(
     A waiting run is normally dispatched as soon as the last upstream run it waits for ends (see `release_automation_runs_waiting_for`).
     Looking at the waiting runs here, too, catches the ones whose release was missed,
     for instance because the worker that ended the upstream run went down before it got to them.
+    A run whose job was killed never gets to say so, so that is looked up first (see `reconcile_unfinished_automation_jobs`).
     """
     if now is None:
         now = _now_utc()
     now = floor_to_minute(now)
+    reconcile_unfinished_automation_jobs()
     claimed_runs: list[ClaimedAutomationRun] = []
     for due_automation in get_due_automations(now):
         claimed = claim_due_automation_run(due_automation, owner=owner)
@@ -958,6 +962,67 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
     return False
 
 
+def reconcile_unfinished_automation_jobs() -> None:
+    """Record how jobs ended that could not say so themselves, as the runs waiting for theirs would wait forever otherwise.
+
+    A job reports its own outcome, which it cannot do once it is killed, for instance for running out of memory.
+    Redis does know: RQ fails a job whose work-horse died, and one whose worker disappeared altogether once its heartbeat lapsed (see `StartedJobRegistry.cleanup`).
+    Every job reports before it leaves Redis, so one that left without reporting is lost, and counts as failed.
+    A job that is still queued or running is left alone, however long that takes.
+    """
+    intents_per_queue: dict[str, list[AutomationRunJob]] = defaultdict(list)
+    for intent in db.session.scalars(
+        select(AutomationRunJob)
+        .join(AutomationRun)
+        .where(
+            AutomationRun.execution_completed_at.is_(None),
+            AutomationRunJob.status.in_(("queued", "running")),
+        )
+        .order_by(AutomationRunJob.id)
+    ):
+        intents_per_queue[intent.queue].append(intent)
+    for queue_name, intents in intents_per_queue.items():
+        queue = current_app.queues.get(queue_name)
+        if queue is None:
+            continue
+        try:
+            queue.started_job_registry.cleanup()
+            jobs = Job.fetch_many(
+                [intent.rq_job_id for intent in intents],
+                connection=queue.connection,
+                serializer=queue.serializer,
+            )
+        except RedisError as exc:
+            # The next tick looks again, and a runner without Redis has more pressing problems.
+            current_app.logger.warning(
+                f"Could not look up the unfinished jobs on queue '{queue_name}': {exc}"
+            )
+            continue
+        for intent, job in zip(intents, jobs):
+            _record_outcome_known_to_redis(intent.run_id, intent.logical_job_key, job)
+
+
+def _record_outcome_known_to_redis(
+    run_id: int, logical_job_key: str, job: Job | None
+) -> None:
+    """Record how a job ended, going by what Redis says about it, if it ended."""
+    if job is None:
+        _record_automation_job_failure(
+            run_id,
+            logical_job_key,
+            "JobLost",
+            "The job left the queue without saying how it ended.",
+        )
+        return
+    status = job.get_status(refresh=False)
+    if status == JobStatus.FINISHED:
+        record_automation_job_succeeded(run_id, logical_job_key)
+    elif status in (JobStatus.FAILED, JobStatus.STOPPED, JobStatus.CANCELED):
+        _record_automation_job_failure(
+            run_id, logical_job_key, *_error_of_failed_job(job)
+        )
+
+
 def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) -> None:
     """Record the jobs that a report or plugin run queued, so that the run follows what becomes of them.
 
@@ -1001,11 +1066,8 @@ def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) ->
     run.first_enqueued_at = run.first_enqueued_at or now
     db.session.commit()
     for key, _, job in jobs:
-        status = job.get_status(refresh=True)
-        if status == JobStatus.FINISHED:
-            record_automation_job_succeeded(run_id, key)
-        elif status == JobStatus.FAILED:
-            _record_automation_job_failure(run_id, key, *_error_of_failed_job(job))
+        job.refresh()
+        _record_outcome_known_to_redis(run_id, key, job)
 
 
 def _error_of_failed_job(job: Job) -> tuple[str | None, str]:

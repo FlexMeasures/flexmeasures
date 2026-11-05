@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 from marshmallow import ValidationError
-from rq.job import Job
+from redis.exceptions import RedisError
+from rq.job import Job, JobStatus
 from sqlalchemy import select
 
 from flexmeasures.data.automations import register_automation_handler
@@ -215,6 +216,141 @@ def test_a_skip_cascades_down_a_chain(fresh_db, app, make_automation, failing_va
 
     assert _run_of(fresh_db, flows).execution_state == "skipped"
     assert _run_of(fresh_db, totals).execution_state == "skipped"
+
+
+def _kill_job_as_rq_finds_it(app, job: Job) -> None:
+    """Leave a job as RQ does when the work-horse running it was killed, so that it never got to report."""
+    job.set_status(JobStatus.FAILED)
+
+
+def _lose_job(app, job: Job) -> None:
+    """Have a job leave Redis without a trace, as when its hash expired."""
+    job.delete()
+
+
+def _abandon_job(app, job: Job) -> None:
+    """Leave a job as a worker does that disappeared altogether: started, with a heartbeat that lapsed long ago."""
+    job.set_status(JobStatus.STARTED)
+    app.queues["ingestion"].remove(job.id)
+    app.redis_connection.zadd(
+        app.queues["ingestion"].started_job_registry.key,
+        {f"{job.id}:execution": 1},
+    )
+
+
+@pytest.mark.parametrize(
+    "end_job, error_type",
+    [(_kill_job_as_rq_finds_it, None), (_lose_job, "JobLost"), (_abandon_job, None)],
+)
+@pytest.mark.parametrize("on_demand", [False, True])
+def test_a_killed_job_ends_its_run_and_what_waits_for_it(
+    fresh_db, app, make_automation, end_job, error_type, on_demand
+):
+    """A job that gets killed cannot say so, so the runner finds out, and what waits for its run is not left waiting forever."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    totals = make_automation("Sum flows", depends_on=[flows])
+    if on_demand:
+        returns, dependent_runs = run_automation_chain(snapper, now=TICK)
+        snapper_run = fresh_db.session.get(AutomationRun, returns["run_id"])
+    else:
+        _tick()
+        snapper_run = _run_of(fresh_db, snapper)
+        dependent_runs = [_run_of(fresh_db, flows), _run_of(fresh_db, totals)]
+    run_id, dependent_run_ids = snapper_run.id, [run.id for run in dependent_runs]
+    intent = snapper_run.job_intents[0]
+    # The worker got this far before it died.
+    automation_services.record_automation_job_started(run_id, intent.logical_job_key)
+    end_job(app, Job.fetch(intent.rq_job_id, connection=app.redis_connection))
+
+    automation_services.reconcile_unfinished_automation_jobs()
+
+    fresh_db.session.expire_all()
+    snapper_run = fresh_db.session.get(AutomationRun, run_id)
+    assert snapper_run.execution_state == "failed"
+    assert snapper_run.execution_completed_at is not None
+    if error_type is not None:
+        assert snapper_run.last_error_type == error_type
+    for dependent_run_id in dependent_run_ids:
+        assert (
+            fresh_db.session.get(AutomationRun, dependent_run_id).execution_state
+            == "skipped"
+        )
+
+
+@pytest.mark.parametrize(
+    "status", [JobStatus.QUEUED, JobStatus.STARTED, JobStatus.DEFERRED]
+)
+def test_a_job_that_has_yet_to_end_is_left_alone(
+    fresh_db, app, make_automation, status
+):
+    """However long a job takes, the runner does not call it over, and what waits for its run goes on waiting."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+    snapper_run = _run_of(fresh_db, snapper)
+    job = Job.fetch(
+        snapper_run.job_intents[0].rq_job_id, connection=app.redis_connection
+    )
+    job.set_status(status)
+
+    _tick(datetime(2026, 8, 5, 6, 0, 30, tzinfo=timezone.utc))
+
+    fresh_db.session.expire_all()
+    assert _run_at(fresh_db, snapper, SCHEDULED_AT).execution_completed_at is None
+    assert _run_at(fresh_db, flows, SCHEDULED_AT).dispatch_state == "waiting"
+
+
+def test_the_runner_looks_up_unfinished_jobs_on_each_tick(
+    fresh_db, app, make_automation
+):
+    """Nothing else would notice that a job was killed, so a tick has to."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+    Job.fetch(
+        _run_of(fresh_db, snapper).job_intents[0].rq_job_id,
+        connection=app.redis_connection,
+    ).set_status(JobStatus.FAILED)
+
+    _tick(datetime(2026, 8, 5, 1, 1, 30, tzinfo=timezone.utc))
+
+    assert _run_of(fresh_db, snapper).execution_state == "failed"
+    assert _run_of(fresh_db, flows).execution_state == "skipped"
+
+
+def test_a_job_that_finished_without_reporting_counts_as_succeeded(
+    fresh_db, app, make_automation
+):
+    """A worker can go down between a job finishing and its report, which is no reason to skip what waits for it."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+    snapper_run = _run_of(fresh_db, snapper)
+    Job.fetch(
+        snapper_run.job_intents[0].rq_job_id, connection=app.redis_connection
+    ).set_status(JobStatus.FINISHED)
+
+    _tick(datetime(2026, 8, 5, 1, 1, 30, tzinfo=timezone.utc))
+
+    assert _run_of(fresh_db, snapper).execution_state == "succeeded"
+    assert _run_of(fresh_db, flows).dispatch_state == "queued"
+
+
+def test_a_runner_goes_on_without_redis_when_looking_up_unfinished_jobs(
+    fresh_db, app, make_automation, monkeypatch
+):
+    """Not being able to reach Redis says nothing about a job, so its run stays as it is, for the next tick to look at."""
+    snapper = make_automation("Snap meter readings")
+    _tick()
+
+    def unreachable(*args, **kwargs):
+        raise RedisError("Connection refused")
+
+    monkeypatch.setattr(Job, "fetch_many", unreachable)
+    automation_services.reconcile_unfinished_automation_jobs()
+
+    assert _run_of(fresh_db, snapper).execution_completed_at is None
 
 
 def test_a_waiting_run_whose_release_was_missed_is_picked_up_by_the_next_tick(
