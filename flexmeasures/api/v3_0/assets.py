@@ -2085,7 +2085,7 @@ class AssetAPI(FlaskView):
                       description: |
                         The automation queued its jobs, which will be picked up by a worker.
                         The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
-                        and `n_jobs` says how many jobs the run queued in total.
+                        and `n-jobs` says how many jobs the run queued in total.
                       value:
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
