@@ -453,8 +453,18 @@ and ``ingestion-parameters.yml``:
 
     value: 17.5
 
-See :ref:`automations` for the ``flexmeasures add automation`` command.
+The sensor must belong to the automation's asset or one of its descendants.
+
+Create the automation inactive, so you can try it out first:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type mock-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml --inactive
+
 Use ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
+See :ref:`automations` for more about this command.
 
 Type identifiers must be unique across built-in types and installed plugins.
 The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
