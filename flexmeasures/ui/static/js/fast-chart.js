@@ -2096,41 +2096,32 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
           ["Asset", s.assetLabel],
         ]),
     };
-    // Regular time-series lines (e.g. the companion subplots) have a data point
-    // every few pixels, so ECharts' "nearest point" hover snap always finds one
-    // close to the cursor anywhere along the line. A session segment only has 2
-    // points — its start and end, often hours apart — so that snap logic finds
-    // nothing nearby over most of a long bar. Densely interpolate the invisible
-    // hit-area line (kept off the visible line) so hovering anywhere along the
-    // bar's length has a point within range, not just right at its endpoints.
-    const hitPointCount = 40;
+    // A line series only answers hover through its symbols (ECharts attaches a data index, which the item tooltip needs, to symbols alone),
+    // and a session segment has just 2 points, its start and end, often hours apart.
+    // So draw an invisible companion series of densely interpolated points, each with a large invisible symbol,
+    // and put it above the visible line: the visible line would otherwise be the element under the cursor, and it carries no data index.
+    // The hit series shares the visible line's name, so it adds no legend entry and is not toggled independently.
+    const hitPointCount = 100;
     const hitData = [];
     for (let i = 0; i <= hitPointCount; i++) {
       hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
     }
-    // Invisible companion line, much wider than the visible stroke, purely to
-    // widen the hoverable hit area: thin session bars (down to 1.5px) are
-    // otherwise very hard to hover precisely. Shares the visible line's name
-    // so it doesn't add its own legend entry or get toggled independently.
-    // Its OWN tooltip is disabled (tooltip.show: false): ECharts' tooltip box
-    // renders at zero size for a near-transparent series even though hover/hit
-    // -test work fine on it, so hovering it instead redirects (via the
-    // __hitAreaFor marker + the mouseover listener in wireSessionTooltipRedirect)
-    // to dispatch the visible sibling series' tooltip.
     series.push({
       name: s.assetLabel,
       type: "line",
       xAxisIndex: 0,
       yAxisIndex: 0,
-      symbol: "none",
-      showSymbol: false,
+      symbol: "circle",
+      showSymbol: true,
+      symbolSize: Math.max(lineWidth, 16),
       animation: false,
       legendHoverLink: false,
-      lineStyle: { width: Math.max(lineWidth, 16), opacity: 0.001 },
+      lineStyle: { opacity: 0 },
+      itemStyle: { opacity: 0.001 },
+      emphasis: { disabled: true },
       data: hitData,
-      tooltip: { show: false },
-      __hitAreaFor: true,
-      z: 1,
+      tooltip: tooltip,
+      z: 3,
     });
     series.push({
       name: s.assetLabel,
@@ -2484,7 +2475,6 @@ export function renderFastChart(elementId, data, options) {
   instance.chart.setOption(option, { notMerge: true });
 
   wireAnnotationHover(instance);
-  wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
@@ -2859,31 +2849,6 @@ function wirePointerTracking(instance) {
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
   zr.on("globalout", instance.onPointerOut);
-}
-
-// The wide invisible hit-area series added per session segment (see
-// buildSessionSegmentSeries) has its own tooltip disabled, because ECharts
-// renders a broken zero-size tooltip box for a near-transparent line series
-// even though hover/hit-testing on it work fine. Redirect hover on those
-// series to dispatch the visible sibling series' (real) tooltip instead.
-function wireSessionTooltipRedirect(instance, opts) {
-  const chart = instance.chart;
-  if (instance.onSessionHitHover) {
-    chart.off("mouseover", instance.onSessionHitHover);
-    instance.onSessionHitHover = null;
-  }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
-    return;
-  }
-  instance.onSessionHitHover = (ev) => {
-    if (ev.componentType !== "series") return;
-    const series = chart.getOption().series || [];
-    const hovered = series[ev.seriesIndex];
-    if (!hovered || !hovered.__hitAreaFor) return;
-    // The visible sibling is always pushed immediately after its hit-area series.
-    chart.dispatchAction({ type: "showTip", seriesIndex: ev.seriesIndex + 1, dataIndex: 0 });
-  };
-  chart.on("mouseover", instance.onSessionHitHover);
 }
 
 // Highlight the annotation band/rule under the cursor and show its text below the

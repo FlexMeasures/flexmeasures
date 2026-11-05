@@ -217,6 +217,68 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         """)
 
 
+def test_hovering_a_session_bar_shows_its_tooltip(assert_js, echarts_available):
+    """Hovering anywhere along a session bar, on each of its layers, shows that segment's tooltip.
+
+    A line series answers hover only through its symbols,
+    so a bar drawn as a bare 2-point line shows no tooltip at all;
+    this drives the real ECharts library with real mouse events to catch that.
+    """
+    assert_js("""
+        await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "/vendor/echarts.min.js";
+            script.onload = resolve;
+            script.onerror = () => reject(new Error("could not load ECharts"));
+            document.head.appendChild(script);
+        });
+        const { renderFastChart } = await import("/js/fast-chart.js?sessions-hover");
+
+        const container = document.createElement("div");
+        container.id = "sessions-hover";
+        container.style.cssText = "width: 1000px; height: 500px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const sensor = (name, id) => ({id, name, unit: "s", asset_id: 4, asset_description: "Charger 4"});
+        const rows = [
+            ["arrival", 0], ["departure", 5], ["plug in", 0.5], ["plug out", 4.5], ["start charging", 1], ["stop charging", 4],
+        ].map(([name, offset], i) => ({sensor: sensor(name, i + 1), event_start: start, event_value: start + offset * hour}));
+        renderFastChart("sessions-hover", rows, {
+            groupSpec: [], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: {sessionsTitle: "Sessions"},
+        });
+        const chart = echarts.getInstanceByDom(container);
+
+        const hoverAt = async (hours) => {
+            const [x, y] = chart.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [start + hours * hour, 0]);
+            const rect = container.getBoundingClientRect();
+            const init = {clientX: rect.left + x, clientY: rect.top + y, bubbles: true};
+            const target = container.querySelector("canvas");
+            target.dispatchEvent(new MouseEvent("mousemove", init));
+            target.dispatchEvent(new MouseEvent("mousemove", {...init, clientX: init.clientX + 1}));
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            const shown = [...container.querySelectorAll("div")].filter((el) => el.style.display === "block");
+            return shown.map((el) => el.textContent).join(" ");
+        };
+        const clear = async () => {
+            chart.dispatchAction({type: "hideTip"});
+            await new Promise((resolve) => setTimeout(resolve, 300));
+        };
+
+        // Inside the thick start/stop charging bar, only reachable through it.
+        const charging = await hoverAt(2.5);
+        check("the charging bar names its start", charging.includes("Start charging"), charging);
+        check("the charging bar names its end", charging.includes("Stop charging"), charging);
+        await clear();
+        // Outside the charging bar and the plug-in bar, on the thin dashed arrival/departure bar only.
+        const arrival = await hoverAt(4.8);
+        check("the arrival bar names its start", arrival.includes("Arrival"), arrival);
+        check("the arrival bar names its end", arrival.includes("Departure"), arrival);
+        check("the tooltip names the asset", arrival.includes("Charger 4"), arrival);
+    """)
+
+
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
     """Pinned text stays stable while hovered text occupies a separate row."""
     assert_js("""
