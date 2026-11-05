@@ -264,8 +264,17 @@ class AutomationSchema(ma.SQLAlchemySchema):
         data_key="depends-on",
         dump_only=True,
         metadata={
-            "description": DEPENDS_ON_DESCRIPTION,
-            "example": [{"automation": 4, "allow-failure": False}],
+            "description": DEPENDS_ON_DESCRIPTION
+            + " Each upstream automation you may read comes with its `name`, `asset` and `asset-name`.",
+            "example": [
+                {
+                    "automation": 4,
+                    "allow-failure": False,
+                    "name": "Pull meter data",
+                    "asset": 2,
+                    "asset-name": "Site",
+                }
+            ],
         },
     )
 

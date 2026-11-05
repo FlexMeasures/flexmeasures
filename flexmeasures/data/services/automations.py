@@ -2832,14 +2832,43 @@ def set_automation_dependencies(
 
 
 def serialize_automation_dependencies(automation: Automation) -> list[dict[str, Any]]:
-    """Render the automations an automation waits for, as the API names them."""
+    """Render the automations an automation waits for, as the API names them.
+
+    Each one comes with its name and asset, so that it can be told apart without being listed alongside this automation.
+    An automation can go on waiting for one its users may no longer read, which then stays a bare ID.
+    """
     return [
         {
             "automation": dependency.upstream_id,
             "allow-failure": dependency.allow_failure,
+            **(
+                {
+                    "name": dependency.upstream.name,
+                    "asset": dependency.upstream.asset_id,
+                    "asset-name": dependency.upstream.asset.name,
+                }
+                if _current_user_may_read(dependency.upstream)
+                else {}
+            ),
         }
         for dependency in automation.dependencies
     ]
+
+
+def _current_user_may_read(automation: Automation) -> bool:
+    """Whether the current user may read this automation, which nobody on the command line is logged in to do."""
+    from flask_security import current_user
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    if not current_user or not current_user.is_authenticated:
+        return False
+    try:
+        check_access(automation, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
 
 
 def delete_automation(automation: Automation, origin: str = "API"):

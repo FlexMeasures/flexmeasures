@@ -563,7 +563,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     ));
     for (const dependency of selected) {
       if (!automationsById.has(dependency.automation)) {
-        options.push(dependsOnOption(dependency.automation, `${dependency.automation} (not on this page)`, "", true));
+        options.push(dependsOnOption(
+          dependency.automation,
+          dependency.name ? `${dependency.automation}: ${dependency.name}` : `${dependency.automation} (not on this page)`,
+          dependency.name ? `${dependency["asset-name"]}, not on this page` : "",
+          true,
+        ));
       }
     }
     picker.replaceChildren(...options);
@@ -830,7 +835,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       return "No other automations";
     }
     return dependencies.map((dependency) => {
-      const upstream = automationsById.get(dependency.automation);
+      const upstream = chainAutomation(dependency.automation);
       const name = upstream ? `${dependency.automation}: ${upstream.name}` : `${dependency.automation}`;
       return esc(name + (dependency["allow-failure"] ? " (also when it fails)" : ""));
     }).join("<br>");
@@ -899,7 +904,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }));
     const boxes = [...nodes].map((id) => {
       const { x, y } = positions.get(id);
-      const automation = automationsById.get(id);
+      const automation = chainAutomation(id);
       const label = automation ? `${id}: ${automation.name}` : `${id} (not listed here)`;
       const shown = label.length > 24 ? `${label.slice(0, 23)}…` : label;
       const current = id === automationId;
@@ -923,16 +928,27 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     <p class="text-muted small mt-1">An automation runs once those with an arrow to it ended, and is skipped if one of them failed, unless that arrow is dashed. Hover over an automation for more about it, or click it to open it.</p>`;
   }
 
+  // An automation of a chain, of which one that is not listed here is known by what the automations waiting for it were told.
+  function chainAutomation(id) {
+    return automationsById.get(id) || [...automationsById.values()]
+      .flatMap((automation) => automation["depends-on"] || [])
+      .find((dependency) => dependency.automation === id && dependency.name);
+  }
+
   // What hovering over an automation in a chain tells about it.
   function chainNodeText(id) {
-    const automation = automationsById.get(id);
+    const automation = chainAutomation(id);
     if (!automation) {
       return `${id} (not listed here)`;
+    }
+    const where = `On ${automation["asset-name"]} (asset ${automation.asset})`;
+    if (!automationsById.has(id)) {
+      return [`${id}: ${automation.name}`, where, "Not listed here"].join("\n");
     }
     return [
       `${id}: ${automation.name}`,
       automationTypes[automation.type] || automation.type,
-      `On ${automation["asset-name"]} (asset ${automation.asset})`,
+      where,
       `${automation["recurrence-description"]}, ${automation.timezone}`,
       automation.active ? "Active" : "Inactive",
     ].join("\n");
@@ -940,7 +956,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   // What hovering over an arrow in a chain tells about the automation it points at.
   function chainArrowText(id, dependency) {
-    const nameOf = (automationId) => automationsById.get(automationId)?.name || `Automation ${automationId}`;
+    const nameOf = (automationId) => chainAutomation(automationId)?.name || `Automation ${automationId}`;
     const outcome = dependency["allow-failure"] ? "runs even if" : "is skipped if";
     return `${nameOf(id)} ${outcome} ${nameOf(dependency.automation)} fails`;
   }

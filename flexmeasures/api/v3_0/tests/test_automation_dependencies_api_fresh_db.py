@@ -54,6 +54,14 @@ def upstream_automations(
     return battery, sensor, automations
 
 
+def _waits_for(response) -> list[dict]:
+    """What a response says an automation waits for, without what it tells about those automations."""
+    return [
+        {key: dependency[key] for key in ("automation", "allow-failure")}
+        for dependency in response.json["depends-on"]
+    ]
+
+
 def _post(client, battery, sensor, depends_on, cron="0 6 * * *"):
     return client.post(
         url_for("AssetAPI:post_automation", id=battery.id),
@@ -87,7 +95,7 @@ def test_post_automation_waiting_for_readable_automations(
             ],
         )
         assert response.status_code == 201, response.json
-        assert response.json["depends-on"] == [
+        assert _waits_for(response) == [
             {"automation": upstream["own"].id, "allow-failure": False},
             {"automation": upstream["public"].id, "allow-failure": True},
         ]
@@ -96,6 +104,47 @@ def test_post_automation_waiting_for_readable_automations(
         automation["id"]: automation for automation in listing.json["automations"]
     }
     assert listed[response.json["id"]]["depends-on"] == response.json["depends-on"]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_an_upstream_automation_is_only_described_to_who_may_read_it(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """One a user may read comes with its name and asset, while one they may not read gives nothing away but its ID."""
+    battery, sensor, upstream = upstream_automations
+    with app.test_client() as client:
+        response = _post(client, battery, sensor, [{"automation": upstream["own"].id}])
+        assert response.status_code == 201, response.json
+        # The API refuses to wait for an automation one may not read, but access to one can be lost later on.
+        fresh_db.session.add(
+            AutomationDependency(
+                automation_id=response.json["id"],
+                upstream_id=upstream["foreign"].id,
+                allow_failure=False,
+            )
+        )
+        fresh_db.session.commit()
+        listing = client.get(url_for("AssetAPI:get_automations", id=battery.id))
+    listed = {
+        automation["id"]: automation for automation in listing.json["automations"]
+    }
+    described = {
+        dependency["automation"]: dependency
+        for dependency in listed[response.json["id"]]["depends-on"]
+    }
+    assert described[upstream["own"].id] == {
+        "automation": upstream["own"].id,
+        "allow-failure": False,
+        "name": "Upstream on test_battery",
+        "asset": battery.id,
+        "asset-name": battery.name,
+    }
+    assert described[upstream["foreign"].id] == {
+        "automation": upstream["foreign"].id,
+        "allow-failure": False,
+    }
 
 
 @pytest.mark.parametrize(
@@ -135,7 +184,7 @@ def test_post_automation_waiting_for_one_on_another_schedule(
             cron="0 7 * * *",
         )
     assert response.status_code == 201, response.json
-    assert response.json["depends-on"] == [
+    assert _waits_for(response) == [
         {"automation": upstream["own"].id, "allow-failure": False}
     ]
 
@@ -157,7 +206,7 @@ def test_patch_automation_dependencies(
 
         moved = client.patch(url, json={"cron": "0 7 * * *"})
         assert moved.status_code == 200, moved.json
-        assert moved.json["depends-on"] == [
+        assert _waits_for(moved) == [
             {"automation": upstream["own"].id, "allow-failure": False}
         ]
 
@@ -170,7 +219,7 @@ def test_patch_automation_dependencies(
             },
         )
         assert replaced.status_code == 200, replaced.json
-        assert replaced.json["depends-on"] == [
+        assert _waits_for(replaced) == [
             {"automation": upstream["public"].id, "allow-failure": True}
         ]
 

@@ -61,7 +61,8 @@ def test_a_chain_tells_more_on_hover_and_links_to_its_automations(assert_js):
         for (const automation of [
             {{id: 7, type: "mock-ingestion", name: "Pull <meter> data", asset: 3, "asset-name": "site", "recurrence-description": "Every hour", timezone: "UTC", active: true, "depends-on": []}},
             {{id: 8, type: "forecasting", name: "Forecast", asset: 12, "asset-name": "battery", "recurrence-description": "Every day", timezone: "Europe/Amsterdam", active: false,
-              "depends-on": [{{automation: 7, "allow-failure": true}}, {{automation: 5, "allow-failure": false}}]}},
+              "depends-on": [{{automation: 7, "allow-failure": true}}, {{automation: 5, "allow-failure": false}},
+                             {{automation: 4, "allow-failure": false, name: "Public prices", asset: 2, "asset-name": "NL zone"}}]}},
         ]) {{
             page.automationsById.set(automation.id, automation);
         }}
@@ -73,10 +74,16 @@ def test_a_chain_tells_more_on_hover_and_links_to_its_automations(assert_js):
         eq("another automation links to its own asset, with its details open",
            node(8).querySelector("a").getAttribute("href"), "/assets/12/automations?automation=8");
         eq("the one being read links nowhere", node(7).querySelector("a"), null);
-        eq("one that is not listed here has nowhere to link to", node(5).querySelector("a"), null);
+        eq("one that may not be read has nowhere to link to", node(5).querySelector("a"), null);
+        eq("one that may not be read stays a bare ID", node(5).querySelector("title").textContent, "5 (not listed here)");
+        eq("one that may be read, but is not listed here, links to its own asset",
+           node(4).querySelector("a").getAttribute("href"), "/assets/2/automations?automation=4");
+        eq("hovering tells as much as is known about one that is not listed here",
+           node(4).querySelector("title").textContent.split("\\n"), ["4: Public prices", "On NL zone (asset 2)", "Not listed here"]);
+        check("its box names it", node(4).querySelector("text").textContent.includes("Public prices"));
         eq("hovering over an arrow says what a failure does",
            [...doc.querySelectorAll(".chain-arrow")].map((arrow) => arrow.parentNode.querySelector("title").textContent),
-           ["Forecast runs even if Pull <meter> data fails", "Forecast is skipped if Automation 5 fails"]);
+           ["Forecast runs even if Pull <meter> data fails", "Forecast is skipped if Automation 5 fails", "Forecast is skipped if Public prices fails"]);
         check("what the arrows mean is spelled out", doc.body.textContent.includes("unless that arrow is dashed"));
 
         document.body.insertAdjacentHTML("beforeend", '<button id="mock-ingestion-tab"></button><div id="AutomationInfoModal-7"></div>');
