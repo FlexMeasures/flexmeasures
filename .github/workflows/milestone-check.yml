@@ -1,0 +1,62 @@
+name: milestone
+
+# Check that each pull request has an open milestone that agrees with its changelog entries,
+# see .github/instructions/milestones.instructions.md.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review, milestoned, demilestoned]
+  # Closing a milestone (releasing) makes the milestone of its open pull requests stale,
+  # so re-run their checks to turn them red.
+  milestone:
+    types: [closed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.milestone.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: Check milestone
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+      - name: Check milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/check_milestone.py "${{ github.repository }}" "${{ github.event.pull_request.number }}"
+
+  recheck:
+    if: github.event_name == 'milestone'
+    runs-on: ubuntu-latest
+    name: Re-check pull requests in the closed milestone
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Re-run the milestone check of each open pull request in this milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MILESTONE: ${{ github.event.milestone.number }}
+        run: |
+          gh api --paginate "repos/$REPO/issues?milestone=$MILESTONE&state=open&per_page=100" \
+            --jq '.[] | select(.pull_request) | .number' |
+          while read -r number; do
+            sha=$(gh api "repos/$REPO/pulls/$number" --jq .head.sha)
+            run=$(gh run list --repo "$REPO" --workflow milestone-check.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            if [ -n "$run" ]; then
+              echo "Re-running the milestone check of #$number (run $run)"
+              gh run rerun "$run" --repo "$REPO" || echo "Could not re-run the milestone check of #$number (run $run), possibly as it is still running"
+            else
+              echo "No milestone check found for #$number at $sha"
+            fi
+          done

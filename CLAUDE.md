@@ -16,6 +16,9 @@ Most-missed rules, called out so they are not forgotten:
 - **Run the pre-commit hooks before committing** — they reformat (black), lint (flake8), type-check, and regenerate the OpenAPI spec;
   a hook that rewrites a file aborts the commit, so re-stage and commit again.
   See [`pre-commit-hooks.instructions.md`](.github/instructions/pre-commit-hooks.instructions.md).
+- **Give each pull request a milestone**: the first release that will ship it, matching the changelog section of its entry.
+  Re-check it before merging, and move it to the patch release when backporting.
+  See [`milestones.instructions.md`](.github/instructions/milestones.instructions.md).
 - **Add a changelog entry** for user-facing changes, in the right section, with a PR link.
   See [`changelog.instructions.md`](.github/instructions/changelog.instructions.md).
 - **Prove a new test can fail** — break what it covers, confirm it goes red, restore.
