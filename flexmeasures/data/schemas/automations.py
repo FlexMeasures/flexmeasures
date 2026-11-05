@@ -67,11 +67,33 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
         return automation.id
 
 
+class ReadableAutomationIdField(AutomationIdField):
+    """Field that only finds an automation the current user may read.
+
+    One they may not read gets the answer of one that does not exist, so that trying IDs does not reveal which ones do.
+    Nobody is logged in on the command line, where this makes no difference.
+    """
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> Automation:
+        from flask_security import current_user
+        from werkzeug.exceptions import Forbidden, Unauthorized
+
+        from flexmeasures.auth.policy import check_access
+
+        automation = super()._deserialize(value, attr, obj, **kwargs)
+        if current_user and current_user.is_authenticated:
+            try:
+                check_access(automation, "read")
+            except (Forbidden, Unauthorized):
+                raise FMValidationError(f"No automation found with id {automation.id}.")
+        return automation
+
+
 class AutomationDependencySchema(Schema):
     """One automation whose runs another automation's runs wait for."""
 
     # The loaded names are the ones `set_automation_dependencies` takes.
-    upstream = AutomationIdField(
+    upstream = ReadableAutomationIdField(
         required=True,
         data_key="automation",
         metadata={

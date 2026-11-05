@@ -153,18 +153,17 @@ def test_an_upstream_automation_is_only_described_to_who_may_read_it(
 def test_post_automation_refuses_to_wait_for_an_unreadable_automation(
     app, fresh_db, upstream_automations, requesting_user
 ):
+    """An automation one may not read gets the answer of one that does not exist, so that IDs reveal nothing."""
     battery, sensor, upstream = upstream_automations
+    foreign_id = upstream["foreign"].id
+    unknown_id = foreign_id + 1000
     with app.test_client() as client:
-        response = _post(
-            client, battery, sensor, [{"automation": upstream["foreign"].id}]
-        )
-    assert response.status_code == 403, response.json
-    assert (
-        fresh_db.session.query(Automation)
-        .filter_by(name="Downstream forecasts")
-        .count()
-        == 0
-    )
+        foreign = _post(client, battery, sensor, [{"automation": foreign_id}])
+        unknown = _post(client, battery, sensor, [{"automation": unknown_id}])
+    assert foreign.status_code == unknown.status_code == 422, foreign.json
+    assert foreign.get_data(as_text=True).replace(
+        str(foreign_id), "<id>"
+    ) == unknown.get_data(as_text=True).replace(str(unknown_id), "<id>")
 
 
 @pytest.mark.parametrize(
@@ -245,7 +244,7 @@ def test_patch_automation_refuses_to_wait_for_an_unreadable_automation(
             ),
             json={"depends-on": [{"automation": upstream["foreign"].id}]},
         )
-    assert response.status_code == 403, response.json
+    assert response.status_code == 422, response.json
     fresh_db.session.expire_all()
     assert fresh_db.session.get(Automation, upstream["own"].id).dependencies == []
 
