@@ -2939,15 +2939,17 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                 **MsgStyle.SUCCESS,
             )
 
-            start_year = server_now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            local_timezone = pytz.timezone(grid_connection_capacity.timezone)
+            tomorrow = server_now().astimezone(local_timezone).date() + timedelta(
+                days=1
             )
+            start_year = local_timezone.localize(datetime(tomorrow.year, 1, 1))
 
             belief = TimedBelief(
                 event_start=start_year,
                 belief_time=server_now(),
                 event_value=500,
-                source=db.session.get(DataSource, 1),
+                source=get_or_create_source(user),
                 sensor=grid_connection_capacity,
             )
 
