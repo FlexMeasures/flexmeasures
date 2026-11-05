@@ -108,6 +108,21 @@ def test_a_validation_error_reads_as_a_sentence(assert_js):
     """)
 
 
+def test_deleting_an_automation_tells_what_waits_for_it(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ deleteQuestion }};")();
+        eq("nothing waiting, nothing to tell", page.deleteQuestion("Pull", []), "Delete automation 'Pull'?");
+        eq("details out of reach, nothing to tell", page.deleteQuestion("Pull", null), "Delete automation 'Pull'?");
+        const question = page.deleteQuestion("Pull", [{{automation: 8, name: "Forecast"}}, {{automation: 5}}]);
+        check("what waits for it is named", question.includes("- 8: Forecast"));
+        check("one that may not be read is a bare ID", question.includes("- Automation 5"));
+        check("and it says what comes of them", question.includes("will run without it from now on"));
+    """)
+
+
 def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_left_out(assert_js):
     script = automation_script(can_manage=True, can_run=True)
     assert_js(f"""

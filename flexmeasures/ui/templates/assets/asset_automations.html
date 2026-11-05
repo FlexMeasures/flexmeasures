@@ -1329,6 +1329,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  // Deleting an automation does not touch what waits for it, which is what its user should know first.
+  function deleteQuestion(name, waitingAutomations) {
+    const question = `Delete automation '${name}'?`;
+    if (!waitingAutomations?.length) {
+      return question;
+    }
+    const waiting = waitingAutomations.map((waitingAutomation) => (
+      `- ${waitingAutomation.name ? `${waitingAutomation.automation}: ${waitingAutomation.name}` : `Automation ${waitingAutomation.automation}`}`
+    ));
+    return `${question}\n\nThese wait for it, and will run without it from now on:\n${waiting.join("\n")}`;
+  }
+
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
     // The field labels carry their reference text on an info icon, which Bootstrap only turns into a tooltip once asked.
@@ -1488,12 +1500,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(document).on("click", ".automation-delete", function () {
       const automationId = $(this).data("id");
       const name = $(this).data("name");
-      if (!confirm(`Delete automation '${name}'?`)) return;
+      const askAndDelete = (waitingAutomations) => {
+        if (!confirm(deleteQuestion(name, waitingAutomations))) return;
+        $.ajax({
+          url: automationUrl(automationId),
+          method: "DELETE",
+          success: () => location.reload(),
+          error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
+        });
+      };
+      // What waits for it can be on other assets, so the server says.
+      // The details can be out of reach, such as for a sensor one may not read, which is no reason not to be able to delete it.
       $.ajax({
         url: automationUrl(automationId),
-        method: "DELETE",
-        success: () => location.reload(),
-        error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
+        method: "GET",
+        success: (res) => askAndDelete(res["waited-for-by"]),
+        error: () => askAndDelete(null),
       });
     });
 

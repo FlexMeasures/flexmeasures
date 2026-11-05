@@ -3151,6 +3151,21 @@ def get_dependent_automations(automation: Automation) -> list[Automation]:
     return dependents
 
 
+def get_automations_waiting_for(automation: Automation) -> list[Automation]:
+    """Return the automations that wait for this one directly, active or not."""
+    return list(
+        db.session.scalars(
+            select(Automation)
+            .join(
+                AutomationDependency,
+                AutomationDependency.automation_id == Automation.id,
+            )
+            .where(AutomationDependency.upstream_id == automation.id)
+            .order_by(Automation.id)
+        ).unique()
+    )
+
+
 def get_ascendant_automations(
     automation: Automation,
     left_out: Collection[int] = (),

@@ -250,6 +250,41 @@ def test_patch_automation_refuses_to_wait_for_an_unreadable_automation(
     assert fresh_db.session.get(Automation, upstream["own"].id).dependencies == []
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_automation_details_say_what_waits_for_it(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """Before deleting an automation, one can see what waits for it, also on another asset, without learning about what one may not read."""
+    battery, sensor, upstream = upstream_automations
+    downstream = _downstream_of(fresh_db, upstream, sensor, upstream["own"])
+    fresh_db.session.add(
+        AutomationDependency(
+            automation_id=upstream["foreign"].id,
+            upstream_id=upstream["own"].id,
+            allow_failure=False,
+        )
+    )
+    fresh_db.session.commit()
+    with app.test_client() as client:
+        response = client.get(
+            url_for(
+                "AssetAPI:get_automation",
+                id=battery.id,
+                automation_id=upstream["own"].id,
+            )
+        )
+    assert response.status_code == 200, response.json
+    waiting = {item["automation"]: item for item in response.json["waited-for-by"]}
+    assert waiting[downstream.id] == {
+        "automation": downstream.id,
+        "name": "Downstream",
+        "asset": battery.id,
+    }
+    assert waiting[upstream["foreign"].id] == {"automation": upstream["foreign"].id}
+
+
 def _downstream_of(fresh_db, upstream, sensor, *upstreams) -> Automation:
     """An automation on the prosumer's battery that waits for these automations."""
     downstream = Automation(

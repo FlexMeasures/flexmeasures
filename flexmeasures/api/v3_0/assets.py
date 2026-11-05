@@ -64,6 +64,7 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    get_automations_waiting_for,
     get_dependent_automations,
     plan_automation_chain,
     resolve_automation_sensors,
@@ -1780,6 +1781,17 @@ class AssetAPI(FlaskView):
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
+        automation_data["waited-for-by"] = [
+            {
+                "automation": waiting.id,
+                **(
+                    {"name": waiting.name, "asset": waiting.asset_id}
+                    if _may_read_automation(waiting)
+                    else {}
+                ),
+            }
+            for waiting in get_automations_waiting_for(automation)
+        ]
         redis_connection_err = None
         try:
             automation_data["job-stats"] = get_automation_job_stats(automation)

@@ -3097,6 +3097,30 @@ def test_run_automation_with_dependents(
     ]
 
 
+def test_deleting_an_automation_warns_about_what_waits_for_it(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """Without --force, the prompt names the automations that lose what they wait for."""
+    from flexmeasures.cli.data_delete import delete_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+
+    result = runner.invoke(delete_automation, ["--id", str(upstream.id)], input="n\n")
+
+    assert "'Downstream'" in result.output
+    assert "will run without it" in result.output
+    assert fresh_db.session.get(Automation, upstream.id) is not None
+
+
 def test_run_automation_with_ascendants(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis
 ):
