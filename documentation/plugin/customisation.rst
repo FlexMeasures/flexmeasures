@@ -432,11 +432,12 @@ A few things to note:
   The worker refuses results for any other sensor.
 - ``_compute`` receives the parameters as keyword arguments, and returns a list of dictionaries with ``sensor`` and ``data`` (a ``BeliefsDataFrame``) keys.
   A real ingestion plugin would fetch its data from an external service here.
-- Unknown fields in the configuration or parameters are always refused.
+- Unknown top-level fields in the configuration or parameters are always refused.
+- The handler's ``queue`` must be one of ``forecasting``, ``scheduling``, ``ingestion`` or ``reporting``.
 
-The generator's results are recorded under a data source, whose type is ``__data_generator_base__`` and whose version is ``__version__``.
+The generator's results are recorded under a data source, whose type is ``__data_generator_base__`` and whose version is the generator class's ``__version__``.
 The version is stored when the automation is created, and runs only go ahead while the installed generator has that same version.
-So raising ``__version__`` means existing automations need to be recreated.
+So raising that ``__version__`` means existing automations need to be recreated (the module's ``__version__`` is the plugin's own version, and does not affect them).
 
 Make sure the plugin is listed in ``FLEXMEASURES_PLUGINS`` (see :ref:`plugin-config`) for the web app, the automation dispatcher and the worker alike,
 and run a worker for the handler's queue (here ``flexmeasures jobs run-worker --queue ingestion``).
