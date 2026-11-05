@@ -630,6 +630,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         ));
       }
     }
+    if (!options.length) {
+      const empty = document.createElement("p");
+      empty.className = "text-muted small p-2 mb-0";
+      empty.textContent = "No automations to wait for in this list. Choose other automations above.";
+      options.push(empty);
+    }
     picker.replaceChildren(...options);
   }
 

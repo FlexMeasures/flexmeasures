@@ -256,7 +256,15 @@ def test_the_waits_for_picker_ticks_what_an_automation_waits_for(assert_js):
         eq("what it waits for is ticked", boxes().map((box) => box.checked), [true, false, true]);
         check("a row names the asset and the recurrence", rows[1].textContent.includes("site, */15 * * * *, UTC"));
         eq("a name stays text", rows[1].querySelector("b"), null);
-        rows[1].click();
+        page.automationsById.clear();
+        page.fillDependsOnPicker("#picker");
+        check("an empty list says so", document.querySelector("#picker").textContent.includes("No automations to wait for"));
+        eq("and there is nothing to tick", page.dependsOnValues("#picker", "#allowFailure"), []);
+        for (const id of [7, 8, 9]) {{
+            page.automationsById.set(id, {{id, name: "Automation", "asset-name": "site", cron: "0 * * * *", timezone: "UTC"}});
+        }}
+        page.fillDependsOnPicker("#picker", 9, [{{automation: 7, "allow-failure": false}}, {{automation: 5, "allow-failure": false}}]);
+        document.querySelectorAll("#picker label")[1].click();
         eq("a click anywhere on a row ticks its box, and is sent along",
            page.dependsOnValues("#picker", "#allowFailure").map((dependency) => dependency.automation), [7, 8, 5]);
     """)
