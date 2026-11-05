@@ -35,6 +35,15 @@ def test_unknown_api_url_gets_json_404(bare_app, path):
     assert "message" in response.json
 
 
+def test_wrong_method_on_api_route_gets_json_405(bare_app):
+    """A method an API route does not take matches no route either, and is answered in JSON, too."""
+    response = bare_app.test_client().post("/api/v3_0/exists")
+    assert response.status_code == 405
+    assert response.is_json
+    assert response.json["status"] == 405
+    assert "message" in response.json
+
+
 def test_unknown_non_api_url_still_gets_html_404(bare_app):
     """Outside /api, the HTML error page is still used for a plain (non-JSON) request."""
     response = bare_app.test_client().get("/no-such-page")
