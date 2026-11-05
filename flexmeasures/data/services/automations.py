@@ -3166,6 +3166,33 @@ def get_automations_waiting_for(automation: Automation) -> list[Automation]:
     )
 
 
+def get_automations_in_scope(
+    scope: str, account_ids: Collection[int], limit: int
+) -> list[Automation]:
+    """Return automations across assets, by ID.
+
+    :param scope:       'public' for those on public assets, or 'all' to add those on the assets of these accounts.
+    :param account_ids: the accounts whose assets count, for scope 'all'.
+    :param limit:       how many to return at most.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    on_public_asset = GenericAsset.account_id.is_(None)
+    return list(
+        db.session.scalars(
+            select(Automation)
+            .join(GenericAsset, GenericAsset.id == Automation.asset_id)
+            .where(
+                on_public_asset
+                if scope == "public"
+                else on_public_asset | GenericAsset.account_id.in_(account_ids)
+            )
+            .order_by(Automation.id)
+            .limit(limit)
+        ).unique()
+    )
+
+
 def get_ascendant_automations(
     automation: Automation,
     left_out: Collection[int] = (),

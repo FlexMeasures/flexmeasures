@@ -253,6 +253,38 @@ def test_patch_automation_refuses_to_wait_for_an_unreadable_automation(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_listing_automations_across_assets(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """Public automations can be listed apart, and everything a user may read comes together, but nothing they may not read."""
+    _, _, upstream = upstream_automations
+    with app.test_client() as client:
+        public = client.get(
+            url_for("AssetAPI:get_automations_across_assets"),
+            query_string={"scope": "public"},
+        )
+        everything = client.get(
+            url_for("AssetAPI:get_automations_across_assets"),
+            query_string={"scope": "all"},
+        )
+        unknown = client.get(
+            url_for("AssetAPI:get_automations_across_assets"),
+            query_string={"scope": "nonsense"},
+        )
+    assert public.status_code == 200, public.json
+    assert [a["id"] for a in public.json["automations"]] == [upstream["public"].id]
+    assert public.json["automations"][0]["asset-name"] == "troposphere"
+    assert public.json["truncated"] is False
+    assert {a["id"] for a in everything.json["automations"]} == {
+        upstream["own"].id,
+        upstream["public"].id,
+    }
+    assert unknown.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_automation_details_say_what_waits_for_it(
     app, fresh_db, upstream_automations, requesting_user
 ):

@@ -92,6 +92,54 @@ def test_a_chain_tells_more_on_hover_and_links_to_its_automations(assert_js):
     """)
 
 
+def test_the_scope_decides_what_the_waits_for_list_and_the_chain_go_by(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + `
+            \\nreturn {{ fillDependsOnPicker, chainGraph, automationsById, scopedAutomations, setScope: (scope) => {{ automationScope = scope; }} }};`)();
+        document.body.insertAdjacentHTML("beforeend", '<div id="picker"></div>');
+        const details = {{type: "forecasting", "asset-name": "site", cron: "0 * * * *", timezone: "UTC", "recurrence-description": "Every hour", active: true}};
+        // 7 is on this asset (3), 8 on a sub-asset waiting for 7, and 20 on a public asset, which 7 waits for.
+        for (const automation of [
+            {{...details, id: 7, name: "Pull", asset: 3, "depends-on": [{{automation: 20, "allow-failure": false}}]}},
+            {{...details, id: 8, name: "Forecast", asset: 4, "depends-on": [{{automation: 7, "allow-failure": false}}]}},
+        ]) {{
+            page.automationsById.set(automation.id, automation);
+        }}
+        const prices = {{...details, id: 20, name: "Public prices", asset: 1, "asset-name": "NL", "depends-on": []}};
+        page.scopedAutomations.set("public", [prices]);
+        page.scopedAutomations.set("all", [...page.automationsById.values(), prices]);
+        const offered = () => [...document.querySelectorAll("#picker input")].map((box) => Number(box.value));
+        const drawn = (id) => [...new DOMParser().parseFromString(page.chainGraph(id), "text/html").querySelectorAll(".chain-node")]
+            .map((node) => Number(node.dataset.automationId)).sort((a, b) => a - b);
+
+        page.fillDependsOnPicker("#picker");
+        eq("by default, the list holds what is on this page", offered(), [7, 8]);
+        page.setScope("asset");
+        page.fillDependsOnPicker("#picker");
+        eq("it can narrow down to this asset", offered(), [7]);
+        page.setScope("public");
+        page.fillDependsOnPicker("#picker");
+        eq("it can show public automations", offered(), [20]);
+        page.setScope("all");
+        page.fillDependsOnPicker("#picker", 7);
+        eq("it can show everything, except the automation being edited", offered(), [8, 20]);
+        page.setScope("public");
+        page.fillDependsOnPicker("#picker", null, [{{automation: 8}}]);
+        eq("what it already waits for stays on offer", offered(), [20, 8]);
+        check("and keeps its name", document.querySelector("#picker").textContent.includes("8: Forecast"));
+
+        page.setScope("all");
+        eq("a chain follows every automation in scope", drawn(8), [7, 8, 20]);
+        const title = new DOMParser().parseFromString(page.chainGraph(8), "text/html").querySelector('.chain-node[data-automation-id="20"] title');
+        check("with all there is to tell about one beyond this page", title.textContent.includes("Every hour"));
+        page.setScope("public");
+        eq("and stops where the scope ends, at what is waited for", drawn(8), [7, 8]);
+    """)
+
+
 def test_a_validation_error_reads_as_a_sentence(assert_js):
     script = automation_script(can_manage=True, can_run=True)
     assert_js(f"""

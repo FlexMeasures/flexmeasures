@@ -256,7 +256,9 @@ Some cases where the upstream run does not happen:
 - If the upstream automation was due at that time but moved past it without a run, for instance because missed runs were coalesced while the runner was down, the waiting run is skipped (unless failure is allowed for).
 - If the upstream automation was never going to run at that time, because it is inactive or did not exist yet, the waiting run goes ahead without it. Its run record says so.
 
-The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for among those listed there.
+The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for.
+By default, you pick among those listed on the page, and you can switch to this asset only, to public assets, or to every automation you can see.
+The chain in an automation's details follows the same choice.
 Deleting an automation others wait for warns you first, as they then run without it.
 
 When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.

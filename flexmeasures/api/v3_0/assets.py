@@ -64,6 +64,7 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    get_automations_in_scope,
     get_automations_waiting_for,
     get_dependent_automations,
     plan_automation_chain,
@@ -128,6 +129,9 @@ asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
+
+# Listing automations across assets has no asset to bound it, so it is capped.
+MAX_AUTOMATIONS_ACROSS_ASSETS = 500
 
 
 def _user_has_access(asset: GenericAsset, permission: str) -> bool:
@@ -1629,6 +1633,71 @@ class AssetAPI(FlaskView):
         return {
             "automations": automations_data,
             "redis-connection-err": redis_connection_err,
+        }, 200
+
+    @route("/automations", methods=["GET"])
+    @use_kwargs(
+        {
+            "scope": fields.Str(
+                required=True,
+                validate=validate.OneOf(["public", "all"]),
+                metadata={
+                    "description": "`public` for the automations on public assets, or `all` for every automation you may read."
+                },
+            )
+        },
+        location="query",
+    )
+    @as_json
+    def get_automations_across_assets(self, scope: str):
+        """
+        .. :quickref: Assets; List automations across assets.
+
+        ---
+        get:
+          summary: List automations across assets.
+          description: |
+            List the automations on public assets, or every automation you may read, such as to pick one to wait for.
+            Job counts are left out, as those are looked up per asset.
+            At most 500 automations are listed, by ID, and `truncated` says whether there are more.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: query
+              name: scope
+              required: true
+              description: "`public` for the automations on public assets, or `all` for every automation you may read."
+              schema:
+                type: string
+                enum: [public, all]
+          responses:
+            200:
+              description: PROCESSED
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automations = get_automations_in_scope(
+            scope,
+            [account.id for account in get_accessible_accounts()],
+            limit=MAX_AUTOMATIONS_ACROSS_ASSETS + 1,
+        )
+        listed = []
+        for automation in automations[:MAX_AUTOMATIONS_ACROSS_ASSETS]:
+            if not _may_read_automation(automation):
+                continue
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence-description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automation_data["asset-name"] = automation.asset.name
+            listed.append(automation_data)
+        return {
+            "automations": listed,
+            "truncated": len(automations) > MAX_AUTOMATIONS_ACROSS_ASSETS,
         }, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
