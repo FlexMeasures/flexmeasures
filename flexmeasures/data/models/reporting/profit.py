@@ -25,8 +25,7 @@ class ProfitOrLossReporter(Reporter):
     Given power/energy and price sensors, this reporter computes the profit (revenue - cost)
     or losses (cost - revenue) of a power/energy flow under a certain tariff.
 
-    Sign convention (by default)
-    ----------------
+    **Sign convention (by default)**
 
     Power flows:
         (+) production

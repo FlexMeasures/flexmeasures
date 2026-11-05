@@ -28,7 +28,7 @@ from flexmeasures.data.schemas.utils import (
 
 
 class CronField(MarshmallowClickMixin, fields.Str):
-    """Field that validates a cron string (e.g. "0 6 * * *")."""
+    """Field that validates a cron string (e.g. ``"0 6 * * *"``)."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)

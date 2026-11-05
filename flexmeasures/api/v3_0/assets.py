@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 
 from flask import abort, request, current_app
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -70,6 +70,7 @@ from flexmeasures.data.services.automations import (
     run_automation_chain,
     update_automation,
 )
+from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -91,7 +92,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
-    SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
@@ -127,7 +127,6 @@ annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
@@ -181,6 +180,12 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
             description="Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
+
+
+def validate_asset_chart_type(chart_type: str):
+    """Refuse a chart type an asset cannot be drawn as."""
+    if chart_type not in ASSET_CHART_BUILDERS:
+        raise ValidationError(f"Unknown chart type '{chart_type}'.")
 
 
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
@@ -246,8 +251,10 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
+        validate=validate_asset_chart_type,
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description="The chart to draw; leave it out for the asset's default chart.",
         ),
     )
 
@@ -283,6 +290,16 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="If true, compress the JSON response.",
         ),
     )
+    # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
+    # its values are the names of the chart functions, which public chart type names replace in v1.2.0 (see issue #2795).
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
+            example="chart_for_multiple_sensors",
+        ),
+    )
 
 
 class AssetChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
@@ -312,10 +329,16 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
 
 
 class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
-    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`.
+
+    It also hides `chart_type`, which only the asset page uses for now.
+    """
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + [
+            "beliefs_after",
+            "chart_type",
+        ]
         super().__init__(*args, **kwargs)
 
 
@@ -930,7 +953,11 @@ class AssetAPI(FlaskView):
                     "Only site admins may create public assets (account_id=None)."
                 )
 
-        asset = create_asset(asset_data)
+        try:
+            asset = create_asset(asset_data)
+        except ValidationError as e:
+            db.session.rollback()
+            return unprocessable_entity(e.messages)
         db.session.commit()
 
         return asset_schema.dump(asset), 201
@@ -1012,7 +1039,8 @@ class AssetAPI(FlaskView):
 
             The following fields are not allowed to be updated:
             - id
-            - account_id
+
+            The optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1075,6 +1103,12 @@ class AssetAPI(FlaskView):
         except ValidationError as e:
             return unprocessable_entity(e.messages)
 
+        if "account_id" in validated_data:
+            if validated_data.pop("account_id") != db_asset.account_id:
+                return unprocessable_entity(
+                    {"account_id": ["Cannot change the account of an asset."]}
+                )
+
         try:
             db_asset = patch_asset(db_asset, validated_data)
         except ValidationError as e:
@@ -1082,7 +1116,7 @@ class AssetAPI(FlaskView):
 
         db.session.add(db_asset)
         db.session.commit()
-        return asset_schema.dump(db_asset), 200
+        return AssetSchema().dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
@@ -1236,7 +1270,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        sensors = asset.chart_sensors(kwargs.pop("chart_type", None))
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)
@@ -2108,7 +2142,7 @@ class AssetAPI(FlaskView):
                       description: |
                         The automation queued its jobs, which will be picked up by a worker.
                         The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
-                        and `n_jobs` says how many jobs the run queued in total.
+                        and `n-jobs` says how many jobs the run queued in total.
                       value:
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -2807,8 +2841,24 @@ class AssetAPI(FlaskView):
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
         kpis = []
-        for kpi in asset_kpis:
-            sensor = Sensor.query.get(kpi["sensor"])
+        for kpi in asset_kpis if isinstance(asset_kpis, list) else []:
+            # The JSONB configuration stores sensor IDs; skip malformed saved entries.
+            if (
+                not isinstance(kpi, dict)
+                or type(kpi.get("sensor")) is not int
+                or not isinstance(kpi.get("title"), str)
+                or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+            ):
+                continue
+            sensor = db.session.get(Sensor, kpi["sensor"])
+            if sensor is None:
+                # A deleted sensor must not break the other KPIs.
+                continue
+            try:
+                check_access(sensor, "read")
+            except (Forbidden, Unauthorized):
+                # Access can change after a KPI is saved; hide this sensor's data.
+                continue
             # One value per event, which is what a KPI reduces.
             # Aggregating belief rows instead would count a revision on top of the belief it revised,
             # and would count each source separately when several report the same event,

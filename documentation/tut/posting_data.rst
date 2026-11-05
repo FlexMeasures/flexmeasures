@@ -284,7 +284,7 @@ For example, upload a file with an access token:
 
 Or post values as JSON:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ curl --fail-with-body \
         -H "Authorization: ${FLEXMEASURES_ACCESS_TOKEN}" \

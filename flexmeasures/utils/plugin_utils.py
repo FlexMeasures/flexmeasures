@@ -52,7 +52,7 @@ def register_plugins(app: Flask):  # noqa: C901
     This is configured by the config setting FLEXMEASURES_PLUGINS.
 
     Assumptions:
-    - a setting EITHER points to a plugin folder containing an __init__.py file
+    - a setting EITHER points to a plugin folder containing an __init__.py file,
       OR it is the name of an installed module, which can be imported.
     - each plugin defines at least one Blueprint object. These will be registered with the Flask app,
       so their functionality (e.g. routes) becomes available.

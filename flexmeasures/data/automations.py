@@ -402,12 +402,18 @@ def check_execution_access(automation, sensors):
 
 
 @record_outcome_on_automation_run
-def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
-    """Compute and persist declared results with provenance in a plugin-enabled worker."""
+def execute_automation_job(
+    automation_id: int, data_source_id: int, parameters: dict
+) -> dict:
+    """Compute and persist declared results with provenance in a plugin-enabled worker.
+
+    The job's result lists its outputs as a report job's result does (see `run_report_job`).
+    """
     from flexmeasures.data.models.automations import Automation
     from flexmeasures.data.services.generator_results import (
         check_generator_results,
         describe_generator,
+        outputs_of_job_result,
         save_generator_results,
     )
 
@@ -433,4 +439,4 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
     )
     saved = save_generator_results(results)
     db.session.commit()
-    return saved
+    return {"outputs": outputs_of_job_result(saved)}

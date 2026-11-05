@@ -1,7 +1,7 @@
 .. _tut_toy_schedule:
 
 Toy example I: Scheduling a battery, from scratch
-===============================================
+=================================================
 
 Let's walk through an example from scratch! We'll optimize a 12h-schedule for a battery that is half full.
 
@@ -181,6 +181,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+
 |
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm).
@@ -191,6 +192,7 @@ The `battery's graph dashboard <http://localhost:5000/assets/6/graphs>`_ shows b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center
+
 |
 
 .. note:: The ``flexmeasures add schedule`` command accepts many options for sophisticated scheduling:

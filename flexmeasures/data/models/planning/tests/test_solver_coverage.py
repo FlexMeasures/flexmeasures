@@ -27,6 +27,7 @@ EXEMPT = {
     "test_highspy_equivalence.py": "runs both backends explicitly, per scenario",
     "test_sign_binaries.py": "introspects the Pyomo model; the highspy path is covered by test_highspy_equivalence",
     "test_solver_options.py": "tests option validation, not scheduling",
+    "test_solver_output.py": "tests how Pyomo's appsi solvers capture their output; highspy captures nothing",
     # No scheduling involved.
     "test_scheduling_problem.py": "tests the solver-agnostic input preparation, not scheduling",
     "test_device_inventory.py": "no scheduling",

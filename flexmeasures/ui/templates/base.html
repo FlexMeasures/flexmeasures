@@ -160,6 +160,31 @@
     </script>
     {% endif %}
 
+    <script>
+        // A page that moves on right after an action can leave a toast for the next page to show,
+        // such as one linking to what the action left to fix.
+        document.addEventListener("DOMContentLoaded", function() {
+            let pendingToast = null;
+            try {
+                pendingToast = sessionStorage.getItem("flexmeasures-toast-after-redirect");
+                sessionStorage.removeItem("flexmeasures-toast-after-redirect");
+            } catch (error) {
+                pendingToast = null;
+            }
+            if (pendingToast) {
+                showToast(pendingToast, "info", { delay: 20000 });
+            }
+        });
+    </script>
+
+    {% if deleted_sensor_references_toast %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            showToast({{ deleted_sensor_references_toast | tojson }}, "info", { delay: 15000 });
+        });
+    </script>
+    {% endif %}
+
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
     {{ vendor.bootstrap_js() }}

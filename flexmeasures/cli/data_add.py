@@ -2226,16 +2226,31 @@ def add_schedule(  # noqa C901
                 **MsgStyle.SUCCESS,
             )
     else:
-        make_schedule(
+        scheduling_result = make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if not dry_run:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
-        else:
+        n_computed = sum(
+            output["num-computed-beliefs"] for output in scheduling_result["outputs"]
+        )
+        n_recorded = sum(
+            output["num-recorded-beliefs"] for output in scheduling_result["outputs"]
+        )
+        if n_computed == 0:
             click.secho(
-                "The schedule above was computed but not stored (because of --dry-run).",
+                "The scheduler computed no beliefs, so no new schedule was stored.",
+                **MsgStyle.WARN,
+            )
+        else:
+            if dry_run:
+                reason = ", as this was a dry run"
+            elif n_recorded < n_computed:
+                reason = ", as the rest was already on record"
+            else:
+                reason = ""
+            click.secho(
+                f"Scheduling done: computed {n_computed}, recorded {n_recorded}{reason}.",
                 **MsgStyle.SUCCESS,
             )
 
@@ -2531,19 +2546,26 @@ def add_report(  # noqa: C901
         # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
             n_saved = saved[i]["n_rows"]
-            if n_saved:
+            n_computed = saved[i]["n_computed"]
+            if n_saved and n_saved == n_computed:
                 click.secho(
-                    f"Success. Saved {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` to the database.",
+                    f"Success. Recorded {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` in the database.",
+                    **MsgStyle.SUCCESS,
+                )
+            elif n_saved:
+                click.secho(
+                    f"Success. Recorded {n_saved} of the {pluralize('belief', n_computed, include_count=True)} computed for the report for sensor `{sensor}` in the database:"
+                    " the rest was already on record or had no value.",
                     **MsgStyle.SUCCESS,
                 )
             elif count_persistable_values(data):
                 click.secho(
-                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved.",
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was recorded (computed {n_computed}, recorded 0).",
                     **MsgStyle.SUCCESS,
                 )
             else:
                 click.secho(
-                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save."
+                    f"Nothing was recorded for sensor `{sensor}`, as the report holds no values to record (computed {n_computed}, recorded 0)."
                     " This can happen when its inputs do not align on source and belief time.",
                     **MsgStyle.WARN,
                 )
@@ -2944,15 +2966,17 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                 **MsgStyle.SUCCESS,
             )
 
-            start_year = server_now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            local_timezone = pytz.timezone(grid_connection_capacity.timezone)
+            tomorrow = server_now().astimezone(local_timezone).date() + timedelta(
+                days=1
             )
+            start_year = local_timezone.localize(datetime(tomorrow.year, 1, 1))
 
             belief = TimedBelief(
                 event_start=start_year,
                 belief_time=server_now(),
                 event_value=500,
-                source=db.session.get(DataSource, 1),
+                source=get_or_create_source(user),
                 sensor=grid_connection_capacity,
             )
 
