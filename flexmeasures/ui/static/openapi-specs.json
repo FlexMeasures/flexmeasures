@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -3666,7 +3666,7 @@
       },
       "patch": {
         "summary": "Update an automation's name, cron string, timezone, activation status or dependencies.",
-        "description": "Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nAn automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,\nso the recurrence and the timezone can only change along with `depends-on`, and not while other automations depend on this one.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "description": "Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nAn automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,\nso either side of a dependency can change its recurrence or timezone.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
