@@ -85,6 +85,26 @@ if gen_code_docs:
         ]
     )
 else:
+    # These references point to pages omitted when code documentation is disabled.
+    nitpick_ignore = [
+        ("py:mod", "flexmeasures.utils.unit_utils"),
+        (
+            "py:func",
+            "flexmeasures.data.models.planning.linear_optimization.device_scheduler",
+        ),
+        ("py:mod", "flexmeasures.data.models.planning.highspy_optimization"),
+        (
+            "py:func",
+            "flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem",
+        ),
+        ("py:func", "flexmeasures.utils.calculations.apply_stock_changes_and_losses"),
+        ("py:mod", "flexmeasures.utils.secrets_utils"),
+        ("py:func", "flexmeasures.utils.secrets_utils.set_secret"),
+        ("py:class", "flexmeasures.utils.secrets_utils.TokenRefreshResult"),
+        ("py:func", "flexmeasures.utils.secrets_utils.apply_token_refresh_result"),
+        ("py:func", "flexmeasures.utils.secrets_utils.get_secret_overview"),
+        ("py:class", "DataGenerator"),
+    ]
     if os.path.exists("_autosummary"):
         shutil.rmtree("_autosummary")
 
@@ -539,9 +559,24 @@ def setup(sphinx_app):
         We are in play mode.
 
     """
+    from docutils import nodes
+    from sphinx.util.docutils import SphinxDirective
+
+    class CodeDocumentation(SphinxDirective):
+        has_content = True
+
+        def run(self):
+            if not gen_code_docs:
+                return []
+            container = nodes.container()
+            self.state.nested_parse(self.content, self.content_offset, container)
+            return container.children
+
+    sphinx_app.add_directive("code-documentation", CodeDocumentation)
     os.environ["FLEXMEASURES_ENV"] = "documentation"
-    sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
-    sphinx_app.connect("autodoc-process-docstring", add_markup_that_sphinx_needs)
+    if gen_code_docs:
+        sphinx_app.connect("autodoc-process-docstring", drop_openapi_spec)
+        sphinx_app.connect("autodoc-process-docstring", add_markup_that_sphinx_needs)
     sphinx_app.add_lexer("json", json_lexer_with_placeholders())
     # Patch sphinxcontrib.openapi here, before its directives render the API pages, or their SwaggerUI links each produce an undefined-label warning.
     render_swagger_ui_links_as_text()

@@ -282,20 +282,21 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/automated-deploy-via-GHActions
     dev/release_process
 
-.. autosummary::
-   :caption: Code Documentation
-   :toctree: _autosummary/
-   :template: custom-module-template.rst
-   :recursive:
+.. code-documentation::
 
-   flexmeasures.api
-   flexmeasures.app
-   flexmeasures.auth
-   flexmeasures.cli
-   flexmeasures.data
-   flexmeasures.ui
-   flexmeasures.utils
+   .. autosummary::
+      :caption: Code Documentation
+      :toctree: _autosummary/
+      :template: custom-module-template.rst
+      :recursive:
 
+      flexmeasures.api
+      flexmeasures.app
+      flexmeasures.auth
+      flexmeasures.cli
+      flexmeasures.data
+      flexmeasures.ui
+      flexmeasures.utils
 
 .. Code documentation
 .. ------------------
