@@ -250,6 +250,110 @@ def test_patch_automation_refuses_to_wait_for_an_unreadable_automation(
     assert fresh_db.session.get(Automation, upstream["own"].id).dependencies == []
 
 
+def _downstream_of(fresh_db, upstream, sensor, *upstreams) -> Automation:
+    """An automation on the prosumer's battery that waits for these automations."""
+    downstream = Automation(
+        asset=upstream["own"].asset,
+        generator=upstream["own"].generator,
+        type="forecasting",
+        name="Downstream",
+        cronstr="0 6 * * *",
+        timezone="UTC",
+        parameters={"sensor": sensor.id},
+    )
+    fresh_db.session.add(downstream)
+    fresh_db.session.flush()
+    for automation in upstreams:
+        fresh_db.session.add(
+            AutomationDependency(
+                automation_id=downstream.id,
+                upstream_id=automation.id,
+                allow_failure=False,
+            )
+        )
+    fresh_db.session.commit()
+    return downstream
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_run_plan_tells_what_will_run_and_what_will_not(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """A public automation can be waited for but not run, which the plan says, and the plan runs nothing."""
+    battery, sensor, upstream = upstream_automations
+    downstream = _downstream_of(
+        fresh_db,
+        upstream,
+        sensor,
+        upstream["own"],
+        upstream["public"],
+        upstream["foreign"],
+    )
+    with app.test_client() as client:
+        response = client.get(
+            url_for(
+                "AssetAPI:get_automation_run_plan",
+                id=battery.id,
+                automation_id=downstream.id,
+            ),
+            query_string={"direction": "ascendants"},
+        )
+    assert response.status_code == 200, response.json
+    steps = {step["automation"]: step for step in response.json["steps"]}
+    assert steps[upstream["own"].id]["will-run"] is True
+    assert steps[upstream["public"].id]["will-run"] is False
+    assert steps[upstream["public"].id]["reason"] == "You may not run this automation."
+    assert steps[upstream["public"].id]["name"] == "Upstream on troposphere"
+    assert steps[upstream["foreign"].id] == {
+        "automation": upstream["foreign"].id,
+        "waits-for": [],
+        "will-run": False,
+        "reason": "You may not run this automation.",
+    }
+    assert fresh_db.session.scalars(select(AutomationRun)).all() == []
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation_with_ascendants(
+    app, fresh_db, upstream_automations, requesting_user
+):
+    """What the user may run runs first, what they may not is left out and reported, and what they leave out does not run."""
+    battery, sensor, upstream = upstream_automations
+    upstream["own"].parameters = {"sensor": sensor.id}
+    downstream = _downstream_of(
+        fresh_db, upstream, sensor, upstream["own"], upstream["public"]
+    )
+    url = url_for(
+        "AssetAPI:trigger_automation", id=battery.id, automation_id=downstream.id
+    )
+    with app.test_client() as client:
+        response = client.post(url, query_string={"with-ascendants": "true"})
+        assert response.status_code == 202, response.json
+        assert [
+            (run["automation"], run["dispatch-state"]) for run in response.json["runs"]
+        ] == [(upstream["own"].id, "queued"), (downstream.id, "waiting")]
+        assert response.json["left-out"] == [upstream["public"].id]
+
+        left_out = client.post(
+            url,
+            query_string={
+                "with-ascendants": "true",
+                "leave-out": [upstream["own"].id],
+            },
+        )
+        assert left_out.status_code == 202, left_out.json
+        assert [run["automation"] for run in left_out.json["runs"]] == [downstream.id]
+
+        both = client.post(
+            url, query_string={"with-ascendants": "true", "with-dependents": "true"}
+        )
+    assert both.status_code == 422, both.json
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )

@@ -272,6 +272,20 @@ These runs on demand do not affect the automations' recurrence, and the runner d
 The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-dependents=true``, which needs permission to manage the automations on each of the assets involved,
 and the *Automations* page offers *Run with dependents* for an automation that another one listed there waits for.
 
+To bring one automation up to date instead, run what it waits for first, and stop at this automation:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 9 --with-ascendants
+
+The automations it waits for, directly or through others, run first, and each run waits for the runs started along with it, as above.
+What waits for automation 9 does not run.
+With several branches above it, all of them run, unless you leave one out with ``--leave-out``.
+An automation that does not run, because it is inactive or because you may not run it, such as one on a public asset, takes what is above it along,
+and what waits for it goes by the results it already has.
+The API does the same with ``?with-ascendants=true`` and ``leave-out``, and ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan`` tells what that would come down to.
+On the *Automations* page, *Run with ascendants* and *Run with dependents* show this before anything runs.
+
 The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
 what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.
 Hovering over an automation there tells its type, asset and recurrence, hovering over an arrow tells what a failure does, and clicking an automation opens its details, on the page of its own asset.

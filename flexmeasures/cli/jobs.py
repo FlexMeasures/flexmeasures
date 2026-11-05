@@ -48,6 +48,7 @@ from flexmeasures.data.services.automations import (
     get_dispatchable_automation_runs,
     run_automation,
     run_automation_chain,
+    run_automation_with_ascendants,
 )
 from flexmeasures.data.services.data_sources import (
     find_duplicate_sources,
@@ -167,7 +168,26 @@ def run_automations():
     help="Also run the active automations that wait for this one, directly or through others,"
     " each once the runs it waits for ended, for instance to re-run a chain after backfilling the data at its start.",
 )
-def run_one_automation(automation: Automation, with_dependents: bool = False):
+@click.option(
+    "--with-ascendants",
+    "with_ascendants",
+    is_flag=True,
+    help="First run the active automations this one waits for, directly or through others, and then this one,"
+    " each once the runs it waits for ended, for instance to bring it up to date with what its results are based on.",
+)
+@click.option(
+    "--leave-out",
+    "left_out",
+    type=int,
+    multiple=True,
+    help="With --with-ascendants, the ID of an automation not to run, along with what only it waits for. Use multiple times to leave out several.",
+)
+def run_one_automation(
+    automation: Automation,
+    with_dependents: bool = False,
+    with_ascendants: bool = False,
+    left_out: tuple[int, ...] = (),
+):
     """
     Queue the jobs for a single run of one automation, now.
 
@@ -189,7 +209,21 @@ def run_one_automation(automation: Automation, with_dependents: bool = False):
 
     \b
         flexmeasures jobs run-automation --automation 4 --with-dependents
+
+    With --with-ascendants, the automations this one waits for run first, and this one runs once they ended,
+    or is skipped if one of them failed, unless its dependency allows for failure:
+
+    \b
+        flexmeasures jobs run-automation --automation 4 --with-ascendants
+        flexmeasures jobs run-automation --automation 4 --with-ascendants --leave-out 2
     """
+    if with_dependents and with_ascendants:
+        raise click.UsageError("Use either --with-dependents or --with-ascendants.")
+    if left_out and not with_ascendants:
+        raise click.UsageError("--leave-out goes along with --with-ascendants.")
+    if with_ascendants:
+        _run_automation_with_ascendants(automation, left_out)
+        return
     if with_dependents:
         _run_automation_chain(automation)
         return
@@ -226,6 +260,28 @@ def run_one_automation(automation: Automation, with_dependents: bool = False):
         f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
+
+
+def _run_automation_with_ascendants(automation: Automation, left_out: tuple[int, ...]):
+    """Run the automations this one waits for, and then this one, and say what each of them does."""
+    runs, not_running = run_automation_with_ascendants(automation, left_out)
+    for run in runs:
+        AssetAuditLog.add_record(
+            run.automation.asset,
+            f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), on the way to automation {automation.id}, via CLI.",
+        )
+    db.session.commit()
+    for run in runs:
+        db.session.refresh(run)
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id} is {run.dispatch_state}.",
+            **MsgStyle.SUCCESS,
+        )
+    for skipped_over in not_running:
+        click.secho(
+            f"Automation {skipped_over.id} ('{skipped_over.name}') is inactive, so it does not run.",
+            **MsgStyle.WARN,
+        )
 
 
 def _run_automation_chain(automation: Automation):

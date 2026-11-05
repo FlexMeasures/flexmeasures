@@ -11,6 +11,7 @@ since v1.2.0 | December XX, 2026
 
 * Add ``--depends-on`` and ``--allow-failure-of`` to ``flexmeasures add automation`` and ``flexmeasures edit automation`` (plus ``--no-dependencies`` on edit), to have an automation's runs wait for the latest runs of other automations due at or before their own scheduled time.
 * Add ``--with-dependents`` to ``flexmeasures jobs run-automation``, to also run the automations that wait for it, each once the runs it waits for ended, for instance to re-run a chain after a backfill.
+* Add ``--with-ascendants`` to ``flexmeasures jobs run-automation``, to first run the automations it waits for, with ``--leave-out`` to leave one of them out.
 
 since v1.1.0 | November 05, 2026
 =================================

@@ -3097,6 +3097,61 @@ def test_run_automation_with_dependents(
     ]
 
 
+def test_run_automation_with_ascendants(
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis
+):
+    """--with-ascendants runs what this automation waits for first, and --leave-out keeps one of those from running."""
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+    downstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Downstream")
+    ).one()
+
+    result = runner.invoke(
+        run_one_automation,
+        ["--automation", str(downstream.id), "--with-ascendants"],
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Automation {upstream.id} ('Upstream')" in result.output
+    assert f"Automation {downstream.id} ('Downstream')" in result.output
+    assert "is waiting" in result.output
+
+    left_out = runner.invoke(
+        run_one_automation,
+        [
+            "--automation",
+            str(downstream.id),
+            "--with-ascendants",
+            "--leave-out",
+            str(upstream.id),
+        ],
+    )
+    assert left_out.exit_code == 0, left_out.output
+    assert f"Automation {upstream.id} ('Upstream')" not in left_out.output
+
+    both = runner.invoke(
+        run_one_automation,
+        ["--automation", str(upstream.id), "--with-ascendants", "--with-dependents"],
+    )
+    assert both.exit_code != 0
+    assert "either" in both.output
+
+    alone = runner.invoke(
+        run_one_automation, ["--automation", str(upstream.id), "--leave-out", "1"]
+    )
+    assert alone.exit_code != 0
+
+
 def test_add_automation_allow_failure_of_needs_depends_on(
     app, fresh_db, setup_dummy_data_fresh_db
 ):

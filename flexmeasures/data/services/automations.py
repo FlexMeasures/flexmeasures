@@ -8,6 +8,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 import functools
 from copy import copy, deepcopy
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import os
@@ -3150,6 +3151,95 @@ def get_dependent_automations(automation: Automation) -> list[Automation]:
     return dependents
 
 
+def get_ascendant_automations(
+    automation: Automation,
+    left_out: Collection[int] = (),
+    may_run: Callable[[Automation], bool] | None = None,
+) -> tuple[list[Automation], list[Automation]]:
+    """Return the automations this one waits for, directly or through others, those nearest to it first.
+
+    An automation that does not run takes the ones above it along, as nothing would use their results.
+
+    :param left_out:    IDs of automations not to run, as asked for, which are not reported on.
+    :param may_run:     whether an automation may be run, by default all of them.
+    :returns:           the automations that run, and those that do not, for being inactive or not allowed.
+    """
+    reached = {automation.id}
+    frontier = [automation]
+    ascendants: list[Automation] = []
+    not_running: list[Automation] = []
+    while frontier:
+        found = []
+        for current in frontier:
+            for dependency in current.dependencies:
+                upstream = dependency.upstream
+                if upstream.id in reached:
+                    continue
+                reached.add(upstream.id)
+                if upstream.id in left_out:
+                    continue
+                if not upstream.active or (may_run and not may_run(upstream)):
+                    not_running.append(upstream)
+                    continue
+                ascendants.append(upstream)
+                found.append(upstream)
+        frontier = found
+    return ascendants, not_running
+
+
+def plan_automation_chain(
+    automation: Automation,
+    direction: str,
+    may_read: Callable[[Automation], bool],
+    may_run: Callable[[Automation], bool],
+) -> list[dict[str, Any]]:
+    """Say what running an automation along with its ascendants or dependents comes down to, in the order they run.
+
+    :param direction:   'ascendants' or 'dependents'.
+    :returns:           for each automation, what it waits for among these, and whether it runs, or why not.
+                        One the user may not read stays a bare ID.
+    """
+    if direction == "ascendants":
+        ascendants, not_running = get_ascendant_automations(automation, may_run=may_run)
+        running = [*reversed(ascendants), automation]
+    else:
+        dependents = get_dependent_automations(automation)
+        running = [automation, *dependents]
+        not_running = [dependent for dependent in dependents if not may_run(dependent)]
+    involved = {step.id for step in [*running, *not_running]}
+    steps = []
+    for step in [*not_running, *[a for a in running if a not in not_running]]:
+        reason = None
+        if step in not_running:
+            reason = (
+                "It is inactive."
+                if not step.active
+                else "You may not run this automation."
+            )
+        steps.append(
+            {
+                "automation": step.id,
+                "waits-for": [
+                    dependency.upstream_id
+                    for dependency in step.dependencies
+                    if dependency.upstream_id in involved
+                ],
+                "will-run": reason is None,
+                **({"reason": reason} if reason else {}),
+                **(
+                    {
+                        "name": step.name,
+                        "asset": step.asset_id,
+                        "asset-name": step.asset.name,
+                    }
+                    if may_read(step)
+                    else {}
+                ),
+            }
+        )
+    return steps
+
+
 def _new_on_demand_run(
     automation: Automation, scheduled_at: datetime, dispatch_state: str
 ) -> AutomationRun:
@@ -3171,6 +3261,60 @@ def _new_on_demand_run(
     return run
 
 
+def _start_on_demand_runs(
+    automations: list[Automation],
+    scheduled_at: datetime,
+    owner: str,
+    claimed_at: datetime,
+) -> tuple[dict[int, AutomationRun], list[ClaimedAutomationRun]]:
+    """Record a run for each of these automations, asked for together, and claim the ones that can start.
+
+    An automation that waits for none of the others can start, and the others wait, for the runs asked for along with them only.
+
+    :returns:   the runs per automation ID, and the claimed runs for the caller to dispatch.
+    """
+    involved = {automation.id for automation in automations}
+    runs: dict[int, AutomationRun] = {}
+    starting: list[AutomationRun] = []
+    for automation in automations:
+        waits = any(
+            dependency.upstream_id in involved for dependency in automation.dependencies
+        )
+        run = _new_on_demand_run(
+            automation, scheduled_at, "waiting" if waits else "claimed"
+        )
+        runs[automation.id] = run
+        if not waits:
+            run.claim_owner = owner
+            run.claimed_at = claimed_at
+            run.claim_expires_at = _claim_expires_at(
+                claimed_at, AUTOMATION_RUN_CLAIM_LEASE
+            )
+            run.attempt_count = 1
+            starting.append(run)
+    db.session.flush()
+    for automation in automations:
+        run = runs[automation.id]
+        if run not in starting:
+            run.plan = {
+                **dict(run.plan or {}),
+                "chain-upstream-runs": [
+                    {
+                        "automation": dependency.upstream_id,
+                        "run": runs[dependency.upstream_id].id,
+                    }
+                    for dependency in automation.dependencies
+                    if dependency.upstream_id in runs
+                ],
+            }
+    claimed_runs = [
+        ClaimedAutomationRun(run=run, attempt=_new_attempt(run, owner, claimed_at))
+        for run in starting
+    ]
+    db.session.commit()
+    return runs, claimed_runs
+
+
 def run_automation_chain(
     automation: Automation,
     now: datetime | None = None,
@@ -3187,40 +3331,56 @@ def run_automation_chain(
     :returns:   what the automation's own run dispatched (see `dispatch_automation_run`),
                 and the runs that wait for it, in the order of `get_dependent_automations`.
     """
-    owner = owner or _runner_owner()
     claimed_at = _now_utc()
-    scheduled_at = floor_to_minute(now or claimed_at)
-    root_run = _new_on_demand_run(automation, scheduled_at, "claimed")
-    root_run.claim_owner = owner
-    root_run.claimed_at = claimed_at
-    root_run.claim_expires_at = _claim_expires_at(
-        claimed_at, AUTOMATION_RUN_CLAIM_LEASE
-    )
-    root_run.attempt_count = 1
-    runs = {automation.id: root_run}
     dependents = get_dependent_automations(automation)
-    for dependent in dependents:
-        runs[dependent.id] = _new_on_demand_run(dependent, scheduled_at, "waiting")
-    db.session.flush()
-    for dependent in dependents:
-        run = runs[dependent.id]
-        run.plan = {
-            **dict(run.plan or {}),
-            "chain-upstream-runs": [
-                {
-                    "automation": dependency.upstream_id,
-                    "run": runs[dependency.upstream_id].id,
-                }
-                for dependency in dependent.dependencies
-                if dependency.upstream_id in runs
-            ],
-        }
-    attempt = _new_attempt(root_run, owner, claimed_at)
-    db.session.commit()
-    returns = dispatch_automation_run(
-        ClaimedAutomationRun(run=root_run, attempt=attempt)
+    runs, claimed_runs = _start_on_demand_runs(
+        [automation, *dependents],
+        floor_to_minute(now or claimed_at),
+        owner or _runner_owner(),
+        claimed_at,
     )
+    returns = dispatch_automation_run(claimed_runs[0])
     return returns, [runs[dependent.id] for dependent in dependents]
+
+
+def run_automation_with_ascendants(
+    automation: Automation,
+    left_out: Collection[int] = (),
+    may_run: Callable[[Automation], bool] | None = None,
+    now: datetime | None = None,
+    owner: str | None = None,
+) -> tuple[list[AutomationRun], list[Automation]]:
+    """Run the automations this one waits for, directly or through others, and then this one, each once the runs it waits for ended.
+
+    This is how an automation is brought up to date, with what its results are based on.
+    The ones that wait for nothing asked for here start right away, and there can be several of them.
+    A run is skipped if one it waits for failed, as a scheduled run is, unless its dependency allows for failure.
+    An automation that does not run is simply not waited for, so what waits for it goes by the results it already has.
+    None of these runs affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue.
+
+    :param left_out:    IDs of automations not to run.
+    :param may_run:     whether an automation may be run (see `get_ascendant_automations`).
+    :returns:           the runs in the order they were asked for, ending with this automation's run,
+                        and the automations that do not run, for being inactive or not allowed.
+    """
+    claimed_at = _now_utc()
+    ascendants, not_running = get_ascendant_automations(automation, left_out, may_run)
+    runs, claimed_runs = _start_on_demand_runs(
+        [*reversed(ascendants), automation],
+        floor_to_minute(now or claimed_at),
+        owner or _runner_owner(),
+        claimed_at,
+    )
+    for claimed_run in claimed_runs:
+        try:
+            dispatch_automation_run(claimed_run)
+        except Exception as exc:
+            # Any error, whatever its kind, was recorded on the run by the dispatch, which ends it (see `_dispatch_was_given_up`).
+            # The other runs that can start have nothing to do with it, and a runner settles what waits for this one.
+            current_app.logger.warning(
+                f"Automation run {claimed_run.run.id} failed to dispatch: {exc}"
+            )
+    return list(runs.values()), not_running
 
 
 def run_automation(

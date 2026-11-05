@@ -20,7 +20,10 @@ from flexmeasures.data.services.automations import (
     dispatch_automation_run,
     get_dispatchable_automation_runs,
     run_automation,
+    get_ascendant_automations,
+    plan_automation_chain,
     run_automation_chain,
+    run_automation_with_ascendants,
     update_automation,
 )
 from flexmeasures.data.tests.plugins.mock_ingestion import (
@@ -546,6 +549,171 @@ def test_running_a_chain_on_demand(
     assert totals_run.dispatch_state == "queued"
     _work(app, totals_run)
     assert _run_at(fresh_db, totals, SCHEDULED_AT).execution_state == "succeeded"
+
+
+def _states(fresh_db, runs: list[AutomationRun]) -> dict[int, tuple[str, str]]:
+    fresh_db.session.expire_all()
+    return {
+        run.automation_id: (run.dispatch_state, run.execution_state) for run in runs
+    }
+
+
+def test_running_with_ascendants_works_its_way_down_and_stops_at_the_automation(
+    fresh_db, app, make_automation
+):
+    """What an automation waits for runs first, what waits for it does not run, and neither does a branch next to it."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    totals = make_automation("Sum flows", depends_on=[flows])
+    make_automation("Sum further", depends_on=[totals])
+    make_automation("Side branch", depends_on=[snapper])
+
+    runs, not_running = run_automation_with_ascendants(totals, now=TICK)
+
+    assert [run.automation_id for run in runs] == [snapper.id, flows.id, totals.id]
+    assert not_running == []
+    assert [run.trigger for run in runs] == ["on-demand"] * 3
+    assert _states(fresh_db, runs) == {
+        snapper.id: ("queued", "pending"),
+        flows.id: ("waiting", "pending"),
+        totals.id: ("waiting", "pending"),
+    }
+    assert {snapper.cursor, flows.cursor, totals.cursor} == {CREATED_AT}
+    _work(app, runs[0])
+    assert _states(fresh_db, runs)[flows.id][0] == "queued"
+    assert _states(fresh_db, runs)[totals.id][0] == "waiting"
+    _work(app, runs[1])
+    _work(app, runs[2])
+    assert _states(fresh_db, runs)[totals.id] == ("queued", "succeeded")
+
+
+def test_running_with_ascendants_starts_every_branch_and_waits_for_all_of_them(
+    fresh_db, app, make_automation
+):
+    """Several branches lead up to an automation, each starting right away, and it runs once the last of them ended."""
+    prices = make_automation("Pull prices")
+    meters = make_automation("Pull meters")
+    forecast = make_automation("Forecast", depends_on=[prices, meters])
+
+    runs, _ = run_automation_with_ascendants(forecast, now=TICK)
+
+    assert _states(fresh_db, runs) == {
+        prices.id: ("queued", "pending"),
+        meters.id: ("queued", "pending"),
+        forecast.id: ("waiting", "pending"),
+    }
+    by_automation = {run.automation_id: run for run in runs}
+    _work(app, by_automation[prices.id])
+    assert _states(fresh_db, runs)[forecast.id][0] == "waiting"
+    _work(app, by_automation[meters.id])
+    assert _states(fresh_db, runs)[forecast.id][0] == "queued"
+
+
+@pytest.mark.parametrize("allow_failure", [False, True])
+def test_a_failure_above_stops_an_automation_run_with_ascendants(
+    fresh_db, app, make_automation, failing_value, allow_failure
+):
+    """The automation is skipped if what it waits for failed, unless its dependency allows for that."""
+    snapper = make_automation("Snap meter readings", value=-1)
+    flows = make_automation(
+        "Compute flows", depends_on=[snapper], allow_failure=allow_failure
+    )
+
+    runs, _ = run_automation_with_ascendants(flows, now=TICK)
+    _work(app, runs[0])
+
+    assert _states(fresh_db, runs)[snapper.id][1] == "failed"
+    assert _states(fresh_db, runs)[flows.id] == (
+        ("queued", "pending") if allow_failure else ("queued", "skipped")
+    )
+
+
+def test_a_branch_can_be_left_out_of_a_run_with_ascendants(
+    fresh_db, app, make_automation
+):
+    """Leaving out an automation takes along what only it needs, and what waits for it goes ahead without it."""
+    tariffs = make_automation("Pull tariffs")
+    prices = make_automation("Compute prices", depends_on=[tariffs])
+    meters = make_automation("Pull meters")
+    forecast = make_automation("Forecast", depends_on=[prices, meters])
+
+    runs, not_running = run_automation_with_ascendants(
+        forecast, left_out=[prices.id], now=TICK
+    )
+
+    assert [run.automation_id for run in runs] == [meters.id, forecast.id]
+    assert not_running == []
+    _work(app, runs[0])
+    assert _states(fresh_db, runs)[forecast.id][0] == "queued"
+
+
+def test_what_may_not_run_is_reported_and_takes_along_what_is_above_it(
+    fresh_db, make_automation
+):
+    """An automation that is inactive or not allowed does not run, and nothing would use the results of what is above it."""
+    tariffs = make_automation("Pull tariffs")
+    public = make_automation("Public prices", depends_on=[tariffs])
+    paused = make_automation("Paused")
+    paused.active = False
+    meters = make_automation("Pull meters")
+    forecast = make_automation("Forecast", depends_on=[public, paused, meters])
+
+    ascendants, not_running = get_ascendant_automations(
+        forecast, may_run=lambda automation: automation.id != public.id
+    )
+
+    assert ascendants == [meters]
+    assert {automation.id for automation in not_running} == {public.id, paused.id}
+
+
+def test_an_automation_without_ascendants_just_runs(fresh_db, app, make_automation):
+    snapper = make_automation("Snap meter readings")
+
+    runs, _ = run_automation_with_ascendants(snapper, now=TICK)
+
+    assert [run.automation_id for run in runs] == [snapper.id]
+    assert _states(fresh_db, runs)[snapper.id][0] == "queued"
+
+
+def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
+    fresh_db, make_automation
+):
+    """A plan lists the automations in the order they run, and says why one does not, giving nothing away about one that may not be read."""
+    public = make_automation("Public prices")
+    meters = make_automation("Pull meters")
+    forecast = make_automation("Forecast", depends_on=[public, meters])
+    schedule = make_automation("Schedule", depends_on=[forecast])
+
+    steps = plan_automation_chain(
+        forecast,
+        "ascendants",
+        may_read=lambda automation: automation.id != public.id,
+        may_run=lambda automation: automation.id != public.id,
+    )
+
+    assert steps[0] == {
+        "automation": public.id,
+        "waits-for": [],
+        "will-run": False,
+        "reason": "You may not run this automation.",
+    }
+    assert [(step["automation"], step["will-run"]) for step in steps[1:]] == [
+        (meters.id, True),
+        (forecast.id, True),
+    ]
+    assert steps[2]["waits-for"] == [public.id, meters.id]
+    assert steps[2]["name"] == "Forecast"
+
+    downwards = plan_automation_chain(
+        forecast,
+        "dependents",
+        may_read=lambda automation: True,
+        may_run=lambda automation: automation.id != schedule.id,
+    )
+    assert [(step["automation"], step["will-run"]) for step in downwards] == [
+        (schedule.id, False),
+        (forecast.id, True),
+    ]
 
 
 def test_a_chain_run_on_demand_and_a_scheduled_run_keep_apart(

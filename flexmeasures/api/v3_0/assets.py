@@ -65,9 +65,11 @@ from flexmeasures.data.services.automations import (
     get_automation_job_stats,
     get_automation_run_stats,
     get_dependent_automations,
+    plan_automation_chain,
     resolve_automation_sensors,
     run_automation,
     run_automation_chain,
+    run_automation_with_ascendants,
     update_automation,
 )
 from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
@@ -125,6 +127,24 @@ asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
+
+
+def _user_has_access(asset: GenericAsset, permission: str) -> bool:
+    try:
+        check_access(asset, permission)
+    except (Forbidden, Unauthorized):
+        return False
+    return True
+
+
+def _may_read_automation(automation: Automation) -> bool:
+    return _user_has_access(automation.asset, "read")
+
+
+def _may_manage_automation(automation: Automation) -> bool:
+    return _user_has_access(automation.asset, "manage-automations")
+
+
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 sensor_schema = SensorSchema()
@@ -2070,7 +2090,22 @@ class AssetAPI(FlaskView):
                 metadata={
                     "description": "Also run the active automations that wait for this one, directly or through others, each once the runs it waits for ended."
                 },
-            )
+            ),
+            "with_ascendants": fields.Bool(
+                data_key="with-ascendants",
+                load_default=False,
+                metadata={
+                    "description": "First run the active automations this one waits for, directly or through others, as far as you may run them."
+                },
+            ),
+            "left_out": fields.List(
+                fields.Int(),
+                data_key="leave-out",
+                load_default=list,
+                metadata={
+                    "description": "With `with-ascendants`, IDs of automations not to run, along with what only they wait for."
+                },
+            ),
         },
         location="query",
     )
@@ -2085,6 +2120,8 @@ class AssetAPI(FlaskView):
         automation_id: int,
         asset: GenericAsset,
         with_dependents: bool = False,
+        with_ascendants: bool = False,
+        left_out: list[int] | None = None,
     ):
         """
         .. :quickref: Assets; Trigger a single run of an automation.
@@ -2109,6 +2146,14 @@ class AssetAPI(FlaskView):
             Each of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.
             This needs permission to manage the automations on each of their assets, too.
             The response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.
+
+            Pass `with-ascendants=true` to first run the active automations this one waits for, directly or through others, and then this one,
+            for instance to bring it up to date with what its results are based on.
+            A run waits for the runs triggered along with it, and is skipped if one of those failed, unless its dependency allows for failure.
+            An automation you may not run is left out, along with what is above it, and is reported under `left-out`.
+            Pass `leave-out` to leave out automations yourself, such as one of several branches.
+            See the `run-plan` endpoint for what this would come down to.
+            The response lists these runs under `runs`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2131,6 +2176,21 @@ class AssetAPI(FlaskView):
               schema:
                 type: boolean
                 default: false
+            - in: query
+              name: with-ascendants
+              required: false
+              description: First run the active automations this one waits for, directly or through others. Cannot be combined with `with-dependents`.
+              schema:
+                type: boolean
+                default: false
+            - in: query
+              name: leave-out
+              required: false
+              description: With `with-ascendants`, IDs of automations not to run.
+              schema:
+                type: array
+                items:
+                  type: integer
           responses:
             202:
               description: PROCESSING
@@ -2161,6 +2221,20 @@ class AssetAPI(FlaskView):
                           - automation: 8
                             run: 412
                             dispatch-state: waiting
+                    triggered-with-ascendants:
+                      summary: Automation run accepted, after the automations it waits for
+                      value:
+                        status: ACCEPTED
+                        n-jobs: 1
+                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        runs:
+                          - automation: 7
+                            run: 411
+                            dispatch-state: queued
+                          - automation: 8
+                            run: 412
+                            dispatch-state: waiting
+                        left-out: [5]
             401:
               description: UNAUTHORIZED
             403:
@@ -2177,6 +2251,14 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        if with_dependents and with_ascendants:
+            return unprocessable_entity(
+                "Use either with-dependents or with-ascendants, not both."
+            )
+        if with_ascendants:
+            return self._trigger_automation_with_ascendants(
+                asset, automation, left_out or []
+            )
         if with_dependents:
             return self._trigger_automation_chain(asset, automation)
         try:
@@ -2213,6 +2295,140 @@ class AssetAPI(FlaskView):
         response, status_code = request_accepted_for_processing(job_id)
         response["n-jobs"] = returns.get("n_jobs")
         return response, status_code
+
+    def _trigger_automation_with_ascendants(
+        self, asset: GenericAsset, automation: Automation, left_out: list[int]
+    ) -> tuple[dict, int]:
+        """Run the automations this one waits for, and then this one (see `run_automation_with_ascendants`)."""
+        runs, not_running = run_automation_with_ascendants(
+            automation, left_out, may_run=_may_manage_automation
+        )
+        for run in runs:
+            AssetAuditLog.add_record(
+                run.automation.asset,
+                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), on the way to automation {automation.id}.",
+            )
+        db.session.commit()
+        for run in runs:
+            db.session.refresh(run)
+        n_waiting = sum(run.dispatch_state == "waiting" for run in runs)
+        return {
+            "status": "ACCEPTED",
+            "n-jobs": sum(len(run.job_intents) for run in runs),
+            "message": f"Started {len(runs) - n_waiting} run(s), and {n_waiting} run(s) wait for them.",
+            "runs": [
+                {
+                    "automation": run.automation_id,
+                    "run": run.id,
+                    "dispatch-state": run.dispatch_state,
+                }
+                for run in runs
+            ],
+            "left-out": [left.id for left in not_running],
+        }, 202
+
+    @route("/<id>/automations/<int:automation_id>/run-plan", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "direction": fields.Str(
+                required=True,
+                validate=validate.OneOf(["ascendants", "dependents"]),
+                metadata={
+                    "description": "Whether to run the automations this one waits for, or those that wait for it."
+                },
+            )
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automation_run_plan(
+        self, id: int, automation_id: int, asset: GenericAsset, direction: str
+    ):
+        """
+        .. :quickref: Assets; See what running an automation along with its ascendants or dependents comes down to.
+
+        ---
+        get:
+          summary: See what running an automation along with its ascendants or dependents comes down to.
+          description: |
+            Nothing is run.
+            The steps are listed in the order they run, each saying what it waits for among these steps,
+            and whether it will run, or else why not.
+            A step you may not read stays a bare ID.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation-id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+            - in: query
+              name: direction
+              required: true
+              description: Whether to run the automations this one waits for, or those that wait for it.
+              schema:
+                type: string
+                enum: [ascendants, dependents]
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    run-plan:
+                      summary: One step does not run
+                      value:
+                        steps:
+                          - automation: 5
+                            waits-for: []
+                            will-run: false
+                            reason: You may not run this automation.
+                          - automation: 7
+                            waits-for: [5]
+                            will-run: true
+                            name: Forecast
+                            asset: 3
+                            asset-name: Site
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        return {
+            "steps": plan_automation_chain(
+                automation,
+                direction,
+                may_read=_may_read_automation,
+                may_run=_may_manage_automation,
+            )
+        }, 200
 
     def _trigger_automation_chain(
         self, asset: GenericAsset, automation: Automation

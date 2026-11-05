@@ -12,6 +12,8 @@ v3.0-35 | December XX, 2026
 
 - ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` accept ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, to have an automation's runs wait for the latest runs of other automations due at or before their own scheduled time, and automation responses report it, each upstream automation the caller may read coming with its ``name``, ``asset`` and ``asset-name``.
 - ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` accepts ``with-dependents=true``, to also run the active automations that wait for this one, which needs permission to manage the automations on each of the assets involved.
+- ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` accepts ``with-ascendants=true``, to first run the active automations this one waits for, as far as the caller may run them, and ``leave-out`` to leave some of them out.
+- Added ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan``, to see what running an automation along with its ascendants or dependents comes down to.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
