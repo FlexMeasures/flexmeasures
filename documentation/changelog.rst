@@ -5,8 +5,10 @@ FlexMeasures Changelog
 
 
 
-v1.1.0 | November XX, 2026
+v1.1.0 | November 05, 2026
 ============================
+
+   .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v110-automations/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
