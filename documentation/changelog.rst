@@ -209,7 +209,7 @@ Bugfixes
 
 **UI**
 
-* Hovering a session in the Charge Points chart shows its tooltip again, as it did before the move to ECharts [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
+* Hovering a session in the Charge Points chart shows its tooltip again, as it did before the move to ECharts, and a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
 * Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]

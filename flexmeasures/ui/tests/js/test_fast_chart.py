@@ -279,6 +279,67 @@ def test_hovering_a_session_bar_shows_its_tooltip(assert_js, echarts_available):
     """)
 
 
+def test_a_tooltip_describes_only_the_subplot_under_the_pointer(
+    assert_js, echarts_available
+):
+    """The ruler is linked across subplots, but a tooltip never shows another subplot's point.
+
+    ECharts reports the points of every linked subplot at the ruler's time,
+    so with the pointer in the sessions subplot the power subplot's point arrives at the formatter too.
+    """
+    assert_js("""
+        await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "/vendor/echarts.min.js";
+            script.onload = resolve;
+            script.onerror = () => reject(new Error("could not load ECharts"));
+            document.head.appendChild(script);
+        });
+        const { renderFastChart } = await import("/js/fast-chart.js?subplot-tooltip");
+
+        const container = document.createElement("div");
+        container.id = "subplot-tooltip";
+        container.style.cssText = "width: 1000px; height: 700px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const sessionSensor = (name, id) => ({id, name, unit: "s", asset_id: 4, asset_description: "Charger 4"});
+        const power = {id: 99, name: "charge points power", unit: "kW", asset_id: 1};
+        const rows = [
+            ["arrival", 0], ["departure", 5],
+        ].map(([name, offset], i) => ({sensor: sessionSensor(name, i + 1), event_start: start, event_value: start + offset * hour}));
+        for (let i = 0; i < 12; i++) {
+            rows.push({sensor: power, source: {id: 1, name: "s"}, event_start: start + i * hour / 2, event_value: 50 + i, belief_horizon: 0});
+        }
+        const names = {sessionsTitle: "Sessions", companionTitles: ["Power flow by type"], powerFlowTitle: "Power flow by type", powerSensorName: "charge points power"};
+        renderFastChart("subplot-tooltip", rows, {
+            groupSpec: [{title: "Power flow by type", sensorIds: [99]}], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: names,
+        });
+        const chart = echarts.getInstanceByDom(container);
+        const formatter = chart.getOption().tooltip[0].formatter;
+        const powerIndex = chart.getOption().series.findIndex((series) => series.xAxisIndex === 1);
+        check("the power subplot has a series", powerIndex >= 0);
+        const powerPoint = [{seriesIndex: powerIndex, dataIndex: 3, value: [start + 1.5 * hour, 53], axisValue: start + 1.5 * hour}];
+
+        const movePointerTo = async (axisIndex, y) => {
+            const [x] = chart.convertToPixel({xAxisIndex: axisIndex, yAxisIndex: axisIndex}, [start + 1.5 * hour, y]);
+            const [, py] = chart.convertToPixel({xAxisIndex: axisIndex, yAxisIndex: axisIndex}, [start + 1.5 * hour, y]);
+            const rect = container.getBoundingClientRect();
+            const canvas = container.querySelector("canvas");
+            for (const dx of [0, 1]) {
+                canvas.dispatchEvent(new MouseEvent("mousemove", {clientX: rect.left + x + dx, clientY: rect.top + py, bubbles: true}));
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        };
+
+        await movePointerTo(0, 0);
+        eq("with the pointer in the sessions subplot, the power point stays out", formatter(powerPoint), "");
+        await movePointerTo(1, 53);
+        check("with the pointer in the power subplot, its point is described", formatter(powerPoint).includes("charge points power"), formatter(powerPoint));
+    """)
+
+
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
     """Pinned text stays stable while hovered text occupies a separate row."""
     assert_js("""

@@ -1189,6 +1189,22 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
   });
 }
 
+// Whether a point belongs to the subplot the pointer is in.
+// The ruler is linked across subplots, so ECharts also reports the points of the other subplots at the ruler's time,
+// and a tooltip must describe the subplot being hovered, not a neighbour.
+// With no known pointer (or nothing to say which subplot a series is in), the point is kept.
+function paramInPointerSubplot(param, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  const lastOption = (instance && instance.lastOption) || {};
+  const xAxisIndex = ((lastOption.series || [])[param.seriesIndex] || {}).xAxisIndex;
+  const gridIndex = ((lastOption.xAxis || [])[xAxisIndex] || {}).gridIndex;
+  if (!pointer || !chart || gridIndex == null) {
+    return true;
+  }
+  return chart.containPixel({ gridIndex: gridIndex }, pointer);
+}
+
 function seriesTooltipFormatter(seriesMeta, instance) {
   const tooltipOptions = () => ({
     showSensor: !(instance && instance.isSensorPage),
@@ -1199,6 +1215,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     // trigger passes a single point. In both cases we show just the nearest one,
     // as in the Vega-Lite charts (which snap to the nearest data point on hover).
     if (Array.isArray(params)) {
+      params = params.filter((p) => paramInPointerSubplot(p, instance));
       if (params.length === 0) {
         return "";
       }
@@ -1209,6 +1226,9 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
+    }
+    if (!paramInPointerSubplot(params, instance)) {
+      return "";
     }
     const meta = seriesMeta[params.seriesIndex];
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
