@@ -415,7 +415,7 @@ Finally, add this config setting to your FlexMeasures config file (using the tem
 Adding your own automation type
 --------------------------------
 
-A custom automation type combines a :class:`DataGenerator` with an automation handler.
+A custom automation type combines a :class:`~flexmeasures.data.models.data_sources.DataGenerator` with an automation handler.
 The generator declares its inputs, outputs and strict configuration and parameter schemas.
 The handler gives the type a stable identifier, display name and worker queue.
 
