@@ -66,6 +66,8 @@ dependencies = [
     "redis>4.5",
     "tldextract>=5.3.1",
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
+    # When lifting the cap, check that the appsi solvers still take config.solver_output_logger, which device_scheduler sets against another deadlock (#2742);
+    # test_solver_output.py goes red if they do not.
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
     # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
@@ -193,6 +195,7 @@ shell = """
 [tool.poe.tasks.update-docs]
 help = "Update the documentation and OpenAPI specifications"
 shell = """
+    set -e
     printf "Installing docs dependencies ...\n"
     uv sync --group docs --inexact
     printf "Generating OpenAPI specifications ...\n"

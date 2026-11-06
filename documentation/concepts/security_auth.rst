@@ -103,7 +103,7 @@ Setting or changing ``consultancy_account_id`` arbitrarily remains an admin capa
 .. _security-best-practices-for-hosts:
 
 Best security-practices for hosts
------------------------------
+---------------------------------
 
 * Use the ``TRUSTED_HOSTS`` setting (see the Flask docs on `the configuration <https://flask.palletsprojects.com/en/stable/config/#TRUSTED_HOSTS>`_ and on `the topic of host header validation <https://flask.palletsprojects.com/en/stable/web-security/#host-header-validation>`_) to specify on which hosts the platform is actually being provided.
   As an example for why this is valuable: FlexMeasures constructs URLs, e.g. for password reset links. Client code could set its own ``Host`` request header to make these URLs lead to a different server.

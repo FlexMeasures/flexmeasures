@@ -227,6 +227,7 @@ So, even though both feeders *could* run at any time, the optimiser only calls o
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/multi-feed-heat-buffer.png
     :align: center
+
 |
 
 Reading the chart top to bottom:

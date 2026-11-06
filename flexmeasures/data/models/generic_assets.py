@@ -1520,11 +1520,12 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange(self) -> dict[str, datetime]:
         """Time range for which sensor data exists.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.sensors)
 
@@ -1532,11 +1533,12 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange_of_sensors_to_show(self) -> dict[str, datetime]:
         """Time range for which sensor data exists, for sensors to show.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.validate_sensors_to_show())
 
@@ -1545,11 +1547,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 

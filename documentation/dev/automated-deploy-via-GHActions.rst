@@ -20,7 +20,7 @@ Let's get started!
 In the following, we'll refer to GitHub Actions as our "CI environment" and our staging server as the "deployment server". 
 
 *
-  We add a GitHub Action workflow to ``deploy.yml``, which runs if the commit was on the ``main `` branch, waits for our CI test workflow, and then pushes the code to a remote repo on the deployment server.
+  We add a GitHub Action workflow to ``deploy.yml``, which runs if the commit was on the ``main`` branch, waits for our CI test workflow, and then pushes the code to a remote repo on the deployment server.
 
 *
   We explain how to make this git push to that remote repo happen.
@@ -113,7 +113,7 @@ We thus need to tell the deployment environment two things:
 
 
 Authenticate at the deployment server (with an ssh key)
-------------------------------------------------
+-------------------------------------------------------
 
 For CI environment and deployment server to interact securely, we of course need to put in place some authentication measures.  
 
@@ -130,7 +130,7 @@ Use ``ssh-keygen`` to create one, using no password.
 
 
 (Re-)start FlexMeasures on the deployment server (install Post-Receive Hook)
-------------------------------------------------
+----------------------------------------------------------------------------
 
 Only pushing the code will not actually deploy the updated FlexMeasures into a usable web app on the deployment server. For this, we need to trigger a script.
 
