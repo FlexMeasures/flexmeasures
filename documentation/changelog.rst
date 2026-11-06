@@ -4,9 +4,63 @@ FlexMeasures Changelog
 **********************
 
 
-
-v1.1.0 | November XX, 2026
+v1.2.0 | December xx , 2026
 ============================
+
+New features
+-------------
+
+Infrastructure / Support
+-------------------------
+
+Bugfixes
+-----------
+
+
+v1.1.0 | November 05, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v110-automations/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
+
+             The upgrade also reorganises data sources, so prepare it as follows:
+
+             1. Run ``flexmeasures jobs check-source-references``, which lists jobs waiting in Redis that refer to a source the upgrade will merge away; wait for them or cancel them, as they would fail afterwards.
+             2. Stop your workers, and run the upgrade **before** deploying the new code: a worker still running the previous version records under a source belonging to no organisation.
+             3. Run the upgrade. It changes data sources in two ways:
+
+                - Each data source is coupled to the organisation it records for. Where a source recorded for several organisations, the upgrade stops and names those sources rather than picking one; rerun the upgrade with ``-x split-shared-sources=true`` to give each of those organisations its own source. A shared source of a generator version that a newer one has replaced is left belonging to no organisation instead, since nothing records under it again.
+                - Identical data sources are merged, as the database now refuses duplicates. Their beliefs, annotations and other references move over, and stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, are pointed at the source they were merged into.
+
+             In both cases, the source that recorded most recently keeps its ID. Where something outside FlexMeasures refers to a source by ID, choose yourself with ``-x keep-source``, which you can repeat:
+             ``-x keep-source=<source id>:<organisation id>`` names the organisation that keeps a shared source's ID, and ``-x keep-source=<source id>`` names the duplicate that keeps its ID.
+             The upgrade prints what it split and merged, so anyone referring to a source by ID can switch over [see `PR #2634 <https://www.github.com/FlexMeasures/flexmeasures/pull/2634>`_, `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_ and `PR #2758 <https://www.github.com/FlexMeasures/flexmeasures/pull/2758>`_]
+
+.. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
+          Select a data source on the sensor page to see the schedule computed under one configuration.
+
+.. _v1.1.0-add-report-warning:
+
+.. warning:: If you run ``flexmeasures add report`` (for instance, in a cron job), it now saves the reporter's config on the report's data source by default, so its first run after upgrading records under a new data source.
+             Point anything that refers to the old data source by ID at the new one, or add ``--no-save-config`` to keep recording under the old one [see `PR #2764 <https://www.github.com/FlexMeasures/flexmeasures/pull/2764>`_]
+
+.. _v1.1.0-roles-warning:
+
+.. warning:: The upgrade gives every existing user the new ``account-member`` role.
+             To give a user the narrower reader or data-integrator access instead, assign them the ``account-reader`` or ``account-data-integrator`` role, and then remove their ``account-member`` role.
+
+.. warning:: The API's rate limits are now counted per organisation rather than per user, so all users and integrations of an organisation share one budget.
+             Before upgrading, hosts should check the limits of organisations with several users or integrations; see :ref:`Plans and rate limits <v1.1.0-rate-limits>`.
+
+
+
+
+v1.1.0 | November 05, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v110-automations/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
@@ -231,9 +285,7 @@ Bugfixes
 **Access and security**
 
 * Allow consultants to create assets in client organisations, and reject attempts to change an asset's organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_ and `PR #2825 <https://www.github.com/FlexMeasures/flexmeasures/pull/2825>`_]
-* The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 * A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
-* An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
 
 **API, CLI and jobs**
 
@@ -250,6 +302,9 @@ Bugfixes
 
 * In the Docker image, ``pip install`` (which the docs and the compose stack use to add plugins) now installs where FlexMeasures can import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
 * Fix local documentation builds and stop immediately when a build step fails [see `PR #2827 <https://www.github.com/FlexMeasures/flexmeasures/pull/2827>`_]
+* Fix belief deletion and the solar, process and reporting tutorial runners so they work with current data sources and SQLAlchemy [see `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
+
+
 
 
 
@@ -271,6 +326,15 @@ Automations arrived over several pull requests. This is what each of them contri
 * Automations now keep a durable record of every scheduled run, so a forecast or schedule run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and how its jobs ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_, `PR #2657 <https://www.github.com/FlexMeasures/flexmeasures/pull/2657>`_ and `PR #2670 <https://www.github.com/FlexMeasures/flexmeasures/pull/2670>`_]
 * Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization. A plugin job's result is kept for as long as results on its own queue are kept, and reports the number of beliefs it saved [see `PR #2553 <https://www.github.com/FlexMeasures/flexmeasures/pull/2553>`_ and `PR #2644 <https://www.github.com/FlexMeasures/flexmeasures/pull/2644>`_]
+
+
+v1.0.2 | November 5, 2026
+============================
+
+Bugfixes
+-----------
+* An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
+* Deleting an asset and resetting a password in the UI now go through the API, which checks permissions, where any logged-in user could delete any asset with its data by opening a link; the sensor page, the user audit log page and the page listing an organisation's assets now check access, too [see `GHSA-vmgf-59hm-j9m7 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-vmgf-59hm-j9m7>`_ and `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 
 
 v1.0.1 | September 9, 2026

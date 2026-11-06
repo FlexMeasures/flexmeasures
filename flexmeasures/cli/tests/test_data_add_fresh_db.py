@@ -1690,6 +1690,10 @@ def test_add_toy_account_reporter_uses_kw_scale_units(app, fresh_db):
     assert grid_connection_capacity.unit == "kW"
     assert headroom.unit == "kW"
     assert grid_connection_capacity.search_beliefs().values.flatten().tolist() == [500]
+    capacity_belief = fresh_db.session.scalar(
+        select(TimedBelief).where(TimedBelief.sensor_id == grid_connection_capacity.id)
+    )
+    assert capacity_belief.source.user.email == "toy-user@flexmeasures.io"
 
 
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
