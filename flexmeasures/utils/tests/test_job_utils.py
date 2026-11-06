@@ -6,6 +6,7 @@ import logging
 from rq import Queue
 from rq.job import Job
 
+from flexmeasures.api.common.rate_limiting import limiter
 from flexmeasures.app import create as create_app
 from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
 from flexmeasures.utils.job_utils import get_job_timeout
@@ -144,6 +145,9 @@ def test_app_queues_use_custom_global_and_queue_job_timeout(tmp_path, monkeypatc
     import flexmeasures.ui
 
     monkeypatch.setattr(flexmeasures.ui, "register_at", lambda app: None)
+    # The rate limiter is one object for the whole process, so initializing it for this app would point it at this app's storage,
+    # which defaults to a Redis on localhost, for every test that runs after this one.
+    monkeypatch.setattr(limiter, "init_app", lambda app: None)
     config_file = tmp_path / "flexmeasures.cfg"
     config_file.write_text(
         "\n".join(
