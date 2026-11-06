@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "flexmeasures"
 description = "The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable."
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.11, <3.13"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
     "Environment :: Web Environment",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Framework :: Flask",
@@ -82,7 +81,7 @@ dependencies = [
     "flask-mail>=0.10.0",
     # No mfa extra: it installs webauthn, qrcode and phonenumberslite, for passkey, authenticator-app and SMS sign-in, none of which FlexMeasures supports.
     # Email-based 2FA needs cryptography only, which is a direct dependency below.
-    "Flask-Security-Too[fsqla]>=5.0",
+    "Flask-Security-Too[fsqla]>=5.9",
     "flask-login>=0.6.3",
     "Flask-Classful>=0.16",
     "flask-marshmallow>=1.4.0",
@@ -96,8 +95,6 @@ dependencies = [
     "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
-    # See GH#1450 (failing tests on older Python versions)
-    "marshmallow~=3.0; python_version < '3.11'",
     "marshmallow-oneofschema>=3.2.0",
     "marshmallow-polyfield>=5.11",
     "marshmallow-sqlalchemy>=0.23.1",
