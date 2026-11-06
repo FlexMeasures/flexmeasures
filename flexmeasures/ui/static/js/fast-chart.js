@@ -2099,6 +2099,10 @@ function computeAssetLabels(sessions) {
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
 // Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
+// Every point carries both ends of its segment as x-dimensions (encode: x [0, 2]),
+// and the zoom's weakFilter drops a point only when all of its x-dimensions are out of the window on the same side,
+// so zooming into the middle of a long segment keeps it, where plain points would both be dropped and the segment vanish.
+// The segments are silent: hover is handled by the session's own hit area (see buildSessionHitSeries).
 function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash) {
   const series = [];
   for (const s of sessions) {
@@ -2107,7 +2111,6 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
     if (typeof from !== "number" || typeof to !== "number") continue;
     const catIdx = categoryIndex.get(s.assetId);
     const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
-    const data = [[from, catIdx], [to, catIdx]];
     series.push({
       name: s.assetLabel,
       type: "line",
@@ -2118,13 +2121,18 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
       animation: false,
       color: color,
       lineStyle: { width: lineWidth, type: lineDash || "solid" },
-      data: data,
-      silent: true, // hover is handled by the session's own hit area (see buildSessionHitSeries)
+      emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
+      encode: { x: [0, 2], y: 1 },
+      data: [[from, catIdx, to], [to, catIdx, from]],
+      silent: true,
       z: 2,
     });
   }
   return series;
 }
+
+// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
+const SESSION_HIT_HEIGHT = 16;
 
 // The timestamps a session tooltip lists, in the order a session runs through them.
 const SESSION_TOOLTIP_ROWS = [
@@ -2175,9 +2183,6 @@ function buildSessionHitSeries(sessions, categoryIndex) {
   }
   return series;
 }
-
-// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
-const SESSION_HIT_HEIGHT = 16;
 
 // The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
 // from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
@@ -2392,9 +2397,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
-  // By default zooming drops every point outside the window, and a session line is only its two end points,
-  // so zooming into the middle of a session would make the whole session vanish. Keep the points, and let the grid clip them.
-  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "none";
+  // A session is one item spanning its start to its end, which the default filter would drop once both ends are out of the window.
+  // weakFilter keeps an item that overlaps the window, and still rescales the companion subplots' y-axes to the visible data.
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "weakFilter";
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2421,7 +2426,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
       {
         type: "inside",
         xAxisIndex: allAxisIndices,
-        filterMode: "none", // see the toolbox zoom above
+        filterMode: "weakFilter", // see the toolbox zoom above
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
