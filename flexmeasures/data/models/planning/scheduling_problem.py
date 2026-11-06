@@ -105,11 +105,11 @@ def solver_options(solver_name: str) -> dict:
 
 PRICE_COLUMNS = ("upwards deviation price", "downwards deviation price")
 
-#: What the model builders read of one sub-commitment, gathered once rather than read back off its frame.
-#: :func:`convert_commitments_to_subcommitments` gathers these while splitting,
-#: and :func:`_header_from_frame` takes the same keys from a sub-commitment frame.
-#: A missing column and a missing value both come back as ``None``.
-#: The keys are spelled as the commitment columns they come from, hence the functional syntax.
+# What the model builders read of one sub-commitment, gathered once rather than read back off its frame.
+# :func:`convert_commitments_to_subcommitments` gathers these while splitting,
+# and :func:`_header_from_frame` takes the same keys from a sub-commitment frame.
+# A missing column and a missing value both come back as ``None``.
+# The keys are spelled as the commitment columns they come from, hence the functional syntax.
 SubCommitmentHeader = TypedDict(
     "SubCommitmentHeader",
     {
@@ -150,7 +150,7 @@ def _row_bounds(price_columns: tuple[str, ...]) -> tuple[float, float]:
 def _active_rows(
     j_values: np.ndarray, quantity_values: np.ndarray, price_columns: tuple[str, ...]
 ) -> tuple[np.ndarray, np.ndarray, float, float]:
-    """The ``"active rows"`` of a :data:`SubCommitmentHeader`: those whose quantity is neither NaN nor -inf, with the row bounds."""
+    """The ``"active rows"`` of a :class:`SubCommitmentHeader`: those whose quantity is neither NaN nor -inf, with the row bounds."""
     active = ~(np.isnan(quantity_values) | (quantity_values == -infinity))
     return (quantity_values[active], j_values[active], *_row_bounds(price_columns))
 
@@ -230,7 +230,7 @@ def convert_commitments_to_subcommitments(
     we return (sub)commitments A1, A2, A3, B1, B2 and B3,
     where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
 
-    Along with the sub-commitments, we return each one's :data:`SubCommitmentHeader`.
+    Along with the sub-commitments, we return each one's :class:`SubCommitmentHeader`.
     """
     commitment_mapping = {}
     sub_commitments = []
@@ -373,7 +373,7 @@ def _first_row_value(commitment: pd.DataFrame, column: str) -> object:
 
 
 def _header_from_frame(commitment: pd.DataFrame) -> SubCommitmentHeader:
-    """The :data:`SubCommitmentHeader` of a sub-commitment frame.
+    """The :class:`SubCommitmentHeader` of a sub-commitment frame.
 
     :func:`convert_commitments_to_subcommitments` gathers these while splitting;
     this is for callers that hand over the frames themselves.
@@ -1071,7 +1071,7 @@ def _validate_commitments_are_enforceable(problem: SchedulingProblem) -> None:
 def _identify_commitment(header: SubCommitmentHeader, original_index: int) -> str:
     """Identify a commitment the way the user knows it: by its name, when available.
 
-    Takes the sub-commitment's :data:`SubCommitmentHeader`.
+    Takes the sub-commitment's :class:`SubCommitmentHeader`.
     Commitments passed as plain DataFrames carry no name column, so those fall back to the index alone.
     The name is quoted with ``repr``, which switches quote style when the name itself contains a quote.
     """
@@ -1121,7 +1121,7 @@ def aggregate_commodity_costs(
 ) -> dict:
     """Sum sub-commitment costs per commodity, skipping commitments without one.
 
-    Accepts either the sub-commitment frames or their :data:`SubCommitmentHeader`;
+    Accepts either the sub-commitment frames or their :class:`SubCommitmentHeader`;
     the latter avoids re-indexing every frame.
     """
     commodity_costs: dict = {}
