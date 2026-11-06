@@ -285,15 +285,15 @@ For the data, note the following:
                   {% endif %}
                   </div><!-- end .sidepanel -->
 
+                  {# The chart types listed in the registry of sensor chart types (flexmeasures/data/models/charts/chart_types.py) that apply to this sensor. #}
                   <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3">
                       <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                           Select chart
                       </button>
                       <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                          <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
-                          <li><a class="dropdown-item" href="#" data-chart-type="histogram">Histogram</a></li>
-                          <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
-                          <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
+                          {% for chart_type in chart_types %}
+                          <li><a class="dropdown-item" href="#" data-chart-type="{{ chart_type.name }}">{{ chart_type.label }}</a></li>
+                          {% endfor %}
                       </ul>
                   </div>
 

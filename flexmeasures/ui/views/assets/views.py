@@ -51,6 +51,7 @@ from flexmeasures.data.services.sensors import (
     get_asset_sensors_metadata,
 )
 from flexmeasures.ui.utils.view_utils import available_units
+from flexmeasures.data.models.charts.chart_types import ASSET_CHART_TYPES
 
 """
 Asset crud view.
@@ -401,6 +402,11 @@ class AssetCrudUI(FlaskView):
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
             available_units=available_units(),
+            chart_types=[
+                chart_type
+                for chart_type in ASSET_CHART_TYPES.values()
+                if chart_type.applies_to(asset)
+            ],
             current_page="Graphs",
         )
 

@@ -9,13 +9,13 @@ import pytest
 from sqlalchemy import select
 
 from flexmeasures.data.models.charts import (
-    ASSET_CHART_BUILDERS,
     CHART_TYPES,
     SENSOR_CHART_TYPES,
     UnknownChartType,
     chart_type_to_chart_specs,
     defaults,
 )
+from flexmeasures.data.models.charts.chart_types import LEGACY_SENSOR_CHART_TYPE_NAMES
 from flexmeasures.data.models.time_series import Sensor
 
 # Module-level chart specs, which building a chart must leave as they are.
@@ -90,12 +90,13 @@ def test_the_session_keeps_only_a_validated_chart_type(
     )
     assert response.status_code == 200, response.data
     with client.session_transaction() as session:
-        assert session["chart_type"] == "bar_chart"
+        # The legacy name is stored as the public name it stands for.
+        assert session["chart_type"] == "bar-chart"
 
     # The sensor page and its own chart request keep working.
     page = client.get(f"/sensors/{sensor.id}")
     assert page.status_code == 200
-    assert "let chartType = 'bar_chart';" in page.data.decode()
+    assert "let chartType = 'bar-chart';" in page.data.decode()
     response = client.get(url, query_string={**WINDOW, "chart_type": "bar_chart"})
     assert response.status_code == 200, response.data
 
@@ -151,7 +152,7 @@ def test_building_a_chart_leaves_the_module_level_specs_alone(db, module_specs):
         assert getattr(defaults, name) == module_specs[name], name
 
 
-@pytest.mark.parametrize("heatmap", ["daily_heatmap", "weekly_heatmap"])
+@pytest.mark.parametrize("heatmap", ["daily-heatmap", "weekly-heatmap"])
 def test_a_heatmap_leaves_the_legend_of_later_charts_alone(
     setup_api_test_data, db, module_specs, heatmap
 ):
@@ -162,7 +163,7 @@ def test_a_heatmap_leaves_the_legend_of_later_charts_alone(
         heatmap, sensor=sensor, dataset_name="sensor", include_annotations=False
     )
     bar_chart = chart_type_to_chart_specs(
-        "bar_chart", sensor=sensor, dataset_name="sensor", include_annotations=False
+        "bar-chart", sensor=sensor, dataset_name="sensor", include_annotations=False
     )
     assert bar_chart["config"]["legend"]["orient"] == "bottom"
     assert defaults.LEGIBILITY_DEFAULTS == module_specs["LEGIBILITY_DEFAULTS"]
@@ -176,15 +177,12 @@ def test_chart_type_to_chart_specs_builds_only_chart_types(chart_type):
 
 def test_the_chart_types():
     assert list(SENSOR_CHART_TYPES) == [
-        "bar_chart",
+        "bar-chart",
         "histogram",
-        "daily_heatmap",
-        "weekly_heatmap",
+        "daily-heatmap",
+        "weekly-heatmap",
     ]
-    assert set(CHART_TYPES) == set(SENSOR_CHART_TYPES) | {
-        "chart_for_multiple_sensors",
-        "chart_for_chargepoint_sessions",
-    }
+    assert CHART_TYPES is SENSOR_CHART_TYPES
 
 
 def test_chart_defaults_are_applied_to_a_copy_of_the_specs(module_specs):
@@ -195,8 +193,8 @@ def test_chart_defaults_are_applied_to_a_copy_of_the_specs(module_specs):
     assert defaults.REPLAY_RULER == module_specs["REPLAY_RULER"]
 
 
-def test_the_api_docs_name_no_asset_chart_types():
-    """The asset chart's chart-type is checked, but its current names are not published: public chart type names replace them in v1.2.0 (#2795)."""
+def test_the_api_docs_name_the_public_asset_chart_types_only():
+    """The asset chart's chart-type lists the public chart type names, and mentions the legacy names only as deprecated."""
     from importlib.resources import files
 
     specs = json.loads(
@@ -204,7 +202,95 @@ def test_the_api_docs_name_no_asset_chart_types():
     )
     parameters = specs["paths"]["/api/v3_0/assets/{id}/chart"]["get"]["parameters"]
     (chart_type,) = [p for p in parameters if p["name"] == "chart-type"]
-    assert "enum" not in chart_type["schema"]
-    documented = json.dumps(chart_type)
-    for name in ASSET_CHART_BUILDERS:
-        assert name not in documented
+    assert chart_type["schema"]["enum"] == ["default", "charge-point-sessions"]
+    legacy_names = ("chart_for_multiple_sensors", "chart_for_chargepoint_sessions")
+    for name in legacy_names:
+        assert name not in json.dumps(chart_type["schema"])
+    for sentence in chart_type["description"].split(". "):
+        if any(name in sentence for name in legacy_names):
+            assert "deprecated" in sentence, sentence
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "chart_type, public_name",
+    [
+        *[
+            (name, name)
+            for name in ("bar-chart", "histogram", "daily-heatmap", "weekly-heatmap")
+        ],
+        *LEGACY_SENSOR_CHART_TYPE_NAMES.items(),
+    ],
+)
+def test_sensor_chart_accepts_the_public_and_the_legacy_chart_type_names(
+    client, setup_api_test_data, requesting_user, db, chart_type, public_name
+):
+    """A legacy name draws the same chart as its public name, which is what the session keeps."""
+    sensor = _gas_sensor(db)
+    url = f"/api/ui/sensor/{sensor.id}/chart"
+    query = {**WINDOW, "dataset_name": f"sensor_{sensor.id}"}
+
+    response = client.get(url, query_string={**query, "chart-type": chart_type})
+    assert response.status_code == 200, response.data
+    with client.session_transaction() as session:
+        assert session["chart_type"] == public_name
+
+    public = client.get(url, query_string={**query, "chart-type": public_name})
+    assert json.loads(response.data) == json.loads(public.data)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("chart_type", ["default", "charge-point-sessions"])
+def test_sensor_chart_refuses_an_asset_chart_type(
+    client, setup_api_test_data, requesting_user, db, chart_type
+):
+    sensor = _gas_sensor(db)
+    response = client.get(
+        f"/api/ui/sensor/{sensor.id}/chart",
+        query_string={**WINDOW, "chart-type": chart_type},
+    )
+    assert response.status_code == 422, response.data
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "chart_type", ["test-plugin-sensor-chart", "test_plugin_sensor_chart"]
+)
+def test_sensor_chart_accepts_a_chart_type_registered_by_a_plugin(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    db,
+    plugin_sensor_chart_type,
+    chart_type,
+):
+    """A chart type a plugin registers after the app was created is drawn, and the session keeps its public name."""
+    sensor = _gas_sensor(db)
+    url = f"/api/ui/sensor/{sensor.id}/chart"
+    query = {**WINDOW, "dataset_name": f"sensor_{sensor.id}"}
+
+    response = client.get(url, query_string={**query, "chart-type": chart_type})
+
+    assert response.status_code == 200, response.data
+    with client.session_transaction() as session:
+        assert session["chart_type"] == "test-plugin-sensor-chart"
+    # The test plugin's chart type draws a bar chart.
+    bar_chart = client.get(url, query_string={**query, "chart-type": "bar-chart"})
+    assert json.loads(response.data) == json.loads(bar_chart.data)
+
+
+def test_chart_type_to_chart_specs_builds_a_chart_type_registered_by_a_plugin(
+    setup_api_test_data, db, plugin_sensor_chart_type
+):
+    sensor = _gas_sensor(db)
+    sensor.sensor_type = sensor.name
+    kwargs = dict(sensor=sensor, dataset_name="sensor", include_annotations=False)
+    assert chart_type_to_chart_specs(
+        "test-plugin-sensor-chart", **kwargs
+    ) == chart_type_to_chart_specs("bar-chart", **kwargs)

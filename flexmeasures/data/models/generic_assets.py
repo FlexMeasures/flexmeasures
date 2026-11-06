@@ -17,7 +17,10 @@ from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
-from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.data.models.charts.chart_types import (
+    LEGACY_ASSET_CHART_TYPE_NAMES,
+    get_asset_chart_type,
+)
 from flexmeasures.data.models.charts.belief_charts import (
     CHARGE_POINT_SESSIONS_TITLE,
     charge_point_chart_sensors,
@@ -1002,14 +1005,15 @@ class GenericAsset(db.Model, AuthModelMixin):
         loading the rest would be loading data that is thrown away.
         Any other chart type, or none, gets all sensors.
 
-        :param chart_type: "chart_for_multiple_sensors", "chart_for_chargepoint_sessions" or None.
+        :param chart_type: "default", "charge-point-sessions" (or their legacy names) or None.
         :returns: a unique list of sensors, in the order of sensors_to_show (for the Charge Points chart, its session sensors first).
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
         sensors_to_show = self.validate_sensors_to_show()
+        chart_type = LEGACY_ASSET_CHART_TYPE_NAMES.get(chart_type, chart_type)
 
-        if chart_type == "chart_for_multiple_sensors":
+        if chart_type == "default":
             # A sensor that is also in another graph is still drawn, so it stays.
             return SensorsToShowSchema.flatten(
                 [
@@ -1018,13 +1022,13 @@ class GenericAsset(db.Model, AuthModelMixin):
                     if entry.get("title") != CHARGE_POINT_SESSIONS_TITLE
                 ]
             )
-        if chart_type == "chart_for_chargepoint_sessions":
+        if chart_type == "charge-point-sessions":
             return charge_point_chart_sensors(sensors_to_show)
         return SensorsToShowSchema.flatten(sensors_to_show)
 
     def chart(
         self,
-        chart_type: str = "chart_for_multiple_sensors",
+        chart_type: str = "default",
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         beliefs_after: datetime | None = None,
@@ -1042,7 +1046,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: currently only "chart_for_multiple_sensors" # todo: where can we properly list the available chart types?
+        :param chart_type: name of the chart type, as listed in the registry of asset chart types (ASSET_CHART_TYPES in flexmeasures.data.models.charts.chart_types);
+                           the legacy names "chart_for_multiple_sensors" and "chart_for_chargepoint_sessions" are still accepted.
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -1055,6 +1060,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
+        :raises UnknownAssetChartType: if no asset chart type goes by the given name
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
@@ -1071,8 +1077,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_starts_after"] = event_starts_after
         if event_ends_before:
             kwargs["event_ends_before"] = event_ends_before
-        chart_specs = chart_type_to_chart_specs(
-            chart_type,
+        chart_specs = get_asset_chart_type(chart_type).chart_specs(
             sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
             combine_legend=combine_legend,

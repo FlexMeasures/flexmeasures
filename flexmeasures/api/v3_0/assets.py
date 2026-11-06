@@ -68,7 +68,6 @@ from flexmeasures.data.services.automations import (
     run_automation,
     update_automation,
 )
-from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
@@ -90,6 +89,11 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+)
+from flexmeasures.data.models.charts.chart_types import DEFAULT_ASSET_CHART_TYPE
+from flexmeasures.data.schemas.charts import (
+    AssetChartTypeField,
+    describe_asset_chart_types,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
@@ -180,12 +184,6 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
-def validate_asset_chart_type(chart_type: str):
-    """Refuse a chart type an asset cannot be drawn as."""
-    if chart_type not in ASSET_CHART_BUILDERS:
-        raise ValidationError(f"Unknown chart type '{chart_type}'.")
-
-
 class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     legacy_field_aliases = {
         **EventWindowSchema.legacy_field_aliases,
@@ -246,13 +244,16 @@ class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="Chart width in pixels; without it, the chart is scaled to the full width of its container.",
         ),
     )
-    chart_type = fields.Str(
+    chart_type = AssetChartTypeField(
         data_key="chart-type",
         required=False,
-        # Checked without OneOf, which would list the current names in the API docs: public chart type names replace them in v1.2.0 (#2795).
-        validate=validate_asset_chart_type,
+        load_default=DEFAULT_ASSET_CHART_TYPE,
+        accept_legacy_names=True,
         metadata=dict(
-            description="The chart to draw; leave it out for the asset's default chart.",
+            description=f"Which chart to draw (default: '{DEFAULT_ASSET_CHART_TYPE}'): "
+            f"{describe_asset_chart_types(include_legacy_names=True)}. "
+            "Plugins may register more chart types.",
+            example=DEFAULT_ASSET_CHART_TYPE,
         ),
     )
 
@@ -289,13 +290,14 @@ class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         ),
     )
     # For the asset page only, so left out of the API docs (see AssetChartDataOpenAPISchema):
-    # its values are the names of the chart functions, which public chart type names replace in v1.2.0 (see issue #2795).
+    # it takes the public chart type names the asset page sends, and the names of the chart functions it sent in v1.1.0,
+    # but is not yet validated against the registry of asset chart types (see issue #2802).
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
         metadata=dict(
-            description="Return only the data that this chart type draws, e.g. 'chart_for_multiple_sensors' or 'chart_for_chargepoint_sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
-            example="chart_for_multiple_sensors",
+            description="Return only the data that this chart type draws, e.g. 'default' or 'charge-point-sessions'; without it, return the data of every sensor in the asset's sensors_to_show.",
+            example="default",
         ),
     )
 

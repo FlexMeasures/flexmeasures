@@ -562,6 +562,120 @@ def test_replay_ruler_survives_empty_data(assert_js):
         """)
 
 
+def test_the_charge_point_sessions_chart_type_draws_the_sessions(assert_js):
+    """The asset page asks for the Charge Points chart by its public name (issue #2795)."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "charge-point-sessions-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const handlers = [];
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on(name) { handlers.push(name); }, off() {}, dispatchAction() {},
+        })};
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const sensor = (name) => ({
+            id: name === "arrival" ? 1 : 2,
+            name,
+            unit: "s",
+            asset_id: 4,
+            asset_description: "Charger 4",
+        });
+        const rows = [
+            {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
+            {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
+        ];
+        renderFastChart(container.id, rows, {
+            chartType: "charge-point-sessions", groupSpec: [], datasetName: "asset_4", isSensorPage: false,
+            chargePointChart: CHARGE_POINT_CHART_NAMES,
+        });
+        const titles = [].concat(option.title || []).map((title) => title.text);
+        check("the sessions are drawn", titles.includes("Charge Point sessions"), JSON.stringify(titles));
+        check("hovering a session shows its tooltip", handlers.includes("mouseover"));
+        disposeFastChart(container.id);
+        container.remove();
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_the_fast_chart_draws_the_built_in_chart_types_only(assert_js):
+    """The fast chart knows the built-in chart types, by their public and legacy names, and not those registered by plugins (issue #2795)."""
+    assert_js("""
+        import { fastChartDrawsChartType, publicChartTypeName } from "/js/fast-chart.js";
+        for (const chartType of [
+            "line", "default", "charge-point-sessions",
+            "bar-chart", "histogram", "daily-heatmap", "weekly-heatmap",
+            "bar_chart", "daily_heatmap", "weekly_heatmap",
+        ]) {
+            check(`the fast chart draws ${chartType}`, fastChartDrawsChartType(chartType));
+        }
+        for (const chartType of ["test-plugin-sensor-chart", "heatmap", "constructor", "chart_for_multiple_sensors", ""]) {
+            check(`the fast chart leaves ${chartType} to Vega-Lite`, !fastChartDrawsChartType(chartType));
+        }
+        eq("a legacy name maps to its public name", publicChartTypeName("daily_heatmap"), "daily-heatmap");
+        eq("a public name stays as it is", publicChartTypeName("histogram"), "histogram");
+        eq("an unknown name stays as it is", publicChartTypeName("constructor"), "constructor");
+        """)
+
+
+def test_the_sensor_chart_types_are_drawn_by_their_public_and_legacy_names(assert_js):
+    """The sensor page asks for the chart types by their public names; the legacy names still draw the same charts."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "sensor-chart-types";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const start = Date.parse("2026-01-05T00:00:00Z");
+        const rows = [...Array(48).keys()].map((hour) => ({
+            event_start: start + hour * 3600000, event_value: hour % 7, belief_horizon: 0,
+            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: 3600000},
+            source: {id: 1, name: "Meter", type: "other"},
+        }));
+        const draw = (chartType) => {
+            option = undefined;
+            renderFastChart(container.id, rows, {
+                chartType, isSensorPage: true,
+                groupSpec: [{title: "Power", sensorIds: [1]}],
+                timeWindow: {start, end: start + 2 * 86400000},
+            });
+            return JSON.stringify(option);
+        };
+        const seriesTypes = () => [...new Set([].concat(option.series || []).map((s) => s.type))];
+        draw("bar-chart");
+        check("bar-chart draws bars", seriesTypes().includes("bar"), JSON.stringify(seriesTypes()));
+        draw("daily-heatmap");
+        check("daily-heatmap draws a heatmap", seriesTypes().includes("heatmap"), JSON.stringify(seriesTypes()));
+        draw("weekly-heatmap");
+        check("weekly-heatmap draws a heatmap", seriesTypes().includes("heatmap"), JSON.stringify(seriesTypes()));
+        check("the daily and weekly heatmaps differ", draw("daily-heatmap") !== draw("weekly-heatmap"));
+        draw("histogram");
+        check("histogram draws binned bars", seriesTypes().includes("bar") && !seriesTypes().includes("line"), JSON.stringify(seriesTypes()));
+        for (const [legacy, publicName] of [["bar_chart", "bar-chart"], ["daily_heatmap", "daily-heatmap"], ["weekly_heatmap", "weekly-heatmap"]]) {
+            eq(`${legacy} draws the same chart as ${publicName}`, draw(legacy), draw(publicName));
+        }
+        disposeFastChart(container.id);
+        container.remove();
+        """)
+
+
 def test_fixed_value_sensor_does_not_force_linear_interpolation(assert_js):
     """Fixed-value sensors (negative sensor id, event_resolution=0) must not force a row to linear interpolation (#2253)."""
     assert_js("""

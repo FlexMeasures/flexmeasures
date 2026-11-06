@@ -225,6 +225,27 @@ def test_charge_points_chart_loads_what_it_draws_whatever_the_title_case(
                 "plug in",
             },
         ),
+        # The public names, which the asset page sends since the registry of asset chart types (issue #2795).
+        (
+            "default",
+            {
+                "charge points power",
+                "building power",
+                "consumption price",
+                "temperature",
+                "departure",
+            },
+        ),
+        (
+            "charge-point-sessions",
+            {
+                "charge points power",
+                "consumption price",
+                "arrival",
+                "departure",
+                "plug in",
+            },
+        ),
     ],
 )
 def test_chart_data_holds_only_what_the_chart_type_draws(
@@ -254,7 +275,7 @@ def test_chart_data_holds_only_what_the_chart_type_draws(
 
 
 def test_chart_type_is_left_out_of_the_chart_data_docs():
-    """Only the asset page uses chart-type on chart_data, so the published specs leave it out, until public chart type names replace its values (issue #2795)."""
+    """Only the asset page uses chart-type on chart_data, so the published specs leave it out, until it is validated against the registry of asset chart types (issue #2802)."""
     from importlib.resources import files
 
     specs = json.loads(

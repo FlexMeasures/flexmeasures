@@ -4,7 +4,7 @@ import warnings
 from flask import session
 from flask_classful import FlaskView, route
 from flask_security import current_user
-from marshmallow import fields, validate
+from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
@@ -20,9 +20,12 @@ from flexmeasures.api.common.schemas.generic_schemas import (
     EventWindowSchema,
     BeliefTimeFilterSchema,
 )
-from flexmeasures.data.models.charts import SENSOR_CHART_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.charts import (
+    SensorChartTypeField,
+    describe_sensor_chart_types,
+)
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.ui.utils.view_utils import set_session_variables
 
@@ -74,13 +77,13 @@ class SensorChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
             description="Name to use for the embedded chart dataset.",
         ),
     )
-    chart_type = fields.Str(
+    chart_type = SensorChartTypeField(
         data_key="chart-type",
         required=False,
-        validate=validate.OneOf(list(SENSOR_CHART_TYPES)),
+        accept_legacy_names=True,
         metadata=dict(
-            description=f"Chart type, one of {', '.join(repr(name) for name in SENSOR_CHART_TYPES)}.",
-            example="bar_chart",
+            description=f"Which chart to draw: {describe_sensor_chart_types(include_legacy_names=True)}. "
+            "Plugins may register more chart types.",
         ),
     )
     height = fields.Str(
@@ -181,7 +184,7 @@ class SensorAPI(FlaskView):
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/ui/sensor/(id)/chart_data <../api/ui.html#get--api-ui-sensor-(id)-chart_data>`_ endpoint to fetch data)
-        - "chart-type" (legacy alias: "chart_type"; one of 'bar_chart', 'histogram', 'daily_heatmap' and 'weekly_heatmap', and anything else gets a 422)
+        - "chart-type" (legacy alias: "chart_type"; one of the registered sensor chart types: 'bar-chart' (the default), 'histogram', 'daily-heatmap', 'weekly-heatmap' and any that plugins register; the legacy values 'bar_chart', 'daily_heatmap' and 'weekly_heatmap' are still accepted, and anything else gets a 422)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
@@ -195,7 +198,8 @@ class SensorAPI(FlaskView):
             },
         )
         # Store the validated chart type, rather than a raw request value:
-        # a request may send both spellings, and only the canonical one is validated.
+        # a request may send both spellings of the field, and only the canonical one is validated.
+        # A legacy chart type name is stored as the public name it stands for.
         if "chart_type" in kwargs:
             session["chart_type"] = kwargs["chart_type"]
         return json.dumps(sensor.chart(**kwargs))

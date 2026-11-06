@@ -4,6 +4,7 @@ import sys
 import builtins
 import warnings
 import pytest
+import pytz
 from random import random, seed
 from datetime import datetime, timedelta
 from sqlalchemy import Integer, delete, func, or_, select, text
@@ -2263,3 +2264,183 @@ def freeze_server_now():
                 setattr(module, "server_now", original_server_now)
             except Exception:
                 pass
+
+
+@pytest.fixture
+def charge_hub_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, Sensor]:
+    """A site with a charge point, owned by the Prosumer organisation, whose dashboard has the graphs a site with charge points gets.
+
+    One belief per sensor (on 1 January 2015), so chart data shows which sensors were loaded.
+    The departure sensor is also in a graph of its own,
+    to check that the default chart keeps a session sensor it draws elsewhere.
+    The Prices graph also holds a price sensor of another organisation's (non-public) asset,
+    which the site's dashboard may not show, so its data should never be loaded or drawn.
+
+    :returns: the site's sensors, by name (without the other organisation's sensor).
+    """
+    from flexmeasures.data.models.charts.chart_types import (
+        CHARGE_POINT_ASSET_TYPE_NAME,
+    )
+
+    site_type = GenericAssetType(name="test_site_type_for_chart_sensors")
+    charge_point_type = fresh_db.session.scalar(
+        select(GenericAssetType).filter_by(name=CHARGE_POINT_ASSET_TYPE_NAME)
+    ) or GenericAssetType(name=CHARGE_POINT_ASSET_TYPE_NAME)
+    fresh_db.session.add_all([site_type, charge_point_type])
+    site = GenericAsset(
+        name="Test charge hub (chart sensors)",
+        generic_asset_type=site_type,
+        owner=setup_accounts_fresh_db["Prosumer"],
+    )
+    fresh_db.session.add(site)
+    fresh_db.session.add(
+        GenericAsset(
+            name="Test charge point (chart sensors)",
+            generic_asset_type=charge_point_type,
+            parent_asset=site,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        )
+    )
+    other_site = GenericAsset(
+        name="Another organisation's site (chart sensors)",
+        generic_asset_type=site_type,
+        owner=setup_accounts_fresh_db["Supplier"],
+    )
+    fresh_db.session.add(other_site)
+    fresh_db.session.flush()
+
+    units = {
+        "charge points power": "kW",
+        "building power": "kW",
+        "consumption price": "EUR/MWh",
+        "temperature": "°C",
+        "arrival": "s",
+        "departure": "s",
+        "plug in": "s",
+    }
+    sensors = {
+        name: Sensor(
+            name=name,
+            unit=unit,
+            event_resolution=timedelta(minutes=15),
+            generic_asset=site,
+        )
+        for name, unit in units.items()
+    }
+    other_price = Sensor(
+        name="other organisation's price",
+        unit="EUR/MWh",
+        event_resolution=timedelta(minutes=15),
+        generic_asset=other_site,
+    )
+    fresh_db.session.add_all([*sensors.values(), other_price])
+    fresh_db.session.flush()
+
+    site.sensors_to_show = [
+        {
+            "title": "Power flow by type",
+            "sensors": [
+                sensors["charge points power"].id,
+                sensors["building power"].id,
+            ],
+        },
+        {
+            "title": "Prices",
+            "sensors": [sensors["consumption price"].id, other_price.id],
+        },
+        {"title": "Weather", "sensors": [sensors["temperature"].id]},
+        {"title": "Departures", "sensors": [sensors["departure"].id]},
+        {
+            "title": "Charge Point sessions",
+            "sensors": [
+                sensors["arrival"].id,
+                sensors["departure"].id,
+                sensors["plug in"].id,
+            ],
+        },
+    ]
+
+    source = DataSource(name="test script", type="demo script")
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+    for sensor in [*sensors.values(), other_price]:
+        fresh_db.session.add(
+            TimedBelief(
+                sensor=sensor,
+                event_start=datetime(2015, 1, 1, tzinfo=pytz.utc),
+                event_value=1.0,
+                belief_horizon=timedelta(0),
+                source=source,
+            )
+        )
+    fresh_db.session.commit()
+    return sensors
+
+
+@pytest.fixture
+def plugin_asset_chart_type(app):
+    """An asset chart type registered after the app was created, as a plugin would register one.
+
+    It draws the default chart, and applies to assets with charge points, so the picker offers it on a site with charge points only.
+    The registry is restored afterwards.
+    """
+    from flexmeasures.data.models.charts.belief_charts import (
+        chart_for_multiple_sensors,
+    )
+    from flexmeasures.data.models.charts.chart_types import (
+        ASSET_CHART_TYPES,
+        LEGACY_ASSET_CHART_TYPE_NAMES,
+        AssetChartType,
+        default_layout,
+        has_charge_points,
+        register_asset_chart_type,
+    )
+
+    chart_type = register_asset_chart_type(
+        AssetChartType(
+            name="test-plugin-chart",
+            label="Test plugin chart",
+            description="the default chart, registered by a test plugin",
+            applies_to=has_charge_points,
+            layout=default_layout,
+            builder=chart_for_multiple_sensors,
+            legacy_name="test_plugin_chart",
+        )
+    )
+    try:
+        yield chart_type
+    finally:
+        ASSET_CHART_TYPES.pop(chart_type.name, None)
+        LEGACY_ASSET_CHART_TYPE_NAMES.pop(chart_type.legacy_name, None)
+
+
+@pytest.fixture
+def plugin_sensor_chart_type(app):
+    """A sensor chart type registered after the app was created, as a plugin would register one.
+
+    It draws a bar chart, and applies to sensors named "power" only, so the sensor page offers it on those sensors only.
+    The registry is restored afterwards.
+    """
+    from flexmeasures.data.models.charts.belief_charts import bar_chart
+    from flexmeasures.data.models.charts.chart_types import (
+        LEGACY_SENSOR_CHART_TYPE_NAMES,
+        SENSOR_CHART_TYPES,
+        SensorChartType,
+        register_sensor_chart_type,
+    )
+
+    chart_type = register_sensor_chart_type(
+        SensorChartType(
+            name="test-plugin-sensor-chart",
+            label="Test plugin sensor chart",
+            description="a bar chart, registered by a test plugin",
+            applies_to=lambda sensor: sensor.name == "power",
+            builder=bar_chart,
+            legacy_name="test_plugin_sensor_chart",
+        )
+    )
+    try:
+        yield chart_type
+    finally:
+        SENSOR_CHART_TYPES.pop(chart_type.name, None)
+        LEGACY_SENSOR_CHART_TYPE_NAMES.pop(chart_type.legacy_name, None)

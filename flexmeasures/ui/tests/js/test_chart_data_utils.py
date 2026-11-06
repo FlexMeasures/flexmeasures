@@ -79,6 +79,10 @@ def test_source_masking_is_pointed_out_on_heatmaps_only(assert_js):
         eq("a single source hides nothing", toasts.length, 0);
         checkSourceMasking(twoSources, "daily_heatmap");
         eq("several sources on a heatmap are pointed out", toasts.length, 1);
+        checkSourceMasking(twoSources, "bar-chart");
+        eq("also by its public name, the bar chart shows every source", toasts.length, 1);
+        checkSourceMasking(twoSources, "daily-heatmap");
+        eq("also by its public name, the daily heatmap points them out", toasts.length, 2);
         """)
 
 

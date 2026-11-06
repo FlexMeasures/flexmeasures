@@ -30,7 +30,7 @@
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, isChargePointCompanionTitle } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, fastChartDrawsChartType, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, isChargePointCompanionTitle } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -86,7 +86,7 @@
     let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
-        chartType = 'chart_for_multiple_sensors';
+        chartType = 'default';
     }
 
     // On an asset, each chart type loads only the data it draws (see GenericAsset.chart_sensors),
@@ -215,14 +215,14 @@
 
     // Chart types whose specs include annotation layers bound to the <datasetName>_annotations dataset
     function chartSupportsAnnotations() {
-        return chartType === 'bar_chart' || chartType === 'chart_for_multiple_sensors';
+        return chartType === 'bar-chart' || chartType === 'default';
     }
 
     {% if active_page == "sensors" and user_can_create_children_sensor %}
     function visibleRange() {
         if (!storeStartDate || !storeEndDate) return null;
         let range = null;
-        if (chartType === 'bar_chart') {
+        if (chartType === 'bar-chart') {
             if (fastRenderActive()) {
                 range = getFastChartVisibleTimeRange(fastChartElementId);
             } else if (vegaView) {
@@ -379,14 +379,24 @@
         const fullBeliefInfoToggle = document.getElementById('fullBeliefInfoToggle');
         const fullBeliefInfoToggleContainer = document.getElementById('fullBeliefInfoToggleContainer');
         const beliefTooltipSupported = () => {
-            if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
-            if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
+            if ('{{ active_page }}' === 'sensors') { return chartType === 'bar-chart'; }
+            if (chartType !== 'charge-point-sessions') { return true; }
             return (fastChartGroupSpec || []).some((group) => isChargePointCompanionTitle(group.title, chargePointChartNames));
         };
         syncFullBeliefInfoToggle = () => {
             if (!fullBeliefInfoToggleContainer) { return; }
             fullBeliefInfoToggleContainer.classList.toggle('d-none', !fastMode || !beliefTooltipSupported());
         };
+        // The fast chart draws the built-in chart types only;
+        // for another chart type (e.g. one registered by a plugin), the page shows the Vega-Lite chart, and disables the toggle to say so.
+        const fastChartToggleTitle = fastChartToggle ? fastChartToggle.parentElement.title : '';
+        const syncFastChartToggle = () => {
+            if (!fastChartToggle) { return; }
+            const drawable = chartTypeSupportedInFastMode();
+            fastChartToggle.disabled = !drawable;
+            fastChartToggle.parentElement.title = drawable ? fastChartToggleTitle : 'The fast chart cannot draw this chart type, so it is drawn with Vega-Lite.';
+        };
+        syncFastChartToggle();
         if (fullBeliefInfoToggle) {
             fullBeliefInfoToggle.checked = fullBeliefInfo;
             fullBeliefInfoToggle.addEventListener('change', function () {
@@ -453,6 +463,7 @@
                 e.preventDefault();
                 chartType = this.getAttribute('data-chart-type');
                 syncFullBeliefInfoToggle();
+                syncFastChartToggle();
                 // Update the active state of the dropdown items
                 var dropdownItems = document.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
@@ -1010,10 +1021,10 @@
     return picker
     }
 
-    // Every chart type available on the asset/sensor pages (including the Charge
-    // Point sessions Gantt-style view) has a fast-chart.js renderer.
+    // Whether fast-chart.js draws the current chart type: it draws the built-in chart types (including the Charge Point sessions Gantt-style view),
+    // but not those registered by plugins, which are drawn with Vega-Lite.
     function chartTypeSupportedInFastMode() {
-        return true;
+        return fastChartDrawsChartType(chartType);
     }
 
     // True when the fast (canvas) chart should actually be shown & rendered right
@@ -1053,7 +1064,7 @@
             // the asset page it's either the Charge Point sessions chart or the
             // default multi-sensor line chart.
             chartType: ('{{ active_page }}' === 'sensors') ? chartType
-                : (chartType === 'chart_for_chargepoint_sessions') ? chartType
+                : (chartType === 'charge-point-sessions') ? chartType
                 : 'line',
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)

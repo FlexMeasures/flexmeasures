@@ -43,17 +43,19 @@
                     </div>
                 </div>
             </div>
-            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: none">
+            {# The chart types listed in the registry of asset chart types (flexmeasures/data/models/charts/chart_types.py) that apply to this asset; the picker shows when there is a choice. #}
+            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: {{ 'block' if chart_types | length > 1 else 'none' }}">
                 <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown"
                     aria-haspopup="true" aria-expanded="false">
                     Select chart
                 </button>
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
-                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    {% for chart_type in chart_types %}
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
-                            data-chart-type="chart_for_chargepoint_sessions">
-                            <span>Charge Points</span>
+                            data-chart-type="{{ chart_type.name }}">
+                            <span>{{ chart_type.label }}</span>
+                            {% if chart_type.name == "charge-point-sessions" %}
                             <i class="bi bi-info-circle" style="margin-left: 8px;" tabindex="0" data-bs-toggle="tooltip"
                                 data-bs-placement="right" data-bs-html="true" title="<div style='max-width: 300px;'>
                              <strong>This chart shows charge hub patterns.
@@ -71,8 +73,10 @@
                              <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
                            </div>">
                             </i>
+                            {% endif %}
                         </a>
                     </li>
+                    {% endfor %}
                 </ul>
             </div>
 
@@ -210,7 +214,7 @@
                 document.querySelectorAll("[data-chart-type]").forEach((el) => {
                     el.addEventListener("click", (e) => {
                         const chartType = el.getAttribute("data-chart-type");
-                        if (chartType === "chart_for_chargepoint_sessions") {
+                        if (chartType === "charge-point-sessions") {
                             note.style.display = "block";
                         } else {
                             note.style.display = "none";
@@ -1551,30 +1555,7 @@
             return { plotIndex: -1, isSensors: false }; // Return -1 if not found
         }
 
-        async function showAssetChartSelection() {
-            let asset = await getAsset("{{ asset.id }}", false)
-            // Without the asset there are no chargepoints to offer a chart for,
-            // and the rest of the page should still load.
-            if (asset === null) {
-                return false;
-            }
-            for (let child of asset.child_assets) {
-                if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint') {
-                    return true;
-                };
-            };
-
-            return false;
-        }
-
-
         // ============== Page Events ============== //
-        const shouldShow = await showAssetChartSelection();
-        const chartTypeDropdown = document.getElementById('chart-type-picker');
-        if (shouldShow) {
-            chartTypeDropdown.style.display = 'block';
-        }
-
         formModal.addEventListener('shown.bs.modal', function () {
             hasSearchedSensors = false;
             cachedFilteredSensors = [];
@@ -1636,7 +1617,7 @@
 
                 // 5. Toggle the help note (Existing logic)
                 const note = document.getElementById("chartInfoNote");
-                if (chartType === "chart_for_chargepoint_sessions") {
+                if (chartType === "charge-point-sessions") {
                     note.style.display = "block";
                 } else {
                     note.style.display = "none";

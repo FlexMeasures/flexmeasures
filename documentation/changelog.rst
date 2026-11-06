@@ -9,12 +9,14 @@ v1.2.0 | December xx , 2026
 
 New features
 -------------
+* Asset and sensor charts have public chart type names (``default`` and ``charge-point-sessions`` for assets; ``bar-chart``, ``histogram``, ``daily-heatmap`` and ``weekly-heatmap`` for sensors), which the chart endpoints document and check, while they still accept the names they took so far; plugins can register their own asset and sensor chart types, which the asset and sensor pages offer where they apply [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
 
 Infrastructure / Support
 -------------------------
 
 Bugfixes
 -----------
+* In the Charge Points chart, a Power flow by type graph now shows only the charge points power also when its title starts with a lowercase letter [see `PR #2803 <https://www.github.com/FlexMeasures/flexmeasures/pull/2803>`_]
 
 
 v1.1.0 | November 05, 2026

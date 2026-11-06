@@ -1377,7 +1377,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const allSourceTypes = new Set(
     groups.flatMap((g) => g.series.map((s) => lineTypeForSource(s.source)))
   );
-  const showSourceKey = opts.chartType !== "bar_chart" && groups[0].nameBySensor && allSourceTypes.size > 1;
+  const showSourceKey = opts.chartType !== "bar-chart" && groups[0].nameBySensor && allSourceTypes.size > 1;
   const topOffset = TOP_OFFSET;
 
   // Vertical layout: subplots, then (in legends-below mode) the slider and
@@ -1602,7 +1602,7 @@ function buildLineBarOption(elementId, groups, opts) {
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
     }
     group.series.forEach((s) => {
-      const isBar = opts.chartType === "bar_chart";
+      const isBar = opts.chartType === "bar-chart";
       const entry = {
         name: s.name,
         type: isBar ? "bar" : "line",
@@ -1904,7 +1904,7 @@ function buildHistogramOption(elementId, data, opts) {
 /* ============================== heatmaps ============================== */
 
 function buildHeatmapOption(elementId, data, opts) {
-  const split = opts.chartType === "weekly_heatmap" ? "weekly" : "daily";
+  const split = opts.chartType === "weekly-heatmap" ? "weekly" : "daily";
   const rows = mostPrevalentSourceRows(numericRows(data));
   if (rows.length === 0) {
     return null;
@@ -2412,15 +2412,18 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
  * @param {Object[]} data - Decompressed chart data rows.
  * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName,
  *   fullBeliefInfo }.
- *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
- *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
+ *   chartType: "line" (default), "bar-chart", "histogram", "daily-heatmap",
+ *   "weekly-heatmap" or "charge-point-sessions" (see fastChartDrawsChartType);
+ *   the legacy names "bar_chart", "daily_heatmap" and "weekly_heatmap" are accepted, too.
  */
 export function renderFastChart(elementId, data, options) {
   const container = document.getElementById(elementId);
   if (!container || typeof echarts === "undefined") {
     return;
   }
-  const opts = options || {};
+  // Work with the public chart type name, also when given a legacy one.
+  const opts = { ...(options || {}) };
+  opts.chartType = publicChartTypeName(opts.chartType);
 
   let instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) {
@@ -2463,9 +2466,9 @@ export function renderFastChart(elementId, data, options) {
   let option;
   if (opts.chartType === "histogram") {
     option = buildHistogramOption(elementId, data, opts);
-  } else if (opts.chartType === "daily_heatmap" || opts.chartType === "weekly_heatmap") {
+  } else if (opts.chartType === "daily-heatmap" || opts.chartType === "weekly-heatmap") {
     option = buildHeatmapOption(elementId, data, opts);
-  } else if (opts.chartType === "chart_for_chargepoint_sessions") {
+  } else if (opts.chartType === "charge-point-sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
     const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
@@ -2691,7 +2694,42 @@ export function refreshFastChartAnnotations(elementId, annotations) {
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
 // shared, resettable zoom; the category-axis charts (histogram, heatmaps) do not.
 function isZoomableChartType(chartType) {
-  return !["histogram", "daily_heatmap", "weekly_heatmap"].includes(chartType);
+  return !["histogram", "daily-heatmap", "weekly-heatmap"].includes(publicChartTypeName(chartType));
+}
+
+// The legacy names of the sensor chart types, mapped to their public, kebab-case names (see flexmeasures/data/models/charts/chart_types.py).
+const LEGACY_CHART_TYPE_NAMES = new Map([
+  ["bar_chart", "bar-chart"],
+  ["daily_heatmap", "daily-heatmap"],
+  ["weekly_heatmap", "weekly-heatmap"],
+]);
+
+// The chart types the fast chart draws, by their public names:
+// the default asset chart (drawn as lines), the Charge Points chart, and the built-in sensor chart types.
+// Chart types registered by plugins are not among them, so pages draw those with Vega-Lite.
+const FAST_CHART_TYPES = [
+  "line",
+  "default",
+  "charge-point-sessions",
+  "bar-chart",
+  "histogram",
+  "daily-heatmap",
+  "weekly-heatmap",
+];
+
+/**
+ * The public name of a chart type, given its public or legacy name; any other name is returned as it is.
+ */
+export function publicChartTypeName(chartType) {
+  return LEGACY_CHART_TYPE_NAMES.get(chartType) || chartType;
+}
+
+/**
+ * Whether the fast chart draws this chart type (given by its public or legacy name).
+ * For other chart types, such as those registered by plugins, pages show the Vega-Lite chart instead.
+ */
+export function fastChartDrawsChartType(chartType) {
+  return FAST_CHART_TYPES.includes(publicChartTypeName(chartType));
 }
 
 // Zoom conveniences on the time-axis charts. Desktop: pre-select the toolbox "Zoom"
@@ -2872,7 +2910,7 @@ function wireSessionTooltipRedirect(instance, opts) {
     chart.off("mouseover", instance.onSessionHitHover);
     instance.onSessionHitHover = null;
   }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
+  if (opts.chartType !== "charge-point-sessions") {
     return;
   }
   instance.onSessionHitHover = (ev) => {

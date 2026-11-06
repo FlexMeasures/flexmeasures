@@ -455,3 +455,67 @@ Registration belongs to each Flask application, allowing separate applications t
 Create an automation using the CLI example in :ref:`automations`.
 Run a worker for the handler's queue and invoke ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
 The execution user's permissions and the output sensors' asset scope are checked again when queueing and computing a run.
+
+
+Adding your own chart types
+---------------------------
+
+An asset's graphs can be drawn as different chart types, which the asset page offers in a picker, and which the chart API takes as ``chart-type``.
+A plugin can add its own chart type by registering it when the plugin is set up, for instance in its ``__init__.py``:
+
+.. code-block:: python
+
+    from flexmeasures.data.models.charts.chart_types import AssetChartType, register_asset_chart_type
+
+
+    def heat_pumps_layout(sensors_to_show: list[dict]) -> list[dict]:
+        """The graphs to draw (and whose sensor data to load), from the asset's validated sensors_to_show."""
+        return [graph for graph in sensors_to_show if graph.get("title") == "Heat pumps"]
+
+
+    def chart_for_heat_pumps(sensors_to_show: list[dict], **kwargs) -> dict:
+        """Return the Vega-Lite specs of the chart."""
+        ...
+
+
+    register_asset_chart_type(
+        AssetChartType(
+            name="my-plugin-heat-pumps",
+            label="Heat pumps",
+            description="the heat pumps of the site",
+            applies_to=lambda asset: asset.generic_asset_type.name == "heat-pump-site",
+            layout=heat_pumps_layout,
+            builder=chart_for_heat_pumps,
+        )
+    )
+
+Prefix the name with your plugin's name, so it does not clash with chart types FlexMeasures may add later; a name that is already taken is refused.
+
+A sensor's data can likewise be drawn as different chart types, which the sensor page offers in a picker, and which the sensor chart endpoint (``/api/ui/sensor/<id>/chart``) takes as ``chart-type``.
+The built-in ones are ``bar-chart``, ``histogram``, ``daily-heatmap`` and ``weekly-heatmap``.
+A plugin registers its own sensor chart type in the same way:
+
+.. code-block:: python
+
+    from flexmeasures.data.models.charts.chart_types import SensorChartType, register_sensor_chart_type
+
+
+    def duration_curve(sensor, event_starts_after=None, event_ends_before=None, **kwargs) -> dict:
+        """Return the Vega-Lite specs of the chart."""
+        ...
+
+
+    register_sensor_chart_type(
+        SensorChartType(
+            name="my-plugin-duration-curve",
+            label="Duration curve",
+            description="the sensor's values, sorted from high to low",
+            applies_to=lambda sensor: sensor.unit in ("kW", "MW"),
+            builder=duration_curve,
+        )
+    )
+
+The sensor page offers it on the sensors it applies to.
+The fast chart (the "Fast chart" toggle) only draws the built-in chart types, so the asset and sensor pages draw your chart types with Vega-Lite.
+
+.. note:: The fields of ``AssetChartType`` and ``SensorChartType`` are provisional, and may still change before plugins can rely on them.

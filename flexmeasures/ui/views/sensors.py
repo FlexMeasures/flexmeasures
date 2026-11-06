@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from flask import current_app, request
+from flask import current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required
 from markupsafe import Markup
@@ -8,6 +8,11 @@ from werkzeug.exceptions import Forbidden, NotFound
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
+from flexmeasures.data.models.charts.chart_types import (
+    DEFAULT_SENSOR_CHART_TYPE,
+    SENSOR_CHART_TYPE_REGISTRY,
+    SENSOR_CHART_TYPES,
+)
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.automations import (
     describe_cronstr,
@@ -101,6 +106,22 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
     return confirm_note, toast
 
 
+def initial_chart_type(chart_types: list) -> str:
+    """The chart type the sensor page starts with: the one last chosen (as stored in the session), if it is among the given chart types.
+
+    A legacy name in the session (stored before the chart types had public names) is read as the public name it stands for.
+    Otherwise, the page starts with the default sensor chart type.
+
+    :param chart_types: the sensor chart types that apply to the sensor.
+    """
+    chart_type = SENSOR_CHART_TYPE_REGISTRY.public_name(
+        session.get("chart_type", DEFAULT_SENSOR_CHART_TYPE)
+    )
+    if chart_type in [chart_type.name for chart_type in chart_types]:
+        return chart_type
+    return DEFAULT_SENSOR_CHART_TYPE
+
+
 class SensorUI(FlaskView):
     """
     This view creates several new UI endpoints for viewing sensors.
@@ -138,9 +159,16 @@ class SensorUI(FlaskView):
         if can_trigger_forecasts:
             earliest, latest = get_timerange([sensor.id])
             has_enough_data = (latest - earliest) >= timedelta(days=2)
+        chart_types = [
+            chart_type
+            for chart_type in SENSOR_CHART_TYPES.values()
+            if chart_type.applies_to(sensor)
+        ]
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
+            chart_types=chart_types,
+            chart_type=initial_chart_type(chart_types),
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
             user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
