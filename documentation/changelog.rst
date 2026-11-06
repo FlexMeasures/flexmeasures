@@ -263,6 +263,7 @@ Bugfixes
 
 **UI**
 
+* KPI cards now say when some selected days have no results and that their values use only days where the project was run [see `PR #2824 <https://www.github.com/FlexMeasures/flexmeasures/pull/2824>`_]
 * Remember the selected graph date range when navigating between sensors and assets, including when using fast charts or cached data [see `PR #2774 <https://www.github.com/FlexMeasures/flexmeasures/pull/2774>`_]
 * Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]

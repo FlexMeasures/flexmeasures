@@ -4422,7 +4422,7 @@
     "/api/v3_0/assets/{id}/kpis": {
       "get": {
         "summary": "Get daily KPIs for an asset.",
-        "description": "Gets statistics for sensors for the given time range.\nThe asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.\nRead more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).\n\nThe sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset.\n",
+        "description": "Gets statistics for sensors for the given time range.\nThe asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.\nRead more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).\n\nThe sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset. The `has_missing_kpi_days`\nfield indicates whether a daily KPI has no usable result for one or more calendar\ndays in the requested range.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4467,6 +4467,7 @@
                   "kpi_response": {
                     "summary": "KPI response",
                     "value": {
+                      "has_missing_kpi_days": false,
                       "data": [
                         {
                           "sensor": 145046,
