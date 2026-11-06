@@ -5,7 +5,7 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-41 | XX, 2026
+v3.0-35 | XX, 2026
 """"""""""""""""""
 - ``GET /api/v3_0/assets/<id>/chart`` now takes the public names of the asset chart types as ``chart-type``: ``default`` (the default) and ``charge-point-sessions``. The values it took so far, ``chart_for_multiple_sensors`` and ``chart_for_chargepoint_sessions``, are still accepted, as legacy values for ``default`` and ``charge-point-sessions``, respectively.
 
