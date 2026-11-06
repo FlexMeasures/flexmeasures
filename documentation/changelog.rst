@@ -12,6 +12,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 
 Bugfixes
 -----------
