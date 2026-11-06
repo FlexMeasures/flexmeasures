@@ -209,12 +209,192 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
 
         check("the session chart renders", option.series.length >= 2);
-        const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
-        const tooltip = visibleSession.tooltip.formatter();
+        const session = option.series.find((series) => series.tooltip && series.tooltip.formatter);
+        const tooltip = session.tooltip.formatter();
         check("session start stays visible", tooltip.includes("Arrival"));
         check("session end stays visible", tooltip.includes("Departure"));
         check("session asset stays visible", tooltip.includes("Charger 4"));
         """)
+
+
+# Loads the vendored ECharts library into a JS test page, as the app does before fast-chart.js renders.
+LOAD_ECHARTS = """
+        await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "/vendor/echarts.min.js";
+            script.onload = resolve;
+            script.onerror = () => reject(new Error("could not load ECharts"));
+            document.head.appendChild(script);
+        });
+"""
+
+
+def test_hovering_anywhere_over_a_session_shows_its_tooltip(
+    assert_js, echarts_available
+):
+    """Hovering anywhere over a session, on any of its layers or just beside them, shows one tooltip for the whole session.
+
+    A line series answers hover only through its symbols, and those are spaced in time,
+    so this drives the real ECharts library with real mouse events, including after zooming in.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?sessions-hover");
+
+        const container = document.createElement("div");
+        container.id = "sessions-hover";
+        container.style.cssText = "width: 1000px; height: 500px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const sensor = (name, id) => ({id, name, unit: "s", asset_id: 4, asset_description: "Charger 4"});
+        const rows = [
+            ["arrival", 0], ["departure", 5], ["plug in", 0.5], ["plug out", 4.5], ["start charging", 1], ["stop charging", 4],
+        ].map(([name, offset], i) => ({sensor: sensor(name, i + 1), event_start: start, event_value: start + offset * hour}));
+        renderFastChart("sessions-hover", rows, {
+            groupSpec: [], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: {sessionsTitle: "Sessions"},
+        });
+        const chart = echarts.getInstanceByDom(container);
+
+        const hoverAt = async (hours, pixelsBelow) => {
+            const [x, y] = chart.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [start + hours * hour, 0]);
+            const rect = container.getBoundingClientRect();
+            const init = {clientX: rect.left + x, clientY: rect.top + y + pixelsBelow, bubbles: true};
+            const target = container.querySelector("canvas");
+            target.dispatchEvent(new MouseEvent("mousemove", init));
+            target.dispatchEvent(new MouseEvent("mousemove", {...init, clientX: init.clientX + 1}));
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            const shown = [...container.querySelectorAll("div")].filter((el) => el.style.display === "block");
+            const text = shown.map((el) => el.textContent).join(" ");
+            chart.dispatchAction({type: "hideTip"});
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return text;
+        };
+        const lists = (label, text) => {
+            for (const name of ["Arrival", "Plug-in", "Start charging", "Stop charging", "Plug-out", "Departure", "Charger 4"]) {
+                check(label + ": lists " + name, text.includes(name), text);
+            }
+        };
+
+        lists("on the charging bar", await hoverAt(2.5, 0));
+        lists("on the arrival bar, outside the charging bar", await hoverAt(4.8, 0));
+        lists("beside the bars", await hoverAt(2.5, 6));
+        check("well off the session, no tooltip", (await hoverAt(2.5, 60)) === "");
+
+        // Zoomed in, a long session spans many times the chart's width.
+        chart.dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: start + 2.4 * hour, endValue: start + 2.6 * hour});
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        lists("zoomed in", await hoverAt(2.5, 0));
+    """)
+
+
+def test_zooming_keeps_sessions_and_rescales_the_companion_subplots(
+    assert_js, echarts_available
+):
+    """Zooming into the middle of a session keeps it, and zooming still rescales the companion subplots' y-axes.
+
+    Dropping nothing on zoom keeps the sessions but leaves a companion subplot's axis fitted to data that is no longer shown,
+    so its line lies flat along the bottom; the zoom has to filter, while still keeping a segment whose two ends are both out of view.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?sessions-zoom");
+
+        const container = document.createElement("div");
+        container.id = "sessions-zoom";
+        container.style.cssText = "width: 1000px; height: 700px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const sessionSensor = (name, id) => ({id, name, unit: "s", asset_id: 4, asset_description: "Charger 4"});
+        const power = {id: 99, name: "charge points power", unit: "kW", asset_id: 1};
+        const rows = [
+            ["arrival", 0], ["departure", 10],
+        ].map(([name, offset], i) => ({sensor: sessionSensor(name, i + 1), event_start: start, event_value: start + offset * hour}));
+        // 1000 kW in the first half of the day, about 30 kW in the second half.
+        for (let i = 0; i < 24; i++) {
+            rows.push({sensor: power, source: {id: 1, name: "s"}, event_start: start + i * hour, event_value: i < 12 ? 1000 : 30 + (i % 5), belief_horizon: 0});
+        }
+        const names = {sessionsTitle: "Sessions", companionTitles: ["Power flow by type"], powerFlowTitle: "Power flow by type", powerSensorName: "charge points power"};
+        renderFastChart("sessions-zoom", rows, {
+            groupSpec: [{title: "Power flow by type", sensorIds: [99]}], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: names,
+        });
+        const chart = echarts.getInstanceByDom(container);
+        const zoomTo = async (fromHour, toHour) => {
+            chart.dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: start + fromHour * hour, endValue: start + toHour * hour});
+            await new Promise((resolve) => setTimeout(resolve, 300));
+        };
+        const sessionPoints = () => {
+            const counts = [];
+            chart.getModel().eachSeries((series) => {
+                if (series.subType === "line" && series.get("name") === "Charger 4") counts.push(series.getData().count());
+            });
+            return counts;
+        };
+        const powerAxisMax = () => chart.getModel().getComponent("yAxis", 1).axis.scale.getExtent()[1];
+
+        await zoomTo(4, 5);
+        check("zoomed into the middle of the session, it is still drawn", sessionPoints().length > 0 && sessionPoints().every((n) => n === 2), JSON.stringify(sessionPoints()));
+        await zoomTo(14, 22);
+        check("zoomed into the low second half, the power axis rescales to it", powerAxisMax() < 100, "axis max " + powerAxisMax());
+
+        // Highlighting an asset from the legend thickens its sessions and dims the others.
+        const visibleLine = chart.getOption().series.find((series) => series.type === "line" && series.name === "Charger 4");
+        eq("a session line takes part in highlighting", visibleLine.emphasis.focus, "series");
+    """)
+
+
+def test_a_tooltip_describes_only_the_subplot_under_the_pointer(
+    assert_js, echarts_available
+):
+    """The ruler is linked across subplots, but a tooltip never shows another subplot's point.
+
+    ECharts reports the points of every linked subplot at the ruler's time,
+    so with the pointer in the sessions subplot the power subplot's point arrives at the formatter too.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?subplot-tooltip");
+
+        const container = document.createElement("div");
+        container.id = "subplot-tooltip";
+        container.style.cssText = "width: 1000px; height: 700px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const sessionSensor = (name, id) => ({id, name, unit: "s", asset_id: 4, asset_description: "Charger 4"});
+        const power = {id: 99, name: "charge points power", unit: "kW", asset_id: 1};
+        const rows = [
+            ["arrival", 0], ["departure", 5],
+        ].map(([name, offset], i) => ({sensor: sessionSensor(name, i + 1), event_start: start, event_value: start + offset * hour}));
+        for (let i = 0; i < 12; i++) {
+            rows.push({sensor: power, source: {id: 1, name: "s"}, event_start: start + i * hour / 2, event_value: 50 + i, belief_horizon: 0});
+        }
+        const names = {sessionsTitle: "Sessions", companionTitles: ["Power flow by type"], powerFlowTitle: "Power flow by type", powerSensorName: "charge points power"};
+        renderFastChart("subplot-tooltip", rows, {
+            groupSpec: [{title: "Power flow by type", sensorIds: [99]}], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: names,
+        });
+        const chart = echarts.getInstanceByDom(container);
+        const formatter = chart.getOption().tooltip[0].formatter;
+        const powerIndex = chart.getOption().series.findIndex((series) => series.xAxisIndex === 1);
+        check("the power subplot has a series", powerIndex >= 0);
+        const powerPoint = [{seriesIndex: powerIndex, dataIndex: 3, value: [start + 1.5 * hour, 53], axisValue: start + 1.5 * hour}];
+
+        const movePointerTo = async (axisIndex, y) => {
+            const [x, py] = chart.convertToPixel({xAxisIndex: axisIndex, yAxisIndex: axisIndex}, [start + 1.5 * hour, y]);
+            const rect = container.getBoundingClientRect();
+            const canvas = container.querySelector("canvas");
+            for (const dx of [0, 1]) {
+                canvas.dispatchEvent(new MouseEvent("mousemove", {clientX: rect.left + x + dx, clientY: rect.top + py, bubbles: true}));
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        };
+
+        await movePointerTo(0, 0);
+        eq("with the pointer in the sessions subplot, the power point stays out", formatter(powerPoint), "");
+        await movePointerTo(1, 53);
+        check("with the pointer in the power subplot, its point is described", formatter(powerPoint).includes("charge points power"), formatter(powerPoint));
+    """)
 
 
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
