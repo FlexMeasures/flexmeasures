@@ -80,6 +80,7 @@ New features
 * Try out a forecast without recording it, using ``flexmeasures add forecasts --dry-run``, which reports the sensor, data source, number of beliefs and event range it would have saved [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * Tell a forecaster which data sources hold the truth about the sensor it forecasts, as its regressors already could, so that a sensor that several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_ and `PR #2627 <https://www.github.com/FlexMeasures/flexmeasures/pull/2627>`_]
 * Forecasters, schedulers and reporters can now clean the data they read with a ``lower``, ``upper`` or ``snap`` bound, so that a sensor with implausible readings can be used without first correcting it at the source [see `PR #2555 <https://www.github.com/FlexMeasures/flexmeasures/pull/2555>`_, `PR #2561 <https://www.github.com/FlexMeasures/flexmeasures/pull/2561>`_, `PR #2627 <https://www.github.com/FlexMeasures/flexmeasures/pull/2627>`_ and `PR #2655 <https://www.github.com/FlexMeasures/flexmeasures/pull/2655>`_]
+* StorageScheduler now exports a ``commodity_costs`` breakdown alongside ``commitment_costs`` for multi-commodity or non-default commodity schedules and persists it in ``rq_job.meta["scheduler_info"]["commodity_costs"]`` [see `issue #2416 <https://github.com/FlexMeasures/flexmeasures/issues/2416>`_]
 
 **UI**
 
