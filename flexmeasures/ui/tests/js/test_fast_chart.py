@@ -2,7 +2,9 @@
 
 import json
 
-from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+import pytest
+
+from flexmeasures.data.models.charts.chart_types import CHARGE_POINT_CHART_NAMES
 
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):
@@ -206,7 +208,7 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         const option = buildChargePointSessionsOption("sessions-chart", [
             {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
             {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
-        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
+        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false, chargePointChart: CHARGE_POINT_CHART_NAMES});
 
         check("the session chart renders", option.series.length >= 2);
         const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
@@ -214,7 +216,7 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
         check("session start stays visible", tooltip.includes("Arrival"));
         check("session end stays visible", tooltip.includes("Departure"));
         check("session asset stays visible", tooltip.includes("Charger 4"));
-        """)
+        """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
 
 
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
@@ -744,3 +746,101 @@ def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_le
             eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
         }
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_the_charge_point_chart_names_passed_in_drive_the_sessions_chart(assert_js):
+    """The fast chart takes its titles and power sensor from the names it is handed, not from copies of its own."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const names = {
+            sessionsTitle: "Renamed sessions",
+            companionTitles: ["Renamed prices", "Renamed flows"],
+            powerFlowTitle: "Renamed flows",
+            powerSensorName: "renamed power",
+        };
+        const container = document.createElement("div");
+        container.id = "renamed-sessions-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const charger = {asset_id: 4, asset_description: "Charger 4"};
+        const reading = (id, name, unit, value) => ({
+            sensor: {id, name, unit, ...charger}, source: {id: 1}, event_start: eventStart, event_value: value,
+        });
+        const rows = [
+            {sensor: {id: 1, name: "arrival", unit: "s", ...charger}, event_start: eventStart, event_value: eventStart},
+            {sensor: {id: 2, name: "departure", unit: "s", ...charger}, event_start: eventStart, event_value: eventStart + 3600000},
+            reading(10, "tariff", "EUR/MWh", 50),
+            reading(11, "renamed power", "kW", 3),
+            reading(12, "charge points power", "kW", 4),
+            reading(13, "price", "EUR/MWh", 60),
+        ];
+        renderFastChart(container.id, rows, {
+            chartType: "charge-point-sessions",
+            groupSpec: [
+                {title: "Renamed prices", sensorIds: [10]},
+                {title: "Renamed flows", sensorIds: [11, 12]},
+                {title: "Prices", sensorIds: [13]},
+            ],
+            datasetName: "asset_4", isSensorPage: false, chargePointChart: names,
+        });
+        const titles = [].concat(option.title || []).map((title) => title.text);
+        eq("the graphs are titled by the names passed in", JSON.stringify(titles),
+           JSON.stringify(["Renamed sessions", "Renamed prices", "Renamed flows"]));
+        const seriesNames = option.series.map((series) => series.name);
+        check("the power flows show the power sensor named", seriesNames.some((name) => String(name).includes("renamed power")),
+              JSON.stringify(seriesNames));
+        check("and no other power sensor", !seriesNames.some((name) => String(name).includes("charge points power")),
+              JSON.stringify(seriesNames));
+        disposeFastChart(container.id);
+        container.remove();
+        """)
+
+
+@pytest.mark.parametrize("chart_type", ["line", "charge-point-sessions"])
+def test_an_asset_chart_without_the_charge_point_chart_names_fails_loudly(
+    assert_js, chart_type
+):
+    """Without the names, the fast chart cannot tell the asset's graphs apart, and should say so rather than draw the wrong graphs."""
+    assert_js("""
+        import { renderFastChart, disposeFastChart } from "/js/fast-chart.js";
+        const container = document.createElement("div");
+        container.id = "nameless-chart";
+        container.style.width = "800px";
+        document.body.appendChild(container);
+        let option;
+        const zr = {on() {}, off() {}};
+        window.echarts = {init: () => ({
+            isDisposed: () => false, resize() {}, dispose() {},
+            setOption(value, opts) { if (opts?.notMerge) option = value; },
+            getOption: () => option,
+            getDom: () => container, getZr: () => zr,
+            getModel: () => ({getSeriesByIndex: () => null}),
+            on() {}, off() {}, dispatchAction() {},
+        })};
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const rows = [{
+            sensor: {id: 1, name: "arrival", unit: "s", asset_id: 4, asset_description: "Charger 4"},
+            event_start: eventStart, event_value: eventStart,
+        }];
+        let error = null;
+        try {
+            renderFastChart(container.id, rows, {chartType: "CHART_TYPE", groupSpec: [], datasetName: "asset_4", isSensorPage: false});
+        } catch (e) {
+            error = e;
+        }
+        check("the chart refuses to render", error !== null);
+        check("and names what is missing", String(error).includes("chargePointChart"), String(error));
+        disposeFastChart(container.id);
+        container.remove();
+        """.replace("CHART_TYPE", chart_type))

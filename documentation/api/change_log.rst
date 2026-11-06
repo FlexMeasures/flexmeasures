@@ -8,6 +8,8 @@ API change log
 v3.0-35 | XX, 2026
 """"""""""""""""""
 - ``GET /api/v3_0/assets/<id>/chart`` now takes the public names of the asset chart types as ``chart-type``: ``default`` (the default) and ``charge-point-sessions``. The values it took so far, ``chart_for_multiple_sensors`` and ``chart_for_chargepoint_sessions``, are still accepted, as legacy values for ``default`` and ``charge-point-sessions``, respectively.
+- ``GET /api/v3_0/assets/<id>/chart_data`` now accepts ``chart-type``, as ``GET /api/v3_0/assets/<id>/chart`` does, with the same values, and then returns only the data that chart type draws. For ``default``, that leaves out the sensors which appear only in a graph titled "Charge Point sessions"; for ``charge-point-sessions``, it is the charging-session sensors, ``charge points power`` from "Power flow by type", and the "Prices" sensors. An unknown ``chart-type`` gets a ``422``. Without ``chart-type``, or with an empty one, it returns the data of every sensor in the asset's ``sensors_to_show``, as before.
+- ``GET /api/v3_0/assets/<id>/chart`` with ``include-data`` now likewise inlines only the data of the sensors the chosen chart type draws, where it used to inline the data of every sensor in the asset's ``sensors_to_show``. Without ``chart-type``, that is the ``default`` chart type.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
