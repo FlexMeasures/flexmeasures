@@ -12,6 +12,19 @@ which would also end them for the parent process that still holds them.
 """
 
 
+def when_ready(server):
+    # Close the database connections that loading the app left in gunicorn's arbiter, which forks and watches the workers but never queries the database itself.
+    # Gunicorn calls this once the app is loaded with --preload, before forking the first workers.
+    # Without --preload, the arbiter has no app, and importing wsgi here would create one, so leave it be.
+    if not server.cfg.preload_app:
+        return
+    from flexmeasures.data.config import db
+    from wsgi import application
+
+    with application.app_context():
+        db.engine.dispose()
+
+
 def post_fork(_server, _worker):
     # Imported here, not at module level:
     # gunicorn loads this config file before --preload loads the app,

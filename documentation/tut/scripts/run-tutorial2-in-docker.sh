@@ -1,12 +1,15 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # Determine container name: use $1 if provided, otherwise construct from current folder name
 CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 2 (ADDING SOLAR FORECAST) ..."
 echo "------------------------------------------------------------"
 
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')
+eval "$TOY_VARS"
 
 echo "[TUTORIAL-RUNNER] loading solar production data..."
 
@@ -41,10 +44,16 @@ ${TOMORROW}T23:00:00,0" > solar-tomorrow.csv
 docker cp solar-tomorrow.csv $CONTAINER_NAME:/app/
 
 echo "[TUTORIAL-RUNNER] adding source ..."
-docker exec -it $CONTAINER_NAME flexmeasures add source --name "toy-forecaster" --type forecaster
+docker exec -it "$CONTAINER_NAME" flexmeasures add source --name "toy-forecaster" --type forecaster
+DATA_SOURCES=$(docker exec -i "$CONTAINER_NAME" flexmeasures show data-sources)
+SOURCE_IDS=$(awk '/^type: / {forecaster = ($0 == "type: forecaster")} forecaster && $1 ~ /^[0-9]+$/ && $2 == "toy-forecaster" {print $1}' <<< "$DATA_SOURCES")
+if [[ $(wc -w <<< "$SOURCE_IDS") -ne 1 ]]; then
+  echo "[TUTORIAL-RUNNER] Expected exactly one toy-forecaster data source, found: ${SOURCE_IDS:-none}" >&2
+  exit 1
+fi
 
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source "$SOURCE_IDS" /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
