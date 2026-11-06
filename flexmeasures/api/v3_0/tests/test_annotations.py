@@ -761,7 +761,7 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
 def test_delete_sensor_annotations(client, setup_api_test_data, requesting_user, db):
     """Deleting a sensor's annotations respects the source and time filters, and spares what is registered elsewhere.
 
-    Only annotations lying entirely between start and until are deleted.
+    Only annotations lying entirely between start and end are deleted.
     An annotation that is also registered on the sensor's asset is only removed from the sensor.
     """
     sensor = setup_api_test_data["some gas sensor"]
@@ -801,7 +801,7 @@ def test_delete_sensor_annotations(client, setup_api_test_data, requesting_user,
         json={
             "source": source.id,
             "start": "2031-01-01T00:00:00+00:00",
-            "until": "2031-01-01T04:00:00+00:00",
+            "end": "2031-01-01T04:00:00+00:00",
         },
     )
     assert response.status_code == 200, response.json
@@ -831,7 +831,7 @@ def test_delete_sensor_annotations_of_another_organisation(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_sensor_annotations_until_before_start(
+def test_delete_sensor_annotations_end_before_start(
     client, setup_api_test_data, requesting_user
 ):
     sensor = setup_api_test_data["some gas sensor"]
@@ -839,7 +839,21 @@ def test_delete_sensor_annotations_until_before_start(
         url_for("SensorAPI:delete_annotations", id=sensor.id),
         json={
             "start": "2031-01-02T00:00:00+00:00",
-            "until": "2031-01-01T00:00:00+00:00",
+            "end": "2031-01-01T00:00:00+00:00",
         },
     )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_sensor_annotations_refuses_until(
+    client, setup_api_test_data, requesting_user
+):
+    """Unlike DELETE /sensors/<id>/data, this endpoint never shipped with ``until``, so it takes no such alias."""
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.delete(
+        url_for("SensorAPI:delete_annotations", id=sensor.id),
+        json={"until": "2031-01-01T00:00:00+00:00"},
+    )
+    assert response.status_code == 422
+    assert "until" in response.json["message"]["json"]

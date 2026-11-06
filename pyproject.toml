@@ -195,6 +195,7 @@ shell = """
 [tool.poe.tasks.update-docs]
 help = "Update the documentation and OpenAPI specifications"
 shell = """
+    set -e
     printf "Installing docs dependencies ...\n"
     uv sync --group docs --inexact
     printf "Generating OpenAPI specifications ...\n"

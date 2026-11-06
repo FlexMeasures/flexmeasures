@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 
 from flask import abort, request, current_app
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -125,7 +125,6 @@ annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
@@ -952,7 +951,11 @@ class AssetAPI(FlaskView):
                     "Only site admins may create public assets (account_id=None)."
                 )
 
-        asset = create_asset(asset_data)
+        try:
+            asset = create_asset(asset_data)
+        except ValidationError as e:
+            db.session.rollback()
+            return unprocessable_entity(e.messages)
         db.session.commit()
 
         return asset_schema.dump(asset), 201
@@ -1034,7 +1037,8 @@ class AssetAPI(FlaskView):
 
             The following fields are not allowed to be updated:
             - id
-            - account_id
+
+            The optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1087,7 +1091,7 @@ class AssetAPI(FlaskView):
         if {"flex_context", "flex_model"} & asset_data.keys():
             check_access(db_asset, "edit-flex-config")
 
-        asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+        asset_schema = AssetSchema(partial=True)
         asset_schema.context = {
             "asset": db_asset
         }  # context for validating fields like parent_asset_id
@@ -1096,6 +1100,12 @@ class AssetAPI(FlaskView):
             validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
             return unprocessable_entity(e.messages)
+
+        if "account_id" in validated_data:
+            if validated_data.pop("account_id") != db_asset.account_id:
+                return unprocessable_entity(
+                    {"account_id": ["Cannot change the account of an asset."]}
+                )
 
         try:
             db_asset = patch_asset(db_asset, validated_data)
@@ -2079,7 +2089,7 @@ class AssetAPI(FlaskView):
                       description: |
                         The automation queued its jobs, which will be picked up by a worker.
                         The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
-                        and `n_jobs` says how many jobs the run queued in total.
+                        and `n-jobs` says how many jobs the run queued in total.
                       value:
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -2711,8 +2721,24 @@ class AssetAPI(FlaskView):
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
         kpis = []
-        for kpi in asset_kpis:
-            sensor = Sensor.query.get(kpi["sensor"])
+        for kpi in asset_kpis if isinstance(asset_kpis, list) else []:
+            # The JSONB configuration stores sensor IDs; skip malformed saved entries.
+            if (
+                not isinstance(kpi, dict)
+                or type(kpi.get("sensor")) is not int
+                or not isinstance(kpi.get("title"), str)
+                or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+            ):
+                continue
+            sensor = db.session.get(Sensor, kpi["sensor"])
+            if sensor is None:
+                # A deleted sensor must not break the other KPIs.
+                continue
+            try:
+                check_access(sensor, "read")
+            except (Forbidden, Unauthorized):
+                # Access can change after a KPI is saved; hide this sensor's data.
+                continue
             # One value per event, which is what a KPI reduces.
             # Aggregating belief rows instead would count a revision on top of the belief it revised,
             # and would count each source separately when several report the same event,

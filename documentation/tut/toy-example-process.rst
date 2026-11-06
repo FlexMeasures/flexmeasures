@@ -45,14 +45,26 @@ In this example, we are planning to consume at a 200 kW constant power for a per
 This load is to be scheduled for tomorrow, except from the period from 3pm to 4pm (imposed using the ``time-restrictions`` parameter).
 
 
+Calculate tomorrow's local scheduling window and restriction time (including daylight saving changes):
+
+.. code-block:: bash
+
+    $ TOMORROW=$(TZ=Europe/Amsterdam date --date="next day" '+%Y-%m-%d')
+    $ DAY_AFTER=$(TZ=Europe/Amsterdam date --date="${TOMORROW} + 1 day" '+%Y-%m-%d')
+    $ START=$(TZ=Europe/Amsterdam date --date="${TOMORROW} 00:00" '+%Y-%m-%dT%H:%M:%S%:z')
+    $ RESTRICTION_START=$(TZ=Europe/Amsterdam date --date="${TOMORROW} 15:00" '+%Y-%m-%dT%H:%M:%S%:z')
+    $ START_SECONDS=$(TZ=Europe/Amsterdam date --date="${TOMORROW} 00:00" '+%s')
+    $ END_SECONDS=$(TZ=Europe/Amsterdam date --date="${DAY_AFTER} 00:00" '+%s')
+    $ DURATION="PT$(( (END_SECONDS - START_SECONDS) / 3600 ))H"
+
 Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest.
 
 .. code-block:: bash
 
     $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID} --scheduler ProcessScheduler \
-        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --start ${START} --duration ${DURATION} \
+        --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
+        --flex-model '{"duration": "PT4H", "process-type": "INFLEXIBLE", "power": 200, "time-restrictions": [{"start": "'"${RESTRICTION_START}"'", "duration": "PT1H"}]}'
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
@@ -61,9 +73,9 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h consumption requirem
 .. code-block:: bash
 
     $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID} --scheduler ProcessScheduler \
-        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --start ${START} --duration ${DURATION} \
+        --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
+        --flex-model '{"duration": "PT4H", "process-type": "BREAKABLE", "power": 200, "time-restrictions": [{"start": "'"${RESTRICTION_START}"'", "duration": "PT1H"}]}'
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
@@ -72,16 +84,16 @@ Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can
 .. code-block:: bash
 
     $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID} --scheduler ProcessScheduler \
-        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --start ${START} --duration ${DURATION} \
+        --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
+        --flex-model '{"duration": "PT4H", "process-type": "SHIFTABLE", "power": 200, "time-restrictions": [{"start": "'"${RESTRICTION_START}"'", "duration": "PT1H"}]}'
  
 
 Results
 ---------
 
 The image below shows the resulting schedules following each of the three policies.
-You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/8/graphs>`_.
+You will see similar results in the FlexMeasures UI at ``http://localhost:5000/assets/${FM_TOY_PROCESS_ASSET_ID}/graphs`` (substitute the asset ID).
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
