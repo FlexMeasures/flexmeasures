@@ -285,6 +285,26 @@ def validate_unique(ctx, param, value):
     return value
 
 
+def assemble_automation_dependencies(
+    depends_on: tuple, allow_failure_of: tuple
+) -> list[dict[str, Any]]:
+    """Combine the automations given with --depends-on and --allow-failure-of into the dependencies an automation is given.
+
+    :raises click.UsageError: if --allow-failure-of names an automation that --depends-on does not.
+    """
+    upstream_ids = {upstream.id for upstream in depends_on}
+    stray_ids = sorted({upstream.id for upstream in allow_failure_of} - upstream_ids)
+    if stray_ids:
+        raise click.UsageError(
+            f"--allow-failure-of names automation(s) {', '.join(map(str, stray_ids))}, which --depends-on does not."
+        )
+    allowed_ids = {upstream.id for upstream in allow_failure_of}
+    return [
+        {"upstream": upstream, "allow_failure": upstream.id in allowed_ids}
+        for upstream in depends_on
+    ]
+
+
 def abort(message: str):
     click.secho(message, **MsgStyle.ERROR)
     raise click.Abort()

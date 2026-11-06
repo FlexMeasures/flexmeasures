@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -3665,8 +3665,8 @@
         ]
       },
       "patch": {
-        "summary": "Update an automation's name, cron string, timezone or activation status.",
-        "description": "Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "summary": "Update an automation's name, cron string, timezone, activation status or dependencies.",
+        "description": "Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nAn automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,\nso either side of a dependency can change its recurrence or timezone.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3704,6 +3704,17 @@
                   "value": {
                     "active": false
                   }
+                },
+                "wait_for_another_automation": {
+                  "summary": "Wait for the runs of automation 4",
+                  "description": "Each run waits for the latest run of automation 4 due at or before its own time, and is skipped if that one failed.",
+                  "value": {
+                    "depends-on": [
+                      {
+                        "automation": 4
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -3712,6 +3723,102 @@
         "responses": {
           "200": {
             "description": "PROCESSED"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations/{automation-id}/run-plan": {
+      "get": {
+        "summary": "See what running an automation along with its ascendants or dependents comes down to.",
+        "description": "Nothing is run.\nThe steps are listed in the order they run, each saying what it waits for among these steps,\nand whether it will run, or else why not.\nA step you may not read stays a bare ID.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset the automation is defined on.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation-id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": true,
+            "description": "Whether to run the automations this one waits for, or those that wait for it.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ascendants",
+                "dependents"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "run-plan": {
+                    "summary": "One step does not run",
+                    "value": {
+                      "steps": [
+                        {
+                          "automation": 5,
+                          "waits-for": [],
+                          "will-run": false,
+                          "reason": "You may not run this automation."
+                        },
+                        {
+                          "automation": 7,
+                          "waits-for": [
+                            5
+                          ],
+                          "will-run": true,
+                          "name": "Forecast",
+                          "asset": 3,
+                          "asset-name": "Site"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3818,7 +3925,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n\nAn automation can wait for other automations that it consumes the results of, listed in `depends-on`.\nEach of its runs then waits for their latest runs due at or before its own scheduled time, and queues its jobs once those ended,\nor is skipped if one of them failed, unless that dependency has `allow-failure` set.\nThe automations it waits for can be on any asset you can read, and may recur on another schedule.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3894,6 +4001,49 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/automations": {
+      "get": {
+        "summary": "List automations across assets.",
+        "description": "List the automations on public assets, or every automation you may read, such as to pick one to wait for.\nJob counts are left out, as those are looked up per asset.\nAt most 500 automations are listed, by ID, and `truncated` says whether there are more.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "description": "`public` for the automations on public assets, or `all` for every automation you may read.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -4919,7 +5069,7 @@
     "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
-        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n\nPass `with-dependents=true` to also run the active automations that wait for this one, directly or through others,\nfor instance to re-run a chain of automations once the data at its start was backfilled.\nEach of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.\nThis needs permission to manage the automations on each of their assets, too.\nThe response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.\n\nPass `with-ascendants=true` to first run the active automations this one waits for, directly or through others, and then this one,\nfor instance to bring it up to date with what its results are based on.\nA run waits for the runs triggered along with it, and is skipped if one of those failed, unless its dependency allows for failure.\nAn automation you may not run is left out, along with what is above it, and is reported under `left-out`.\nPass `leave-out` to leave out automations yourself, such as one of several branches.\nSee the `run-plan` endpoint for what this would come down to.\nThe response lists these runs under `runs`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4943,6 +5093,38 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "with-dependents",
+            "required": false,
+            "description": "Also run the active automations that wait for this one, directly or through others.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "in": "query",
+            "name": "with-ascendants",
+            "required": false,
+            "description": "First run the active automations this one waits for, directly or through others. Cannot be combined with `with-dependents`.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "in": "query",
+            "name": "leave-out",
+            "required": false,
+            "description": "With `with-ascendants`, IDs of automations not to run.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
           }
         ],
         "responses": {
@@ -4960,6 +5142,46 @@
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "n-jobs": 2,
                       "message": "Request has been accepted for processing."
+                    }
+                  },
+                  "triggered-with-dependents": {
+                    "summary": "Automation run accepted, along with the automations waiting for it",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "n-jobs": 1,
+                      "message": "Request has been accepted for processing.",
+                      "dependent-runs": [
+                        {
+                          "automation": 8,
+                          "run": 412,
+                          "dispatch-state": "waiting"
+                        }
+                      ]
+                    }
+                  },
+                  "triggered-with-ascendants": {
+                    "summary": "Automation run accepted, after the automations it waits for",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "n-jobs": 1,
+                      "message": "Started 1 run(s), and 1 run(s) wait for them.",
+                      "runs": [
+                        {
+                          "automation": 7,
+                          "run": 411,
+                          "dispatch-state": "queued"
+                        },
+                        {
+                          "automation": 8,
+                          "run": 412,
+                          "dispatch-state": "waiting"
+                        }
+                      ],
+                      "left-out": [
+                        5
+                      ]
                     }
                   }
                 }
@@ -6819,6 +7041,26 @@
         ],
         "additionalProperties": false
       },
+      "AutomationDependency": {
+        "type": "object",
+        "properties": {
+          "automation": {
+            "type": "integer",
+            "description": "ID of the automation to wait for. It may recur on another schedule.",
+            "example": 4
+          },
+          "allow-failure": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether a run goes ahead when the upstream run failed or did not happen, rather than being skipped.",
+            "example": false
+          }
+        },
+        "required": [
+          "automation"
+        ],
+        "additionalProperties": false
+      },
       "AutomationCreationSchema": {
         "type": "object",
         "properties": {
@@ -6874,6 +7116,19 @@
             ],
             "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
             "example": 6
+          },
+          "depends-on": {
+            "type": "array",
+            "description": "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and may recur on another schedule. A run on demand does not wait.",
+            "example": [
+              {
+                "automation": 4,
+                "allow-failure": false
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AutomationDependency"
+            }
           }
         },
         "required": [
@@ -6900,6 +7155,19 @@
           },
           "active": {
             "type": "boolean"
+          },
+          "depends-on": {
+            "type": "array",
+            "description": "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time. A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure. Upstream automations can be on any asset you can read, and may recur on another schedule. A run on demand does not wait. Replaces the automations it depended on; send an empty list to have its runs wait for none.",
+            "example": [
+              {
+                "automation": 4,
+                "allow-failure": true
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AutomationDependency"
+            }
           }
         },
         "additionalProperties": false

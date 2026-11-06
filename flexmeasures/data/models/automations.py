@@ -123,6 +123,16 @@ class Automation(db.Model, AuthModelMixin):
         passive_deletes=True,
         order_by="desc(AutomationRun.scheduled_at)",
     )
+    # The automations whose latest run due at or before its own scheduled time each run of this one waits for (see `AutomationDependency`).
+    dependencies = db.relationship(
+        "AutomationDependency",
+        foreign_keys="AutomationDependency.automation_id",
+        back_populates="automation",
+        lazy=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="AutomationDependency.upstream_id",
+    )
 
     @validates("timezone")
     def validate_timezone(self, key: str, timezone: str) -> str:
@@ -183,6 +193,42 @@ class Automation(db.Model, AuthModelMixin):
         return get_automation_sensors(self)["output_sensors"]
 
 
+class AutomationDependency(db.Model):
+    """One automation that another automation's runs wait for.
+
+    A run of the dependent automation is dispatched only once the upstream automation's latest run due at or before its own scheduled time has ended,
+    and is skipped if that run failed, unless the dependency allows for failure.
+    """
+
+    __tablename__ = "automation_dependency"
+
+    automation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("automation.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    upstream_id = db.Column(
+        db.Integer,
+        db.ForeignKey("automation.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    # Whether the dependent run goes ahead when the upstream run failed, rather than being skipped.
+    allow_failure = db.Column(db.Boolean, nullable=False, default=False)
+
+    automation = db.relationship(
+        "Automation", foreign_keys=[automation_id], back_populates="dependencies"
+    )
+    upstream = db.relationship("Automation", foreign_keys=[upstream_id])
+
+    def __repr__(self):
+        return "<AutomationDependency: automation %s waits for automation %s%s>" % (
+            self.automation_id,
+            self.upstream_id,
+            ", also when it fails" if self.allow_failure else "",
+        )
+
+
 # A job intent counts as dispatched from this status onwards: it is in Redis, whatever became of it since.
 AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
     "queued",
@@ -194,22 +240,29 @@ AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
 
 
 class AutomationRun(db.Model):
-    """Durable execution record for one scheduled automation occurrence."""
+    """Durable execution record for one run of an automation, scheduled or on demand."""
 
     __tablename__ = "automation_run"
     __table_args__ = (
-        db.UniqueConstraint(
+        # One run per scheduled occurrence, while on-demand runs can share a time with any other run.
+        db.Index(
+            "automation_run_occurrence_uq",
             "automation_id",
             "scheduled_at",
             "schedule_revision",
-            name="automation_run_occurrence_uq",
+            unique=True,
+            postgresql_where=db.text("trigger = 'schedule'"),
         ),
         db.CheckConstraint(
-            "dispatch_state IN ('pending', 'claimed', 'partially_queued', 'queued', 'failed')",
+            "trigger IN ('schedule', 'on-demand')",
+            name="automation_run_trigger_ck",
+        ),
+        db.CheckConstraint(
+            "dispatch_state IN ('pending', 'claimed', 'waiting', 'partially_queued', 'queued', 'failed')",
             name="automation_run_dispatch_state_ck",
         ),
         db.CheckConstraint(
-            "execution_state IN ('pending', 'running', 'succeeded', 'failed', 'canceled')",
+            "execution_state IN ('pending', 'running', 'succeeded', 'failed', 'canceled', 'skipped')",
             name="automation_run_execution_state_ck",
         ),
     )
@@ -231,9 +284,13 @@ class AutomationRun(db.Model):
     )
     scheduled_at = db.Column(db.DateTime(timezone=True), nullable=False)
     schedule_revision = db.Column(db.Integer, nullable=False)
+    # Whether the run was due by the automation's schedule, or asked for on demand along with a chain of runs (see `run_automation_chain`).
+    trigger = db.Column(db.String(16), nullable=False, default="schedule")
     automation_type = db.Column(db.String(80), nullable=False)
     generator_id = db.Column(db.Integer, nullable=True)
+    # A run that is 'waiting' holds back its jobs until the upstream runs it depends on have ended (see `AutomationDependency`).
     dispatch_state = db.Column(db.String(32), nullable=False, default="pending")
+    # A run that is 'skipped' queued no jobs, because an upstream run it depends on did not succeed.
     execution_state = db.Column(db.String(32), nullable=False, default="pending")
     claim_owner = db.Column(db.String(128), nullable=True)
     claimed_at = db.Column(db.DateTime(timezone=True), nullable=True)

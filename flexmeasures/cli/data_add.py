@@ -45,10 +45,12 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     LoggedClickExceptionGroup,
     add_cli_options_from_schema,
+    assemble_automation_dependencies,
     split_commas,
 )
 from flexmeasures.data import db
 from flexmeasures.data.automations import get_automation_handler, get_automation_types
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
     populate_initial_structure,
@@ -86,7 +88,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas.automations import CronField
+from flexmeasures.data.schemas.automations import AutomationIdField, CronField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -1872,6 +1874,24 @@ def add_forecast(  # noqa: C901
     help="How long the period each run covers lasts, as an ISO 8601 duration, such as P1D."
     " For a forecast or schedule automation, the period then starts at the run time, unless --start-offset or --end-offset says otherwise.",
 )
+@click.option(
+    "--depends-on",
+    "depends_on",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
+    " A run queues its jobs once the runs it waits for ended, and is skipped if one of them failed (but see --allow-failure-of)."
+    " The automation waited for may recur on another schedule."
+    " Repeat to wait for several automations.",
+)
+@click.option(
+    "--allow-failure-of",
+    "allow_failure_of",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation given with --depends-on whose failed (or missed) run should not stop this automation's run."
+    " Repeat for several.",
+)
 @add_cli_options_from_schema(
     ForecasterParametersSchema(),
     hidden=True,
@@ -1893,6 +1913,8 @@ def add_automation(  # noqa: C901
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
+    depends_on: tuple[Automation, ...] = (),
+    allow_failure_of: tuple[Automation, ...] = (),
     **kwargs,
 ):
     """
@@ -1921,6 +1943,9 @@ def add_automation(  # noqa: C901
     Alternatively, pass an existing data source (--source) to reuse the forecaster
     and configuration stored on it.
 
+    An automation that consumes what another automation produces can wait for it (--depends-on),
+    so that each of its runs queues its jobs only once the other automation's latest run due at or before that time ended.
+
     Every forecaster and pipeline option that `flexmeasures add forecast` accepts is accepted here, too,
     but is left out of the help text above to keep it focused on the automation itself;
     run `flexmeasures add forecast --help` to see them.
@@ -1933,6 +1958,7 @@ def add_automation(  # noqa: C901
     except (ValueError, NotImplementedError) as e:
         available = ", ".join(get_automation_types())
         raise click.UsageError(f"{e} Available types: {available}.")
+    dependencies = assemble_automation_dependencies(depends_on, allow_failure_of)
 
     # Only a forecast automation has a default generator:
     # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
@@ -1992,6 +2018,7 @@ def add_automation(  # noqa: C901
             config=config,
             source=source,
             origin="CLI",
+            dependencies=dependencies,
         )
     except ValidationError as e:
         # The messages name the part of the request at fault, which is not always the parameters.
