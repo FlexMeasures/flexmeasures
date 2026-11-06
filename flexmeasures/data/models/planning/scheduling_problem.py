@@ -20,6 +20,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
+from typing import TypedDict
 
 import numpy as np
 import pandas as pd
@@ -102,20 +103,81 @@ def solver_options(solver_name: str) -> dict:
     return profile
 
 
+PRICE_COLUMNS = ("upwards deviation price", "downwards deviation price")
+
+#: What the model builders read of one sub-commitment, gathered once rather than read back off its frame.
+#: :func:`convert_commitments_to_subcommitments` gathers these while splitting,
+#: and :func:`_header_from_frame` takes the same keys from a sub-commitment frame.
+#: A missing column and a missing value both come back as ``None``.
+#: The keys are spelled as the commitment columns they come from, hence the functional syntax.
+SubCommitmentHeader = TypedDict(
+    "SubCommitmentHeader",
+    {
+        # The commitment's name and class (FlowCommitment or StockCommitment), constant down the commitment.
+        "name": object,
+        "class": type,
+        # The commodity of the sub-commitment's first row.
+        # A commitment may map its devices to different commodities, so this can differ between the sub-commitments of one commitment.
+        "commodity": object,
+        # The stock group a stock commitment binds.
+        "stock": object,
+        # The device (or collection of devices) in each row, or None for an EMS-level commitment.
+        "device": "np.ndarray | None",
+        # The device group label in each row, or None when the commitment declares no device groups, which "has_device_group" tells.
+        "device_group": "np.ndarray | None",
+        "has_device_group": bool,
+        # The deviation prices this sub-commitment carries: each half of a two-sided group carries only its own direction's price.
+        "upwards deviation price": object,
+        "downwards deviation price": object,
+        # Which of PRICE_COLUMNS the sub-commitment carries, which is what sets its row bounds.
+        "price columns": "tuple[str, ...]",
+        # Every row, as (time step indices, quantities).
+        "rows": "tuple[np.ndarray, np.ndarray]",
+        # The rows a model builder binds, as (quantities, time step indices, lb, ub).
+        # A NaN or -inf quantity deactivates the commitment at that time step, the way the Pyomo Param's -inf does.
+        "active rows": "tuple[np.ndarray, np.ndarray, float, float]",
+    },
+)
+
+
+def _row_bounds(price_columns: tuple[str, ...]) -> tuple[float, float]:
+    """The bounds on a sub-commitment's rows: lb is 0 iff it prices upwards deviations, and ub is 0 iff it prices downwards deviations."""
+    lb = 0.0 if "upwards deviation price" in price_columns else -infinity
+    ub = 0.0 if "downwards deviation price" in price_columns else infinity
+    return lb, ub
+
+
+def _active_rows(
+    j_values: np.ndarray, quantity_values: np.ndarray, price_columns: tuple[str, ...]
+) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """The ``"active rows"`` of a :data:`SubCommitmentHeader`: those whose quantity is neither NaN nor -inf, with the row bounds."""
+    active = ~(np.isnan(quantity_values) | (quantity_values == -infinity))
+    return (quantity_values[active], j_values[active], *_row_bounds(price_columns))
+
+
+def _first_value(values: np.ndarray | None, positions: np.ndarray) -> object:
+    """The value at a group's first row, or None when the column is absent or the value is missing."""
+    if values is None:
+        return None
+    value = values[positions[0]]
+    return None if _is_missing(value) else value
+
+
 class SubCommitmentFrames(Sequence):
     """The sub-commitment frames, each built the first time it is asked for.
 
-    Splitting a commitment produces one sub-commitment per group, and a group is usually
-    a single time step, so a schedule can hold thousands of one-row frames. The HiGHS
-    backend works entirely from the arrays gathered during the split and never looks at
-    them; the Pyomo backend uses them throughout. Building them all up front therefore
-    cost more than the rest of the split put together, and for the default backend it
-    bought nothing.
+    Splitting a commitment produces one sub-commitment per group,
+    and a group is usually a single time step,
+    so a schedule can hold thousands of one-row frames.
+    The HiGHS backend works entirely from the headers gathered during the split and never looks at them;
+    the Pyomo backend uses them throughout.
+    Building them all up front therefore cost more than the rest of the split put together,
+    and for the default backend it bought nothing.
 
-    Each entry knows the frame it came from, the row positions of its group, the
-    price column its half of a two-sided group drops, and, for a sub-commitment that
-    carries a merged group (see :func:`merge_interchangeable_subcommitments`), the
-    prices it carries in place of its own.
+    Each entry knows the frame it came from, the row positions of its group,
+    the price column its half of a two-sided group drops,
+    and, for a sub-commitment that carries a merged group (see :func:`merge_interchangeable_subcommitments`),
+    the prices it carries in place of its own.
     """
 
     def __init__(self, specs: list[tuple]):
@@ -155,7 +217,7 @@ class SubCommitmentFrames(Sequence):
 
 def convert_commitments_to_subcommitments(
     dfs: list[pd.DataFrame],
-) -> tuple[list[pd.DataFrame], dict[int, int], list[dict]]:
+) -> tuple[SubCommitmentFrames, dict[int, int], list[SubCommitmentHeader]]:
     """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
     'Groups' are a commitment concept (grouping time slots of a commitment),
@@ -167,14 +229,15 @@ def convert_commitments_to_subcommitments(
     For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
     we return (sub)commitments A1, A2, A3, B1, B2 and B3,
     where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
+
+    Along with the sub-commitments, we return each one's :data:`SubCommitmentHeader`.
     """
     commitment_mapping = {}
     sub_commitments = []
-    # The constant columns, gathered here rather than read back from every
-    # sub-commitment: a commitment is split into one sub-commitment per group, and each
-    # time step is often its own group, so reading them afterwards costs a frame lookup
-    # per time step per commitment instead of one per commitment.
-    scalars: list[dict] = []
+    # The headers, gathered here rather than read back from every sub-commitment:
+    # a commitment is split into one sub-commitment per group, and each time step is often its own group,
+    # so reading them afterwards costs a frame lookup per time step per commitment instead of one per commitment.
+    headers: list[SubCommitmentHeader] = []
     for c, df in enumerate(dfs):
         # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
         if "device" not in df.columns:
@@ -201,126 +264,81 @@ def convert_commitments_to_subcommitments(
             )
 
         # Constant down the whole commitment, so read once here.
+        # The commodity is not: a commitment may map its devices to different commodities, so it is read per group below.
         shared = {
             column: (
                 None
-                if df.empty or _is_missing(df[column].iloc[0])
+                if df.empty
+                or column not in df.columns
+                or _is_missing(df[column].iloc[0])
                 else df[column].iloc[0]
             )
-            for column in ("name", "class", "commodity")
-            if column in df.columns
+            for column in ("name", "class", "stock")
         }
-        shared.setdefault("name", None)
-        shared.setdefault("commodity", None)
-        shared.setdefault("class", FlowCommitment)
-        # Prices are constant within a group (checked just above), so one vectorized
-        # aggregation gives every group's price at once.
+        shared["class"] = shared["class"] or FlowCommitment
+        # Prices are constant within a group (checked just above),
+        # so one vectorized aggregation gives every group's price at once.
         up_by_group = grouped["upwards deviation price"].first()
         down_by_group = grouped["downwards deviation price"].first()
 
-        # The columns the device grouping is built from, read once per commitment and
-        # sliced per group below, rather than read back off every sub-commitment.
-        shared["stock"] = (
-            df["stock"].iloc[0] if "stock" in df.columns and not df.empty else None
+        # The columns read per group, read once per commitment and sliced per group below,
+        # rather than read back off every sub-commitment.
+        commodity_values = (
+            df["commodity"].to_numpy() if "commodity" in df.columns else None
         )
-        if _is_missing(shared["stock"]):
-            shared["stock"] = None
         device_values = df["device"].to_numpy() if "device" in df.columns else None
         device_group_values = (
             df["device_group"].to_numpy() if "device_group" in df.columns else None
         )
-        group_positions = grouped.indices
-
-        # The rows a model builder binds: the commitment's quantity and time-step index
-        # at its active time steps. A NaN or -inf quantity deactivates the commitment
-        # there, the way the Pyomo Param's -inf does.
         quantity_values = df["quantity"].to_numpy(dtype=float)
         j_values = df["j"].to_numpy(dtype=np.int64)
-
-        def _active_rows(group_key, lb: float, ub: float) -> tuple:
-            pos = group_positions[group_key]
-            quantity = quantity_values[pos]
-            active = ~(np.isnan(quantity) | (quantity == -infinity))
-            return quantity[active], j_values[pos][active], lb, ub
-
-        def _rows(group_key) -> tuple:
-            """Every row of one group, as (time step indices, quantities), for :func:`_subcommitment_shape`."""
-            pos = group_positions[group_key]
-            return j_values[pos], quantity_values[pos]
-
-        def _grouping(group_key) -> dict:
-            """The device/device_group values of one group, as arrays."""
-            if device_values is None:
-                return {"device": None, "device_group": None}
-            pos = group_positions[group_key]
-            return {
-                "device": device_values[pos],
-                "device_group": (
-                    None if device_group_values is None else device_group_values[pos]
-                ),
-                "has_device_group": device_group_values is not None,
-            }
+        group_positions = grouped.indices
 
         # The frame the groupby would have handed out, minus the column it grouped on.
         without_group = df.drop(columns=["group"])
 
         for group_key in pd.unique(group_column):
             positions = group_positions[group_key]
-            grouping = _grouping(group_key)
             up_price = up_by_group.get(group_key)
             down_price = down_by_group.get(group_key)
-            up_price = None if _is_missing(up_price) else up_price
-            down_price = None if _is_missing(down_price) else down_price
-            rows = _rows(group_key)
+            group_header = {
+                **shared,
+                "commodity": _first_value(commodity_values, positions),
+                "device": (None if device_values is None else device_values[positions]),
+                "device_group": (
+                    None
+                    if device_values is None or device_group_values is None
+                    else device_group_values[positions]
+                ),
+                "has_device_group": device_group_values is not None,
+                "upwards deviation price": None if _is_missing(up_price) else up_price,
+                "downwards deviation price": (
+                    None if _is_missing(down_price) else down_price
+                ),
+                "rows": (j_values[positions], quantity_values[positions]),
+            }
             if len(positions) == 1:
-                commitment_mapping[len(sub_commitments)] = c
-                sub_commitments.append((without_group, positions, None))
-                scalars.append(
-                    {
-                        **shared,
-                        **grouping,
-                        "upwards deviation price": up_price,
-                        "downwards deviation price": down_price,
-                        "price columns": tuple(
-                            column for column in PRICE_COLUMNS if column in df.columns
-                        ),
-                        "rows": rows,
-                        "active rows": _active_rows(group_key, 0.0, 0.0),
-                    }
-                )
+                halves = [(None, PRICE_COLUMNS)]
             else:
-                commitment_mapping[len(sub_commitments)] = c
-                commitment_mapping[len(sub_commitments) + 1] = c
-                sub_commitments.extend(
-                    [
-                        (without_group, positions, "upwards deviation price"),
-                        (without_group, positions, "downwards deviation price"),
-                    ]
-                )
                 # Each half keeps only its own direction's price.
-                scalars.append(
-                    {
-                        **shared,
-                        **grouping,
-                        "upwards deviation price": None,
-                        "downwards deviation price": down_price,
-                        "price columns": ("downwards deviation price",),
-                        "rows": rows,
-                        "active rows": _active_rows(group_key, -infinity, 0.0),
-                    }
-                )
-                scalars.append(
-                    {
-                        **shared,
-                        **grouping,
-                        "upwards deviation price": up_price,
-                        "downwards deviation price": None,
-                        "price columns": ("upwards deviation price",),
-                        "rows": rows,
-                        "active rows": _active_rows(group_key, 0.0, infinity),
-                    }
-                )
-    return SubCommitmentFrames(sub_commitments), commitment_mapping, scalars
+                halves = [
+                    ("upwards deviation price", ("downwards deviation price",)),
+                    ("downwards deviation price", ("upwards deviation price",)),
+                ]
+            for dropped_column, price_columns in halves:
+                commitment_mapping[len(sub_commitments)] = c
+                sub_commitments.append((without_group, positions, dropped_column))
+                header = {
+                    **group_header,
+                    "price columns": price_columns,
+                    "active rows": _active_rows(
+                        j_values[positions], quantity_values[positions], price_columns
+                    ),
+                }
+                if dropped_column is not None:
+                    header[dropped_column] = None
+                headers.append(header)
+    return SubCommitmentFrames(sub_commitments), commitment_mapping, headers
 
 
 def deviation_price(commitment: pd.DataFrame, column: str) -> float:
@@ -339,10 +357,7 @@ def deviation_price(commitment: pd.DataFrame, column: str) -> float:
     return float(price)
 
 
-PRICE_COLUMNS = ("upwards deviation price", "downwards deviation price")
-
-
-def header_price(header: dict, column: str) -> float:
+def header_price(header: SubCommitmentHeader, column: str) -> float:
     """:func:`deviation_price`, read off a sub-commitment's constant columns (see :func:`convert_commitments_to_subcommitments`) rather than its frame."""
     price = header.get(column)
     if price is None or pd.isna(price):
@@ -350,40 +365,51 @@ def header_price(header: dict, column: str) -> float:
     return float(price)
 
 
-def _header_from_frame(commitment: pd.DataFrame) -> dict:
-    """The constant columns :func:`_subcommitment_shape` and the merge read, taken from a sub-commitment frame.
+def _first_row_value(commitment: pd.DataFrame, column: str) -> object:
+    """The value in a sub-commitment frame's first row, or None when the column is absent or the value is missing."""
+    if commitment.empty or column not in commitment.columns:
+        return None
+    return _first_value(commitment[column].to_numpy(), np.array([0]))
+
+
+def _header_from_frame(commitment: pd.DataFrame) -> SubCommitmentHeader:
+    """The :data:`SubCommitmentHeader` of a sub-commitment frame.
 
     :func:`convert_commitments_to_subcommitments` gathers these while splitting;
     this is for callers that hand over the frames themselves.
     """
-    stock = None
-    if "stock" in commitment.columns and pd.notna(commitment["stock"].iloc[0]):
-        stock = commitment["stock"].iloc[0]
-    commodity = None
-    if "commodity" in commitment.columns and not _is_missing(
-        commitment["commodity"].iloc[0]
-    ):
-        commodity = commitment["commodity"].iloc[0]
     price_columns = tuple(
         column for column in PRICE_COLUMNS if column in commitment.columns
     )
+    j_values = commitment["j"].to_numpy(dtype=np.int64)
+    quantity_values = commitment["quantity"].to_numpy(dtype=float)
+    has_device = "device" in commitment.columns
+    has_device_group = "device_group" in commitment.columns
     return {
-        "class": commitment["class"].iloc[0],
-        "stock": stock,
-        "commodity": commodity,
-        "price columns": price_columns,
-        "rows": (
-            commitment["j"].to_numpy(dtype=np.int64),
-            commitment["quantity"].to_numpy(dtype=float),
+        "name": _first_row_value(commitment, "name"),
+        "class": _first_row_value(commitment, "class") or FlowCommitment,
+        "commodity": _first_row_value(commitment, "commodity"),
+        "stock": _first_row_value(commitment, "stock"),
+        "device": commitment["device"].to_numpy() if has_device else None,
+        "device_group": (
+            commitment["device_group"].to_numpy()
+            if has_device and has_device_group
+            else None
         ),
-        **{
-            column: (commitment[column].iloc[0] if column in price_columns else None)
-            for column in PRICE_COLUMNS
-        },
+        "has_device_group": has_device_group,
+        "upwards deviation price": _first_row_value(
+            commitment, "upwards deviation price"
+        ),
+        "downwards deviation price": _first_row_value(
+            commitment, "downwards deviation price"
+        ),
+        "price columns": price_columns,
+        "rows": (j_values, quantity_values),
+        "active rows": _active_rows(j_values, quantity_values, price_columns),
     }
 
 
-def _subcommitment_shape(header: dict, scope: dict) -> tuple:
+def _subcommitment_shape(header: SubCommitmentHeader, scope: dict) -> tuple:
     """What makes two sub-commitments impose the identical constraint.
 
     A sub-commitment contributes ``quantity[j] + downwards + upwards - (the scoped flow at j)``, bounded below by zero where it carries an upwards price and above by zero where it carries a downwards price.
@@ -416,7 +442,7 @@ def _subcommitment_shape(header: dict, scope: dict) -> tuple:
 def interchangeable_subcommitments(
     commitments: Sequence[pd.DataFrame],
     device_group_lookup: dict[int, dict],
-    headers: list[dict] | None = None,
+    headers: list[SubCommitmentHeader] | None = None,
 ) -> list[list[int]]:
     """Sub-commitments that impose the identical constraint, grouped, singletons dropped.
 
@@ -439,13 +465,13 @@ def interchangeable_subcommitments(
 
 def _merge_interchangeable(
     commitments: Sequence[pd.DataFrame],
-    headers: list[dict],
+    headers: list[SubCommitmentHeader],
     commitment_mapping: dict[int, int],
     device_group_lookup: dict[int, dict],
     worth_merging,
 ) -> tuple[
     Sequence[pd.DataFrame],
-    list[dict],
+    list[SubCommitmentHeader],
     dict[int, int],
     dict[int, dict],
     dict[int, list[tuple]],
@@ -470,7 +496,7 @@ def _merge_interchangeable(
 
     kept: list[int] = []
     summed_prices: dict[int, dict] = {}
-    merged_headers: list[dict] = []
+    merged_headers: list[SubCommitmentHeader] = []
     merged_mapping: dict[int, int] = {}
     merged_lookup: dict[int, dict] = {}
     merged_constituents: dict[int, list[tuple]] = {}
@@ -560,42 +586,6 @@ def _is_missing(value) -> bool:
     return bool(pd.isna(value))
 
 
-#: The commitment columns that hold one value repeated down every row.
-CONSTANT_COMMITMENT_COLUMNS = (
-    "name",
-    "class",
-    "commodity",
-    "upwards deviation price",
-    "downwards deviation price",
-)
-
-
-def commitment_scalars(commitments: list[pd.DataFrame]) -> list[dict]:
-    """Read each commitment's constant columns once.
-
-    A commitment frame repeats its name, class, commodity and deviation prices down
-    every row, and both model builders read them back one ``df[column].iloc[0]`` at a
-    time — pandas builds a Series and positionally indexes it for each, costing a few
-    microseconds where a dict lookup costs a tenth of one. With a device per charging
-    session there are thousands of commitments per schedule, and those microseconds
-    were a substantial part of building the problem.
-
-    Missing columns and missing values both come back as ``None``, so callers can test
-    for one thing rather than distinguishing "no column" from "NaN".
-    """
-    scalars = []
-    for df in commitments:
-        header = {}
-        for column in CONSTANT_COMMITMENT_COLUMNS:
-            if column not in df.columns:
-                header[column] = None
-                continue
-            value = df[column].iloc[0]
-            header[column] = None if _is_missing(value) else value
-        scalars.append(header)
-    return scalars
-
-
 def loss_coefficients(efficiency: float) -> tuple[float, float]:
     """Coefficients (a, b) of one step of the stock recursion, for `how="linear"`.
 
@@ -635,12 +625,11 @@ class SchedulingProblem:
 
     #: Sub-commitments (one per commitment group and deviation direction), and the
     #: mapping from each sub-commitment index back to its original commitment index
-    commitments: list[pd.DataFrame]
+    commitments: Sequence[pd.DataFrame]
     commitment_mapping: dict[int, int]
 
-    #: Each sub-commitment's constant columns (name, class, commodity, deviation
-    #: prices), gathered while splitting. See :func:`commitment_scalars`.
-    commitment_scalars: list[dict]
+    #: Each sub-commitment's header, gathered while splitting, which the model builders read instead of its frame.
+    commitment_headers: list[SubCommitmentHeader]
 
     #: sub-commitment index -> {device group label -> member device indices}
     device_group_lookup: dict[int, dict]
@@ -882,9 +871,8 @@ def prepare_scheduling_problem(  # noqa C901
 
     device_group_lookup: dict[int, dict] = {}
 
-    # The device/device_group/stock values come from commitment_headers, sliced from
-    # each commitment while it was split. Reading them back off the sub-commitment
-    # frames meant several pandas lookups per group, and a group is usually one time step.
+    # The device/device_group/stock values come from commitment_headers, sliced from each commitment while it was split.
+    # Reading them back off the sub-commitment frames meant several pandas lookups per group, and a group is usually one time step.
     for c, header in enumerate(commitment_headers):
         # Stock-scoped commitments couple to their stock group as a whole, regardless
         # of which device index they name: the group's first device carries the group's
@@ -935,7 +923,7 @@ def prepare_scheduling_problem(  # noqa C901
     # Summing the prices of every commitment per time step instead would let one commitment's prices mask another's non-convexity,
     # which leaves out the commitment-sign variables that keep such a commitment bounded (GH#2534).
     # The prices come from the constant columns gathered while splitting, not from the one-row frames, of which there is usually one per time step.
-    def _is_convex(header: dict) -> bool:
+    def _is_convex(header: SubCommitmentHeader) -> bool:
         """Deviating upwards costs at least what deviating downwards pays."""
         return header_price(header, "upwards deviation price") >= header_price(
             header, "downwards deviation price"
@@ -1033,7 +1021,7 @@ def prepare_scheduling_problem(  # noqa C901
         group_to_devices=group_to_devices,
         commitments=commitments,
         commitment_mapping=commitment_mapping,
-        commitment_scalars=commitment_headers,
+        commitment_headers=commitment_headers,
         device_group_lookup=device_group_lookup,
         merged_constituents=merged_constituents,
         convex_cost_curve=convex_cost_curve,
@@ -1057,9 +1045,7 @@ def _validate_commitments_are_enforceable(problem: SchedulingProblem) -> None:
     A commitment reaching neither family leaves its deviation variables in the objective without any constraint:
     the commitment is silently dropped, or, when a deviation price has the favourable sign, the problem becomes unbounded.
     """
-    scalars = problem.commitment_scalars
-    for c in range(len(problem.commitments)):
-        header = scalars[c]
+    for c, header in enumerate(problem.commitment_headers):
         groups = problem.device_group_lookup.get(c)
         if groups:
             if any(groups.values()):
@@ -1082,11 +1068,11 @@ def _validate_commitments_are_enforceable(problem: SchedulingProblem) -> None:
             )
 
 
-def _identify_commitment(header: dict, original_index: int) -> str:
+def _identify_commitment(header: SubCommitmentHeader, original_index: int) -> str:
     """Identify a commitment the way the user knows it: by its name, when available.
 
-    Takes the constant columns read by :func:`commitment_scalars`. Commitments passed as
-    plain DataFrames carry no name column, so those fall back to the index alone.
+    Takes the sub-commitment's :data:`SubCommitmentHeader`.
+    Commitments passed as plain DataFrames carry no name column, so those fall back to the index alone.
     The name is quoted with ``repr``, which switches quote style when the name itself contains a quote.
     """
     name = header.get("name")
@@ -1130,21 +1116,21 @@ def aggregate_subcommitment_costs(
 
 
 def aggregate_commodity_costs(
-    commitments: list[pd.DataFrame] | list[dict], subcommitment_costs: dict
+    commitments: Sequence[pd.DataFrame] | list[SubCommitmentHeader],
+    subcommitment_costs: dict,
 ) -> dict:
     """Sum sub-commitment costs per commodity, skipping commitments without one.
 
-    Accepts either the commitment frames or the constant columns already read from them
-    by :func:`commitment_scalars`; the latter avoids re-indexing every frame.
+    Accepts either the sub-commitment frames or their :data:`SubCommitmentHeader`;
+    the latter avoids re-indexing every frame.
     """
-    headers = (
-        commitments
-        if commitments and isinstance(commitments[0], dict)
-        else commitment_scalars(commitments)  # type: ignore[arg-type]
-    )
     commodity_costs: dict = {}
-    for c, header in enumerate(headers):
-        commodity = header["commodity"]
+    for c, commitment in enumerate(commitments):
+        commodity = (
+            commitment["commodity"]
+            if isinstance(commitment, dict)
+            else _first_row_value(commitment, "commodity")
+        )
         if commodity is None:
             continue
         commodity_costs[commodity] = (

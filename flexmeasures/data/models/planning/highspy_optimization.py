@@ -37,6 +37,7 @@ from flexmeasures.data.models.planning import (
 from flexmeasures.data.models.planning.scheduling_problem import (
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
+    header_price,
     planned_power_per_device,
     prepare_scheduling_problem,
     solver_options,
@@ -268,7 +269,7 @@ def device_scheduler_highspy(  # noqa C901
     device_to_group = problem.device_to_group
     group_to_devices = problem.group_to_devices
     commitments = problem.commitments
-    commitment_headers = problem.commitment_scalars
+    commitment_headers = problem.commitment_headers
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
@@ -385,18 +386,13 @@ def device_scheduler_highspy(  # noqa C901
         upper[col_band:col_alpha] = 1
 
     # Per-subcommitment data: prices (objective), quantities and bounds.
-    # Prices are constant down a commitment, so they come from the headers read once
-    # by prepare_scheduling_problem rather than from indexing every frame again.
-    def _price_of(header: dict, column: str) -> float:
-        """Mirrors price_down_select / price_up_select."""
-        price = header[column]
-        return 0 if price is None else float(price)
-
+    # Prices are constant down a commitment, so they come from the headers read once by prepare_scheduling_problem,
+    # rather than from indexing every frame again.
     down_price = np.zeros(C)
     up_price = np.zeros(C)
     for c, header in enumerate(commitment_headers):
-        down_price[c] = _price_of(header, "downwards deviation price")
-        up_price[c] = _price_of(header, "upwards deviation price")
+        down_price[c] = header_price(header, "downwards deviation price")
+        up_price[c] = header_price(header, "upwards deviation price")
     cost[col_cdown : col_cdown + C] = down_price
     cost[col_cup : col_cup + C] = up_price
 
@@ -528,9 +524,8 @@ def device_scheduler_highspy(  # noqa C901
     def _active_rows(c: int):
         """The commitment's active time steps and its row bounds.
 
-        Gathered while the commitments were split (see ``commitment_scalars``): a NaN
-        quantity deactivates the commitment at that time step, the way the Pyomo
-        implementation's -inf Param does.
+        Gathered while the commitments were split (see ``SubCommitmentHeader``):
+        a NaN quantity deactivates the commitment at that time step, the way the Pyomo implementation's -inf Param does.
         """
         return commitment_headers[c]["active rows"]
 
