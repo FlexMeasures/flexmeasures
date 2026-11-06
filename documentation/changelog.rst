@@ -5,6 +5,14 @@ FlexMeasures Changelog
 
 
 
+v1.0.3 | November xx, 2026
+============================
+
+Bugfixes
+-----------
+* Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
+
+
 v1.0.2 | November 5, 2026
 ============================
 
