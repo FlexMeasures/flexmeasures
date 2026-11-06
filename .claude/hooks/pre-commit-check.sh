@@ -31,6 +31,11 @@ command -v python3 >/dev/null 2>&1 || exit 0
 target="$(printf '%s' "$payload" | python3 "$(dirname "${BASH_SOURCE[0]}")/pre_commit_target.py" 2>/dev/null || true)"
 [ -n "$target" ] || exit 0
 
+# Commits from this session also land in repositories that do not use pre-commit at all, such as ones relying on their own git hooks.
+# Running `pre-commit run --all-files` there fails with "InvalidConfigError: .pre-commit-config.yaml is not a file", which says nothing about the commit.
+# Same fail-open rule as below: when the target has no config, there is nothing for this hook to check.
+[ -f "$target/.pre-commit-config.yaml" ] || exit 0
+
 # Pick a runner for the target checkout.
 # `uv run` only works where the target is a uv project whose dependencies resolve,
 # which is not a given: commits from this session also land in worktrees of other repositories,
