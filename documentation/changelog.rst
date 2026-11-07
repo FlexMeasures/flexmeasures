@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Sensor data posted in a stock unit (such as kWh or m³) to a sensor with a flow unit (such as kW or m³/h) and a finer resolution than the posted values is no longer recorded several times too high [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 v1.1.1 | November 11, 2026
