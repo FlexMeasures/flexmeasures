@@ -109,7 +109,155 @@ which gives a response like this if the credentials are correct:
         "user_id": "<ID of the user>"
     }
 
-.. note:: Each access token has a limited lifetime, see :ref:`api_auth`.
+Access tokens expire after six hours by default; the host can configure a different lifetime.
+The existing request and response above remain unchanged. Authenticate again with your
+email and password when the token expires, or opt in to refresh tokens as described below.
+Use the token directly in the ``Authorization`` header, without a ``Bearer`` prefix.
+
+.. _api_refresh_tokens:
+
+Refresh tokens
+^^^^^^^^^^^^^^
+
+A refresh token lets an integration obtain a new access token without sending the user's
+password again. It is a long-lived credential: protect it as carefully as a password.
+These JSON endpoints extend FlexMeasures authentication; they are not an OAuth implementation
+and do not change browser login sessions.
+
+To opt in, add ``"include-refresh-token": true`` to ``POST /api/requestAuthToken``:
+
+.. code-block:: json
+
+    {
+        "email": "user@example.com",
+        "password": "<user password>",
+        "include-refresh-token": true
+    }
+
+A successful response has HTTP status 200:
+
+.. code-block:: json
+
+    {
+        "auth_token": "<access token>",
+        "user_id": 1,
+        "refresh-token": "<refresh token>",
+        "expires-in": 21600
+    }
+
+``auth_token`` is the access token used for ordinary API requests. ``expires-in`` is its
+lifetime in seconds, reflecting the host's configuration. The example uses the default
+six hours. A refresh token cannot authenticate an ordinary API request.
+If the host has configured access tokens without an expiry, ``expires-in`` is ``null``.
+Responses also include FlexMeasures' usual ``status`` field.
+
+To replace the access token, send ``POST /api/refreshAuthToken`` with this JSON body:
+
+.. code-block:: json
+
+    {"refresh-token": "<current refresh token>"}
+
+No password or access token is required, so refresh also works after the access token
+expires. A successful refresh returns the same four fields as the opt-in login response,
+including a replacement refresh token. Save both replacement tokens together before making
+another refresh request.
+
+Each refresh token can be used only once. All replacement tokens descended from a login
+form a *token family*. Reusing an already exchanged token revokes that family, including
+its newest refresh token. Serialize refresh requests across workers that share credentials.
+If a refresh response is lost, authenticate again with email and password; blindly retrying
+the old token may revoke the family.
+
+To stop future refreshes, send ``POST /api/revokeRefreshToken`` with the current refresh
+token in the same JSON format. It returns HTTP status 200 with ``{"revoked": true}``
+and revokes the family. Already issued access tokens remain usable until they expire or
+are invalidated, for example by a password change. Disabled users cannot authenticate.
+Password changes and user deactivation revoke existing refresh-token families.
+Reactivating a user does not restore those families. Revocation does not log out
+an existing browser session.
+
+By default, a refresh-token family expires 90 days after its initial login, or after
+7 days without a successful refresh, whichever happens first. Rotation does not extend
+the absolute lifetime. Hosts configure these limits with ``SECURITY_REFRESH_TOKEN_MAX_AGE``
+and ``SECURITY_REFRESH_TOKEN_MAX_IDLE``. After expiry or revocation, authenticate again
+with email and password.
+These settings take Python ``datetime.timedelta`` values. API refresh support does not
+require enabling Flask-Security's global ``SECURITY_REFRESH_TOKEN`` flag, which also
+changes browser authentication. Apply the database migration before running the upgraded server.
+
+Malformed requests return HTTP status 400 with validation errors. An invalid, expired,
+revoked, or reused refresh token returns HTTP status 401 with ``error`` set to
+``"invalid_refresh_token"`` and an ``errors`` list. On that response, authenticate again;
+do not retry the rejected token. Ordinary API authorization still depends on the user's
+permissions, and refreshing a token does not grant additional permissions.
+
+Use HTTPS, keep passwords and tokens out of logs, and store them in a protected credential
+store. Token responses include ``Cache-Control: no-store``. The following examples use
+placeholders; do not put real credentials in shell history.
+
+Example requests with curl (``--fail-with-body`` reports HTTP failures):
+
+.. code-block:: bash
+
+    curl --fail-with-body https://company.flexmeasures.io/api/requestAuthToken \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"user@example.com","password":"<password>","include-refresh-token":true}'
+
+    curl --fail-with-body https://company.flexmeasures.io/api/v3_0/users/1 \
+      -H 'Authorization: <access token>'
+
+    curl --fail-with-body https://company.flexmeasures.io/api/refreshAuthToken \
+      -H 'Content-Type: application/json' \
+      -d '{"refresh-token":"<current refresh token>"}'
+
+    curl --fail-with-body https://company.flexmeasures.io/api/revokeRefreshToken \
+      -H 'Content-Type: application/json' \
+      -d '{"refresh-token":"<replacement refresh token>"}'
+
+The equivalent Python sequence logs in, accesses the API, refreshes, accesses the API
+with the replacement token, and revokes the refresh-token family. This single-process
+example keeps tokens in memory; a persistent client should save replacements atomically.
+It deliberately does not automatically retry failed refresh requests.
+
+.. code-block:: python
+
+    import getpass
+    import requests
+
+    base_url = "https://company.flexmeasures.io"
+
+    def post_token(endpoint, body):
+        response = requests.post(
+            f"{base_url}/api/{endpoint}", json=body, timeout=30
+        )
+        if response.status_code == 401:
+            raise RuntimeError("Authentication failed; sign in again.")
+        response.raise_for_status()
+        return response.json()
+
+    tokens = post_token("requestAuthToken", {
+        "email": input("Email: "),
+        "password": getpass.getpass(),
+        "include-refresh-token": True,
+    })
+
+    def get_user(tokens):
+        response = requests.get(
+            f"{base_url}/api/v3_0/users/{tokens['user_id']}",
+            headers={"Authorization": tokens["auth_token"]},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    user = get_user(tokens)
+    tokens = post_token("refreshAuthToken", {
+        "refresh-token": tokens["refresh-token"],
+    })
+    user = get_user(tokens)
+    post_token("revokeRefreshToken", {
+        "refresh-token": tokens["refresh-token"],
+    })
 
 .. _api_see_other:
 
