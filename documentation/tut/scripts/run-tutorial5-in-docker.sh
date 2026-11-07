@@ -26,11 +26,19 @@ extract_single_id() {
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 5 (REPORTERS / KPIs) ..."
 echo "------------------------------------------------------------"
 
-TOMORROW=$(date --date="next day" '+%Y-%m-%d')
+TOMORROW=$(TZ=Europe/Amsterdam date --date="next day" '+%Y-%m-%d')
+DAY_AFTER=$(TZ=Europe/Amsterdam date --date="${TOMORROW} + 1 day" '+%Y-%m-%d')
+START=$(TZ=Europe/Amsterdam date --date="${TOMORROW} 00:00" '+%Y-%m-%dT%H:%M:%S%:z')
+START_SECONDS=$(TZ=Europe/Amsterdam date --date="${TOMORROW} 00:00" '+%s')
+END_SECONDS=$(TZ=Europe/Amsterdam date --date="${DAY_AFTER} 00:00" '+%s')
+DURATION="PT$(( (END_SECONDS - START_SECONDS) / 3600 ))H"
 
-eval "$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
-eval "$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
-eval "$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')"
+TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')
+eval "$TOY_VARS"
+TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')
+eval "$TOY_VARS"
+TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')
+eval "$TOY_VARS"
 
 DATA_SOURCES=$(docker exec -i "$CONTAINER_NAME" flexmeasures show data-sources)
 FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID=$(extract_single_id \
@@ -47,7 +55,7 @@ FM_TOY_PROCESS_SHIFTABLE_COST_SENSOR_ID=$(extract_single_id \
 echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
 
 echo "[TUTORIAL-RUNNER] Show grid connection capacity ..."
-docker exec -it "$CONTAINER_NAME" flexmeasures show beliefs --sensor "$FM_TOY_GRID_CAPACITY_SENSOR_ID" --start "${TOMORROW}T00:00:00+02:00" --duration PT24H --resolution PT1H
+docker exec -it "$CONTAINER_NAME" flexmeasures show beliefs --sensor "$FM_TOY_GRID_CAPACITY_SENSOR_ID" --start "${START}" --duration ${DURATION} --resolution PT1H
 
 docker exec -it "$CONTAINER_NAME" flexmeasures show data-sources --show-attributes --id "$FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID"
 
@@ -65,7 +73,7 @@ docker cp headroom-config.json "$CONTAINER_NAME":/app
 echo "
 {
     'input': [{'name': 'grid connection capacity', 'sensor': ${FM_TOY_GRID_CAPACITY_SENSOR_ID}},
-               {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'sources': [2]}],
+               {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'source_types': ['forecaster']}],
     'output': [{'sensor': ${FM_TOY_HEADROOM_SENSOR_ID}}]
 }" > headroom-parameters.json
 docker cp headroom-parameters.json "$CONTAINER_NAME":/app
@@ -80,7 +88,7 @@ docker exec -it "$CONTAINER_NAME" flexmeasures add report --reporter AggregatorR
 
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
-docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_HEADROOM_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
+docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_HEADROOM_SENSOR_ID} --start ${START} --duration ${DURATION}"
 
 
 echo "[TUTORIAL-RUNNER] now the inflexible process ..."
@@ -98,7 +106,7 @@ docker exec -it "$CONTAINER_NAME" flexmeasures add report --source "$FM_TOY_PROF
    --start-offset DB,1D --end-offset DB,2D
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
-docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
+docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID} --start ${START} --duration ${DURATION}"
 
 
 echo "[TUTORIAL-RUNNER] now the breakable process ..."
@@ -116,7 +124,7 @@ docker exec -it "$CONTAINER_NAME" flexmeasures add report --source "$FM_TOY_PROF
    --start-offset DB,1D --end-offset DB,2D
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
-docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_BREAKABLE_COST_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
+docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_BREAKABLE_COST_SENSOR_ID} --start ${START} --duration ${DURATION}"
 
 
 
@@ -135,4 +143,4 @@ docker exec -it "$CONTAINER_NAME" flexmeasures add report --source "$FM_TOY_PROF
    --start-offset DB,1D --end-offset DB,2D
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
-docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_SHIFTABLE_COST_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
+docker exec -it "$CONTAINER_NAME" bash -c "flexmeasures show beliefs --sensor ${FM_TOY_PROCESS_SHIFTABLE_COST_SENSOR_ID} --start ${START} --duration ${DURATION}"

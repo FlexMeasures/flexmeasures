@@ -16,10 +16,15 @@
         </div>
         {% if can_reset_own_password %}
         <div>
-          <a href="/users/reset_password_for/{{ logged_in_user.id }}"
-             class="btn btn-sm btn-info delete-button"
-             title="Reset the password and send instructions how to choose a new one.">Reset password</a>
+          <button type="button"
+             class="btn btn-sm btn-info delete-button js-reset-password-btn"
+             data-user-id="{{ logged_in_user.id }}" data-own-password="true"
+             title="Reset the password and send instructions how to choose a new one.">Reset password</button>
         </div>
+        <script type="module">
+          import { initResetPasswordButtons } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+          document.addEventListener("DOMContentLoaded", initResetPasswordButtons);
+        </script>
         {% endif %}
       </div>
     </div>

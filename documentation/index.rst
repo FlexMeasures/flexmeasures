@@ -1,13 +1,13 @@
 Welcome to the FlexMeasures documentation!
 ===================================================================
 
-*FlexMeasures* is an intelligent EMS to optimize behind-the-meter energy flexibility.
-Build your smart energy apps & services with FlexMeasures as backend for real-time orchestration! 
+*FlexMeasures* is an energy scheduling and optimization engine for powerful energy management systems.
+With FlexMeasures, you can integrate complex, multi-asset, multi-commodity optimization capabilities into your EMS.
 
 The problem FlexMeasures helps you to solve is: **What are the best times to power flexible assets, such as batteries or heat pumps?**
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
-*Why?* Planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to more optimal times. For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives).
+FlexMeasures turns data into optimized schedules for flexible assets.
+*Why?* Planning ahead allows flexible assets to serve the whole system by shifting energy consumption to more optimal times. For the asset owners, this reduces CO₂ footprints while also reducing energy costs (e.g. by increasing consumption of locally produced power, dynamic tariffs and grid incentives).
 
 
 .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png 
@@ -90,7 +90,7 @@ What FlexMeasures does
     - API
         FlexMeasures runs in the cloud (although it can also run on-premise if needed, for instance as Docker container). Therefore, a well-supported REST-like API is crucial. You can add & retrieve data, trigger schedule computations and even add and edit the structure (of assets and sensors). Read more at :ref:`api_introduction`.  
     - UI
-        We built a user interface for FlexMeasures, so assets, data and schedules can be inspected by devs, hosts and analysts. You can start with :ref:`_dashboard` to get an idea. We expect that real energy flexibility services will come with their own UI, maybe as they are connecting FlexMeasures as a smart backend to an existing user-facing ESCO platform. In these cases, the API is more useful. However, FlexMeasures can provide its data plots and visualizations through the API in these cases, see :ref:`tut_building_uis`.
+        We built a user interface for FlexMeasures, so assets, data and schedules can be inspected by devs, hosts and analysts. You can start with :ref:`dashboard` to get an idea. We expect that real energy flexibility services will come with their own UI, maybe as they are connecting FlexMeasures as a smart backend to an existing user-facing ESCO platform. In these cases, the API is more useful. However, FlexMeasures can provide its data plots and visualizations through the API in these cases, see :ref:`tut_building_uis`.
     - CLI
         For the engineers hosting FlexMeasures, a command-line interface is crucial. We developed a range of :ref:`cli` based on the ``flexmeasures`` directive (see also the code example above), so that DevOps personnel can administer accounts & users, load & review data and heck on computation jobs. The CLI is also useful to automate calls to third party APIs (via CRON jobs for instance) ― this is usually done when plugins add their own ``flexmeasures`` commands. 
     - FlexMeasures Client
@@ -282,20 +282,21 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/automated-deploy-via-GHActions
     dev/release_process
 
-.. autosummary::
-   :caption: Code Documentation
-   :toctree: _autosummary/
-   :template: custom-module-template.rst
-   :recursive:
+.. code-documentation::
 
-   flexmeasures.api
-   flexmeasures.app
-   flexmeasures.auth
-   flexmeasures.cli
-   flexmeasures.data
-   flexmeasures.ui
-   flexmeasures.utils
+   .. autosummary::
+      :caption: Code Documentation
+      :toctree: _autosummary/
+      :template: custom-module-template.rst
+      :recursive:
 
+      flexmeasures.api
+      flexmeasures.app
+      flexmeasures.auth
+      flexmeasures.cli
+      flexmeasures.data
+      flexmeasures.ui
+      flexmeasures.utils
 
 .. Code documentation
 .. ------------------

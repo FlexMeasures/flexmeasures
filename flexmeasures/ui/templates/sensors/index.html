@@ -605,7 +605,21 @@ For the data, note the following:
         }
     }
 
-    async function deleteSensor() {
+    // Which flex-config fields deleting this sensor leaves without a sensor, to name before deleting it, and to link to afterwards.
+    async function fetchDeletionNotes() {
+        try {
+            const response = await fetch(apiBasePath + "/sensors/{{ sensor.id }}/deletion-notes");
+            if (response.ok) {
+                return await response.json();
+            }
+            console.warn("Could not look up the fields deleting this sensor leaves without a sensor:", response.status);
+        } catch (error) {
+            console.warn("Could not look up the fields deleting this sensor leaves without a sensor:", error);
+        }
+        return {"confirmation-note": "", "toast": ""};
+    }
+
+    async function deleteSensor(deletionToast) {
         const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
             method: "DELETE",
             headers: {
@@ -616,6 +630,14 @@ For the data, note the following:
 
         if (response.status === 204) {
             showToast("Sensor deleted successfully.", "success");
+            if (deletionToast) {
+                // Shown by the asset's page, which this page moves on to, as the links in it are for later.
+                try {
+                    sessionStorage.setItem("flexmeasures-toast-after-redirect", deletionToast);
+                } catch (error) {
+                    console.warn("Could not keep the toast about fields left without a sensor:", error);
+                }
+            }
             // delay for one second to show toast message
             await new Promise(resolve => setTimeout(resolve, 1000));
             window.location.href = apiBasePath + "/assets/" + parentAssetId;
@@ -635,10 +657,15 @@ For the data, note the following:
         }
     }
 
-    $("#delete-sensor-button").click(function () {
-        let result = confirm("Are you sure you want to delete this sensor and all time series data associated with it?");
+    $("#delete-sensor-button").click(async function () {
+        const deletionNotes = await fetchDeletionNotes();
+        let confirmMessage = "Are you sure you want to delete this sensor and all time series data associated with it?";
+        if (deletionNotes["confirmation-note"]) {
+            confirmMessage += "\n\n" + deletionNotes["confirmation-note"];
+        }
+        let result = confirm(confirmMessage);
         if (result) {
-            deleteSensor();
+            deleteSensor(deletionNotes["toast"]);
         }
     });
 

@@ -1,5 +1,6 @@
 import pytest
 import json
+import re
 
 from flexmeasures.auth import error_handling as auth_error_handling
 
@@ -47,6 +48,16 @@ def test_error_handling(
     assert b"- FlexMeasures" in res.data
     if expected_message:
         assert expected_message.encode() in res.data
+
+
+def test_error_page_link_clears_the_session(client, error_endpoints, as_prosumer_user1):
+    """The root view redirects without the query string, so the link must lead to the dashboard itself."""
+    res = client.get(
+        "/raise-error?type=bad_request", headers={"Content-Type": "text/html"}
+    )
+    link = re.search(r'href="([^"]*clear-session[^"]*)"', res.data.decode()).group(1)
+    cleared = client.get(link, follow_redirects=True)
+    assert b"Your session was cleared." in cleared.data
 
 
 def test_unhandled_error_is_an_internal_server_error(client, error_endpoints):

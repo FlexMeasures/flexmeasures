@@ -15,7 +15,7 @@ from flexmeasures.data.models.planning.devices import (
     group_key_label,
 )
 from flexmeasures.data.models.reporting import Reporter, read_input_beliefs
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
     AggregatorParametersSchema,
@@ -463,6 +463,73 @@ class AggregatorReporter(Reporter):
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
 
+    def _label_incomplete_events(
+        self,
+        frame: pd.DataFrame,
+        incomplete: pd.Series,
+        column_sensor_ids: dict[str, int],
+        sources: pd.Series,
+    ) -> pd.Series:
+        """Record each event that some members did not report under a source that names them, in its `missing-members`.
+
+        The complete aggregate keeps its own source, which says nothing about missing members,
+        so a consumer can tell a partial aggregate from a complete one, and an aggregate recorded once its data is complete supersedes the partial one.
+        Only members count: a gap in a sensor named in `input` besides the group is aggregated over, as reports over named sensors always have.
+        Which members are missing can differ per event, so one report may record under several sources.
+        A sensor that fails again later is recorded under the source it was recorded under before, as sources with the same attributes are shared.
+        """
+        # a sensor named in `input` besides the group is not one of its members, so a gap in it leaves the group's aggregate complete
+        members = set(self._config.get("resolved_members") or [])
+        columns = [
+            column for column in frame.columns if column_sensor_ids[column] in members
+        ]
+        sensor_ids = [column_sensor_ids[column] for column in columns]
+        missing = frame.loc[incomplete, columns].isna()
+        events_by_missing_set: dict[tuple[int, ...], list] = {}
+        for event_start, *gone in missing.itertuples(name=None):
+            missing_ids = tuple(
+                sorted(
+                    {
+                        sensor_id
+                        for sensor_id, is_gone in zip(sensor_ids, gone)
+                        if is_gone
+                    }
+                )
+            )
+            if missing_ids:
+                events_by_missing_set.setdefault(missing_ids, []).append(event_start)
+
+        complete_source = self.data_source
+        sources = sources.copy()
+        try:
+            for missing_ids, event_starts in events_by_missing_set.items():
+                self._config["missing_members"] = list(missing_ids)
+                self._data_source = None
+                sources.loc[event_starts] = self.data_source
+        finally:
+            self._config.pop("missing_members", None)
+            self._data_source = complete_source
+        return sources
+
+    def get_data_source_attributes(self) -> dict:
+        """Describe this report's data source, naming the members it resolved to and the ones it is missing, also when the config is not saved.
+
+        Which members an aggregate covers, and which it leaves out, says what its data is, rather than how to compute it again,
+        so it is part of the source even where the rest of the config is not saved, as with `flexmeasures add report --no-save-config`.
+        Without it, a changed membership and a partial aggregate would both be recorded under the complete report's source.
+        """
+        attributes = super().get_data_source_attributes()
+        if self._save_config:
+            return attributes
+        recorded = {}
+        if "resolved_members" in self._config:
+            recorded["resolved-members"] = list(self._config["resolved_members"])
+        if self._config.get("missing_members"):
+            recorded["missing-members"] = list(self._config["missing_members"])
+        if recorded:
+            attributes["data_generator"]["config"] = recorded
+        return attributes
+
     # ------------------------------------------------------------------ units
 
     def _to_output_unit(
@@ -566,6 +633,10 @@ class AggregatorReporter(Reporter):
         if resolution is None:
             resolution = output_sensor.event_resolution
 
+        # which members are missing is this run's finding per event, so a value given in the config describes no event of this run
+        if self._config.pop("missing_members", None) is not None:
+            self._data_source = None
+
         if self._config.get("group"):
             self._record_membership(self._group_members())
 
@@ -582,6 +653,7 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         columns = []
+        column_sensor_ids: dict[str, int] = {}
 
         for index, input_description in enumerate(input_descriptions):
             sensor: Sensor = input_description.pop("sensor")
@@ -619,27 +691,12 @@ class AggregatorReporter(Reporter):
 
             # a unique name per column, so that two entries for the same sensor both survive the concat
             columns.append(values.rename(f"{column_name}_{index}"))
+            column_sensor_ids[f"{column_name}_{index}"] = sensor.id
 
         frame = pd.concat(columns, axis=1)
         aggregated = frame.aggregate(method, axis=1)
 
-        skip_missing = self._config.get("skip_missing")
-        if skip_missing is None:
-            # Where the members were resolved for the caller, a silently low aggregate is the worse failure,
-            # so an event is reported only when every member reported it. Where the caller named the sensors itself,
-            # leaving out what did not report is what these reports have always done.
-            skip_missing = not bool(self._config.get("group"))
-
-        # An event no sensor reported is missing, whichever mode this is: Pandas sums an all-missing row to zero,
-        # which would report an hour nothing was measured in as an hour nothing flowed in.
-        nothing_reported = frame.isna().all(axis=1)
-        aggregated = aggregated.where(~nothing_reported)
-
-        if not skip_missing:
-            incomplete = frame.isna().any(axis=1) & ~nothing_reported
-            if incomplete.any():
-                self._warn_about_gaps(frame, incomplete)
-                aggregated = aggregated.where(~incomplete)
+        aggregated, sources = self._settle_gaps(frame, aggregated, column_sensor_ids)
 
         # Built explicitly, because resampling the inputs with pandas leaves plain Series behind,
         # and the report has to come back as a BeliefsDataFrame of the output sensor.
@@ -647,7 +704,7 @@ class AggregatorReporter(Reporter):
             {
                 "event_start": aggregated.index,
                 "event_value": aggregated.to_numpy(),
-                "source": self.data_source,
+                "source": sources.to_numpy(),
                 "cumulative_probability": 0.5,
             }
         )
@@ -659,14 +716,123 @@ class AggregatorReporter(Reporter):
         output_df = tb.BeliefsDataFrame(flat, sensor=output_sensor)
         output_df.event_resolution = output_sensor.event_resolution
 
-        return [
-            {
-                "name": "aggregate",
-                "column": "event_value",
-                "sensor": output_sensor,
-                "data": output_df,
-            }
+        result = {
+            "name": "aggregate",
+            "column": "event_value",
+            "sensor": output_sensor,
+            "data": output_df,
+        }
+        if self._config.get("group"):
+            superseding = self._complete_events_superseding_a_partial_one(
+                output_df, output_sensor, start, end
+            )
+            if len(superseding) > 0:
+                result["save_even_if_unchanged"] = superseding
+        return [result]
+
+    def _settle_gaps(
+        self,
+        frame: pd.DataFrame,
+        aggregated: pd.Series,
+        column_sensor_ids: dict[str, int],
+    ) -> tuple[pd.Series, pd.Series]:
+        """Settle what to record for events that not every sensor reported, and under which source to record each event."""
+        # An event no sensor reported is missing, whichever mode this is: Pandas sums an all-missing row to zero,
+        # which would report an hour nothing was measured in as an hour nothing flowed in.
+        nothing_reported = frame.isna().all(axis=1)
+        aggregated = aggregated.where(~nothing_reported)
+        incomplete = frame.isna().any(axis=1) & ~nothing_reported
+
+        sources = pd.Series(self.data_source, index=aggregated.index, dtype=object)
+        if self._config.get("skip_missing") is False:
+            if incomplete.any():
+                self._warn_about_gaps(frame, incomplete)
+                aggregated = aggregated.where(~incomplete)
+        elif self._config.get("group") and incomplete.any():
+            # Where the members were resolved for the caller, the caller cannot see which of them went in,
+            # so an event that some of them did not report is recorded under a source that names them.
+            # Where the caller named the sensors itself, aggregating what reported is what these reports have always done.
+            sources = self._label_incomplete_events(
+                frame, incomplete, column_sensor_ids, sources
+            )
+        return aggregated, sources
+
+    def _complete_events_superseding_a_partial_one(
+        self,
+        output_df: tb.BeliefsDataFrame,
+        output_sensor: Sensor,
+        start: datetime,
+        end: datetime,
+    ) -> pd.DatetimeIndex:
+        """Return the starts of the complete events of this report that a partial aggregate recorded since the last complete one stands in for.
+
+        A belief that says the same as its source's belief before it is normally not saved again.
+        A complete aggregate computed again after a partial one was recorded may say just what the complete source said before,
+        but leaving it out would leave the partial aggregate as the most recent belief, which every consumer of one belief per event would read.
+        So such a complete aggregate is saved even if unchanged.
+        Only a partial aggregate that this report's belief would supersede counts, which is one of the same version recorded no later.
+        A report on a sensor that never had a partial aggregate of this version costs only the lookup of its sources.
+        """
+        complete_source = self.data_source
+        family = [
+            source
+            for source in output_sensor.search_data_sources(source_types=["reporter"])
+            if (source.name, source.type, source.model, source.version)
+            == (
+                complete_source.name,
+                complete_source.type,
+                complete_source.model,
+                complete_source.version,
+            )
         ]
+        if not any(source.missing_members for source in family):
+            return pd.DatetimeIndex([])
+
+        is_complete = (
+            output_df.index.get_level_values("source") == complete_source
+        ) & output_df["event_value"].notna().to_numpy()
+        new = output_df[is_complete]
+        if new.empty:
+            return pd.DatetimeIndex([])
+
+        stored = TimedBelief.search(
+            sensors=output_sensor,
+            source=family,
+            event_starts_after=start,
+            event_ends_before=end,
+            one_deterministic_belief_per_event=True,
+        )
+        if stored.empty:
+            return pd.DatetimeIndex([])
+        picks = stored.index.to_frame(index=False).set_index("event_start")
+        picks = picks[[bool(source.missing_members) for source in picks["source"]]]
+
+        # Compared in UTC and by belief time: the report's events are in its inputs' timezone and the stored ones in the output sensor's,
+        # and a report computed with a belief horizon is indexed by horizon rather than by belief time.
+        picks.index = picks.index.tz_convert("UTC")
+        new_belief_times = pd.Series(
+            new.belief_times,
+            index=new.index.get_level_values("event_start").tz_convert("UTC"),
+        )
+        shared = new_belief_times.index.intersection(picks.index)
+        # a partial aggregate believed later than this report would not be superseded by it, so saving this one would change nothing
+        superseded = (
+            picks.loc[shared, "belief_time"].to_numpy()
+            <= new_belief_times.loc[shared].to_numpy()
+        )
+        return pd.DatetimeIndex(shared[superseded])
+
+    def _assign_sensors_and_source(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Assign each result its sensor, and keep the sources the report chose per event.
+
+        A report over a group records an event that some members did not report under a source of its own,
+        which assigning the report's own source to every event would undo.
+        """
+        for result in results:
+            result["data"].sensor = result["sensor"]
+        return results
 
     @staticmethod
     def _warn_about_gaps(frame: pd.DataFrame, incomplete: pd.Series) -> None:
@@ -679,7 +845,7 @@ class AggregatorReporter(Reporter):
         current_app.logger.warning(
             f"{int(incomplete.sum())} event(s) are left out of the aggregate because not every sensor reported them."
             f" Sensors with gaps, and the number of events each is missing: {gaps}."
-            f" Set `skip-missing` to aggregate whatever reported instead."
+            f" Leave `skip-missing` unset to aggregate whatever reported instead."
         )
 
     def _resolve_output(self, output: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -701,15 +867,20 @@ class AggregatorReporter(Reporter):
     def _check_one_source_per_event(
         df, sensor: Sensor, source, input_description: dict
     ) -> None:
-        """Refuse data that holds several sources for one event, unless the caller narrowed the sources down.
+        """Refuse data that holds more than one belief about one event, or several sources across events unless the caller narrowed the sources down.
 
+        The search keeps one belief per event wherever several sources report it,
+        but an input that asks for more than the most recent belief of a single source still gets several beliefs about one event.
         Different versions of one source are not several sources, and neither is data a source filter has already narrowed,
         which is why a filtered search is accepted here even when more than one source remains.
         """
         if len(df.lineage.events) != len(df):
-            duplicate_events = df[df.index.get_level_values("event_start").duplicated()]
+            starts = df.index.get_level_values("event_start")
+            repeated = starts[starts.duplicated()].unique()
             raise ValueError(
-                f"{len(duplicate_events)} event(s) are duplicate. First duplicate: {duplicate_events[0]}. Consider using (more) source filters."
+                f"The data of sensor {sensor.id} ({sensor.name}) holds more than one belief about {len(repeated)} event(s), the first of which starts at {repeated[0]}."
+                " An aggregate takes one value per event, so read only the most recent belief about each event (leave out `most-recent-beliefs-only: false`),"
+                " or narrow the sources down."
             )
 
         narrowed = bool(source) or any(

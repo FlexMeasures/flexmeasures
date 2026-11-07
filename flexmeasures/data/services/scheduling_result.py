@@ -13,14 +13,18 @@ class SchedulingJobResult:
     The sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<job_id>``) returns power values only and does not include constraint analysis.
 
     **Structure:**
-    Results contain three top-level fields:
+    Results contain four top-level fields:
     - ``unresolved``: List of soft constraints that the scheduler could not satisfy
       - Each entry is a dict with ``"asset"`` field (asset ID) and constraint-type keys (``"soc-minima"``, ``"soc-maxima"``)
       - Each constraint-type key holds a list of dicts, one per violated slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "violation": "X kWh"}``
     - ``resolved``: List of soft constraints that were satisfied with available headroom
       - Each entry is a dict with ``"asset"`` field and constraint-type keys
       - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
-    - ``num-beliefs``: Total number of beliefs (scheduled values) saved to the database
+    - ``outputs``: List of the sensors the schedule records on, one entry per sensor
+      - Each entry is a dict with ``"sensor"`` field (sensor ID), ``"num-computed-beliefs"`` (the beliefs the scheduler computed for it),
+        and ``"num-recorded-beliefs"`` (those recorded, which leaves out beliefs that repeat what is already on record or have no value).
+      - On a dry run, nothing is recorded, so each entry's ``"num-recorded-beliefs"`` is 0.
+    - ``num-beliefs``: Total number of beliefs (scheduled values) computed, i.e. the total of ``"num-computed-beliefs"`` across ``outputs``.
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
     Only hard constraint failures cause job failure.
@@ -45,6 +49,9 @@ class SchedulingJobResult:
                     ],
                 }
             ],
+            "outputs": [
+                {"sensor": 5, "num-computed-beliefs": 96, "num-recorded-beliefs": 96},
+            ],
             "num-beliefs": 96
         }
 
@@ -53,6 +60,7 @@ class SchedulingJobResult:
 
     unresolved: list = field(default_factory=list)
     resolved: list = field(default_factory=list)
+    outputs: list = field(default_factory=list)
     num_beliefs: int = 0
 
     def to_dict(self) -> dict:
@@ -60,6 +68,7 @@ class SchedulingJobResult:
         return {
             "unresolved": self.unresolved,
             "resolved": self.resolved,
+            "outputs": self.outputs,
             "num-beliefs": self.num_beliefs,
         }
 
@@ -69,5 +78,6 @@ class SchedulingJobResult:
         return cls(
             unresolved=d.get("unresolved", []),
             resolved=d.get("resolved", []),
+            outputs=d.get("outputs", []),
             num_beliefs=d.get("num-beliefs", 0),
         )

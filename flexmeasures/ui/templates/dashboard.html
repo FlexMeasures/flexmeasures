@@ -259,5 +259,13 @@
 
 </script>
 
+{% if session_cleared %}
+<!-- The graphs remember their date range in the browser, which the server-side session cannot reach. -->
+<script type="module">
+    import { forgetChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
+    forgetChartDateRange();
+</script>
+{% endif %}
+
 
 {% endblock %}
