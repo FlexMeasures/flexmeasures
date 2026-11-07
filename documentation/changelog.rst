@@ -13,6 +13,7 @@ New features
 Infrastructure / Support
 -------------------------
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
+* Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 Bugfixes
 -----------
