@@ -344,6 +344,62 @@ def test_zooming_keeps_sessions_and_rescales_the_companion_subplots(
     """)
 
 
+def test_hovering_a_session_highlights_no_other_charger(assert_js, echarts_available):
+    """Hovering a session leaves the sessions of other chargers alone, while the ruler still highlights the power point below it.
+
+    The ruler highlights the point nearest in time on every linked subplot,
+    and in the sessions subplot that is often a point of another charger's session.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?sessions-emphasis");
+
+        const container = document.createElement("div");
+        container.id = "sessions-emphasis";
+        container.style.cssText = "width: 1000px; height: 700px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-09-21T10:00:00Z");
+        const hour = 3600000;
+        const rows = [];
+        let id = 1;
+        // Charger 5's session starts an hour later, so its points are the nearest in time while hovering Charger 4's.
+        for (const [asset, description, delay] of [[4, "Charger 4", 0], [5, "Charger 5", 1]]) {
+            for (const [name, offset] of [["arrival", 0], ["departure", 5], ["plug in", 0.5], ["plug out", 4.5], ["start charging", 1], ["stop charging", 4]]) {
+                const sensor = {id: id++, name, unit: "s", asset_id: asset, asset_description: description};
+                rows.push({sensor, event_start: start, event_value: start + (offset + delay) * hour});
+            }
+        }
+        const power = {id: 99, name: "charge points power", unit: "kW", asset_id: 1};
+        for (let i = 0; i < 24; i++) {
+            rows.push({sensor: power, source: {id: 1, name: "s"}, event_start: start + i * hour / 2, event_value: 50 + i, belief_horizon: 0});
+        }
+        const names = {sessionsTitle: "Sessions", companionTitles: ["Power flow by type"], powerFlowTitle: "Power flow by type", powerSensorName: "charge points power"};
+        renderFastChart("sessions-emphasis", rows, {
+            groupSpec: [{title: "Power flow by type", sensorIds: [99]}], datasetName: "sessions", isSensorPage: false,
+            chartType: "chart_for_chargepoint_sessions", chargePointChart: names,
+        });
+        const chart = echarts.getInstanceByDom(container);
+        const series = chart.getOption().series;
+        const highlighted = new Set();
+        chart.on("highlight", (event) => {
+            for (const item of event.batch || [event]) {
+                if (item.seriesIndex != null) highlighted.add(series[item.seriesIndex].name);
+            }
+        });
+
+        const [x, y] = chart.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [start + 2.5 * hour, 0]);
+        const rect = container.getBoundingClientRect();
+        const canvas = container.querySelector("canvas");
+        for (const dx of [0, 1]) {
+            canvas.dispatchEvent(new MouseEvent("mousemove", {clientX: rect.left + x + dx, clientY: rect.top + y, bubbles: true}));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        const highlightedNames = [...highlighted].join(", ");
+        check("hovering Charger 4's session leaves Charger 5's alone", !highlighted.has("Charger 5"), highlightedNames);
+        check("the ruler still highlights the power point below", highlighted.has("charge points power"), highlightedNames);
+    """)
+
+
 def test_a_tooltip_describes_only_the_subplot_under_the_pointer(
     assert_js, echarts_available
 ):

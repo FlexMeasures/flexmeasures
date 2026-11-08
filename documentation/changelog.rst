@@ -16,7 +16,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-* Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, and a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
+* Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
 
 
 v1.1.0 | November 05, 2026

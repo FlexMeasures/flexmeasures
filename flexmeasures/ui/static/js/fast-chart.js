@@ -2306,7 +2306,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
     type: "time", // nice-aligned clock-time ticks (see line chart); minInterval biases granularity
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true },
+    // The ruler would highlight the session point nearest in time, which is often another charger's session.
+    // Hover over a session is answered by its own hit area instead (see buildSessionHitSeries).
+    axisPointer: { show: true, triggerEmphasis: false },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
