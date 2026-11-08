@@ -7,6 +7,8 @@ FlexMeasures Changelog
 v1.2.0 | December xx, 2026
 ============================
 
+.. warning:: Python 3.10 is no longer supported. Upgrade to Python 3.11 or 3.12 before upgrading FlexMeasures.
+
 New features
 -------------
 

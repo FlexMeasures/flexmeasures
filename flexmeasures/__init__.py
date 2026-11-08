@@ -1,4 +1,4 @@
-from importlib_metadata import version, PackageNotFoundError
+from importlib.metadata import version, PackageNotFoundError
 
 import numpy as np
 

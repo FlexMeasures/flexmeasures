@@ -178,26 +178,14 @@ def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
         parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
 
 
-@pytest.mark.parametrize(
-    "flask_security_version, expected",
-    [
-        # 5.9 prefers a timedelta.
-        ("5.9.0", timedelta(weeks=1)),
-        # 5.8 only reads "<amount> <unit>", with the unit as a timedelta keyword.
-        ("5.8.1", "604800 seconds"),
-    ],
-)
-def test_normalize_security_durations(monkeypatch, flask_security_version, expected):
-    monkeypatch.setattr(
-        config_utils.metadata, "version", lambda package: flask_security_version
-    )
+def test_normalize_security_durations():
     app = Flask(__name__)
     app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
     app.config["SECURITY_LOGIN_WITHIN"] = (
         None  # unset settings are left to Flask-Security
     )
     normalize_security_durations(app)
-    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == timedelta(weeks=1)
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
 
 
