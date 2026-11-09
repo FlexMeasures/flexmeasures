@@ -11,9 +11,11 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Flag an automation as critical to your organisation, and implement a hook that acts on its failed runs, such as paging the engineer on duty. Criticality changes nothing about how an automation runs or how its failures are retried: it decides whether a failed run is reported to the hooks. Register a hook from a plugin, through ``__automation_failure_hooks__``, or name it by dotted path in the new ``FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS`` setting [see `issue #2844 <https://www.github.com/FlexMeasures/flexmeasures/issues/2844>`_]
 
 Infrastructure / Support
 -------------------------
+* A plugin which registers no Blueprint is no longer dropped before its other registrations run, so a plugin can exist only to register automation types, data generators or critical-automation-failure hooks
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 * Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
 * Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]

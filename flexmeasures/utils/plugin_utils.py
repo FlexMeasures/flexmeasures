@@ -150,10 +150,13 @@ def register_plugins(app: Flask):  # noqa: C901
             if isinstance(getattr(module, a), Blueprint)
         ]
         if not plugin_blueprints:
-            app.logger.warning(
+            # Not every plugin serves pages. One may exist only to register automation types,
+            # data generators or critical-automation-failure hooks, so carry on registering
+            # what it does contribute rather than dropping the plugin here.
+            app.logger.info(
                 f"No blueprints found for plugin {plugin_name} at {plugin}."
+                " It registers no routes."
             )
-            continue
         for plugin_blueprint in plugin_blueprints:
             app.logger.debug(f"Registering {plugin_blueprint} ...")
             app.register_blueprint(plugin_blueprint)
@@ -179,6 +182,13 @@ def register_plugins(app: Flask):  # noqa: C901
 
         for handler in getattr(module, "__automation_types__", []):
             register_automation_handler(app, handler)
+
+        from flexmeasures.data.services.automation_failure_hooks import (
+            register_automation_failure_hook,
+        )
+
+        for hook in getattr(module, "__automation_failure_hooks__", []):
+            register_automation_failure_hook(app, hook)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")

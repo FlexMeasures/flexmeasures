@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -6848,6 +6848,11 @@
             "type": "boolean",
             "default": true
           },
+          "critical": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this automation is critical to the organisation. It changes nothing about how the automation runs or how its failures are retried; it decides whether a failed run is handed to the host's critical-automation-failure hooks."
+          },
           "parameters": {
             "type": "object",
             "additionalProperties": {}
@@ -6899,6 +6904,9 @@
             "example": "Europe/Amsterdam"
           },
           "active": {
+            "type": "boolean"
+          },
+          "critical": {
             "type": "boolean"
           }
         },

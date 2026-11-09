@@ -197,6 +197,8 @@ def _copy_automation(
         timezone=automation.timezone,
         # A copy starts inactive, so that it can be inspected and tested before it runs.
         active=False,
+        # Criticality is inherited: a variation on a critical automation is critical until said otherwise.
+        critical=automation.critical,
         generator_id=generator.id,
         parameters=parameters,
         # A fresh cursor, so that the copy does not inherit the original's run history.

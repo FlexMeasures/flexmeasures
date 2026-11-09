@@ -95,6 +95,12 @@ class Automation(db.Model, AuthModelMixin):
     )
     schedule_revision = db.Column(db.Integer, nullable=False, default=1)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    # Whether this automation is critical to the organisation running FlexMeasures.
+    # It changes nothing about how the automation runs or how its failures are retried;
+    # it only decides whether a failure is handed to the critical-failure hooks (see
+    # `flexmeasures.data.services.automation_failure_hooks`), where a host's own business
+    # logic can act on it, for instance by paging the engineer on duty.
+    critical = db.Column(db.Boolean, nullable=False, default=False)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )
@@ -245,6 +251,9 @@ class AutomationRun(db.Model):
     execution_completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     last_error_type = db.Column(db.String(160), nullable=True)
     last_error_message = db.Column(db.Text, nullable=True)
+    # When the critical-failure hooks were told about this run, so that one run pages once,
+    # however many of its jobs fail and however often its dispatch is retried.
+    critical_failure_notified_at = db.Column(db.DateTime(timezone=True), nullable=True)
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
     plan = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
 
@@ -274,6 +283,7 @@ class AutomationRun(db.Model):
         "dispatch_completed_at",
         "execution_started_at",
         "execution_completed_at",
+        "critical_failure_notified_at",
     )
     def validate_datetime_is_aware(
         self, key: str, value: datetime | None
