@@ -241,7 +241,7 @@
             <div class="sensors-asset card">
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>All child assets for {{ asset.name }} </h3>
-                    {% if user_can_create_assets %}
+                    {% if user_can_create_children %}
                     <a href="/assets/new?parent_asset_id={{asset.id}}"
                         class="btn bg-primary-custom text-decoration-none text-light nav-button" style="float:right;">
                         Create asset
