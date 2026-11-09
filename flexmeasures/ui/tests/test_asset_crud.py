@@ -675,7 +675,7 @@ def test_breadcrumb_cross_account_parent(
 #   - GenericAsset.create-children (child assets/sensors) → any organisation member
 #   - Account.create-children (top-level assets) → organisation-admin or consultant
 #
-# "user_can_create_children" (GenericAsset.create-children) gates the
+# "user_can_create_assets" (Account.edit-assets) gates the
 # "Create asset" child-asset button on the properties page.
 # The copy buttons have separate permission checks for their target locations.
 # "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
@@ -759,6 +759,7 @@ def test_copy_to_own_account_button_for_cross_account_admin(
     assert page.status_code == 200
     assert b"Copy to Test Dummy Account" in page.data
     assert b"Copy this asset" not in page.data
+    assert b"Create asset" not in page.data
 
 
 @pytest.mark.parametrize(
@@ -806,8 +807,8 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: cannot delete an asset holding data, but may add children.
-        ("as_prosumer_user1", False, True),
+        # Plain account member: cannot delete an asset holding data or use the UI to add children.
+        ("as_prosumer_user1", False, False),
     ],
 )
 def test_delete_and_create_buttons_on_properties_page(
@@ -820,8 +821,8 @@ def test_delete_and_create_buttons_on_properties_page(
     expect_create_asset_btn,
 ):
     """
-    Deleting an asset holding data needs elevated rights, while creating
-    a child asset is allowed for any member of the owning organisation.
+    Deleting an asset holding data and creating a child asset through the UI
+    both require elevated rights.
     """
     from flexmeasures.data.services.users import find_user_by_email
 
