@@ -4,6 +4,7 @@ Reading in configuration
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import sys
@@ -15,7 +16,6 @@ from pathlib import Path
 from flask import Flask
 from inflection import camelize
 import isodate
-from dotenv import dotenv_values
 import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
@@ -80,14 +80,12 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    cfg_config = dotenv_values(cfg_location)
-
     if app.testing:
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
-    elif cfg_config.get("FLEXMEASURES_ENV", None):
-        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
+    elif cfg_env := read_flexmeasures_env_from_cfg(cfg_location):
+        flexmeasures_env = cfg_env
     elif os.getenv("FLASK_ENV", None):
         flexmeasures_env = os.getenv("FLASK_ENV", None)
         app.logger.warning(
@@ -96,6 +94,37 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
         )
 
     return flexmeasures_env or None
+
+
+def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
+    """Look up the FLEXMEASURES_ENV that a flexmeasures.cfg file sets, without running the file.
+
+    The file is Python, so it is parsed as Python, rather than as a dotenv file,
+    which made python-dotenv warn about every line that is not a plain assignment, such as an import.
+    Only a top-level assignment of a string literal counts; the last one wins, as it would when the file runs.
+    A missing or unparsable file sets nothing here; loading the config reports what is wrong with it.
+    """
+    if cfg_location is None or not os.path.isfile(cfg_location):
+        return None
+    try:
+        tree = ast.parse(Path(cfg_location).read_text(), filename=cfg_location)
+    except (OSError, SyntaxError, ValueError):
+        return None
+    flexmeasures_env = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(
+            isinstance(t, ast.Name) and t.id == "FLEXMEASURES_ENV" for t in targets
+        ):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            flexmeasures_env = node.value.value
+    return flexmeasures_env
 
 
 def find_flexmeasures_cfg() -> str | None:

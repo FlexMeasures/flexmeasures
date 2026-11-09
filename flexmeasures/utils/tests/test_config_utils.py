@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 import pytest
@@ -306,3 +307,56 @@ def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
     finally:
         root.handlers[:] = root_handlers
         root.setLevel(root_level)
+
+
+def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
+    tmp_path, monkeypatch, caplog
+):
+    """A flexmeasures.cfg is Python, so an import on its first line is fine, and should not set off python-dotenv's parse warning."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(
+        "from datetime import timedelta\n"
+        "\n"
+        'FLEXMEASURES_ENV = "staging"\n'
+        "FLEXMEASURES_PLANNING_HORIZON = timedelta(days=2)\n"
+        "FLEXMEASURES_PLUGINS = [\n"
+        '    "/app/plugin",\n'
+        "]\n"
+    )
+    monkeypatch.delenv("FLEXMEASURES_ENV", raising=False)
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    app = Flask("flexmeasures-test")
+
+    with caplog.at_level(logging.DEBUG):
+        assert config_utils.get_flexmeasures_env(app, str(cfg)) == "staging"
+    assert not [r for r in caplog.records if r.name.startswith("dotenv")]
+
+
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ('FLEXMEASURES_ENV = "production"\n', "production"),
+        ("FLEXMEASURES_ENV: str = 'staging'\n", "staging"),
+        # The last assignment wins, as it does when the file runs.
+        (
+            'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "production"\n',
+            "production",
+        ),
+        # Only a string literal counts: an expression is not evaluated, and is not mistaken for a string.
+        ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
+        ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
+        ("this is not python\n", None),
+    ],
+)
+def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(content)
+    assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
+
+
+def test_read_flexmeasures_env_from_missing_cfg(tmp_path):
+    assert config_utils.read_flexmeasures_env_from_cfg(None) is None
+    assert (
+        config_utils.read_flexmeasures_env_from_cfg(str(tmp_path / "missing.cfg"))
+        is None
+    )
