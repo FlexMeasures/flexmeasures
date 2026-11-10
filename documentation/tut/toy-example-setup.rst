@@ -11,7 +11,7 @@ Let's walk through an example from scratch! We'll ...
 - create an account
 - load hourly prices
 
-What do you need? Your own computer, with one of two situations: either you have `Docker <https://www.docker.com/>`_ or your computer supports Python 3.10+, pip and PostgresDB. The former might be easier, see the installation step below. But you choose.
+What do you need? Your own computer, with one of two situations: either you have `Docker <https://www.docker.com/>`_ or your computer supports Python 3.11+, pip and PostgresDB. The former might be easier, see the installation step below. But you choose.
 
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
@@ -92,7 +92,7 @@ Install Flexmeasures and the database
 
   .. tab:: On your PC
 
-        This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.10+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres <https://www.postgresql.org/download/>`_.
+        This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.11+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres <https://www.postgresql.org/download/>`_.
 
         We'll create a database for FlexMeasures:
 
@@ -281,7 +281,7 @@ Now let's look at the battery asset, as well:
 Yes, that is quite a large battery :) 
 You can also see that the asset has some meta information about its scheduling.
 
-- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
+- Within :ref:`the flex-model <flex_models_and_schedulers>`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
 - Also noted is the battery's roundtrip efficiency (90%) and maximum state of charge (450 kWh).
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
@@ -291,6 +291,7 @@ Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-dashboard.png
     :align: center
+
 |
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
@@ -300,18 +301,21 @@ And here is the context view of the building:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-site-structure.png
     :align: center
+
 |
 
 The flex-context of the building (which you can edit here in the UI, as well):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-building-flex-context.png
     :align: center
+
 |
 
 And on the flex-model of the battery can be seen on its properties page (and is editable as well):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-battery-flex-model.png
     :align: center
+
 |
 
 
@@ -401,6 +405,7 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
+
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.

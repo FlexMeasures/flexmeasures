@@ -114,7 +114,7 @@ Grouping across time and devices
 It is possible to define what group of schedule values is expected to not deviate.
 
 The ``'device'`` attribute already lets us reduce from the values for all devices to just one.
-The ``' _type'``attribute offers more powerful grouping options.
+The ``'_type'`` attribute offers more powerful grouping options.
 For now, this extra grouping can happen across different definitions of time slots, and, for some cases, across groups of devices (see below).
 
 - ``_type == 'each'``: penalise deviations per time slot (this is the default for time series).

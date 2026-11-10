@@ -1,9 +1,10 @@
 import json
 import warnings
 
+from flask import session
 from flask_classful import FlaskView, route
 from flask_security import current_user
-from marshmallow import fields
+from marshmallow import fields, validate
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
@@ -19,6 +20,7 @@ from flexmeasures.api.common.schemas.generic_schemas import (
     EventWindowSchema,
     BeliefTimeFilterSchema,
 )
+from flexmeasures.data.models.charts import SENSOR_CHART_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
@@ -75,8 +77,10 @@ class SensorChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
     chart_type = fields.Str(
         data_key="chart-type",
         required=False,
+        validate=validate.OneOf(list(SENSOR_CHART_TYPES)),
         metadata=dict(
-            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            description=f"Chart type, one of {', '.join(repr(name) for name in SENSOR_CHART_TYPES)}.",
+            example="bar_chart",
         ),
     )
     height = fields.Str(
@@ -177,7 +181,7 @@ class SensorAPI(FlaskView):
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/ui/sensor/(id)/chart_data <../api/ui.html#get--api-ui-sensor-(id)-chart_data>`_ endpoint to fetch data)
-        - "chart-type" (legacy alias: "chart_type"; currently 'bar_chart' and 'daily_heatmap' are supported types)
+        - "chart-type" (legacy alias: "chart_type"; one of 'bar_chart', 'histogram', 'daily_heatmap' and 'weekly_heatmap', and anything else gets a 422)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
@@ -185,13 +189,15 @@ class SensorAPI(FlaskView):
         set_session_variables(
             "event_starts_after",
             "event_ends_before",
-            "chart_type",
             aliases={
                 "event_starts_after": "start",
                 "event_ends_before": "end",
-                "chart_type": "chart-type",
             },
         )
+        # Store the validated chart type, rather than a raw request value:
+        # a request may send both spellings, and only the canonical one is validated.
+        if "chart_type" in kwargs:
+            session["chart_type"] = kwargs["chart_type"]
         return json.dumps(sensor.chart(**kwargs))
 
     @route("/<id>/chart_data", strict_slashes=False)

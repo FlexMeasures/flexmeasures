@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import os
+import sys
+from typing import Callable
+
 import pytest
 from rq import SimpleWorker
+from sqlalchemy import text
+
+from flexmeasures.data import db
 
 
 @pytest.fixture
@@ -234,3 +241,78 @@ def test_check_source_references_reports_reporting_jobs(
     assert "does not exist" in result.output
     assert merging_job.id in result.output
     assert "will be merged into data source 1" in result.output
+
+
+# The worker forks only where it uses RQ's Worker, which is not on macOS (see `run_worker`) nor on Windows, which cannot fork.
+requires_forking_worker = pytest.mark.skipif(
+    not hasattr(os, "fork") or sys.platform == "darwin",
+    reason="The worker does not fork job processes on this platform.",
+)
+
+
+def run_in_forked_process(work: Callable[[], str]) -> str:
+    """Run work in a forked process, as RQ's Worker does with each job, and return what it reports.
+
+    The forked process reports an exception as its type and message, so the test can show it.
+    """
+    read_end, write_end = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.close(read_end)
+            try:
+                outcome = work()
+            except Exception as exc:
+                outcome = f"{type(exc).__name__}: {exc}"
+            os.write(write_end, outcome.encode("utf-8"))
+        finally:
+            # Leave without cleaning up, like a job's process, and without running pytest's teardown here.
+            os._exit(0)
+    os.close(write_end)
+    os.waitpid(pid, 0)
+    with os.fdopen(read_end, "rb") as reader:
+        return reader.read().decode("utf-8")
+
+
+def query_backend_and_leave_transaction_open() -> str:
+    """Return the ID of the Postgres session serving this process, leaving the transaction this query began open."""
+    return str(db.session.execute(text("SELECT pg_backend_pid()")).scalar())
+
+
+def assert_jobs_used_their_own_sessions(first_job: str, second_job: str):
+    """Each job should have reported the ID of its own Postgres session, rather than an error."""
+    assert first_job.isdigit(), first_job
+    assert second_job.isdigit(), second_job
+    assert first_job != second_job, "Both jobs used the same Postgres session."
+
+
+@requires_forking_worker
+def test_forked_jobs_do_not_inherit_the_workers_session(app):
+    """A job should not continue the worker's session, nor a transaction an earlier job left open (#2806).
+
+    At startup, the worker uses the database, and its session can keep the connection it used.
+    """
+    from flexmeasures.cli.jobs import release_database_connections_before_forking
+
+    with app.app_context():
+        db.session.execute(text("SELECT 1"))
+        release_database_connections_before_forking()
+        first_job = run_in_forked_process(query_backend_and_leave_transaction_open)
+        second_job = run_in_forked_process(query_backend_and_leave_transaction_open)
+
+    assert_jobs_used_their_own_sessions(first_job, second_job)
+
+
+@requires_forking_worker
+def test_forked_jobs_do_not_inherit_connections_the_worker_opens_later(app):
+    """A job should not use a connection the worker pooled after it started (#2806)."""
+    from flexmeasures.cli.jobs import release_database_connections_before_forking
+
+    with app.app_context():
+        release_database_connections_before_forking()
+        db.session.execute(text("SELECT 1"))
+        db.session.commit()
+        first_job = run_in_forked_process(query_backend_and_leave_transaction_open)
+        second_job = run_in_forked_process(query_backend_and_leave_transaction_open)
+
+    assert_jobs_used_their_own_sessions(first_job, second_job)
