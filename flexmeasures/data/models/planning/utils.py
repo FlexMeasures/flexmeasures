@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+import logging
+import os
+import sys
+
 from packaging import version
 from datetime import date, datetime, timedelta, timezone
-from typing import Literal
+from typing import Iterator, Literal
 
 from flask import current_app
 import pandas as pd
@@ -280,7 +285,7 @@ def get_series_from_quantity_or_sensor(
     :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
-    :param fill_sides               If True, values are extended to the edges of the query window:
+    :param fill_sides:              If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :return:                        Pandas Series with the requested time series data.
@@ -391,18 +396,17 @@ def process_time_series_segments(
     """
     Process a time series defined by a list of dicts, while resolving overlapping segments.
 
-    Parameters:
-        index:              The index for the time series DataFrame.
-        variable_quantity:  List of events, where each event is a dictionary containing:
-                            - 'value': The value of the event (can be a Quantity or scalar).
-                            - 'start': The start datetime of the event.
-                            - 'end': The end datetime of the event.
-        unit:               The unit to convert the value into if it's a Quantity.
-        resolution:         The resolution to subtract from the 'end' to avoid overlap.
-        resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
-        fill_sides:         Whether to extend values to cover the whole index.
+    :param index:               The index for the time series DataFrame.
+    :param variable_quantity:   List of events, where each event is a dictionary containing:
 
-    Returns:                A time series with resolved event values.
+                                - 'value': The value of the event (can be a Quantity or scalar).
+                                - 'start': The start datetime of the event.
+                                - 'end': The end datetime of the event.
+    :param unit:                The unit to convert the value into if it's a Quantity.
+    :param resolution:          The resolution to subtract from the 'end' to avoid overlap.
+    :param resolve_overlaps:    How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
+    :param fill_sides:          Whether to extend values to cover the whole index.
+    :returns:                   A time series with resolved event values.
     """
     # Initialize a DataFrame to hold the segments
     time_series_segments = pd.DataFrame(
@@ -484,7 +488,7 @@ def get_continuous_series_sensor_or_quantity(
     :param resolve_overlaps:        If time series segments overlap (e.g. when upsampling to instantaneous events),
                                     take the 'max', 'min' or 'first' value during overlapping time spans
                                     (or at instantaneous moments, such as at event boundaries).
-    :param fill_sides               If True, values are extended to the edges of the query window:
+    :param fill_sides:              If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.
@@ -579,3 +583,46 @@ def initialize_device_commitment(
     stock_commitment["device"] = device
     stock_commitment["class"] = StockCommitment
     return stock_commitment
+
+
+@contextmanager
+def solver_output_kept_off_our_log_handlers(solver) -> Iterator[None]:
+    """Show an appsi solver's console output once, without passing it through the application's log handlers.
+
+    Pyomo's appsi solvers (e.g. ``appsi_highs``) solve inside ``capture_output(capture_fd=True)``,
+    which points file descriptors 1 and 2 at a pipe that a reader thread drains into ``config.solver_output_logger``.
+    By default, that is a Pyomo logger that propagates to the root,
+    so a console handler writes each line back into the pipe it came from.
+    Lines then pile up with one more prefix per pass,
+    and once a line no longer fits in the pipe, the reader thread blocks on its own write while holding the handler's lock,
+    which hangs the next thread that logs (see issue #2742).
+
+    So we hand the solver a logger of its own, whose one handler writes to a copy of stdout taken before the capture starts.
+    Whatever reaches the captured descriptors then appears on the console exactly once:
+    the solver's log, when ``output_flag`` lets HiGHS print one (see :func:`~flexmeasures.data.models.planning.scheduling_problem.solver_options`),
+    and anything our own handlers wrote there during the solve, such as Pyomo's warnings, already formatted by them.
+    """
+    config = getattr(solver, "config", None)
+    if config is None or "solver_output_logger" not in config:
+        # Not an appsi solver, so nothing captures its output into a logger.
+        yield
+        return
+
+    # Instantiated directly rather than through logging.getLogger, so that it is registered nowhere:
+    # it has no parent to propagate to, and no logging setup can give it another handler or level.
+    solver_output_logger = logging.Logger(f"{__name__}.solver_output")
+    try:
+        console = os.fdopen(os.dup(sys.stdout.fileno()), "w")
+    except (AttributeError, OSError, ValueError):
+        # stdout has no descriptor to copy (e.g. it was swapped for an in-memory stream),
+        # so there is no console to show the output on.
+        console = None
+        solver_output_logger.addHandler(logging.NullHandler())
+    else:
+        solver_output_logger.addHandler(logging.StreamHandler(console))
+    config.solver_output_logger = solver_output_logger
+    try:
+        yield
+    finally:
+        if console is not None:
+            console.close()

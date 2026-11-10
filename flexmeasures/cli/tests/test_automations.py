@@ -1727,6 +1727,14 @@ def test_run_report_automation(
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
 
+    # the run followed its job to the end
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run.id)
+    assert [(intent.logical_job_key, intent.status) for intent in run.job_intents] == [
+        ("report", "succeeded")
+    ]
+    assert run.execution_state == "succeeded"
+
     # the successful job recorded the end of the report window as covered
     import pandas as pd
 
@@ -1773,6 +1781,12 @@ def test_report_automation_with_nothing_new_to_report_queues_no_job(
     assert result.exit_code == 0, result.output
     assert "queued 0 reporting job(s)" in result.output, result.output
     assert len(app.queues["reporting"].jobs) == 0
+    # A run with nothing to do is done.
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert run.job_intents == []
+    assert run.execution_state == "succeeded"
 
     # Run on demand, it says why it queued nothing.
     result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
@@ -1838,8 +1852,18 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
+    mocker.patch(
+        "flexmeasures.data.services.automations.get_current_job", return_value=job
+    )
     with pytest.raises(GeneratorWritesUncheckedSensor, match=str(sensor1_id)):
         run_report_job(**job.kwargs)
+
+    # the refusal failed the run, saying why
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert run.execution_state == "failed"
+    assert run.last_error_type == "GeneratorWritesUncheckedSensor"
 
     # a refused report covers nothing, so the next run still starts where the last successful one ended
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
@@ -1967,10 +1991,20 @@ def test_run_report_automation_with_two_outputs_saves_both(
     )
     assert (stored_sub.values.T == [0, 0, 0, 0, 0]).all()
 
-    assert job.return_value() == [
-        {"sensor_id": report_sensor_id, "n_rows": 5},
-        {"sensor_id": report_sensor_2_id, "n_rows": 5},
-    ]
+    assert job.return_value() == {
+        "outputs": [
+            {
+                "sensor": report_sensor_id,
+                "num-computed-beliefs": 5,
+                "num-recorded-beliefs": 5,
+            },
+            {
+                "sensor": report_sensor_2_id,
+                "num-computed-beliefs": 5,
+                "num-recorded-beliefs": 5,
+            },
+        ]
+    }
 
     import pandas as pd
 
@@ -2136,7 +2170,7 @@ def test_none_permitted_output_set_disables_output_guard(
         StubReporter(), {}, permitted_output_sensor_ids=None
     )
     save.assert_called_once()
-    assert saved == [{"sensor_id": sensor1_id, "n_rows": 0}]
+    assert saved == [{"sensor_id": sensor1_id, "n_computed": 0, "n_rows": 0}]
 
 
 def test_report_job_persistence_failure_rolls_back_all_outputs(
@@ -2225,7 +2259,7 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import run_report_job
 
-    report_sensor_id = setup_dummy_data_fresh_db[2]
+    *_, report_sensor_id, report_sensor_2_id = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     runner = app.test_cli_runner()
     freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
@@ -2242,13 +2276,24 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     )
 
     first = run_report_job(**job.kwargs)
-    assert all(result["n_rows"] > 0 for result in first), first
+    assert first == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 5}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
 
     info = mocker.spy(app.logger, "info")
     warning = mocker.spy(app.logger, "warning")
     second = run_report_job(**job.kwargs)
 
-    assert [result["n_rows"] for result in second] == [0] * len(first)
+    # The rerun computed as much as the first run did, which tells it apart from a run that computed nothing.
+    assert second == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 0}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
     assert any(
         "already on record" in call.args[0] for call in info.call_args_list
     ), info.call_args_list
@@ -2295,7 +2340,7 @@ def test_a_report_is_saved_but_left_for_its_caller_to_commit(
 
     beliefs_before = count_beliefs()
     _, saved = compute_and_save_report(StubReporter(), {})
-    assert saved == [{"sensor_id": sensor.id, "n_rows": 3}]
+    assert saved == [{"sensor_id": sensor.id, "n_computed": 3, "n_rows": 3}]
     assert count_beliefs() == beliefs_before + 3, "the results are staged"
 
     # A caller that decides against its transaction takes the report down with it.

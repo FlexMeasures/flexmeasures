@@ -1126,7 +1126,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "end": "2025-01-03T00:00+02:00",
                 "sensor-to-save": None,
@@ -1146,7 +1145,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
                 "end": "2025-01-09T00:00+02:00",
@@ -1167,7 +1165,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
                 "end": "2025-01-09T00:00+02:00",
@@ -1188,7 +1185,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
                 "end": "2025-01-09T00:00+02:00",
@@ -1209,7 +1205,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {  # Test: duplicate sensor names in past and future regressors
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",
                 "end": "2025-01-09T00:00+02:00",
@@ -1229,7 +1224,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",
                 "end": "2025-01-09T00:00+02:00",
@@ -1249,7 +1243,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",
                 "end": "2025-01-09T00:00+02:00",
@@ -1269,7 +1262,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start": "2025-01-08T00:00+02:00",
                 "end": "2025-01-09T00:00+02:00",
@@ -1291,7 +1283,6 @@ def test_forecast_post_processing_rejects_incompatible_units():
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "end": "2025-01-03T00:00+02:00",
                 "sensor-to-save": None,
@@ -1536,7 +1527,6 @@ def test_train_predict_pipeline(  # noqa: C901
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
@@ -1556,7 +1546,6 @@ def test_train_predict_pipeline(  # noqa: C901
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
@@ -1686,7 +1675,6 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
             },
             {
                 "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
@@ -1758,7 +1746,6 @@ def test_train_predict_pipeline_trains_on_the_sources_the_target_names(
     fresh_db.session.commit()
 
     base_params = {
-        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
         "output-path": None,
         "start": "2025-01-08T00:00+00:00",
         "end": "2025-01-08T02:00+00:00",
@@ -1814,7 +1801,6 @@ def test_prior_restricts_training_beliefs(
     }
     base_params = {
         "sensor": sensor.id,
-        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
         "output-path": None,
         "start": "2025-01-08T00:00+00:00",
         "end": "2025-01-09T00:00+00:00",
@@ -3243,7 +3229,6 @@ def test_past_regressor_beliefs_are_realized_by_their_knowledge_horizon(
     ).compute(
         parameters={
             "sensor": setup_fresh_test_forecast_data["solar-sensor"].id,
-            "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
             "output-path": None,
             "start": "2025-01-08T00:00+02:00",
             "end": "2025-01-09T00:00+02:00",
@@ -3317,7 +3302,6 @@ def test_future_regressor_keeps_day_ahead_prices_known_before_the_forecast(
     ).compute(
         parameters={
             "sensor": setup_fresh_test_forecast_data["solar-sensor"].id,
-            "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
             "output-path": None,
             "start": "2025-01-08T00:00+02:00",
             "end": "2025-01-09T00:00+02:00",

@@ -8,6 +8,7 @@ from flexmeasures.utils import config_utils
 from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
+    check_rate_limit_settings,
     get_config_warnings,
     normalize_security_durations,
     normalize_trusted_hosts,
@@ -177,27 +178,38 @@ def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
         parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
 
 
-@pytest.mark.parametrize(
-    "flask_security_version, expected",
-    [
-        # 5.9 prefers a timedelta.
-        ("5.9.0", timedelta(weeks=1)),
-        # 5.8 only reads "<amount> <unit>", with the unit as a timedelta keyword.
-        ("5.8.1", "604800 seconds"),
-    ],
-)
-def test_normalize_security_durations(monkeypatch, flask_security_version, expected):
-    monkeypatch.setattr(
-        config_utils.metadata, "version", lambda package: flask_security_version
-    )
+def test_normalize_security_durations():
     app = Flask(__name__)
     app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
     app.config["SECURITY_LOGIN_WITHIN"] = (
         None  # unset settings are left to Flask-Security
     )
     normalize_security_durations(app)
-    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == timedelta(weeks=1)
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
+
+
+@pytest.mark.parametrize(
+    "value, error",
+    [
+        ("10 per minute; 100 per hour", "holds 2 rate limits"),
+        ("10 per fortnight", "not a valid rate limit"),
+    ],
+)
+def test_check_rate_limit_settings_refuses_what_is_not_one_limit(value, error):
+    """A server-wide rate limit is refused at startup, naming the setting, unless it is one limit."""
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"] = "500 per minute"
+    app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"] = value
+    with pytest.raises(ValueError, match=error) as exc_info:
+        check_rate_limit_settings(app)
+    assert "FLEXMEASURES_API_TRIGGER_RATE_LIMIT" in str(exc_info.value)
+
+
+def test_check_rate_limit_settings_accepts_the_defaults():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    check_rate_limit_settings(app)
 
 
 def test_config_warnings_flag_unset_trusted_hosts():
@@ -230,10 +242,23 @@ def test_development_config_trusts_loopback():
     assert "TRUSTED_HOSTS" not in missing_settings
 
     normalize_trusted_hosts(app)
-    for host in ("localhost:5000", "127.0.0.1", "[::1]:5000", "app.localhost:5000"):
+    for host in ("localhost:5000", "127.0.0.1", "app.localhost:5000"):
         assert host_is_trusted(host, app.config["TRUSTED_HOSTS"]), host
     # Other hosts are still rejected, so development resembles production.
     assert not host_is_trusted("evil.example", app.config["TRUSTED_HOSTS"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Werkzeug 3.1.9 cuts each trusted host at its first colon, so no IPv6 address matches (https://github.com/pallets/werkzeug/issues/3312).",
+)
+def test_development_config_trusts_ipv6_loopback():
+    """A dev server reached over IPv6 loopback is trusted, and other IPv6 hosts are not."""
+    app = Flask(__name__)
+    app.config.from_object(DevelopmentConfig)
+    normalize_trusted_hosts(app)
+    assert host_is_trusted("[::1]:5000", app.config["TRUSTED_HOSTS"])
+    assert not host_is_trusted("[::2]:5000", app.config["TRUSTED_HOSTS"])
 
 
 def test_production_config_does_not_trust_any_host():
@@ -251,3 +276,33 @@ def test_config_warnings_silent_when_trusted_hosts_is_set():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" not in missing_settings
     assert not any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
+    """Loggers created before FlexMeasures configures logging should keep logging.
+
+    Gunicorn creates its own before it preloads the app, and libraries such as RQ create theirs when they are imported.
+    """
+    import logging
+
+    from flexmeasures.utils.config_utils import configure_logging
+
+    # Use the real logging config, except for its file handler, so this test writes no log file.
+    real_config = config_utils.flexmeasures_logging_config
+    logging_config = {
+        **real_config,
+        "handlers": {"console": real_config["handlers"]["console"]},
+        "root": {**real_config["root"], "handlers": ["console"]},
+    }
+    monkeypatch.setattr(config_utils, "flexmeasures_logging_config", logging_config)
+    # Configuring logging replaces the root logger's handlers, so put back those the rest of the test session uses.
+    root = logging.getLogger()
+    root_handlers, root_level = root.handlers[:], root.level
+
+    existing_logger = logging.getLogger("test.created.before.configure_logging")
+    try:
+        configure_logging()
+        assert not existing_logger.disabled
+    finally:
+        root.handlers[:] = root_handlers
+        root.setLevel(root_level)

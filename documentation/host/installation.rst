@@ -105,7 +105,8 @@ We'll go with ``development`` here:
             $ docker run -d --env FLEXMEASURES_ENV=development lfenergy/flexmeasures
          
 
-The default environment setting is ``production``\ , which will probably not work well on your localhost, as FlexMeasures then expects SSL-encrypted communication. 
+The default environment setting is ``production``.
+On your own computer, ``development`` is more practical, as it shows debugging information and more log output.
 
 
 Tell FlexMeasures where the time series database is
@@ -254,7 +255,7 @@ For the asset type ID, I consult ``flexmeasures show asset-types``.
 
 For the account ID, I looked at the output of ``flexmeasures add account`` (the command we issued above) ― I could also have consulted ``flexmeasures show accounts``.
 
-The second way to add an asset is the UI ― head over to ``https://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
+The second way to add an asset is the UI ― head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v3_0/assets <../api/v3_0.html#post--api-v3_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
@@ -297,7 +298,7 @@ It's finally time to start running FlexMeasures. This here is the direct form yo
         .. code-block:: bash
 
            # or everything on the terminal 
-           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SECURITY_TOTP_SECRETS={"1": "something-secret"} --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
+           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
 
 
 This might print some warnings, see the next section where we go into more detail. For instance, when you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
@@ -449,6 +450,34 @@ This suffices for a quick start. For an actually secure secret, here is a Python
 
 
 Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
+
+
+.. _install-ui-libraries:
+
+Serve the UI's libraries without internet access
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The UI uses third-party JavaScript and CSS libraries, such as Bootstrap and Vega.
+The Docker image comes with them, so FlexMeasures serves them itself.
+A FlexMeasures installed via `pip` does not, so browsers load them from public CDNs, checking each file against its expected hash.
+
+To serve them from FlexMeasures instead, for example for users on a network without internet access, FlexMeasures fetches them itself:
+once it serves its first request, it downloads the files it is missing in the background, while browsers keep loading them from CDNs until it is done.
+That also happens after an upgrade of FlexMeasures bumps a library's version.
+The server needs internet access for this, and write access to FlexMeasures' installation.
+If several web server processes run on one host, only one of them fetches.
+
+You can also fetch them yourself, for example on a server without internet access, before taking its installation offline:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets
+
+Both download each library's files and licence, with any notice file the licence requires, into FlexMeasures' installation, and fail on any file that does not match its expected hash.
+They fetch the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, except for versions set without hashes.
+The command reads that setting from the config file FlexMeasures reads, or from the one passed with ``--config``.
+To stop FlexMeasures from fetching the libraries itself, set :ref:`FLEXMEASURES_FETCH_UI_LIBRARIES <configuration>` to ``False``.
+Then run the command again after each upgrade of FlexMeasures, as an upgrade can bump a library's version.
 
 
 Where to go from here?

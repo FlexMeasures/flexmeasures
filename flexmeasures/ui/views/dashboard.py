@@ -30,7 +30,8 @@ def dashboard_view():
     Admins get to see all assets.
     """
     msg = ""
-    if "clear-session" in request.values:
+    session_cleared = "clear-session" in request.values
+    if session_cleared:
         clear_session()
         msg = "Your session was cleared."
     aggregate_type_groups = current_app.config.get("FLEXMEASURES_ASSET_TYPE_GROUPS", {})
@@ -73,6 +74,7 @@ def dashboard_view():
     return render_flexmeasures_template(
         "dashboard.html",
         message=msg,
+        session_cleared=session_cleared,
         mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         bounding_box=bounding_box,
         prompt_user_for_location=prompt_user_for_location,

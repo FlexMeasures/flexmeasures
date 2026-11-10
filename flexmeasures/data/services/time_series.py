@@ -98,6 +98,8 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         event_ends_before=bdf.event_ends.max(),
         source=source_ids,
         most_recent_beliefs_only=False,  # all beliefs
+        # each new belief is compared with its own source's, so no source may hide another of its family here, as a complete aggregate would hide a partial one
+        use_latest_version_per_event=False,
         **kwargs,
     )
     return _drop_unchanged_beliefs_compared_to_db(bdf, bdf_db=bdf_db)

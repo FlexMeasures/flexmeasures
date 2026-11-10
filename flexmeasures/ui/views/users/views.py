@@ -12,7 +12,6 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user_by_id_or_raise_notfound,
-    reset_password,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
@@ -108,27 +107,12 @@ class UserCrudUI(FlaskView):
         return render_user(user)
 
     @login_required
-    def reset_password_for(self, id: str):
-        """/users/reset_password_for/<id>
-        Set the password to something random (in case of worries the password might be compromised)
-        and send instructions on how to reset."""
-        user: User = get_user_by_id_or_raise_notfound(id)
-        check_access(user, "reset-password")
-        reset_password(user)
-        db.session.commit()
-        return render_user(
-            user,
-            msg="The user's password has been changed to a random password"
-            " and password reset instructions have been sent to the user."
-            " Cookies and the API access token have also been invalidated.",
-        )
-
-    @login_required
     def auditlog(self, id: str):
         """/users/auditlog/<id>
         View all user actions.
         """
         user: User = get_user_by_id_or_raise_notfound(id)
+        check_access(AuditLog.user_table_acl(user), "read")
         return render_flexmeasures_template(
             "users/user_audit_log.html",
             user=user,

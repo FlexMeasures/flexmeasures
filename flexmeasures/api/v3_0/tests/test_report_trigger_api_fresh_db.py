@@ -62,6 +62,22 @@ def test_trigger_report_worker_stores_report_data(
     # Adding the two hourly 0-9 input series yields 0, 2, ..., 18; two-hour mean resampling yields 1, 5, 9, 13, 17.
     assert stored_report.values.T.tolist() == [[1, 5, 9, 13, 17]]
 
+    # The job's result, as the API hands it out, lists the report's output with what it computed and what it saved.
+    with app.test_client() as client:
+        job_response = client.get(
+            url_for("JobAPI:get_job_status", uuid=response.json["job"])
+        )
+    assert job_response.status_code == 200
+    result = job_response.json["result"]
+    assert set(result.keys()) == {"outputs"}
+    assert result["outputs"] == [
+        {
+            "sensor": sensors["output"].id,
+            "num-computed-beliefs": 5,
+            "num-recorded-beliefs": 5,
+        }
+    ]
+
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
@@ -126,13 +142,17 @@ def test_trigger_report_worker_reports_nothing_saved_for_misaligned_inputs(
 
     job = app.queues["reporting"].fetch_job(response.json["job"])
     assert job.get_status() == "finished"
-    # The count must exclude computed rows that persistence drops as NaN.
-    assert job.return_value() == [
-        {
-            "sensor_id": hourly_output.id,
-            "n_rows": 0,
-        }
-    ]
+    # The saved count must exclude computed rows that persistence drops as NaN, while the computed count includes them:
+    # the two inputs do not align on source, so adding them gives a NaN for each of their 2 x 10 rows.
+    assert job.return_value() == {
+        "outputs": [
+            {
+                "sensor": hourly_output.id,
+                "num-computed-beliefs": 20,
+                "num-recorded-beliefs": 0,
+            }
+        ]
+    }
     assert any(
         "produced no persistable values" in record.message for record in caplog.records
     ), "an empty report should be warned about"

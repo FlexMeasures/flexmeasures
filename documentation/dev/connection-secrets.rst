@@ -13,10 +13,10 @@ For implementation examples, token lifecycle strategies and manually seeding a
 credential through the CLI, see :ref:`storing_connection_secrets`. 
 
 The encrypted values are protected by
-``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS``, see :ref:`flexmeasures_secrets_encryption_keys` 
- This setting accepts arbitrary non-empty strings, which FlexMeasures derives into Fernet-compatible keys.
-Hosts must configure this keyring before secrets can be stored
-- FlexMeasures will print a warning if it is not set and hints how to initialize it.
+``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS``, see :ref:`flexmeasures_secrets_encryption_keys`.
+This setting accepts arbitrary non-empty strings, which FlexMeasures derives into Fernet-compatible keys.
+Hosts must configure this keyring before secrets can be stored;
+FlexMeasures will print a warning if it is not set and hints how to initialize it.
 
 
 Recommended practices
