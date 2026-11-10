@@ -24,6 +24,8 @@ from flexmeasures.utils.config_defaults import (
     warnable,
 )
 
+logger = logging.getLogger(__name__)
+
 flexmeasures_logging_config = {
     "version": 1,
     # Leave loggers alone that exist before FlexMeasures configures logging,
@@ -101,15 +103,20 @@ def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
 
     The file is Python, so it is parsed as Python, rather than as a dotenv file,
     which made python-dotenv warn about every line that is not a plain assignment, such as an import.
-    Only a top-level assignment of a string literal counts; the last one wins, as it would when the file runs.
-    A missing or unparsable file sets nothing here; loading the config reports what is wrong with it.
+    Only a top-level assignment of a string literal counts.
+    The last top-level assignment wins, as it would when the file runs,
+    so a later assignment of anything other than a string literal leaves FLEXMEASURES_ENV unset here, with a warning.
+    A missing file sets nothing, quietly; a file that cannot be read or parsed sets nothing, with a warning.
     """
     if cfg_location is None or not os.path.isfile(cfg_location):
         return None
     try:
         # Parse bytes, so that a byte order mark or a coding declaration is honoured, as it is when the file runs.
         tree = ast.parse(Path(cfg_location).read_bytes(), filename=cfg_location)
-    except (OSError, SyntaxError, ValueError):
+    except (OSError, SyntaxError, ValueError) as exc:
+        logger.warning(
+            f"Could not read FLEXMEASURES_ENV from {cfg_location}, as the file could not be read or parsed: {exc}"
+        )
         return None
     flexmeasures_env = None
     for node in tree.body:
@@ -125,6 +132,12 @@ def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
             continue
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
             flexmeasures_env = node.value.value
+        else:
+            logger.warning(
+                f"Ignoring FLEXMEASURES_ENV in {cfg_location} (line {node.lineno}), as it is not set to a string literal."
+                ' Set it to a string, such as FLEXMEASURES_ENV = "staging", or as an environment variable.'
+            )
+            flexmeasures_env = None
     return flexmeasures_env
 
 

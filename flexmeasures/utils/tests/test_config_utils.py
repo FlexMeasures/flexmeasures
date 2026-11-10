@@ -345,7 +345,12 @@ def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
         # Only a string literal counts: an expression is not evaluated, and is not mistaken for a string.
         ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
         ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
-        ("this is not python\n", None),
+        # A later assignment that is not a string literal undoes an earlier one, as it would when the file runs.
+        (
+            'import os\nFLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = os.environ.get("X", "production")\n',
+            None,
+        ),
+        ("FLEXMEASURES_ENV = staging, but not Python\n", None),
         # A byte order mark, as some editors save one, and Windows line endings.
         (
             '\ufefffrom datetime import timedelta\r\nFLEXMEASURES_ENV = "staging"\r\n',
@@ -357,6 +362,37 @@ def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
     cfg = tmp_path / "flexmeasures.cfg"
     cfg.write_bytes(content.encode("utf-8"))
     assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "FLEXMEASURES_ENV = staging, but not Python\n",
+        'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "staging" if True else "production"\n',
+    ],
+)
+def test_read_flexmeasures_env_from_cfg_warns_when_it_cannot_tell(
+    tmp_path, caplog, content
+):
+    """When the cfg exists, but does not plainly say which environment to run in, say so, rather than silently falling back to the default."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(content)
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) is None
+    assert any(
+        r.name == config_utils.logger.name and str(cfg) in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_read_flexmeasures_env_from_cfg_does_not_warn_about_a_plain_cfg(
+    tmp_path, caplog
+):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text('import os\nFLEXMEASURES_ENV = "staging"\n')
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == "staging"
+    assert not caplog.records
 
 
 def test_read_flexmeasures_env_from_missing_cfg(tmp_path):
