@@ -37,6 +37,9 @@ def test_source_search_asks_for_the_sources_of_the_automations_own_type(assert_j
 
         const scheduleUrl = new URL(page.sourceSearchUrl("scheduling", "x"), "http://x");
         eq("a schedule automation narrows to no source type", scheduleUrl.searchParams.get("type"), null);
+
+        const pluginUrl = new URL(page.sourceSearchUrl("mock-ingestion", ""), "http://x");
+        eq("a plugin automation searches the sources its generator records under", pluginUrl.searchParams.get("type"), "ingestor");
     """)
 
 

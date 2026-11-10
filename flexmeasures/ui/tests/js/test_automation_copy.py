@@ -4,10 +4,15 @@ import json
 import re
 
 import pytest
+from jinja2 import Environment, StrictUndefined
 
 # The page's script is rendered by one helper, which asserts that it leaves no Jinja value behind.
 # Sharing it keeps these checks from breaking whenever the page reads another value.
-from test_automation_actions import TEMPLATE, automation_script
+from test_automation_actions import (
+    PLUGIN_AUTOMATION_TYPES,
+    TEMPLATE,
+    automation_script,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -26,7 +31,11 @@ def creation_form_html() -> str:
         r'(<form id="newAutomationForm">.*?</form>)', TEMPLATE.read_text(), re.DOTALL
     )
     assert match is not None
-    return match.group(1).replace("{{ asset.timezone }}", "Europe/Amsterdam")
+    environment = Environment(autoescape=True, undefined=StrictUndefined)
+    return environment.from_string(match.group(1)).render(
+        asset={"timezone": "Europe/Amsterdam"},
+        plugin_automation_types=PLUGIN_AUTOMATION_TYPES,
+    )
 
 
 # A stand-in for the handful of jQuery calls the form helpers make, backed by the real DOM.
@@ -121,6 +130,11 @@ def test_a_copy_only_reuses_a_data_source_where_one_can_be_named(assert_js):
         const sourceless = page.automationCopyValues(
             {{id: 10, name: "Orphan", type: "forecasting", "cron": "0 0 * * *", timezone: "UTC"}},
             {{parameters: {{}}}});
+        const pluginCopy = page.automationCopyValues(
+            {{id: 11, name: "Site import", type: "mock-ingestion", "cron": "*/15 * * * *", timezone: "UTC"}},
+            {{parameters: {{}}, source: source}});
+        eq("a plugin copy reuses the original's data source", pluginCopy.sourceId, 6);
+
         eq("an automation whose details carry no source names none", sourceless.sourceId, null);
         eq("and its parameters still default to an empty object", JSON.parse(sourceless.parameters), {{}});
     """)
@@ -215,4 +229,41 @@ def test_copy_is_offered_to_managers_only(assert_js):
         const viewerRow = viewer.AutomationRow(automation);
         check("someone who may not manage automations is not offered Copy",
               !viewerRow.actions.includes("automation-copy"), viewerRow.actions);
+    """)
+
+
+def test_the_form_offers_installed_plugin_types_and_asks_them_for_no_generator_class(
+    assert_js,
+):
+    """A plugin type declares its own data generator, so the form takes its config and parameters but no generator class."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html())};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ prefillNewAutomationForm, resetNewAutomationForm, automationCopyValues, typeNamesGeneratorClass }};")();
+
+        const pluginOption = document.querySelector('#automationType optgroup[label="Plugin types"] option[value="mock-ingestion"]');
+        check("an installed plugin type is offered under Plugin types", pluginOption !== null, document.getElementById("automationType").innerHTML);
+        eq("and named as its tab names it", pluginOption.textContent.trim(), "Mock ingestion");
+
+        page.prefillNewAutomationForm(page.automationCopyValues(
+            {{id: 11, name: "Site import", type: "mock-ingestion", "cron": "*/15 * * * *", timezone: "UTC"}},
+            {{parameters: {{}}, source: {{id: 6}}}}));
+        const shown = selector => [...document.querySelectorAll(selector)].every(node => node.style.display !== "none");
+        const hidden = selector => [...document.querySelectorAll(selector)].every(node => node.style.display === "none");
+        eq("a plugin copy keeps its type", document.getElementById("automationType").value, "mock-ingestion");
+        check("a plugin type still takes a config and a data source",
+              shown("#automationConfig") && document.getElementById("automationConfig").closest(".chooses-generator").style.display !== "none"
+              && document.getElementById("automationSourceSearch").closest(".chooses-generator").style.display !== "none",
+              "config or source picker hidden");
+        check("but asks for no data generator class", hidden(".names-generator-class"), "generator class field shown");
+        check("nor for the run period options of the built-in types", hidden(".builtin-type-only"), "run period hint shown");
+        eq("and sends none", page.typeNamesGeneratorClass(), false);
+
+        page.resetNewAutomationForm();
+        check("a forecast names its data generator class again", shown(".names-generator-class"), "generator class field still hidden");
+        check("and gets the run period options back", shown(".builtin-type-only"), "run period hint still hidden");
+        eq("and sends its class", page.typeNamesGeneratorClass(), true);
     """)
