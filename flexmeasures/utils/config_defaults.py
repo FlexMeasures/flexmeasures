@@ -141,6 +141,10 @@ class Config(object):
     # and the first month when the domain was under the current owner's administration
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
+    # Dotted import paths of callables to notify when a run of an automation flagged as
+    # critical fails. See flexmeasures.data.services.automation_failure_hooks.
+    # A plugin can register hooks instead, through its __automation_failure_hooks__.
+    FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS: list[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_PROFILER_CONFIG: dict = dict(
         async_mode="disabled",

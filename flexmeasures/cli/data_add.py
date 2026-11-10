@@ -1814,6 +1814,15 @@ def add_forecast(  # noqa: C901
     help="Add this flag to create the automation in deactivated state.",
 )
 @click.option(
+    "--critical",
+    "critical",
+    is_flag=True,
+    help="Add this flag to mark the automation as critical to your organisation."
+    " It changes nothing about how the automation runs or how its failures are retried:"
+    " it decides whether a failed run is handed to the critical-automation-failure hooks,"
+    " where your own business logic can act on it, for instance by paging the engineer on duty.",
+)
+@click.option(
     "--data-generator",
     "--forecaster",
     "--scheduler",
@@ -1889,6 +1898,7 @@ def add_automation(  # noqa: C901
     timezone: str,
     automation_type: str,
     inactive: bool = False,
+    critical: bool = False,
     generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1987,6 +1997,7 @@ def add_automation(  # noqa: C901
             timezone=timezone,
             automation_type=automation_type,
             active=not inactive,
+            critical=critical,
             parameters=parameters,
             generator_class=generator_class,
             config=config,
@@ -2013,7 +2024,8 @@ def add_automation(  # noqa: C901
         click.secho(f"Warning: {warning}", **MsgStyle.WARN)
     db.session.commit()
     click.secho(
-        f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
+        f"Successfully created {'inactive ' if inactive else ''}"
+        f"{'critical ' if critical else ''}automation '{name}' (ID: {automation.id})"
         f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{automation.timezone}'.",
         **MsgStyle.SUCCESS,
     )

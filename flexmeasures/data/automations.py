@@ -153,6 +153,7 @@ class AutomationHandler:
             name=kwargs["name"],
             cronstr=kwargs["cronstr"],
             active=kwargs.get("active", True),
+            critical=kwargs.get("critical", False),
             generator=generator.data_source,
             parameters=parameters,
         )

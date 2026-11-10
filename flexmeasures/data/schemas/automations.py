@@ -92,6 +92,14 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    critical = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "Whether this automation is critical to the organisation."
+            " It changes nothing about how the automation runs or how its failures are retried;"
+            " it decides whether a failed run is handed to the host's critical-automation-failure hooks."
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -165,6 +173,7 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    critical = fields.Bool()
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -211,6 +220,11 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     active = ma.auto_field()
+    critical = ma.auto_field(
+        metadata={
+            "description": "Whether a failed run of this automation is handed to the host's critical-automation-failure hooks."
+        }
+    )
 
     @staticmethod
     def _in_automation_timezone(

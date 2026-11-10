@@ -5,6 +5,14 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-35 | December xx, 2026
+""""""""""""""""""""""""""""
+
+**Automations**
+
+- Automations carry a ``critical`` flag, accepted by ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` and reported in automation responses. It says whether a failed run is reported to the server's critical-automation-failure hooks, and changes nothing about how the automation runs or how its failures are retried.
+- A run's entry in ``run-stats`` adds ``critical-failure-notified-at``: when those hooks were told about the run, or null.
+
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
 

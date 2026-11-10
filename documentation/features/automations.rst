@@ -222,6 +222,68 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
         --cron "0 1 * * *" --timezone Europe/Amsterdam \
         --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
 
+.. _critical_automations:
+
+Critical automations
+--------------------
+
+Some automations matter more to an organisation than others: a day-ahead schedule that a market
+position depends on is not a weekly report. Flag such an automation as critical, and FlexMeasures
+hands its failures to whatever your organisation does about them.
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Day-ahead schedules" --type scheduling \
+        --cron "0 12 * * *" --critical --parameters trigger-message.yml
+
+    flexmeasures edit automation --id 4 --critical
+    flexmeasures edit automation --id 4 --not-critical
+
+The same flag is the ``critical`` field of the automations API, and a *Critical* checkbox in the
+creation and edit forms in the UI, where a critical automation's row carries a ``critical`` badge.
+A copy of a critical automation is critical too.
+
+Being critical changes nothing about how an automation runs: the same jobs are queued on the same
+recurrence, and a failed dispatch is retried exactly as before (see :ref:`automation_runs`).
+It changes only who is told when a run fails.
+
+Hooking into critical failures
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures takes no view on what a critical failure means for your organisation — one pages the
+engineer on duty, another opens a ticket, a third writes to a status page — so it reports the
+failure and leaves the business logic to you.
+
+A hook is a callable taking one
+:class:`~flexmeasures.data.services.automation_failure_hooks.CriticalAutomationFailure`, which
+names the automation, its asset, the run, the stage it failed in and the error it failed on.
+
+Register one from a plugin, next to its ``__automation_types__``:
+
+.. code-block:: python
+
+    def page_the_engineer_on_duty(failure):
+        pager.trigger(severity="critical", summary=failure.summary)
+
+    __automation_failure_hooks__ = [page_the_engineer_on_duty]
+
+Or name it by dotted path in your server settings, if you would rather not write a plugin:
+
+.. code-block:: python
+
+    FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS = ["my_company.ops.page_the_engineer_on_duty"]
+
+The hooks are called when FlexMeasures has stopped trying: when a job of the run failed on a
+worker, which is not retried, or when the run's last dispatch attempt has been spent (see
+:ref:`automation_runs`), so that a dispatch which the next retry would have fixed does not page
+anybody. A run notifies once, however many of its jobs fail, which is recorded on the run itself,
+so a second dispatcher or worker does not page again.
+
+Hooks run inside the dispatcher or worker that recorded the failure, straight after it was
+recorded. Keep them quick, and put anything slow on a queue of your own: a hook that raises is
+logged and skipped, and never fails the run it was told about, which has failed already.
+
+
 .. _running_automations:
 
 Running automations
