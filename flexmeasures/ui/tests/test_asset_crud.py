@@ -675,9 +675,9 @@ def test_breadcrumb_cross_account_parent(
 #   - GenericAsset.create-children (child assets/sensors) → any organisation member
 #   - Account.create-children (top-level assets) → organisation-admin or consultant
 #
-# "user_can_create_assets" (Account.create-children) gates:
-#   • The "Create asset" child-asset button on the properties page
-#   • The "Copy this asset" / "Copy to <org>" copy buttons
+# "user_can_create_assets" (Account.edit-assets) gates the
+# "Create asset" child-asset button on the properties page.
+# The copy buttons have separate permission checks for their target locations.
 # "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
 # "user_can_delete_asset" (GenericAsset.edit-assets, plus delete-data if the asset holds data) gates the "Delete this asset" button.
 # ---------------------------------------------------------------------------
@@ -759,6 +759,7 @@ def test_copy_to_own_account_button_for_cross_account_admin(
     assert page.status_code == 200
     assert b"Copy to Test Dummy Account" in page.data
     assert b"Copy this asset" not in page.data
+    assert b"Create asset" not in page.data
 
 
 @pytest.mark.parametrize(
@@ -806,11 +807,11 @@ def test_edit_panel_visibility_on_properties_page(
         ("as_admin", True, True),
         # Account-admin of same account: same rights.
         ("as_prosumer_account_admin", True, True),
-        # Plain account member: cannot delete an asset holding data or create top-level assets.
+        # Plain account member: cannot delete an asset holding data or use the UI to add children.
         ("as_prosumer_user1", False, False),
     ],
 )
-def test_admin_only_buttons_on_properties_page(
+def test_delete_and_create_buttons_on_properties_page(
     db,
     client,
     setup_assets,
@@ -820,8 +821,8 @@ def test_admin_only_buttons_on_properties_page(
     expect_create_asset_btn,
 ):
     """
-    'Delete this asset' and 'Create asset' (child asset via account) are
-    gated on account-admin permissions and must not appear for plain users.
+    Deleting an asset holding data and creating a child asset through the UI
+    both require elevated rights.
     """
     from flexmeasures.data.services.users import find_user_by_email
 
@@ -846,6 +847,17 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+def test_consultant_can_create_child_asset_from_properties_page(
+    client, setup_generic_assets, as_consultant
+):
+    parent = setup_generic_assets["test_consultancy_client_asset"]
+
+    page = client.get(url_for("AssetCrudUI:properties", id=parent.id))
+
+    assert page.status_code == 200
+    assert f"/assets/new?parent_asset_id={parent.id}".encode() in page.data
 
 
 @pytest.mark.parametrize(

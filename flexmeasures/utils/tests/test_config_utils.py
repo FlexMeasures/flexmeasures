@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 import logging
 import pytest
@@ -178,26 +179,14 @@ def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
         parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
 
 
-@pytest.mark.parametrize(
-    "flask_security_version, expected",
-    [
-        # 5.9 prefers a timedelta.
-        ("5.9.0", timedelta(weeks=1)),
-        # 5.8 only reads "<amount> <unit>", with the unit as a timedelta keyword.
-        ("5.8.1", "604800 seconds"),
-    ],
-)
-def test_normalize_security_durations(monkeypatch, flask_security_version, expected):
-    monkeypatch.setattr(
-        config_utils.metadata, "version", lambda package: flask_security_version
-    )
+def test_normalize_security_durations():
     app = Flask(__name__)
     app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
     app.config["SECURITY_LOGIN_WITHIN"] = (
         None  # unset settings are left to Flask-Security
     )
     normalize_security_durations(app)
-    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == timedelta(weeks=1)
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
 
 
@@ -350,3 +339,97 @@ def test_create_app_do_configure_logging_flag(monkeypatch):
     )
     create_app(env="testing", do_configure_logging=False)
     assert not called
+
+
+def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
+    tmp_path, monkeypatch, caplog
+):
+    """A flexmeasures.cfg is Python, so an import on its first line is fine, and should not set off python-dotenv's parse warning."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(
+        "from datetime import timedelta\n"
+        "\n"
+        'FLEXMEASURES_ENV = "staging"\n'
+        "FLEXMEASURES_PLANNING_HORIZON = timedelta(days=2)\n"
+        "FLEXMEASURES_PLUGINS = [\n"
+        '    "/app/plugin",\n'
+        "]\n"
+    )
+    monkeypatch.delenv("FLEXMEASURES_ENV", raising=False)
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    app = Flask("flexmeasures-test")
+
+    with caplog.at_level(logging.DEBUG):
+        assert config_utils.get_flexmeasures_env(app, str(cfg)) == "staging"
+    assert not [r for r in caplog.records if r.name.startswith("dotenv")]
+
+
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ('FLEXMEASURES_ENV = "production"\n', "production"),
+        ("FLEXMEASURES_ENV: str = 'staging'\n", "staging"),
+        # The last assignment wins, as it does when the file runs.
+        (
+            'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "production"\n',
+            "production",
+        ),
+        # Only a string literal counts: an expression is not evaluated, and is not mistaken for a string.
+        ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
+        ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
+        # A later assignment that is not a string literal undoes an earlier one, as it would when the file runs.
+        (
+            'import os\nFLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = os.environ.get("X", "production")\n',
+            None,
+        ),
+        ("FLEXMEASURES_ENV = staging, but not Python\n", None),
+        # A byte order mark, as some editors save one, and Windows line endings.
+        (
+            '\ufefffrom datetime import timedelta\r\nFLEXMEASURES_ENV = "staging"\r\n',
+            "staging",
+        ),
+    ],
+)
+def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_bytes(content.encode("utf-8"))
+    assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "FLEXMEASURES_ENV = staging, but not Python\n",
+        'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "staging" if True else "production"\n',
+    ],
+)
+def test_read_flexmeasures_env_from_cfg_warns_when_it_cannot_tell(
+    tmp_path, caplog, content
+):
+    """When the cfg exists, but does not plainly say which environment to run in, say so, rather than silently falling back to the default."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(content)
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) is None
+    assert any(
+        r.name == config_utils.logger.name and str(cfg) in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_read_flexmeasures_env_from_cfg_does_not_warn_about_a_plain_cfg(
+    tmp_path, caplog
+):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text('import os\nFLEXMEASURES_ENV = "staging"\n')
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == "staging"
+    assert not caplog.records
+
+
+def test_read_flexmeasures_env_from_missing_cfg(tmp_path):
+    assert config_utils.read_flexmeasures_env_from_cfg(None) is None
+    assert (
+        config_utils.read_flexmeasures_env_from_cfg(str(tmp_path / "missing.cfg"))
+        is None
+    )

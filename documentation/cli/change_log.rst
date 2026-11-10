@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **************************
 
-since v1.1.0 | November XX, 2026
+since v1.1.0 | November 05, 2026
 =================================
 
 **Automations**

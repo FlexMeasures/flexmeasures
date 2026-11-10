@@ -4,9 +4,33 @@ FlexMeasures Changelog
 **********************
 
 
-
-v1.1.0 | November XX, 2026
+v1.2.0 | December xx, 2026
 ============================
+
+.. warning:: Python 3.10 is no longer supported. Upgrade to Python 3.11 or 3.12 before upgrading FlexMeasures.
+
+New features
+-------------
+
+Infrastructure / Support
+-------------------------
+* Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
+* Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
+* Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]
+* Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
+
+Bugfixes
+-----------
+* Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
+* Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
+* Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
+* Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
+
+
+v1.1.0 | November 5, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v110-automations/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
