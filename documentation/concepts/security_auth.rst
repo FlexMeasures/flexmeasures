@@ -20,7 +20,9 @@ How these Postgres and Redis databases are set up and protected is up to the hos
 
 More crucial to this documentation is that each FlexMeasures server reads from and writes to the Postgres database according to strict authentication and authorization rules. Much of the remainder of this page describes how this is implemented.
 
-Finally, when sending data back and forth between clients (e.g. browsers) and the server, the FlexMeasures application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
+Finally, data sent back and forth between clients (e.g. browsers) and the server should be encrypted with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security.
+FlexMeasures does not set up HTTPS itself: that is up to the host, for instance on a reverse proxy or load balancer in front of FlexMeasures.
+To have FlexMeasures redirect requests made via ``http://`` to ``https://``, set :ref:`FLEXMEASURES_FORCE_HTTPS <force_https>` to ``True`` (it is ``False`` by default).
 
 
 .. _authentication:
@@ -32,9 +34,13 @@ Authentication
 *Authentication* is the system by which users tell the FlexMeasures platform that they are who they claim they are.
 This involves a username/password combination ("credentials") or an access token.
 
-* No user passwords are stored in clear text on any server - the FlexMeasures platform only stores the hashed passwords (encrypted with the `bcrypt hashing algorithm <https://passlib.readthedocs.io/en/stable/lib/passlib.hash.bcrypt.html>`_). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
-* In the API, access tokens are used so that the sending of usernames and passwords is limited (even if they are encrypted via https, see above) when dealing with the part of the FlexMeasures platform which sees the most traffic: the API functionality. Tokens thus have use cases for some scenarios, where developers want to treat authentication information with a little less care than credentials should be treated with, e.g. sharing among computers. However, they also expire fast, which is a common industry practice (by making them short-lived and requiring refresh, FlexMeasures limits the time an attacker can abuse a stolen token). At the moment, the access tokens on FlexMeasures platform expire after six hours. Access tokens are encrypted and validated with the `sha256_crypt algorithm <https://passlib.readthedocs.io/en/stable/lib/passlib.hash.sha256_crypt.html>`_, and `the functionality to expire tokens is realised by storing the seconds since January 1, 2011 in the token <https://pythonhosted.org/itsdangerous/#itsdangerous.TimestampSigner>`_. The maximum age of access tokens in FlexMeasures can be altered by setting the env variable `SECURITY_TOKEN_MAX_AGE` to the number of seconds after which tokens should expire.
-* In the UI, FlexMeasures uses two-factor authentication (2FA). This means that the knowledge of the password to your FlexMeasures account is not sufficient to gain access ― you also need a second piece of knowledge, which requires you to also have access to an independent system or device (e.g. a token sent to your email address).
+* No user passwords are stored in clear text on any server - the FlexMeasures platform only stores the hashed passwords, hashed with the Argon2 algorithm (the default of Flask-Security, which FlexMeasures uses for authentication). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
+* In the API, access tokens are used so that the sending of usernames and passwords is limited (even if they are encrypted via https, see above) when dealing with the part of the FlexMeasures platform which sees the most traffic: the API functionality. Tokens thus have use cases for some scenarios, where developers want to treat authentication information with a little less care than credentials should be treated with, e.g. sharing among computers. However, they also expire fast, which is a common industry practice (by making them short-lived and requiring refresh, FlexMeasures limits the time an attacker can abuse a stolen token). At the moment, the access tokens on FlexMeasures platform expire after six hours.
+  Access tokens are signed (with the itsdangerous library) and carry the time they were issued, which is how they expire.
+  To change their maximum age, set ``SECURITY_TOKEN_MAX_AGE`` to the number of seconds after which tokens should expire, in the config file (it is not read from an environment variable).
+* In the UI, FlexMeasures supports two-factor authentication (2FA), which is off by default.
+  When it is on, the knowledge of the password to your FlexMeasures account is not sufficient to gain access ― you also need a second piece of knowledge, which requires you to also have access to an independent system or device (e.g. a token sent to your email address).
+  We strongly advise turning it on in production with :ref:`security_two_factor` (see :ref:`installation_two_factor`).
 
 .. note:: Authentication (and authorization, see below) affects the FlexMeasures API and UI. The CLI (command line interface) can only be used if the user is already on the server and can execute ``flexmeasures`` commands, thus we can safely assume they are admins.
 
