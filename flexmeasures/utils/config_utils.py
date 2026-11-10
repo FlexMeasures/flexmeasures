@@ -9,14 +9,12 @@ import re
 import sys
 import logging
 from datetime import datetime, timedelta, timezone
-from importlib import metadata
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
 import isodate
-from packaging.version import Version
 from dotenv import dotenv_values
 import pandas as pd
 
@@ -28,6 +26,9 @@ from flexmeasures.utils.config_defaults import (
 
 flexmeasures_logging_config = {
     "version": 1,
+    # Leave loggers alone that exist before FlexMeasures configures logging,
+    # such as gunicorn's own when it preloads the app, and those of libraries imported before the app is created.
+    "disable_existing_loggers": False,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
@@ -79,7 +80,6 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.10. In place of this we could investigate to use the in-built tomlib (in-built with Py3.11+)
     cfg_config = dotenv_values(cfg_location)
 
     if app.testing:
@@ -364,22 +364,17 @@ def parse_duration_setting(setting: str, value: str | timedelta) -> timedelta:
 
 
 def normalize_security_durations(app: Flask) -> None:
-    """Hand Flask-Security each duration setting in the form its version reads.
+    """Hand Flask-Security each duration setting as a timedelta.
 
     Flask-Security builds a timedelta from "<amount> <unit>", using the unit as a timedelta keyword,
     so it reads "7 days", but not "1 week" or an ISO 8601 duration.
-    As of 5.9, it does so at startup and prefers a timedelta,
-    while 5.8 (which Python 3.10 still gets) only reads a string, so it gets the duration in seconds.
+    Flask-Security 5.9 and later accept a timedelta at startup.
     """
-    reads_timedelta = Version(metadata.version("flask-security-too")) >= Version("5.9")
     for setting in SECURITY_DURATION_SETTINGS:
         value = app.config.get(setting)
         if value is None:
             continue
-        duration = parse_duration_setting(setting, value)
-        app.config[setting] = (
-            duration if reads_timedelta else f"{int(duration.total_seconds())} seconds"
-        )
+        app.config[setting] = parse_duration_setting(setting, value)
 
 
 def check_rate_limit_settings(app: Flask) -> None:

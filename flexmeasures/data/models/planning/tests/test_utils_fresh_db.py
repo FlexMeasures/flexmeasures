@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -582,3 +583,70 @@ def test_soc_at_start_applies_reference_bounds(fresh_db):
 
     assert unbounded == pytest.approx(-0.003)
     assert bounded == pytest.approx(0.0)
+
+
+def test_collect_flex_config_resolves_references_whose_sensor_was_deleted(fresh_db):
+    """A stored reference whose sensor was deleted stands in for its default, or is ignored without one, while a passed one is refused.
+
+    Ignoring a flex-context field lets an ancestor's value for it apply, as if the asset did not set it.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-unset-reference")
+    fresh_db.session.add(asset_type)
+    site = GenericAsset(
+        name="test-site-unset-reference",
+        generic_asset_type=asset_type,
+        flex_context={"consumption-price": "20 EUR/MWh"},
+    )
+    fresh_db.session.add(site)
+    fresh_db.session.flush()
+    building = GenericAsset(
+        name="test-building-unset-reference",
+        generic_asset_type=asset_type,
+        parent_asset_id=site.id,
+        flex_context={
+            "production-price": {
+                "sensor": None,
+                "default": "10 EUR/MWh",
+                "lower": "0 EUR/MWh",
+            },
+            "consumption-price": {"sensor": None, "upper": "100 EUR/MWh"},
+        },
+        flex_model={
+            "soc-min": {"sensor": None, "default": "1 kWh"},
+            "soc-max": {"sensor": None, "source-types": ["user"]},
+        },
+    )
+    fresh_db.session.add(building)
+    fresh_db.session.commit()
+
+    assert building.get_flex_context_with_provenance()["consumption-price"] == dict(
+        value="20 EUR/MWh", asset=site
+    )
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+    end = start + timedelta(hours=1)
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={},
+        flex_context={},
+    )
+    scheduler.collect_flex_config()
+    assert scheduler.flex_context == {
+        "production-price": "10 EUR/MWh",
+        "consumption-price": "20 EUR/MWh",
+    }
+    assert scheduler.flex_model == [{"asset": building.id, "soc-min": "1 kWh"}]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={},
+        flex_context={"production-price": {"sensor": None, "default": "10 EUR/MWh"}},
+    )
+    with pytest.raises(ValidationError, match="has no sensor"):
+        scheduler.collect_flex_config()

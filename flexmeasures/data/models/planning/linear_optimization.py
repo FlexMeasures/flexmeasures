@@ -14,6 +14,9 @@ from flexmeasures.data.models.planning import (
     FlowCommitment,
     StockCommitment,
 )
+from flexmeasures.data.models.planning.utils import (
+    solver_output_kept_off_our_log_handlers,
+)
 from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
@@ -192,12 +195,12 @@ def device_scheduler(  # noqa C901
                                 its flow absorbs the imbalance, and its stock is bounded by its own device constraints.
 
     Potentially deprecated arguments:
-        commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
-            - e.g. in MW or boxes/h
-        commitment_downwards_deviation_price: penalty for downwards deviations of the flow
-            - e.g. in EUR/MW or EUR/(boxes/h)
-            - either a single value (same value for each flow value) or a Series (different value for each flow value)
-        commitment_upwards_deviation_price: penalty for upwards deviations of the flow
+    - commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
+      - e.g. in MW or boxes/h
+    - commitment_downwards_deviation_price: penalty for downwards deviations of the flow
+      - e.g. in EUR/MW or EUR/(boxes/h)
+      - either a single value (same value for each flow value) or a Series (different value for each flow value)
+    - commitment_upwards_deviation_price: penalty for upwards deviations of the flow
 
     Separate costs for each commitment are stored in a dictionary under `model.commitment_costs` (indexed by commitment).
 
@@ -807,7 +810,8 @@ def device_scheduler(  # noqa C901
         solver.options[option_name] = option_value
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    results = solver.solve(model, load_solutions=False)
+    with solver_output_kept_off_our_log_handlers(solver):
+        results = solver.solve(model, load_solutions=False)
 
     # load the results only if a feasible solution has been found
     if len(results.solution) > 0:
@@ -835,7 +839,9 @@ def device_scheduler(  # noqa C901
     model.commitment_costs = aggregate_subcommitment_costs(
         subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
-    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
+    model.commodity_costs = aggregate_commodity_costs(
+        problem.commitment_headers, subcommitment_costs
+    )
 
     # model.pprint()
     # model.display()

@@ -787,10 +787,14 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset = existing_sensor.generic_asset
     asset.flex_model = {
         "soc-max": {"sensor": existing_sensor_id},
+        # a reference that carries a bound keeps it, for a new sensor to be picked
+        "soc-min": {"sensor": existing_sensor_id, "lower": "0 kWh"},
         "static-limit": "10 kW",
     }
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
+        # a reference that carries a default keeps it, for a new sensor to be picked
+        "production-price": {"sensor": existing_sensor_id, "default": "10 EUR/MWh"},
         "inflexible-device-sensors": [existing_sensor_id],
         # not a valid combination with the deprecated key above, but a deleted
         # sensor should be pruned from any of the inflexible-device keys
@@ -830,8 +834,13 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 
     asset_after = db.session.get(GenericAsset, asset.id)
     assert asset_after.flex_model.get("soc-max") is None
+    assert asset_after.flex_model.get("soc-min") == {"sensor": None, "lower": "0 kWh"}
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
+    assert asset_after.flex_context.get("production-price") == {
+        "sensor": None,
+        "default": "10 EUR/MWh",
+    }
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
     assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
@@ -1051,3 +1060,27 @@ def test_sensor_page_dates_validation(
     )
     assert error.encode() in sensor_page.data
     assert "UNPROCESSABLE_ENTITY".encode() in sensor_page.data
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_sensor_status_reports_relation_to_the_given_asset(
+    db, client, setup_api_test_data, requesting_user
+):
+    """The ``asset`` query parameter names the asset whose status page the sensor is reported on."""
+    sensor = setup_api_test_data["some gas sensor"]
+    other_asset = db.session.scalars(
+        select(GenericAsset).where(GenericAsset.id != sensor.generic_asset_id)
+    ).first()
+
+    own = client.get(url_for("SensorAPI:get_status", id=sensor.id))
+    other = client.get(
+        url_for("SensorAPI:get_status", id=sensor.id),
+        query_string={"asset": other_asset.id},
+    )
+
+    assert own.status_code == 200 and other.status_code == 200
+    assert own.json["sensors_data"][0]["relation"] == "sensor belongs to this asset"
+    assert (
+        other.json["sensors_data"][0]["relation"]
+        == f"sensor belongs to asset '{sensor.generic_asset.name}'"
+    )

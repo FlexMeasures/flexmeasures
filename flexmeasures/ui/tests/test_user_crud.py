@@ -70,12 +70,27 @@ def test_user_page_breadcrumb(client, as_admin, setup_accounts):
     assert user2.username.encode() in user_page.data
 
 
-def test_reset_password(client, as_admin):
-    """Test it does not fail (logic is tested in API tests) and displays an answer."""
+def test_reset_password_button_resets_through_the_api(client, as_admin):
+    """The reset button names the user whose password it resets through the API; a GET on a UI route no longer resets it.
+
+    The reset itself is tested in the API tests.
+    """
     user2 = find_user_by_email("test_prosumer_user_2@seita.nl", keep_in_session=False)
-    user_page = client.get(
-        url_for("UserCrudUI:reset_password_for", id=user2.id),
-        follow_redirects=True,
-    )
+    user_page = client.get(url_for("UserCrudUI:get", id=user2.id))
     assert user_page.status_code == 200
-    assert b"has been changed to a random password" in user_page.data
+    assert (
+        f'data-user-id="{user2.id}" data-own-password="false"'.encode()
+        in user_page.data
+    )
+    assert client.get(f"/users/reset_password_for/{user2.id}").status_code == 404
+
+
+def test_user_audit_log_is_for_whoever_may_read_it(client, as_prosumer_user1):
+    """The user audit log page follows the same rule as the API, so it names no user from another account."""
+    own = find_user_by_email("test_prosumer_user@seita.nl", keep_in_session=False)
+    other = find_user_by_email("test_dummy_user_3@seita.nl", keep_in_session=False)
+
+    assert client.get(url_for("UserCrudUI:auditlog", id=own.id)).status_code == 200
+    response = client.get(url_for("UserCrudUI:auditlog", id=other.id))
+    assert response.status_code == 403
+    assert other.username.encode() not in response.data

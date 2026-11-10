@@ -24,8 +24,8 @@ from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.schemas.automations import (
     AutomationIdField,
     CronField,
-    TimezoneField,
 )
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db

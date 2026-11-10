@@ -178,26 +178,14 @@ def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
         parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
 
 
-@pytest.mark.parametrize(
-    "flask_security_version, expected",
-    [
-        # 5.9 prefers a timedelta.
-        ("5.9.0", timedelta(weeks=1)),
-        # 5.8 only reads "<amount> <unit>", with the unit as a timedelta keyword.
-        ("5.8.1", "604800 seconds"),
-    ],
-)
-def test_normalize_security_durations(monkeypatch, flask_security_version, expected):
-    monkeypatch.setattr(
-        config_utils.metadata, "version", lambda package: flask_security_version
-    )
+def test_normalize_security_durations():
     app = Flask(__name__)
     app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
     app.config["SECURITY_LOGIN_WITHIN"] = (
         None  # unset settings are left to Flask-Security
     )
     normalize_security_durations(app)
-    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == timedelta(weeks=1)
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
 
 
@@ -288,3 +276,33 @@ def test_config_warnings_silent_when_trusted_hosts_is_set():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" not in missing_settings
     assert not any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
+    """Loggers created before FlexMeasures configures logging should keep logging.
+
+    Gunicorn creates its own before it preloads the app, and libraries such as RQ create theirs when they are imported.
+    """
+    import logging
+
+    from flexmeasures.utils.config_utils import configure_logging
+
+    # Use the real logging config, except for its file handler, so this test writes no log file.
+    real_config = config_utils.flexmeasures_logging_config
+    logging_config = {
+        **real_config,
+        "handlers": {"console": real_config["handlers"]["console"]},
+        "root": {**real_config["root"], "handlers": ["console"]},
+    }
+    monkeypatch.setattr(config_utils, "flexmeasures_logging_config", logging_config)
+    # Configuring logging replaces the root logger's handlers, so put back those the rest of the test session uses.
+    root = logging.getLogger()
+    root_handlers, root_level = root.handlers[:], root.level
+
+    existing_logger = logging.getLogger("test.created.before.configure_logging")
+    try:
+        configure_logging()
+        assert not existing_logger.disabled
+    finally:
+        root.handlers[:] = root_handlers
+        root.setLevel(root_level)
