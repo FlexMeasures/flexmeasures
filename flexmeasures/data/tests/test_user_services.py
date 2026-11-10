@@ -1,3 +1,6 @@
+import random
+import string
+
 import pytest
 from sqlalchemy import select, func
 
@@ -7,6 +10,7 @@ from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
     delete_user,
+    set_random_password,
     InvalidFlexMeasuresUser,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -243,3 +247,19 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
     assert (
         data_source_before.account_id == data_source_account_id_before
     ), "Data source account_id should be preserved (not nullified) after user deletion for lineage purposes."
+
+
+def test_random_password_does_not_come_from_the_random_module(monkeypatch):
+    """The temporary password is a user's real password until they choose their own, so knowing the state of the random module must not reveal it."""
+    passwords = []
+    monkeypatch.setattr(
+        "flexmeasures.data.services.users.update_password",
+        lambda user, password: passwords.append(password),
+    )
+    for _ in range(2):
+        random.seed(0)
+        set_random_password(user=None)
+    assert passwords[0] != passwords[1]
+    for password in passwords:
+        assert len(password) == 24
+        assert set(password) <= set(string.ascii_lowercase)
