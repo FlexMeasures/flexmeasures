@@ -37,7 +37,7 @@ def upgrade():
         ),
     )
     op.create_index(
-        "ix_refresh_token_tracker_user_id", "refresh_token_tracker", ["user_id"]
+        "refresh_token_tracker_user_id_idx", "refresh_token_tracker", ["user_id"]
     )
 
 
