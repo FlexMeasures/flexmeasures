@@ -107,7 +107,8 @@ def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
     if cfg_location is None or not os.path.isfile(cfg_location):
         return None
     try:
-        tree = ast.parse(Path(cfg_location).read_text(), filename=cfg_location)
+        # Parse bytes, so that a byte order mark or a coding declaration is honoured, as it is when the file runs.
+        tree = ast.parse(Path(cfg_location).read_bytes(), filename=cfg_location)
     except (OSError, SyntaxError, ValueError):
         return None
     flexmeasures_env = None

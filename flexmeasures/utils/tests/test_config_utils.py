@@ -346,11 +346,16 @@ def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
         ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
         ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
         ("this is not python\n", None),
+        # A byte order mark, as some editors save one, and Windows line endings.
+        (
+            '\ufefffrom datetime import timedelta\r\nFLEXMEASURES_ENV = "staging"\r\n',
+            "staging",
+        ),
     ],
 )
 def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
     cfg = tmp_path / "flexmeasures.cfg"
-    cfg.write_text(content)
+    cfg.write_bytes(content.encode("utf-8"))
     assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
 
 
