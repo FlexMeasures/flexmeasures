@@ -185,7 +185,8 @@ These settings take Python ``datetime.timedelta`` values. API refresh support do
 require enabling Flask-Security's global ``SECURITY_REFRESH_TOKEN`` flag, which also
 changes browser authentication. Apply the database migration before running the upgraded server.
 
-Malformed requests return HTTP status 400 with validation errors. An invalid, expired,
+A request that fails validation, for instance one without a usable ``refresh-token`` field, returns HTTP status 422 with validation errors,
+and a JSON body that cannot be parsed returns HTTP status 400. An invalid, expired,
 revoked, or reused refresh token returns HTTP status 401 with ``error`` set to
 ``"invalid_refresh_token"`` and an ``errors`` list. On that response, authenticate again;
 do not retry the rejected token. Ordinary API authorization still depends on the user's
