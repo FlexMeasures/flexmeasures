@@ -12,7 +12,7 @@ v1.2.0 | December xx, 2026
 New features
 -------------
 
-* Add opt-in rotating refresh tokens for API clients, with expiry and revocation while preserving existing access-token authentication [see `issue #2229 <https://github.com/FlexMeasures/flexmeasures/issues/2229>`_]
+* Add opt-in rotating refresh tokens for API clients, with expiry and revocation while preserving existing access-token authentication [see `PR #2849 <https://github.com/FlexMeasures/flexmeasures/pull/2849>`_]
 
 Infrastructure / Support
 -------------------------
