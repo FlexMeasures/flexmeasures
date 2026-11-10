@@ -23,7 +23,7 @@ So if you are running FlexMeasures on your computer, it would be:
 
 .. code-block:: html
 
-    https://localhost:5000/api
+    http://localhost:5000/api
 
 Let's assume we are running a server for a client at:
 
