@@ -794,8 +794,8 @@ def test_mixed_gas_and_electricity_assets(app, db):
 
     assert isinstance(schedules, list)
     assert (
-        len(schedules) == 4
-    )  # 2 storage schedules + 1 commitment costs + 1 scheduling_result
+        len(schedules) == 5
+    )  # 2 storage schedules + 1 commitment costs + 1 commodity costs + 1 scheduling_result
 
     # Extract schedules by type
     storage_schedules = [
@@ -804,9 +804,13 @@ def test_mixed_gas_and_electricity_assets(app, db):
     commitment_costs = [
         entry for entry in schedules if entry.get("name") == "commitment_costs"
     ]
+    commodity_costs = [
+        entry for entry in schedules if entry.get("name") == "commodity_costs"
+    ]
 
     assert len(storage_schedules) == 2
     assert len(commitment_costs) == 1
+    assert len(commodity_costs) == 1
 
     # Get battery schedule
     battery_schedule = next(
@@ -858,6 +862,11 @@ def test_mixed_gas_and_electricity_assets(app, db):
         f"Total energy cost (electricity 4.32 + gas 1.20): "
         f"= 5.52 EUR, got {total_energy_cost}"
     )
+
+    # Commodity costs breakdown
+    commodity_costs_data = commodity_costs[0]["data"]
+    assert commodity_costs_data["electricity"] == pytest.approx(4.32, rel=1e-2)
+    assert commodity_costs_data["gas"] == pytest.approx(1.20, rel=1e-2)
 
     # Battery prefers to charge as early as possible (3h @20kW, 1h@>0kW, then 0kW until the last slot with full discharge)
     assert all(battery_data[:3] == 20)
@@ -3300,3 +3309,93 @@ def test_commitments_in_commodity_contexts_are_converted(app):
     nested_spec = scheduler.flex_context["commodity_contexts"][0]["commitments"][0]
     assert "baseline" in nested_spec
     assert nested_spec["commodity"] == "electricity"
+
+
+def test_commodity_costs_output_filtering():
+    """Verify that StorageScheduler only exports commodity_costs when there are multiple
+    commodities or a non-default commodity (skipping single-commodity default electricity).
+    """
+    scheduler = object.__new__(StorageScheduler)
+    scheduler.flex_context = {"shared_currency_unit": "EUR"}
+
+    class MockModel:
+        def __init__(self, commodity_costs):
+            self.commodity_costs = commodity_costs
+
+    # Empty or None -> no commodity_costs
+    for model in [MockModel({}), MockModel(None), object()]:
+        costs = (
+            [
+                {
+                    "name": "commodity_costs",
+                    "data": getattr(model, "commodity_costs", None),
+                    "unit": scheduler.flex_context["shared_currency_unit"],
+                }
+            ]
+            if getattr(model, "commodity_costs", None)
+            and (
+                len(model.commodity_costs) > 1
+                or set(model.commodity_costs.keys()) != {"electricity"}
+            )
+            else []
+        )
+        assert costs == []
+
+    # Single default electricity -> skipped
+    model_elec = MockModel({"electricity": 42.0})
+    costs_elec = (
+        [
+            {
+                "name": "commodity_costs",
+                "data": model_elec.commodity_costs,
+                "unit": scheduler.flex_context["shared_currency_unit"],
+            }
+        ]
+        if getattr(model_elec, "commodity_costs", None)
+        and (
+            len(model_elec.commodity_costs) > 1
+            or set(model_elec.commodity_costs.keys()) != {"electricity"}
+        )
+        else []
+    )
+    assert costs_elec == []
+
+    # Multi-commodity -> exported
+    model_multi = MockModel({"electricity": 42.0, "gas": 12.0})
+    costs_multi = (
+        [
+            {
+                "name": "commodity_costs",
+                "data": model_multi.commodity_costs,
+                "unit": scheduler.flex_context["shared_currency_unit"],
+            }
+        ]
+        if getattr(model_multi, "commodity_costs", None)
+        and (
+            len(model_multi.commodity_costs) > 1
+            or set(model_multi.commodity_costs.keys()) != {"electricity"}
+        )
+        else []
+    )
+    assert len(costs_multi) == 1
+    assert costs_multi[0]["data"] == {"electricity": 42.0, "gas": 12.0}
+
+    # Non-default single commodity -> exported
+    model_gas = MockModel({"gas": 12.0})
+    costs_gas = (
+        [
+            {
+                "name": "commodity_costs",
+                "data": model_gas.commodity_costs,
+                "unit": scheduler.flex_context["shared_currency_unit"],
+            }
+        ]
+        if getattr(model_gas, "commodity_costs", None)
+        and (
+            len(model_gas.commodity_costs) > 1
+            or set(model_gas.commodity_costs.keys()) != {"electricity"}
+        )
+        else []
+    )
+    assert len(costs_gas) == 1
+    assert costs_gas[0]["data"] == {"gas": 12.0}
