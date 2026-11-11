@@ -20,6 +20,7 @@ Bugfixes
 * Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
 * Rename the automation API field ``schedule-revision`` to ``revision``, as it counts resets of the automation's recurrence and is unrelated to schedules; read-only, in automation responses and their ``run-stats`` [see `PR #2859 <https://www.github.com/FlexMeasures/flexmeasures/pull/2859>`_]
 * Handle each failed job of a worker on several queues, such as one started with ``flexmeasures jobs run-worker --queue "scheduling|forecasting"``, with the exception handler of the job's own queue, so a failed forecasting job counts its failures in its meta and, if an automation created it, is recorded as failed in the automation run [see `PR #2850 <https://www.github.com/FlexMeasures/flexmeasures/pull/2850>`_]
+* Require rq below version 3, on which ``flexmeasures jobs run-job`` crashed, as a fresh ``pip install flexmeasures`` has picked up since rq 3.0.0 came out on October 28 [see `PR #2860 <https://www.github.com/FlexMeasures/flexmeasures/pull/2860>`_]
 
 
 v1.1.0 | November 05, 2026
