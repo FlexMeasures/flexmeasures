@@ -732,6 +732,25 @@ def test_patch_sensor_non_admin(client, setup_api_test_data, requesting_user, db
     assert response.json["status"] == "INVALID_SENDER"
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_sensor_status_field_aliases(client, setup_api_test_data, requesting_user):
+    """Both field spellings are returned, with identical values."""
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.get(url_for("SensorAPI:get_status", id=sensor.id))
+    assert response.status_code == 200
+
+    rows = response.json["sensors_data"]
+    assert len(rows) >= 1
+
+    for row in rows:
+        for legacy in ("staleness_since", "source_type", "asset_id", "asset_name"):
+            assert row[legacy.replace("_", "-")] == row[legacy]
+        assert row["asset-id"] == sensor.generic_asset_id
+        assert row["asset-name"] == sensor.generic_asset.name
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_a_sensor_data(client, setup_api_test_data, requesting_user, db):
     existing_sensor = setup_api_test_data["some temperature sensor"]

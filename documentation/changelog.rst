@@ -12,6 +12,8 @@ v1.2.0 | December xx, 2026
 New features
 -------------
 
+* Sensor status responses now also name their fields in kebab case, with the snake case spellings kept as deprecated aliases, and the status page reads the new names [see `PR #2773 <https://www.github.com/FlexMeasures/flexmeasures/pull/2773>`_]
+
 Infrastructure / Support
 -------------------------
 * ``StorageScheduler`` now also stores a ``commodity_costs`` breakdown in the job's ``scheduler_info``, for schedules with several commodities or a commodity other than electricity [see `PR #2448 <https://www.github.com/FlexMeasures/flexmeasures/pull/2448>`_]
