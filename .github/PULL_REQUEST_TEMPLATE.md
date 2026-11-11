@@ -6,6 +6,7 @@ Summary of the changes introduced in this PR. Try to use bullet points as much a
 
 - [ ] ...
 - [ ] Added changelog item in `documentation/changelog.rst`
+- [ ] Set the milestone to the first release that will ship this change, matching the changelog section
 
 <!--
 For changelog entries, please take into account the intended audience.
