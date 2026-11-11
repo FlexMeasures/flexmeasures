@@ -4,20 +4,18 @@ Reading in configuration
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import sys
 import logging
 from datetime import datetime, timedelta, timezone
-from importlib import metadata
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
 import isodate
-from packaging.version import Version
-from dotenv import dotenv_values
 import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
@@ -25,6 +23,8 @@ from flexmeasures.utils.config_defaults import (
     required,
     warnable,
 )
+
+logger = logging.getLogger(__name__)
 
 flexmeasures_logging_config = {
     "version": 1,
@@ -82,15 +82,12 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.10. In place of this we could investigate to use the in-built tomlib (in-built with Py3.11+)
-    cfg_config = dotenv_values(cfg_location)
-
     if app.testing:
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
-    elif cfg_config.get("FLEXMEASURES_ENV", None):
-        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
+    elif cfg_env := read_flexmeasures_env_from_cfg(cfg_location):
+        flexmeasures_env = cfg_env
     elif os.getenv("FLASK_ENV", None):
         flexmeasures_env = os.getenv("FLASK_ENV", None)
         app.logger.warning(
@@ -99,6 +96,49 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
         )
 
     return flexmeasures_env or None
+
+
+def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
+    """Look up the FLEXMEASURES_ENV that a flexmeasures.cfg file sets, without running the file.
+
+    The file is Python, so it is parsed as Python, rather than as a dotenv file,
+    which made python-dotenv warn about every line that is not a plain assignment, such as an import.
+    Only a top-level assignment of a string literal counts.
+    The last top-level assignment wins, as it would when the file runs,
+    so a later assignment of anything other than a string literal leaves FLEXMEASURES_ENV unset here, with a warning.
+    A missing file sets nothing, quietly; a file that cannot be read or parsed sets nothing, with a warning.
+    """
+    if cfg_location is None or not os.path.isfile(cfg_location):
+        return None
+    try:
+        # Parse bytes, so that a byte order mark or a coding declaration is honoured, as it is when the file runs.
+        tree = ast.parse(Path(cfg_location).read_bytes(), filename=cfg_location)
+    except (OSError, SyntaxError, ValueError) as exc:
+        logger.warning(
+            f"Could not read FLEXMEASURES_ENV from {cfg_location}, as the file could not be read or parsed: {exc}"
+        )
+        return None
+    flexmeasures_env = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(
+            isinstance(t, ast.Name) and t.id == "FLEXMEASURES_ENV" for t in targets
+        ):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            flexmeasures_env = node.value.value
+        else:
+            logger.warning(
+                f"Ignoring FLEXMEASURES_ENV in {cfg_location} (line {node.lineno}), as it is not set to a string literal."
+                ' Set it to a string, such as FLEXMEASURES_ENV = "staging", or as an environment variable.'
+            )
+            flexmeasures_env = None
+    return flexmeasures_env
 
 
 def find_flexmeasures_cfg() -> str | None:
@@ -367,22 +407,17 @@ def parse_duration_setting(setting: str, value: str | timedelta) -> timedelta:
 
 
 def normalize_security_durations(app: Flask) -> None:
-    """Hand Flask-Security each duration setting in the form its version reads.
+    """Hand Flask-Security each duration setting as a timedelta.
 
     Flask-Security builds a timedelta from "<amount> <unit>", using the unit as a timedelta keyword,
     so it reads "7 days", but not "1 week" or an ISO 8601 duration.
-    As of 5.9, it does so at startup and prefers a timedelta,
-    while 5.8 (which Python 3.10 still gets) only reads a string, so it gets the duration in seconds.
+    Flask-Security 5.9 and later accept a timedelta at startup.
     """
-    reads_timedelta = Version(metadata.version("flask-security-too")) >= Version("5.9")
     for setting in SECURITY_DURATION_SETTINGS:
         value = app.config.get(setting)
         if value is None:
             continue
-        duration = parse_duration_setting(setting, value)
-        app.config[setting] = (
-            duration if reads_timedelta else f"{int(duration.total_seconds())} seconds"
-        )
+        app.config[setting] = parse_duration_setting(setting, value)
 
 
 def check_rate_limit_settings(app: Flask) -> None:
