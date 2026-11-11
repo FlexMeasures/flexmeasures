@@ -26,6 +26,7 @@ Bugfixes
 * Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
 * Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
 * Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
+* Require rq below version 3, on which ``flexmeasures jobs run-job`` crashed, as a fresh ``pip install flexmeasures`` has picked up since rq 3.0.0 came out on October 28 [see `PR #2860 <https://www.github.com/FlexMeasures/flexmeasures/pull/2860>`_]
 
 
 v1.1.0 | November 5, 2026
