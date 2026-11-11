@@ -17,19 +17,28 @@ Infrastructure / Support
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 * Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
 * Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]
-* Upgrade Pillow to 13.0.0, dnspython to 2.9.2, filelock to 4.2.10 and setuptools to 84.2.1 in the locked dependencies (which the Docker image installs), past their security advisories, and require at least Pillow 13.0.0 and setuptools 84.1.0 [see `PR #2861 <https://www.github.com/FlexMeasures/flexmeasures/pull/2861>`_]
-* Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
 
 Bugfixes
 -----------
-* Rename the automation API field ``schedule-revision`` to ``revision``, as it counts resets of the automation's recurrence and is unrelated to schedules; read-only, in automation responses and their ``run-stats`` [see `PR #2859 <https://www.github.com/FlexMeasures/flexmeasures/pull/2859>`_]
-* Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
-* Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
+
+
+v1.1.1 | November 11, 2026
+============================
+
+Infrastructure / Support
+-------------------------
+* Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
+* Upgrade Pillow to 13.0.0, dnspython to 2.9.2, filelock to 4.2.10 and setuptools to 84.2.1 in the locked dependencies (which the Docker image installs), past their security advisories, and require at least Pillow 13.0.0 and setuptools 84.1.0; on Python 3.10, which those Pillow, dnspython and filelock versions no longer support, the earlier versions remain [see `PR #2861 <https://www.github.com/FlexMeasures/flexmeasures/pull/2861>`_]
+
+Bugfixes
+-----------
 * Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
 * Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
-* Require rq below version 3, on which ``flexmeasures jobs run-job`` crashed, as a fresh ``pip install flexmeasures`` has picked up since rq 3.0.0 came out on October 28 [see `PR #2860 <https://www.github.com/FlexMeasures/flexmeasures/pull/2860>`_]
-
+* Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
+* Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
+* Rename the automation API field ``schedule-revision`` to ``revision``, as it counts resets of the automation's recurrence and is unrelated to schedules; read-only, in automation responses and their ``run-stats`` [see `PR #2859 <https://www.github.com/FlexMeasures/flexmeasures/pull/2859>`_]
 * Handle each failed job of a worker on several queues, such as one started with ``flexmeasures jobs run-worker --queue "scheduling|forecasting"``, with the exception handler of the job's own queue, so a failed forecasting job counts its failures in its meta and, if an automation created it, is recorded as failed in the automation run [see `PR #2850 <https://www.github.com/FlexMeasures/flexmeasures/pull/2850>`_]
+* Require rq below version 3, on which ``flexmeasures jobs run-job`` crashed, as a fresh ``pip install flexmeasures`` has picked up since rq 3.0.0 came out on October 28 [see `PR #2860 <https://www.github.com/FlexMeasures/flexmeasures/pull/2860>`_]
 
 
 v1.1.0 | November 5, 2026
