@@ -60,6 +60,14 @@ class Reporter(DataGenerator):
     _config_schema = ReporterConfigSchema()
 
     @property
+    def source_type(self) -> str | None:
+        """The type of data source this report is saved under: the `output-source-type` of its config, if set, and otherwise 'reporter'.
+
+        A sum of forecasts is still a forecast, so a reporter configured to say so records under a forecaster-type source.
+        """
+        return (self._config or {}).get("output_source_type") or super().source_type
+
+    @property
     def input_sensors(self) -> list:
         """Return the sensors from which the report reads input data."""
         parameters = self._parameters or {}

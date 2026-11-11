@@ -1936,3 +1936,216 @@ def test_an_invalid_flex_model_names_only_the_faulty_asset(
     # the street and the house fail only because the fault sits below them
     assert f"{street.id} ({street.name})" not in message
     assert f"{house.id} ({house.name})" not in message
+
+
+def test_a_config_without_an_output_source_type_leaves_the_source_as_it_was(
+    setup_dummy_data, db
+):
+    """Leaving `output-source-type` out is not the same as defaulting it: the config dumps without it, so the source (and its hash) stays what it was."""
+    reporter = AggregatorReporter(config={"method": "sum"})
+    source = reporter.data_source
+
+    assert source.type == "reporter"
+    assert source.label.startswith("report by")
+    dumped_config = source.attributes["data_generator"]["config"]
+    assert "output-source-type" not in dumped_config
+    assert source.attributes_hash == DataSource.hash_attributes(
+        {"data_generator": {"config": dumped_config}}
+    )
+    assert reporter.source_type == "reporter"
+
+    # naming the default type says nothing new, so it keeps the same source
+    named = AggregatorReporter(
+        config={"method": "sum", "output-source-type": "reporter"}
+    )
+    assert named.data_source.type == "reporter"
+    assert named.data_source == source
+
+
+def test_a_report_is_saved_under_the_source_type_its_config_names(setup_dummy_data, db):
+    """An aggregate of forecasts that says so is saved under a forecaster source, which the label shows."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+    forecaster = DataSource(
+        "aggregated forecasts input", type="forecaster", model="TrainPredictPipeline"
+    )
+    db.session.add(forecaster)
+    db.session.flush()
+    db.session.add_all(
+        TimedBelief(
+            sensor,
+            forecaster,
+            event_start=datetime(2023, 6, 1, tzinfo=utc) + timedelta(hours=hour),
+            belief_horizon=timedelta(hours=12),
+            event_value=2.0,
+        )
+        for sensor in (s1, s2)
+        for hour in range(24)
+    )
+    db.session.flush()
+
+    reporter = AggregatorReporter(
+        config={"method": "sum", "output-source-type": "forecaster"}
+    )
+    result = reporter.compute(
+        input=[dict(sensor=s1, source=forecaster), dict(sensor=s2, source=forecaster)],
+        output=[dict(sensor=report_sensor)],
+        start=datetime(2023, 6, 1, tzinfo=utc),
+        end=datetime(2023, 6, 2, tzinfo=utc),
+        belief_horizon=timedelta(hours=12),
+    )[0]["data"]
+
+    assert (result["event_value"] == 4).all()
+    sources = set(result.index.get_level_values("source"))
+    assert sources == {reporter.data_source}
+    assert {source.type for source in sources} == {"forecaster"}
+    assert all(source.label.startswith("forecast by") for source in sources)
+    stored_config = reporter.data_source.attributes["data_generator"]["config"]
+    assert stored_config["output-source-type"] == "forecaster"
+
+    # a report of the same data under the default type is a source of its own
+    assert AggregatorReporter(config={"method": "sum"}).data_source.type == "reporter"
+    assert (
+        AggregatorReporter(config={"method": "sum"}).data_source != reporter.data_source
+    )
+
+
+def test_an_unknown_output_source_type_is_refused(app, db):
+    """The type has to be one that data generators are registered for, so a typo does not create sources of a type nothing filters on."""
+    with pytest.raises(ValidationError, match="nonsense"):
+        AggregatorReporter(config={"method": "sum", "output-source-type": "nonsense"})
+
+
+def test_a_complete_aggregate_of_forecaster_type_supersedes_a_partial_one_recorded_since(
+    setup_nested_groups, db, restore_beliefs
+):
+    """The partial aggregates of a report saved under a forecaster source are told apart from the complete one among the forecaster sources, too.
+
+    So the complete aggregate computed again is saved where a partial one was recorded since, as for a report of the default type.
+    """
+    from flexmeasures.data.services.generator_results import save_generator_results
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street forecaster supersede test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    gap = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
+
+    def report(belief_time) -> int:
+        results = AggregatorReporter(
+            config={"group": {"asset": street.id}, "output-source-type": "forecaster"}
+        ).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=belief_time,
+        )
+        saved = save_generator_results(results)
+        db.session.commit()
+        return saved[0]["n_rows"]
+
+    def read_at_gap():
+        bdf = TimedBelief.search(
+            aggregate,
+            event_starts_after=gap,
+            event_ends_before=gap + timedelta(minutes=15),
+            one_deterministic_belief_per_event=True,
+        )
+        return bdf["event_value"].iloc[0], bdf.sources[0]
+
+    back = None
+    try:
+        assert report(datetime(2026, 7, 2, 0, tzinfo=utc)) == 96
+        restore_beliefs(hp_power, gap)
+        assert report(datetime(2026, 7, 2, 1, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.16)
+        assert source.type == "forecaster"
+        assert source.missing_members == [hp_power.id]
+
+        meter = db.session.execute(
+            db.select(DataSource).filter_by(name="nested meter")
+        ).scalar_one()
+        back = TimedBelief(
+            event_start=gap,
+            belief_time=datetime(2026, 7, 2, 1, 30, tzinfo=utc),
+            event_value=40,
+            sensor=hp_power,
+            source=meter,
+        )
+        db.session.add(back)
+        db.session.commit()
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.12)
+        assert source.type == "forecaster"
+        assert source.missing_members == []
+        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 0
+    finally:
+        if back is not None:
+            db.session.delete(back)
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
+def test_the_status_of_a_partial_aggregate_of_forecaster_type_names_the_missing_members(
+    setup_nested_groups, db, restore_beliefs
+):
+    """The members a partial aggregate leaves out are named in the status of the source type it is saved under, whatever type that is."""
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street forecaster status test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    status_specs = {
+        "staleness_search": {},
+        "max_staleness": "PT2H",
+        "max_future_staleness": "-PT12H",
+    }
+    now = datetime(2026, 7, 2, 2, tzinfo=utc)
+    partial_event = datetime(2026, 7, 1, 23, 30, tzinfo=utc)
+
+    try:
+        restore_beliefs(hp_power, partial_event)
+        results = AggregatorReporter(
+            config={"group": {"asset": street.id}, "output-source-type": "forecaster"}
+        ).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=datetime(2026, 7, 2, tzinfo=utc),
+        )
+        save_to_db(results[0]["data"], save_changed_beliefs_only=False)
+        db.session.commit()
+
+        statuses = {
+            status["source_type"]: status
+            for status in get_statuses(aggregate, now=now, status_specs=status_specs)
+        }
+        assert "reporter" not in statuses
+        status = statuses["forecaster"]
+        assert status["missing-members"] == [
+            {"id": hp_power.id, "name": hp_power.name, "asset-name": "House heat"}
+        ]
+        assert f"leaves out 'House heat' / hp power ({hp_power.id})" in status["reason"]
+    finally:
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()

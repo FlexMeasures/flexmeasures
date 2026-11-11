@@ -13,6 +13,7 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.queries.utils import id_prefix_filter
+from flexmeasures.data.schemas.sources import validate_data_generator_kind
 from flexmeasures.data.services.data_sources import (
     usable_source_filter,
     user_may_read_source,
@@ -50,6 +51,17 @@ class SourceQuerySchema(Schema):
             "example": "forecaster",
         },
     )
+    generator_type = fields.Str(
+        required=False,
+        data_key="generator-type",
+        validate=validate_data_generator_kind,
+        metadata={
+            "description": "Only return sources whose data generator is of this kind, such as forecaster, scheduler or reporter, whatever type of source it saves under."
+            " A reporter can save under a source of another type (see its `output-source-type`), so this tells which sources can set up a report, for instance.",
+            "example": "reporter",
+        },
+    )
+
     limit = fields.Int(
         required=False,
         validate=validate.Range(min=1),
@@ -123,6 +135,7 @@ class SourceAPI(FlaskView):
         only_latest: bool = True,
         filter: list[str] | None = None,
         type: str | None = None,
+        generator_type: str | None = None,
         limit: int | None = None,
     ):
         """List accessible data sources and defined source types.
@@ -138,6 +151,7 @@ class SourceAPI(FlaskView):
 
             The ``filter`` parameter searches the sources by name, by model and by id prefix,
             the ``type`` parameter narrows the list to one source type, such as ``forecaster``,
+            the ``generator-type`` parameter to the sources whose data generator is of one kind, such as ``reporter``,
             and the ``limit`` parameter returns only the most recently created ones.
 
             The ``types`` in the response are those of every source this listing can hold,
@@ -198,6 +212,13 @@ class SourceAPI(FlaskView):
             query = query.where(usable_sources)
         if type is not None:
             query = query.where(DataSource.type == type)
+        if generator_type is not None:
+            # Which sources a data generator of this kind made is told by their model, as their type can be configured (see `Reporter.source_type`).
+            # The type still has to be a kind of data generator, as a source of another type (e.g. a script) can carry such a model name, too.
+            query = query.where(
+                DataSource.model.in_(list(current_app.data_generators[generator_type])),
+                DataSource.type.in_(list(current_app.data_generators)),
+            )
         if filter is not None:
             query = query.where(
                 or_(*(source_search_term_filter(term) for term in filter))

@@ -610,3 +610,70 @@ def test_an_automation_of_ones_own_makes_its_source_readable(
     assert detail.json["attributes"] == {
         "data_generator": {"config": {"model": "CustomLGBM"}}
     }
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_filtered_by_generator_type(
+    client, setup_api_test_data, requesting_user, db
+):
+    """The kind of data generator tells which sources can set up a report, even when the report is saved under a source of another type."""
+    forecaster = DataSource(
+        name="GeneratorTypeSeita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
+    summed_forecasts = DataSource(
+        name="GeneratorTypeSeita",
+        type="forecaster",
+        model="AggregatorReporter",
+        attributes={
+            "data_generator": {
+                "config": {"method": "sum", "output-source-type": "forecaster"}
+            }
+        },
+    )
+    reporter = DataSource(
+        name="GeneratorTypeSeita",
+        type="reporter",
+        model="PandasReporter",
+    )
+    # a script's source named after a reporter stores no data generator to set up
+    script = DataSource(
+        name="GeneratorTypeSeita",
+        type="demo script",
+        model="PandasReporter",
+    )
+    db.session.add_all([forecaster, summed_forecasts, reporter, script])
+    db.session.flush()
+
+    def ids(generator_type: str | None = None, **query):
+        if generator_type is not None:
+            query["generator-type"] = generator_type
+        response = client.get(url_for("SourceAPI:index"), query_string=query)
+        assert response.status_code == 200, response.json
+        return {source["id"] for source in response.json["sources"]}
+
+    reporters = ids(generator_type="reporter", filter="GeneratorTypeSeita")
+    assert {summed_forecasts.id, reporter.id} <= reporters
+    assert forecaster.id not in reporters
+    assert script.id not in reporters
+
+    forecasters = ids(generator_type="forecaster", filter="GeneratorTypeSeita")
+    assert forecaster.id in forecasters
+    assert not {summed_forecasts.id, reporter.id} & forecasters
+
+    # the source type alone cannot tell them apart
+    assert {forecaster.id, summed_forecasts.id} <= ids(
+        type="forecaster", filter="GeneratorTypeSeita"
+    )
+
+    # a kind of data generator that does not exist is refused, rather than matching no source
+    response = client.get(
+        url_for("SourceAPI:index"), query_string={"generator-type": "reportr"}
+    )
+    assert response.status_code == 422
+    assert "reportr" in str(response.json)

@@ -776,7 +776,9 @@ class AggregatorReporter(Reporter):
         complete_source = self.data_source
         family = [
             source
-            for source in output_sensor.search_data_sources(source_types=["reporter"])
+            for source in output_sensor.search_data_sources(
+                source_types=[complete_source.type]
+            )
             if (source.name, source.type, source.model, source.version)
             == (
                 complete_source.name,

@@ -1,6 +1,9 @@
-from marshmallow import Schema, fields, pre_load, validate
+from marshmallow import Schema, fields, post_load, pre_load, validate
 
-from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.sources import (
+    DataSourceIdField,
+    validate_data_generator_kind,
+)
 from flexmeasures.data.schemas.account import AccountIdOrListField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
@@ -13,7 +16,29 @@ class ReporterConfigSchema(Schema):
     Inherit from this class to extend this schema with your own parameters.
     """
 
-    pass
+    # No default on purpose: a config that leaves this out dumps without it,
+    # so the attributes hash of every existing reporter source, and with it the source, stays the same.
+    output_source_type = fields.Str(
+        required=False,
+        data_key="output-source-type",
+        validate=validate_data_generator_kind,
+        metadata=dict(
+            description="The type of data source to save the report under, if not 'reporter'."
+            " Set it only when the report is made of data of that type, such as 'forecaster' for a sum of forecasts,"
+            " so that the report counts as such wherever data is filtered by source type (e.g. a forecast is not trained on forecasts).",
+            examples=["forecaster"],
+        ),
+    )
+
+    @post_load
+    def drop_the_default_output_source_type(self, data: dict, **kwargs) -> dict:
+        """Naming the type a report is saved under anyway says nothing new, so it is dropped, rather than starting a source of its own.
+
+        A config saying 'reporter' then dumps as though it said nothing, so its source is the one the same config without it has.
+        """
+        if data.get("output_source_type") == "reporter":
+            del data["output_source_type"]
+        return data
 
 
 class ReporterParametersSchema(Schema):

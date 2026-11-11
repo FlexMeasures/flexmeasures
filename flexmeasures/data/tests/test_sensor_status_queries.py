@@ -124,3 +124,35 @@ def test_sensor_status_names_the_asset_the_sensor_belongs_to(setup_beliefs, db):
     for status in statuses:
         assert status["asset_id"] == sensor.generic_asset.id
         assert status["asset_name"] == sensor.generic_asset.name
+
+
+def test_the_sources_are_looked_up_once_for_the_missing_members_of_every_source_type(
+    setup_beliefs, db
+):
+    """Judging the missing members of each source type must not look the sensor's sources up again per type.
+
+    Any source type can hold a partial aggregate (see `Reporter.source_type`), so each is judged,
+    but the sources they are judged from are the same for every type.
+    """
+    from flexmeasures.data.services import sensors as sensor_services
+
+    sensor = get_test_sensor(db)
+    add_belief(db, sensor, "A report on every type", "reporter")
+    add_belief(db, sensor, "A forecast on every type", "forecaster")
+
+    with mock.patch.object(
+        sensor_services,
+        "_sensor_sources_by_type",
+        wraps=sensor_services._sensor_sources_by_type,
+    ) as lookup_spy:
+        statuses = sensor_services.get_statuses(
+            sensor=sensor, now=pd.Timestamp("2021-03-28 18:00:00+00:00")
+        )
+
+    assert {status["source_type"] for status in statuses} == {
+        "demo script",
+        "reporter",
+        "forecaster",
+    }
+    # once, for the stalenesses and for the missing members of all three source types
+    assert lookup_spy.call_count == 1

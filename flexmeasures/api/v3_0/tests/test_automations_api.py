@@ -1287,3 +1287,76 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_a_report_automation_can_record_under_a_forecaster_source(
+    app, db, add_battery_assets, requesting_user
+):
+    """A report automation whose config names an output source type records under a source of that type, and a copy made from that source does so too.
+
+    The source is of type forecaster but stores a reporter, so it must still be accepted as the source of a report automation.
+    """
+    battery = add_battery_assets["Test battery"]
+    report_sensor = Sensor(
+        "aggregated forecast",
+        generic_asset=battery,
+        event_resolution=battery.sensors[0].event_resolution,
+        unit=battery.sensors[0].unit,
+    )
+    db.session.add(report_sensor)
+    db.session.commit()
+    parameters = {
+        "input": [{"sensor": battery.sensors[0].id}],
+        "output": [{"sensor": report_sensor.id}],
+    }
+
+    with app.test_client() as client:
+        created = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Summed forecasts",
+                "cron": "0 1 * * *",
+                "type": "reporting",
+                "data-generator": "AggregatorReporter",
+                "config": {"method": "sum", "output-source-type": "forecaster"},
+                "parameters": parameters,
+            },
+        )
+        assert created.status_code == 201, created.json
+        automation = db.session.get(Automation, created.json["id"])
+        assert automation.generator.type == "forecaster"
+        assert automation.generator.model == "AggregatorReporter"
+        assert automation.generator.label.startswith("forecast by")
+
+        copied = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Summed forecasts again",
+                "cron": "0 2 * * *",
+                "type": "reporting",
+                "source": automation.generator_id,
+                "parameters": parameters,
+            },
+        )
+        assert copied.status_code == 201, copied.json
+        assert (
+            db.session.get(Automation, copied.json["id"]).generator_id
+            == automation.generator_id
+        )
+
+        refused = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Not a forecast",
+                "cron": "0 3 * * *",
+                "type": "reporting",
+                "data-generator": "AggregatorReporter",
+                "config": {"method": "sum", "output-source-type": "nonsense"},
+                "parameters": parameters,
+            },
+        )
+        assert refused.status_code == 422, refused.json
+        assert "nonsense" in str(refused.json)

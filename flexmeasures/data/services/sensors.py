@@ -538,7 +538,9 @@ def _sensor_sources_by_type(
 
 
 def _get_sensor_bdfs_by_source_type(
-    sensor: Sensor, staleness_search: dict
+    sensor: Sensor,
+    staleness_search: dict,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
     We look for the source types that recorded on this sensor, so that a sensor recorded by a source type we do not know about,
@@ -551,8 +553,10 @@ def _get_sensor_bdfs_by_source_type(
     it would read every belief the sensor has whenever this type recorded none of them.
     Naming the sources instead lets the primary key answer the query directly,
     and lets a type with no sources at all be skipped without a query.
+    A caller that already looked the sensor's sources up (see `_sensor_sources_by_type`) can pass them as `sources_by_type`.
     """
-    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+    if sources_by_type is None:
+        sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
 
     # Report the default types in their usual order, and any other type that recorded here after them.
     source_types = [
@@ -585,7 +589,10 @@ def _get_sensor_bdfs_by_source_type(
 
 
 def get_staleness_start_times(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, timedelta] | None:
     """Get staleness start times for a given sensor by source.
     Also add whether there has any relevant data (for forecasters and schedulers this is future data).
@@ -596,7 +603,9 @@ def get_staleness_start_times(
     (specifically, when you could have formed an ex-post belief about it).
     """
     staleness_bdfs = _get_sensor_bdfs_by_source_type(
-        sensor=sensor, staleness_search=staleness_search
+        sensor=sensor,
+        staleness_search=staleness_search,
+        sources_by_type=sources_by_type,
     )
     if staleness_bdfs is None:
         return None
@@ -623,7 +632,10 @@ def get_staleness_start_times(
 
 
 def get_stalenesses(
-    sensor: Sensor, staleness_search: dict, now: datetime
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> dict[str, timedelta] | None:
     """Get the staleness of the sensor split by source.
 
@@ -635,6 +647,7 @@ def get_stalenesses(
     :param staleness_search:    Deserialized keyword arguments to `TimedBelief.search`.
     :param now:                 Datetime representing now, used both to mask future beliefs,
                                 and to measures staleness against.
+    :param sources_by_type:     The sensor's sources per source type, if already looked up (see `_sensor_sources_by_type`).
     """
 
     # Mask beliefs before now
@@ -644,7 +657,10 @@ def get_stalenesses(
     )
 
     staleness_start_times = get_staleness_start_times(
-        sensor=sensor, staleness_search=staleness_search, now=now
+        sensor=sensor,
+        staleness_search=staleness_search,
+        now=now,
+        sources_by_type=sources_by_type,
     )
     if staleness_start_times is None:
         return None
@@ -660,7 +676,12 @@ def get_stalenesses(
 
 
 def get_missing_members(
-    sensor: Sensor, staleness_search: dict, now: datetime, max_staleness: timedelta
+    sensor: Sensor,
+    staleness_search: dict,
+    now: datetime,
+    max_staleness: timedelta,
+    source_type: str = "reporter",
+    sources_by_type: dict[str, list[DataSource]] | None = None,
 ) -> list[Sensor]:
     """Return the sensors that the most recent settled aggregate on the given sensor had to leave out, if any.
 
@@ -672,9 +693,14 @@ def get_missing_members(
     A member that reports a little later than the report runs leaves the newest events partial every time, and the next run completes them,
     so judging the newest event would flag such a group all the time.
     A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
+    Only the sources of the given type are judged, as the status is reported per source type,
+    and a report may be saved under a source of another type than 'reporter' (see `Reporter.source_type`).
+    A caller judging several source types can pass the sensor's `sources_by_type`, so they are looked up once rather than once per type.
     """
-    reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
-    partial = [source for source in reporters if source.missing_members]
+    if sources_by_type is None:
+        sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+    sources = sources_by_type.get(source_type, [])
+    partial = [source for source in sources if source.missing_members]
     if not partial:
         return []
     belief_search = {
@@ -701,7 +727,7 @@ def get_missing_members(
     latest = TimedBelief.search(
         sensors=sensor,
         most_recent_only=True,
-        source=reporters,
+        source=sources,
         **belief_search,
     )
     if latest.empty:
@@ -714,7 +740,7 @@ def get_missing_members(
         event_ends_before=event_start + sensor.event_resolution,
         one_deterministic_belief_per_event=True,
     )
-    bdf = TimedBelief.search(sensors=sensor, source=reporters, **belief_search)
+    bdf = TimedBelief.search(sensors=sensor, source=sources, **belief_search)
     if bdf.empty:
         return []
     source = bdf.index.get_level_values("source")[0]
@@ -755,7 +781,7 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
-    For reporter data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
+    For aggregated data, `missing-members` lists the sensors that the most recent settled aggregate had to leave out (see `get_missing_members`),
     and is left out where it left out none, which is the case for most sensors.
     """
     if status_specs is None:
@@ -764,10 +790,13 @@ def get_statuses(
     max_staleness = status_specs.pop("max_staleness")
     max_future_staleness = status_specs.pop("max_future_staleness")
     staleness_search = status_specs.pop("staleness_search")
+    # looked up once, for the stalenesses and for the missing members of every source type
+    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
     stalenesses = get_stalenesses(
         sensor=sensor,
         staleness_search=staleness_search,
         now=now,
+        sources_by_type=sources_by_type,
     )
 
     statuses = list()
@@ -809,18 +838,21 @@ def get_statuses(
             staleness = staleness if staleness > timedelta(0) else -staleness
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
-        missing_members = []
-        if source_type == "reporter":
-            missing_members = get_missing_members(
-                sensor, staleness_search, now, max_staleness
+        missing_members = get_missing_members(
+            sensor,
+            staleness_search,
+            now,
+            max_staleness,
+            source_type=source_type,
+            sources_by_type=sources_by_type,
+        )
+        if missing_members:
+            # members are often all called "power", so the asset says which device it is
+            left_out = ", ".join(
+                f"'{member.generic_asset.name}' / {member.name} ({member.id})"
+                for member in missing_members
             )
-            if missing_members:
-                # members are often all called "power", so the asset says which device it is
-                left_out = ", ".join(
-                    f"'{member.generic_asset.name}' / {member.name} ({member.id})"
-                    for member in missing_members
-                )
-                reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
+            reason += f"; the most recent aggregate old enough to count as stale leaves out {left_out}, which did not report"
 
         status = dict(
             staleness=staleness,
