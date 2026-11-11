@@ -11,6 +11,7 @@ v1.1.1 | November xx, 2026
 Infrastructure / Support
 -------------------------
 * Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
+* Upgrade Pillow to 13.0.0, dnspython to 2.9.2, filelock to 4.2.10 and setuptools to 84.2.1 in the locked dependencies (which the Docker image installs), past their security advisories, and require at least Pillow 13.0.0 and setuptools 84.1.0; on Python 3.10, which those Pillow, dnspython and filelock versions no longer support, the earlier versions remain [see `PR #2861 <https://www.github.com/FlexMeasures/flexmeasures/pull/2861>`_]
 
 Bugfixes
 -----------
