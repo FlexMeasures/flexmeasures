@@ -1239,7 +1239,7 @@ requires-dist = [
     { name = "pytz", specifier = ">=2025.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "redis", specifier = ">4.5" },
-    { name = "rq", specifier = ">=2.6.1" },
+    { name = "rq", specifier = ">=2.6.1,<3" },
     { name = "rq-dashboard", specifier = ">=0.8.7" },
     { name = "rq-win", specifier = ">=0.4.2" },
     { name = "rq-win", marker = "os_name == 'nt' or os_name == 'win'" },
