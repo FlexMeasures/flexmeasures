@@ -123,8 +123,8 @@ dependencies = [
     "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
     "werkzeug>=3.1.9",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/625 (and 587)
     "certifi>=2026.10.19",  # https://github.com/advisories/GHSA-6q48-6c7w-9gw2
-    "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
-    "setuptools>=83.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/621
+    "pillow>=13.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/676
+    "setuptools>=84.1.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/674
 ]
 
 [project.urls]
@@ -261,7 +261,7 @@ docs = [
 ]
 
 visualize-data-model = [
-    "pillow>=12.1.1",
+    "pillow>=13.0.0",
     "sqlalchemy-schemadisplay>=2.0",
     "packaging",
 ]
