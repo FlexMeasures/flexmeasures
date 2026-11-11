@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Run a schedule from an asset's context page, with checks for prices known at job time, temporary price and power-capacity choices, links to add missing power sensors, an option to create a sensor with repeating Dutch October or uniform demo prices, job progress, and an option to save the chosen defaults [see `PR #2713 <https://www.github.com/FlexMeasures/flexmeasures/pull/2713>`_ ]
 
 Infrastructure / Support
 -------------------------

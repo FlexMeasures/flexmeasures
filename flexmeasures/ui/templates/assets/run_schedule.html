@@ -1,0 +1,90 @@
+<div class="modal fade" id="runScheduleModal" tabindex="-1" aria-labelledby="runScheduleTitle" aria-describedby="runScheduleHelp" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="runScheduleTitle">Run schedule</h5>
+                <i class="bi bi-info-circle ms-2" aria-label="About manual scheduling" title="This dialogue lets you try out scheduling for a proof of concept or manual testing. Price data and a power sensor are prerequisites. It helps you choose a few missing settings; other constraints may need configuring in the flex-context and flex-model editors." tabindex="0"></i>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form data-role="form">
+                <div class="modal-body">
+                    <p id="runScheduleHelp">Trigger a schedule for this asset. This works for simpler use cases, see also the info icon above. For more scheduling options, <a href="/api/v3_0/docs/#/Assets/post_api_v3_0_assets__id__schedules_trigger" target="_blank" rel="noopener noreferrer">see the scheduling API <i class="fa fa-external-link ms-1" aria-hidden="true"></i></a>.</p>
+                    <fieldset data-role="inputs">
+                        <div class="row">
+                            <div class="col-sm-8 mb-3">
+                                <label for="scheduleStart" class="form-label">Start time</label>
+                                <input id="scheduleStart" data-role="start" type="datetime-local" class="form-control" required>
+                            </div>
+                            <div class="col-sm-4 mb-3">
+                                <label for="scheduleDuration" class="form-label">Duration (hours)</label>
+                                <input id="scheduleDuration" data-role="duration" type="number" class="form-control" min="0.01" step="any" value="24" required>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <small data-role="timezone" class="text-muted"></small>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="schedulePower" class="form-label">Power sensor</label>
+                            <output id="schedulePower" data-role="power" class="d-block"></output>
+                        </div>
+                        <div data-role="price-group" class="mb-3 d-none">
+                            <label for="schedulePrice" class="form-label">Consumption price sensor</label>
+                            <select id="schedulePrice" data-role="price" class="form-select"></select>
+                            <output data-role="selected-price" class="d-block mt-2"></output>
+                            <small class="text-muted">Existing price sensors are listed only when their data covers the full schedule.</small>
+                            <div data-role="demo-price-group" class="d-none mt-2">
+                                <label for="scheduleDemoPriceProfile" class="form-label">Demo price profile</label>
+                                <select id="scheduleDemoPriceProfile" data-role="demo-profile" class="form-select mb-2">
+                                    <option value="nl_october_day" selected>NL October Day (repeating daily)</option>
+                                    <option value="uniform">Uniform (100 EUR/MWh)</option>
+                                </select>
+                                <button data-role="demo-price" type="button" class="btn btn-outline-primary btn-sm">Create demo price sensor</button>
+                                <small class="d-block text-muted">Adds a persistent sensor with sample prices for this period. These are not a real tariff.</small>
+                            </div>
+                        </div>
+                        <div data-role="configured-price-group" class="mb-3 d-none">
+                            <label for="scheduleConfiguredPrice" class="form-label">Consumption price</label>
+                            <output id="scheduleConfiguredPrice" data-role="configured-price" class="d-block"></output>
+                        </div>
+                        <div data-role="capacity-group" class="mb-3 d-none">
+                            <label for="scheduleCapacity" class="form-label">Power capacity (kW)</label>
+                            <input id="scheduleCapacity" data-role="capacity" type="number" min="0.000001" step="any" class="form-control">
+                            <small class="text-muted">Maximum power for this device. Used temporarily for this run.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="scheduleSocSource" class="form-label">Starting state of charge</label>
+                            <select id="scheduleSocSource" data-role="soc-source" class="form-select d-none">
+                            </select>
+                            <div class="input-group mt-2">
+                                <input id="scheduleSoc" data-role="soc" aria-label="Starting state of charge value" type="number" min="0" step="any" class="form-control" placeholder="Enter value">
+                                <select data-role="soc-unit" aria-label="State of charge unit" class="form-select">
+                                    <option value="kWh">kWh</option><option value="MWh">MWh</option>
+                                </select>
+                            </div>
+                            <small class="text-muted">Only set this for storage devices. Suggested readings are at most one week old; check their timestamp.</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input id="scheduleForce" data-role="force" class="form-check-input" type="checkbox">
+                            <label for="scheduleForce" class="form-check-label">Force a new job, even if this schedule was already requested</label>
+                        </div>
+                    </fieldset>
+                    <div data-role="status" class="alert alert-info d-none" role="status" aria-live="polite"></div>
+                    <div data-role="results" class="d-none mb-3"></div>
+                    <div data-role="save-group" class="alert alert-info d-none">
+                        <p data-role="save-summary"></p>
+                        <button data-role="save" type="button" class="btn btn-outline-primary">Save these defaults to flex-config</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div data-role="warnings" class="alert alert-warning d-none w-100 mb-2" aria-live="polite"></div>
+                    <a data-role="retry" href="#" class="d-none me-auto">Check prerequisites again</a>
+                    <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <span data-role="run-tooltip" class="run-schedule-button-wrapper d-inline-block" tabindex="0" title="Disable, check prerequisites warnings.">
+                        <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>
+                    </span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
