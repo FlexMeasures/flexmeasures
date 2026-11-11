@@ -17,6 +17,7 @@ Infrastructure / Support
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 * Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
 * Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]
+* Upgrade Pillow to 13.0.0, dnspython to 2.9.2, filelock to 4.2.10 and setuptools to 84.2.1 in the locked dependencies (which the Docker image installs), past their security advisories, and require at least Pillow 13.0.0 and setuptools 84.1.0 [see `PR #2861 <https://www.github.com/FlexMeasures/flexmeasures/pull/2861>`_]
 * Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
 
 Bugfixes
