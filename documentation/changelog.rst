@@ -13,6 +13,7 @@ Bugfixes
 * Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
 * Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
 * Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
+* Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
 
 
 v1.1.0 | November 05, 2026
