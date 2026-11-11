@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 import pytest
@@ -318,3 +319,97 @@ def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
     finally:
         root.handlers[:] = root_handlers
         root.setLevel(root_level)
+
+
+def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
+    tmp_path, monkeypatch, caplog
+):
+    """A flexmeasures.cfg is Python, so an import on its first line is fine, and should not set off python-dotenv's parse warning."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(
+        "from datetime import timedelta\n"
+        "\n"
+        'FLEXMEASURES_ENV = "staging"\n'
+        "FLEXMEASURES_PLANNING_HORIZON = timedelta(days=2)\n"
+        "FLEXMEASURES_PLUGINS = [\n"
+        '    "/app/plugin",\n'
+        "]\n"
+    )
+    monkeypatch.delenv("FLEXMEASURES_ENV", raising=False)
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    app = Flask("flexmeasures-test")
+
+    with caplog.at_level(logging.DEBUG):
+        assert config_utils.get_flexmeasures_env(app, str(cfg)) == "staging"
+    assert not [r for r in caplog.records if r.name.startswith("dotenv")]
+
+
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ('FLEXMEASURES_ENV = "production"\n', "production"),
+        ("FLEXMEASURES_ENV: str = 'staging'\n", "staging"),
+        # The last assignment wins, as it does when the file runs.
+        (
+            'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "production"\n',
+            "production",
+        ),
+        # Only a string literal counts: an expression is not evaluated, and is not mistaken for a string.
+        ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
+        ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
+        # A later assignment that is not a string literal undoes an earlier one, as it would when the file runs.
+        (
+            'import os\nFLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = os.environ.get("X", "production")\n',
+            None,
+        ),
+        ("FLEXMEASURES_ENV = staging, but not Python\n", None),
+        # A byte order mark, as some editors save one, and Windows line endings.
+        (
+            '\ufefffrom datetime import timedelta\r\nFLEXMEASURES_ENV = "staging"\r\n',
+            "staging",
+        ),
+    ],
+)
+def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_bytes(content.encode("utf-8"))
+    assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "FLEXMEASURES_ENV = staging, but not Python\n",
+        'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "staging" if True else "production"\n',
+    ],
+)
+def test_read_flexmeasures_env_from_cfg_warns_when_it_cannot_tell(
+    tmp_path, caplog, content
+):
+    """When the cfg exists, but does not plainly say which environment to run in, say so, rather than silently falling back to the default."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(content)
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) is None
+    assert any(
+        r.name == config_utils.logger.name and str(cfg) in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_read_flexmeasures_env_from_cfg_does_not_warn_about_a_plain_cfg(
+    tmp_path, caplog
+):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text('import os\nFLEXMEASURES_ENV = "staging"\n')
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == "staging"
+    assert not caplog.records
+
+
+def test_read_flexmeasures_env_from_missing_cfg(tmp_path):
+    assert config_utils.read_flexmeasures_env_from_cfg(None) is None
+    assert (
+        config_utils.read_flexmeasures_env_from_cfg(str(tmp_path / "missing.cfg"))
+        is None
+    )
