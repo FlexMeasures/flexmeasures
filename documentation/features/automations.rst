@@ -252,7 +252,7 @@ Runs and retries
 ----------------
 
 Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
-The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and schedule revision, so two runners started in the same minute cannot both execute it.
+The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and revision, so two runners started in the same minute cannot both execute it.
 A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
 
 Before queueing anything, the runner writes down the plan for the run: the parameters it will use and the individual jobs it intends to create, each with its own logical name and a job ID derived from the run.
@@ -284,7 +284,7 @@ A run tracks two things separately: how far its *dispatch* got (``pending``, ``c
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
-Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
+Editing an automation's cron string or timezone, or reactivating it, counts up its revision.
 Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
 
 Running one automation on demand
