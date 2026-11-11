@@ -5,7 +5,7 @@ FlexMeasures Changelog
 
 
 
-v1.1.1 | November xx, 2026
+v1.1.1 | November 11, 2026
 ============================
 
 Infrastructure / Support
