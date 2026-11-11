@@ -177,13 +177,14 @@ class DataGenerator:
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.
 
-        :returns list of dictionaries, for example:
-                 [
-                     {
-                         "sensor": 501,
-                         "data": <a BeliefsDataFrame>,
-                     },
-                 ]
+        :returns: list of dictionaries,
+            for example:
+                [
+                    {
+                        "sensor": 501,
+                        "data": <a BeliefsDataFrame>,
+                    },
+                ]
         """
         raise NotImplementedError()
 
@@ -337,15 +338,15 @@ class DataGenerator:
             to be persisted.
 
             Parameters provided to the `compute` method (input of the method `_clean_parameters`):
-            parameters = {
-                            "start" : "2023-01-01T00:00:00+02:00",
-                            "end" : "2023-01-02T00:00:00+02:00",
-                            "field1" : 1,
-                            "field2" : 2
-                        }
+                parameters = {
+                    "start" : "2023-01-01T00:00:00+02:00",
+                    "end" : "2023-01-02T00:00:00+02:00",
+                    "field1" : 1,
+                    "field2" : 2
+                }
 
             Parameters persisted to the DB (output of the method `_clean_parameters`):
-            parameters = {"field1" : 1,"field2" : 2}
+                parameters = {"field1" : 1,"field2" : 2}
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = ["start", "end", "resolution", "belief_time"]

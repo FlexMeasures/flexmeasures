@@ -158,12 +158,30 @@ def test_a_save_that_fails_halfway_leaves_nothing_staged(
 def test_saving_results_counts_what_was_saved_and_repeats_nothing(
     fresh_db, two_outputs
 ):
-    """Each result says how many beliefs it saved, and saving the same results again saves none of them."""
+    """Each result says how many beliefs it computed and how many it saved, and saving the same results again saves none of them.
+
+    The computed count stays the same on the second save, which tells a rerun that repeats what is on record from one that computed nothing.
+    """
     first = save_generator_results(two_outputs)
     fresh_db.session.commit()
     again = save_generator_results(two_outputs)
     fresh_db.session.commit()
 
+    assert [entry["n_computed"] for entry in first] == [3, 3]
     assert [entry["n_rows"] for entry in first] == [3, 3]
+    assert [entry["n_computed"] for entry in again] == [3, 3]
     assert [entry["n_rows"] for entry in again] == [0, 0]
     assert _beliefs_in_session(fresh_db) == 6
+
+
+def test_a_value_left_out_as_nan_counts_as_computed_but_not_as_saved(
+    fresh_db, two_outputs
+):
+    """A NaN value the generator returned is counted as computed, but it is not saved, so it is not counted as saved."""
+    data = two_outputs[0]["data"]
+    data.loc[data.index[0], "event_value"] = float("nan")
+
+    saved = save_generator_results(two_outputs)
+
+    assert [entry["n_computed"] for entry in saved] == [3, 3]
+    assert [entry["n_rows"] for entry in saved] == [2, 3]

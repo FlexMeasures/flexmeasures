@@ -65,7 +65,7 @@ optimized and provide a scheduling window. If the configuration above is
 stored in the asset tree, an API request for a four-hour schedule can be this
 small:
 
-.. code-block:: http
+.. code-block:: text
 
    POST /api/v3_0/assets/6/schedules/trigger
 
@@ -209,7 +209,7 @@ Use the **jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``) to retrieve detailed c
 This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
 
 Multi-asset scheduling workflow
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Consider a site (asset ID 123) with four assets, each with a power sensor:
 
@@ -258,7 +258,7 @@ Both ``violation`` and ``margin`` are always reported as positive numbers (magni
 
 
 Example: Constraint results from a battery scheduling job
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Suppose you schedule a battery device (asset ID 42) with the following constraints:
 
@@ -311,7 +311,7 @@ but does satisfy the maximum constraint with margins of 40 kWh at 11:00 UTC and 
 
 
 Interpreting constraint results for optimization decisions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **When constraints are all met:**
 

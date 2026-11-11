@@ -22,7 +22,7 @@ of which some are referred to in this documentation.
 
 
 ``add`` - Add data
---------------
+------------------
 
 ================================================= =======================================
 ``flexmeasures add initial-structure``            Initialize structural data like users, roles and asset types. 
@@ -46,7 +46,7 @@ of which some are referred to in this documentation.
 
 
 ``show`` - Show data
---------------
+--------------------
 
 ================================================= =======================================
 ``flexmeasures show accounts``                    List accounts.
@@ -68,7 +68,7 @@ of which some are referred to in this documentation.
 
 
 ``edit`` - Edit data
---------------
+--------------------
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
@@ -82,7 +82,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 
 ``delete`` - Delete data
---------------
+------------------------
 
 ================================================= =======================================
 ``flexmeasures delete structure``                 Delete all structural (non time-series) data, like assets (types), roles and users.
@@ -102,7 +102,7 @@ of which some are referred to in this documentation.
 
 
 ``monitor`` - Monitoring
---------------
+------------------------
 
 ================================================= =======================================
 ``flexmeasures monitor latest-run``               Check if the given task's last successful execution happened less than the allowed time ago.
@@ -111,7 +111,7 @@ of which some are referred to in this documentation.
 
 
 ``jobs`` - Job queueing
---------------
+-----------------------
 
 ================================================= =======================================
 ``flexmeasures jobs run-worker``                  Start a worker process for forecasting and/or scheduling jobs.
@@ -128,7 +128,7 @@ of which some are referred to in this documentation.
 
 
 ``db-ops`` - Operations on the whole database
---------------
+---------------------------------------------
 
 ================================================= =======================================
 ``flexmeasures db-ops dump``                      Create a dump of all current data (using ``pg_dump``).
