@@ -92,6 +92,9 @@ def _add_vacuum_option_to_db_upgrade(app: Flask):
 def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
     configure_db_for(app)
+    # Register quota enforcement for every ORM path, including recursive asset copies.
+    import flexmeasures.data.services.plan_quotas  # noqa: F401
+
     Migrate(app, db, directory=os.path.join(app.root_path, "data", "migrations"))
     _add_vacuum_option_to_db_upgrade(app)
 

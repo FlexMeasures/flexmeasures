@@ -26,7 +26,9 @@ from flexmeasures.api.common.utils.args_parsing import (
 )
 from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import RequestEntityTooLarge, UnprocessableEntity
+from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
+from flexmeasures.utils.error_utils import error_handling_router
 from flexmeasures.api.v3_0.users import AuthRequestSchema
 
 # The api blueprint. It is registered with the Flask app (see app.py)
@@ -157,6 +159,10 @@ def register_at(app: Flask):
 
     # handle API specific errors
     app.register_error_handler(FMValidationError, validation_error_handler)
+    app.register_error_handler(
+        PlanQuotaExceeded,
+        lambda error: error_handling_router(UnprocessableEntity(str(error))),
+    )
     app.register_error_handler(RequestEntityTooLarge, request_entity_too_large_handler)
     app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
     app.register_error_handler(

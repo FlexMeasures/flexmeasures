@@ -36,6 +36,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     abort,
     validate_rate_limit_cli,
+    warn_plan_quota_restrictions,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
@@ -157,15 +158,19 @@ CLEARABLE_PLAN_FIELDS = [
     " Pass 'unlimited' to exempt them.",
 )
 @click.option(
-    "--max-users", type=int, help="How many users an account on this plan may have."
+    "--max-users",
+    type=click.IntRange(min=0),
+    help="How many active users an account on this plan may have.",
 )
 @click.option(
-    "--max-assets", type=int, help="How many assets an account on this plan may have."
+    "--max-assets",
+    type=click.IntRange(min=0),
+    help="How many assets an account on this plan may have.",
 )
 @click.option(
     "--max-clients",
-    type=int,
-    help="How many client accounts a consultancy account on this plan may have.",
+    type=click.IntRange(min=0),
+    help="How many client organisations a consultancy organisation on this plan may have.",
 )
 @click.option(
     "--legacy/--no-legacy",
@@ -226,6 +231,17 @@ def edit_plan(
         updates[field_attr] = None
     if not updates:
         abort("Nothing to edit. Pass at least one field to change.")
+    tightened_quotas = {
+        field: updates[field]
+        for field in ("max_users", "max_assets", "max_clients")
+        if field in updates
+        and updates[field] is not None
+        and (getattr(plan, field) is None or updates[field] < getattr(plan, field))
+    }
+    if tightened_quotas:
+        warn_plan_quota_restrictions(
+            editing=True, zero_clients=tightened_quotas.get("max_clients") == 0
+        )
     for field, value in updates.items():
         setattr(plan, field, value)
     db.session.commit()
@@ -652,12 +668,11 @@ def transfer_ownership(asset: Asset, new_owner: Account):
             transfer_ownership_recursive(child, account)
 
     transfer_ownership_recursive(asset, new_owner)
+    db.session.commit()
     click.secho(
         f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
-
-    db.session.commit()
 
 
 @fm_edit_data.command("transfer-parenthood")

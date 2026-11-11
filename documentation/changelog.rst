@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Enforce plan quotas for active users, assets and client organisations, show usage and warn when a selected plan restricts it, and explain quota errors in the CLI and UI [see `PR #2748 <https://github.com/FlexMeasures/flexmeasures/pull/2748>`_]
 
 Infrastructure / Support
 -------------------------
