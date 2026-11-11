@@ -8,7 +8,7 @@ from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
 from webargs.flaskparser import use_args
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -59,10 +59,19 @@ def request_auth_token(args) -> tuple[dict, int]:
               schema:
                 type: object
                 properties:
-                  authentication_token:
+                  auth_token:
                     type: string
                     description: |
-                      Short-lived authentication token, which can be used in request headers using `{"Authorization": authentication_token}`.
+                      Short-lived access token, used as `{"Authorization": auth_token}`.
+                  user_id:
+                    type: integer
+                  refresh-token:
+                    type: string
+                    description: Returned only when include-refresh-token is true.
+                  expires-in:
+                    type: integer
+                    nullable: true
+                    description: Access-token lifetime in seconds (null if unlimited), returned with refresh-token.
         400:
           description: INVALID_REQUEST
         401:
@@ -97,9 +106,27 @@ def request_auth_token(args) -> tuple[dict, int]:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
                 return {"errors": ["User password does not match."]}, 401
+        if args["include-refresh-token"]:
+            # Serialize issuance with deactivation/password changes, then verify
+            # credentials again against the locked, up-to-date user record.
+            user = db.session.scalar(
+                select(User)
+                .where(User.id == user.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if not user or not verify_password(args["password"], user.password):
+                return {"errors": ["User password does not match."]}, 401
+        if not user.active:
+            return {"errors": ["User is inactive."]}, 401
+        if args["include-refresh-token"]:
+            from flexmeasures.auth.tokens import issue_refresh_token
+
+            return issue_refresh_token(user)
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}
-    except Exception as e:
+    except SQLAlchemyError as e:
+        db.session.rollback()
         current_app.logger.error(f"Exception in /requestAuthToken endpoint: {e}")
         return {"errors": ["An internal error has occurred."]}, 500
 
@@ -166,6 +193,8 @@ def register_at(app: Flask):
 
     rate_limiting.register_at(app)
 
+    from flexmeasures.api import refresh_tokens  # noqa: F401
+
     app.register_blueprint(
         flexmeasures_api, url_prefix="/api"
     )  # now registering the blueprint will affect all endpoints
@@ -173,6 +202,13 @@ def register_at(app: Flask):
     # Add version headers to all API responses
     @app.after_request
     def add_version_headers(response):
+        if request.endpoint in {
+            "flexmeasures_api.request_auth_token",
+            "flexmeasures_api.refresh_auth_token",
+            "flexmeasures_api.revoke_refresh_token",
+        }:
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
         if request.path.startswith("/api/"):
             response.headers["FlexMeasures-Version"] = flexmeasures_version
             if request.path.startswith("/api/v3_0"):

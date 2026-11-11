@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -36,9 +36,21 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "authentication_token": {
+                    "auth_token": {
                       "type": "string",
-                      "description": "Short-lived authentication token, which can be used in request headers using `{\"Authorization\": authentication_token}`.\n"
+                      "description": "Short-lived access token, used as `{\"Authorization\": auth_token}`.\n"
+                    },
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "refresh-token": {
+                      "type": "string",
+                      "description": "Returned only when include-refresh-token is true."
+                    },
+                    "expires-in": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "Access-token lifetime in seconds (null if unlimited), returned with refresh-token."
                     }
                   }
                 }
@@ -100,6 +112,123 @@
         },
         "tags": [
           "Public"
+        ]
+      }
+    },
+    "/api/refreshAuthToken": {
+      "post": {
+        "summary": "Rotate a refresh token and obtain a new access token.",
+        "description": "No access token or password is required. Save the returned refresh token\natomically and serialize refresh requests. Reuse revokes the token family.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refresh-token"
+                ],
+                "properties": {
+                  "refresh-token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access and refresh token pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "auth_token": {
+                      "type": "string"
+                    },
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "refresh-token": {
+                      "type": "string"
+                    },
+                    "expires-in": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "Access-token lifetime in seconds, or null if unlimited."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request."
+          },
+          "401": {
+            "description": "Invalid, expired or revoked refresh token. Authenticate again."
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/revokeRefreshToken": {
+      "post": {
+        "summary": "Revoke this refresh-token family.",
+        "description": "Existing access tokens remain valid until expiry or invalidation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refresh-token"
+                ],
+                "properties": {
+                  "refresh-token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Refresh-token family revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request."
+          },
+          "401": {
+            "description": "Invalid, expired or revoked refresh token."
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -7125,6 +7254,12 @@
       "AuthRequestSchema": {
         "type": "object",
         "properties": {
+          "include-refresh-token": {
+            "type": "boolean",
+            "default": false,
+            "description": "Also issue a rotating refresh token and access-token expires-in (seconds).",
+            "example": true
+          },
           "email": {
             "type": "string",
             "description": "The user's email address."
