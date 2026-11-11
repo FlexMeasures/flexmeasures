@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Rename the automation API field ``schedule-revision`` to ``revision``, as it counts resets of the automation's recurrence and is unrelated to schedules; read-only, in automation responses and their ``run-stats`` [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
 * Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
 * Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
