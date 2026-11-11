@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from passlib.totp import TOTP
-import random
+import secrets
 import string
 
 from flask import current_app
@@ -207,7 +207,7 @@ def set_random_password(user: User):
     Does not commit the session.
     """
     new_random_password = "".join(
-        [random.choice(string.ascii_lowercase) for _ in range(24)]
+        [secrets.choice(string.ascii_lowercase) for _ in range(24)]
     )
     update_password(user, new_random_password)
 

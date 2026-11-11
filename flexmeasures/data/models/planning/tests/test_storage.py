@@ -9,6 +9,7 @@ import pandas as pd
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
@@ -2535,6 +2536,215 @@ def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     assert constraints_2.loc[start, "min"] == pytest.approx(
         4
     ), "the on-tick device's soc-minima should remain a hard constraint"
+
+
+def _schedule_shared_and_single_stock(
+    template: GenericAsset,
+    db,
+    asset_name: str,
+    device_properties: list[dict],
+    soc_parameters: dict,
+    resolution: timedelta = timedelta(minutes=15),
+) -> tuple[pd.Series, pd.Series | None, pd.Series]:
+    """Schedule a shared stock and, if it has a single device, the same stock without sharing.
+
+    Each entry of ``device_properties`` becomes a device on the shared stock,
+    whose SoC parameters live on a stock-only entry.
+    For a single entry, the same device is also scheduled as an ordinary single-device stock.
+
+    :returns: The stored SoC schedule of the shared stock (in MWh),
+              that of the single-device stock (or None),
+              and the shared stock as the solver itself modelled it (in MWh, on the same index).
+    """
+    asset = GenericAsset(
+        name=asset_name,
+        generic_asset_type=template.generic_asset_type,
+        owner=template.owner,
+    )
+    power_sensors = [
+        Sensor(
+            name=f"{asset_name} power {i}",
+            generic_asset=asset,
+            event_resolution=resolution,
+            unit="MW",
+        )
+        for i in range(len(device_properties) + 1)
+    ]
+    shared_soc_sensor, single_soc_sensor = (
+        Sensor(
+            name=f"{asset_name} {kind} state of charge",
+            generic_asset=asset,
+            event_resolution=timedelta(0),
+            unit="MWh",
+        )
+        for kind in ("shared", "single")
+    )
+    db.session.add_all([asset, shared_soc_sensor, single_soc_sensor, *power_sensors])
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 12))
+    end = tz.localize(datetime(2015, 1, 1, 14))
+    flex_context = {
+        "consumption-price": "0 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-power-capacity": "10 MW",
+    }
+
+    # The shared stock: its devices only point at the stock, whose SoC parameters live on a stock-only entry
+    flex_model = [
+        {
+            "sensor": power_sensors[i].id,
+            "state-of-charge": {"sensor": shared_soc_sensor.id},
+            **properties,
+        }
+        for i, properties in enumerate(device_properties)
+    ] + [
+        {
+            "state-of-charge": {"sensor": shared_soc_sensor.id},
+            **soc_parameters,
+        }
+    ]
+    captured = {}
+
+    def capture_model(*args, **kwargs):
+        results = device_scheduler(*args, **kwargs)
+        captured["model"] = results[-1]
+        return results
+
+    with mock.patch(
+        "flexmeasures.data.models.planning.storage.device_scheduler",
+        side_effect=capture_model,
+    ):
+        results = StorageScheduler(
+            asset,
+            start,
+            end,
+            resolution,
+            flex_model=flex_model,
+            flex_context=flex_context,
+            return_multiple=True,
+        ).compute()
+    shared_soc = next(
+        r["data"] for r in results if r.get("sensor") == shared_soc_sensor
+    )
+
+    # The solver's own stock: the Pyomo model holds it per stock group, in MW times the resolution, at the end of each step
+    solver_stock = captured["model"].group_stock
+    group = f"stock:{shared_soc_sensor.id}"
+    solver_soc = pd.Series(
+        [
+            solver_stock[group, j].value * (resolution / timedelta(hours=1))
+            for j in captured["model"].j
+        ],
+        index=shared_soc.index[1:],
+    )
+
+    if len(device_properties) > 1:
+        return shared_soc, None, solver_soc
+
+    # The same stock, scheduled as an ordinary single-device stock
+    results = StorageScheduler(
+        asset,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "sensor": power_sensors[-1].id,
+            "state-of-charge": {"sensor": single_soc_sensor.id},
+            **device_properties[0],
+            **soc_parameters,
+        },
+        flex_context=flex_context,
+        return_multiple=True,
+    ).compute()
+    single_soc = next(
+        r["data"] for r in results if r.get("sensor") == single_soc_sensor
+    )
+    return shared_soc, single_soc, solver_soc
+
+
+def test_shared_stock_soc_decays_like_single_device_stock(
+    add_battery_assets, db, app, monkeypatch
+):
+    """A shared stock's stored state of charge applies the storage losses to its starting stock, too.
+
+    Without flows, a stock with a storage efficiency below 1 can only decay.
+    Its stored SoC should be the same whether the stock is shared or not,
+    and equal the stock that the solver itself modelled.
+    """
+    # Pyomo exposes the solver's stock per stock group, the direct HiGHS backend does not
+    monkeypatch.setitem(app.config, "FLEXMEASURES_LP_SOLVER", "appsi_highs")
+    idle_device = {"power-capacity": "0 MW"}
+    soc_parameters = {
+        "soc-at-start": "0.8 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "1 MWh",
+        "storage-efficiency": "90%",  # per 15 minutes, the resolution of the power sensors
+    }
+    template = add_battery_assets["Test battery"]
+
+    shared_soc, _, solver_soc = _schedule_shared_and_single_stock(
+        template,
+        db,
+        "Test decaying shared stock",
+        [idle_device, idle_device],
+        soc_parameters,
+    )
+    _, single_soc, _ = _schedule_shared_and_single_stock(
+        template,
+        db,
+        "Test decaying single stock",
+        [idle_device],
+        soc_parameters,
+    )
+
+    expected_soc = 0.8 * 0.9 ** np.arange(len(shared_soc))
+    assert single_soc.values == pytest.approx(expected_soc, abs=1e-6)
+    assert shared_soc.values == pytest.approx(
+        single_soc.values, abs=1e-6
+    ), "the shared stock's starting stock should decay like that of a single-device stock"
+    assert shared_soc.iloc[1:].values == pytest.approx(
+        solver_soc.values, abs=1e-6
+    ), "the stored SoC should be the stock that the solver modelled"
+
+
+def test_shared_stock_soc_with_flows_matches_solver_stock(
+    add_battery_assets, db, app, monkeypatch
+):
+    """A shared stock's stored state of charge equals the solver's stock, also when its devices have flows.
+
+    The devices convert with different efficiencies, and a target forces them to move the stock.
+    """
+    monkeypatch.setitem(app.config, "FLEXMEASURES_LP_SOLVER", "appsi_highs")
+    device_properties = [
+        {"power-capacity": "0.2 MW", "charging-efficiency": "95%"},
+        {"power-capacity": "0.3 MW", "discharging-efficiency": "80%"},
+    ]
+    soc_parameters = {
+        "soc-at-start": "0.8 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "1 MWh",
+        "storage-efficiency": "99%",
+        "soc-targets": [
+            {"datetime": "2015-01-01T13:00:00+01:00", "value": "0.3 MWh"},
+            {"datetime": "2015-01-01T14:00:00+01:00", "value": "0.6 MWh"},
+        ],
+    }
+
+    shared_soc, _, solver_soc = _schedule_shared_and_single_stock(
+        add_battery_assets["Test battery"],
+        db,
+        "Test shared stock with flows",
+        device_properties,
+        soc_parameters,
+    )
+
+    assert shared_soc.iloc[1:].values == pytest.approx(
+        solver_soc.values, abs=1e-6
+    ), "the stored SoC should be the stock that the solver modelled"
+    tz = pytz.timezone("Europe/Amsterdam")
+    assert shared_soc[tz.localize(datetime(2015, 1, 1, 13))] == pytest.approx(0.3)
+    assert shared_soc[tz.localize(datetime(2015, 1, 1, 14))] == pytest.approx(0.6)
 
 
 def test_validate_power_constraints():

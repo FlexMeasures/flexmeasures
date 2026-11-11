@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "flexmeasures"
 description = "The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable."
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.11, <3.13"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
     "Environment :: Web Environment",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Framework :: Flask",
@@ -57,7 +56,8 @@ dependencies = [
     "croniter>=2.0.0",
     "cron-descriptor>=1.4.0",
     "email-validator>=2.3.0",
-    "rq>=2.6.1",
+    # rq 3 changed Worker.perform_job, which work_on_rq calls; lift this cap once we support rq 3 (#2834).
+    "rq>=2.6.1,<3",
     # sort order
     "rq-dashboard>=0.8.7",
     # the following uses environment markers (see PEP 496)
@@ -82,7 +82,7 @@ dependencies = [
     "flask-mail>=0.10.0",
     # No mfa extra: it installs webauthn, qrcode and phonenumberslite, for passkey, authenticator-app and SMS sign-in, none of which FlexMeasures supports.
     # Email-based 2FA needs cryptography only, which is a direct dependency below.
-    "Flask-Security-Too[fsqla]>=5.0",
+    "Flask-Security-Too[fsqla]>=5.9",
     "flask-login>=0.6.3",
     "Flask-Classful>=0.16",
     "flask-marshmallow>=1.4.0",
@@ -96,8 +96,6 @@ dependencies = [
     "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
-    # See GH#1450 (failing tests on older Python versions)
-    "marshmallow~=3.0; python_version < '3.11'",
     "marshmallow-oneofschema>=3.2.0",
     "marshmallow-polyfield>=5.11",
     "marshmallow-sqlalchemy>=0.23.1",
@@ -125,8 +123,8 @@ dependencies = [
     "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
     "werkzeug>=3.1.9",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/625 (and 587)
     "certifi>=2026.10.19",  # https://github.com/advisories/GHSA-6q48-6c7w-9gw2
-    "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
-    "setuptools>=83.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/621
+    "pillow>=13.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/676
+    "setuptools>=84.1.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/674
 ]
 
 [project.urls]
@@ -195,6 +193,7 @@ shell = """
 [tool.poe.tasks.update-docs]
 help = "Update the documentation and OpenAPI specifications"
 shell = """
+    set -e
     printf "Installing docs dependencies ...\n"
     uv sync --group docs --inexact
     printf "Generating OpenAPI specifications ...\n"
@@ -262,7 +261,7 @@ docs = [
 ]
 
 visualize-data-model = [
-    "pillow>=12.1.1",
+    "pillow>=13.0.0",
     "sqlalchemy-schemadisplay>=2.0",
     "packaging",
 ]

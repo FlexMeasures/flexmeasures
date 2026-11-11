@@ -136,8 +136,9 @@ def save_generator_results(results: list[dict]) -> list[dict]:
     A result may name events whose beliefs are saved even so, under "save_even_if_unchanged" (their event starts),
     as a report does where its belief has to supersede a belief of another source recorded since (see `AggregatorReporter`).
 
-    :returns: per result, the sensor id and the number of beliefs saved ("n_rows"),
-        which leaves out NaN values and beliefs that were already on record.
+    :returns: per result, the sensor id, the number of beliefs computed ("n_computed") and the number of beliefs saved ("n_rows").
+        The computed count is every belief the generator returned, including NaN values and beliefs that were already on record.
+        The saved count leaves both of those out, so a rerun that only repeats what is on record saves 0 of the beliefs it computed.
     """
     saved = []
     with db.session.begin_nested():
@@ -153,7 +154,13 @@ def save_generator_results(results: list[dict]) -> list[dict]:
                     data[is_forced], save_changed_beliefs_only=False
                 )
                 n_saved = n_changed + n_forced
-            saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
+            saved.append(
+                {
+                    "sensor_id": result["sensor"].id,
+                    "n_computed": len(data),
+                    "n_rows": n_saved,
+                }
+            )
     return saved
 
 
@@ -171,3 +178,19 @@ def save_results_not_yet_saved(results: list[dict]) -> None:
         return
     for result, saved in zip(unsaved, save_generator_results(unsaved)):
         result["n_saved"] = saved["n_rows"]
+
+
+def outputs_of_job_result(saved: list[dict]) -> list[dict]:
+    """Turn what ``save_generator_results`` says about each result into the "outputs" a job result reports, as API clients read them.
+
+    Each output names its sensor (by ID), the number of beliefs computed ("num-computed-beliefs") and the number of beliefs recorded ("num-recorded-beliefs"),
+    counted as ``save_generator_results`` counts them.
+    """
+    return [
+        {
+            "sensor": entry["sensor_id"],
+            "num-computed-beliefs": entry["n_computed"],
+            "num-recorded-beliefs": entry["n_rows"],
+        }
+        for entry in saved
+    ]

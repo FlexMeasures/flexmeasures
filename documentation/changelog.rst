@@ -4,9 +4,38 @@ FlexMeasures Changelog
 **********************
 
 
-
-v1.1.0 | November XX, 2026
+v1.2.0 | December xx, 2026
 ============================
+
+.. warning:: Python 3.10 is no longer supported. Upgrade to Python 3.11 or 3.12 before upgrading FlexMeasures.
+
+New features
+-------------
+
+Infrastructure / Support
+-------------------------
+* Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
+* Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
+* Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]
+* Upgrade Pillow to 13.0.0, dnspython to 2.9.2, filelock to 4.2.10 and setuptools to 84.2.1 in the locked dependencies (which the Docker image installs), past their security advisories, and require at least Pillow 13.0.0 and setuptools 84.1.0 [see `PR #2861 <https://www.github.com/FlexMeasures/flexmeasures/pull/2861>`_]
+* Generate the temporary password of a newly created user, and of a user whose password is reset, with a cryptographically secure random source [see `PR #2855 <https://www.github.com/FlexMeasures/flexmeasures/pull/2855>`_]
+
+Bugfixes
+-----------
+* Rename the automation API field ``schedule-revision`` to ``revision``, as it counts resets of the automation's recurrence and is unrelated to schedules; read-only, in automation responses and their ``run-stats`` [see `PR #2859 <https://www.github.com/FlexMeasures/flexmeasures/pull/2859>`_]
+* Stop warning on startup that python-dotenv could not parse a statement in ``flexmeasures.cfg``, which happened in every Docker container since v1.1.0 [see `PR #2845 <https://www.github.com/FlexMeasures/flexmeasures/pull/2845>`_]
+* Show the child asset creation button to consultants working on a client organisation's assets [see `PR #2851 <https://www.github.com/FlexMeasures/flexmeasures/pull/2851>`_]
+* Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
+* Hovering anywhere over a session in the Charge Points chart shows its tooltip again, listing all of the session's timestamps, as it did before the move to ECharts, without highlighting another charger's session; also, a chart's tooltip no longer shows a point from a neighbouring subplot [see `PR #2829 <https://www.github.com/FlexMeasures/flexmeasures/pull/2829>`_]
+* Require rq below version 3, on which ``flexmeasures jobs run-job`` crashed, as a fresh ``pip install flexmeasures`` has picked up since rq 3.0.0 came out on October 28 [see `PR #2860 <https://www.github.com/FlexMeasures/flexmeasures/pull/2860>`_]
+
+* Handle each failed job of a worker on several queues, such as one started with ``flexmeasures jobs run-worker --queue "scheduling|forecasting"``, with the exception handler of the job's own queue, so a failed forecasting job counts its failures in its meta and, if an automation created it, is recorded as failed in the automation run [see `PR #2850 <https://www.github.com/FlexMeasures/flexmeasures/pull/2850>`_]
+
+
+v1.1.0 | November 5, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v110-automations/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
@@ -130,6 +159,7 @@ Infrastructure / Support
 **API and plugins**
 
 * The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
+* ``[DELETE] /sensors/(id)/data`` now takes ``end`` for the end of the period to delete, as ``[DELETE] /sensors/(id)/annotations`` and every other time window in the API do; ``until`` is still accepted, but deprecated [see `PR #2826 <https://www.github.com/FlexMeasures/flexmeasures/pull/2826>`_]
 * ``[GET] /sensors/(id)`` now answers a sensor which does not exist with a 404 rather than a 422, as the asset endpoints do, so that a client can tell a sensor which is gone apart from a request it got wrong [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://www.github.com/FlexMeasures/flexmeasures/pull/2362>`_]
 * Remove the last state-of-charge bookkeeping that served the sunset API versions 1 and 2 [see `PR #2665 <https://www.github.com/FlexMeasures/flexmeasures/pull/2665>`_]
@@ -165,7 +195,7 @@ Infrastructure / Support
 * Speed up the test suite two to three times; plugins that reuse the ``setup_accounts``, ``setup_roles_users`` and similar fixtures should know that these now commit their data, and that the schema is created once per test session [see `PR #2638 <https://www.github.com/FlexMeasures/flexmeasures/pull/2638>`_]
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Test much more of the UI's JavaScript, moving the asset tree's layout and the flex-context editor's logic out of their templates into modules [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
-* A test now holds new API and CLI field names to kebab-case, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_]
+* A test now holds new API and CLI field names to kebab-case, including the parameters and body properties named in the published OpenAPI specs, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_ and `PR #2826 <https://www.github.com/FlexMeasures/flexmeasures/pull/2826>`_]
 * ``uv run poe clean-db`` now hands the database it creates to the ``--db-user``, so that setting up a development database also works on PostgreSQL 15 and newer [see `PR #2590 <https://www.github.com/FlexMeasures/flexmeasures/pull/2590>`_]
 * The developer and hosting docs now say plainly that the Cbc solver is a system dependency, needed for the tests and for Cbc-based scheduling, and give the command to install it on Debian/Ubuntu, Fedora and macOS [see `PR #2597 <https://www.github.com/FlexMeasures/flexmeasures/pull/2597>`_]
 * Add a concepts page on data pipelining, which describes in one place how time-series data is referenced (sensor references, source filters, fallback values), cleaned on the way in and bounded on the way out [see `PR #2721 <https://www.github.com/FlexMeasures/flexmeasures/pull/2721>`_]
@@ -192,7 +222,7 @@ Bugfixes
 
 * An ``AggregatorReporter`` input that holds more than one belief about an event, such as one read with ``most-recent-beliefs-only: false``, is now refused with a message naming the sensor and the event, where it used to fail with a ``KeyError`` [see `PR #2741 <https://www.github.com/FlexMeasures/flexmeasures/pull/2741>`_]
 * A ``PandasReporter`` with ``droplevels`` no longer fails with ``BeliefDataframe has more than one row per event`` when several data sources reported the same input event, as happens for a while when a job reporting on a rolling window gets a new data source; it keeps one belief per event, unless an input sets ``one_deterministic_belief_per_event`` to ``false`` [see `PR #2595 <https://www.github.com/FlexMeasures/flexmeasures/pull/2595>`_]
-* The result of a reporting or scheduling job now counts the beliefs it saved rather than those it computed, so that a report's ``n_rows`` and a schedule's ``num-beliefs`` read 0 when a rerun only repeats what is on record [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
+* The results of reporting and scheduling jobs now list, per output sensor, the beliefs computed and those recorded, so that a rerun which only repeats what is on record reads as having recorded nothing, rather than as having computed nothing; a schedule's ``num-beliefs`` still totals the beliefs computed, now also on a CLI dry run [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_, `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_ and `PR #2822 <https://www.github.com/FlexMeasures/flexmeasures/pull/2822>`_]
 * A forecaster registered by a plugin no longer needs to save its forecasts itself, but can return them instead: ``flexmeasures add forecasts`` now saves them, where it used to drop them while reporting them as created [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
 * Running the same forecast twice from the same start no longer fails on the beliefs it already recorded [see `PR #2688 <https://www.github.com/FlexMeasures/flexmeasures/pull/2688>`_]
 * Whether a forecaster takes a regressor's belief as realized now follows the knowledge horizon of the regressor's sensor, as in timely-beliefs, so that the past readings of an instantaneous regressor (such as a thermometer read on the hour) and day-ahead prices (beliefs about future periods, which count as realized once the auction has cleared) are no longer kept from the model [see `PR #2692 <https://www.github.com/FlexMeasures/flexmeasures/pull/2692>`_]
@@ -229,8 +259,7 @@ Bugfixes
 
 **Access and security**
 
-* Allow consultants to create assets in client organisations, and reject attempts to change an asset's organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_]
-* The buttons for deleting an asset and resetting a password now act through the API, and the audit log pages and the page listing an organisation's assets check the same permissions as the API [see `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
+* Allow consultants to create assets in client organisations, and reject attempts to change an asset's organisation through the API [see `PR #2786 <https://www.github.com/FlexMeasures/flexmeasures/pull/2786>`_ and `PR #2825 <https://www.github.com/FlexMeasures/flexmeasures/pull/2825>`_]
 * A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 
 **API, CLI and jobs**
@@ -241,11 +270,17 @@ Bugfixes
 * A failed job now says why in the same way on every queue, in the API, the CLI and the asset page's jobs table: a failed forecasting job no longer reads ``dict: {...}`` and now shows its timeout hint, and a failed report or plugin automation no longer reads ``str: ...`` [see `PR #2698 <https://www.github.com/FlexMeasures/flexmeasures/pull/2698>`_]
 * Fix ``flexmeasures show beliefs`` using the timezone of the first sensor instead of the one given with ``--timezone``; by default, the CSV file now has its timestamps in the timezone of the first sensor with data, with a UTC offset, instead of in UTC without an offset [see `PR #2695 <https://www.github.com/FlexMeasures/flexmeasures/pull/2695>`_ and `PR #2793 <https://www.github.com/FlexMeasures/flexmeasures/pull/2793>`_]
 * Database migration command errors now appear in CLI output, including the error when multiple Alembic heads exist [see `PR #2607 <https://www.github.com/FlexMeasures/flexmeasures/pull/2607>`_]
+* A URL under ``/api`` that matches no route, or a request with a method the route does not take, is now answered with a JSON ``404`` or ``405``, also for requests without a JSON content type, instead of the HTML error page [see `PR #2618 <https://www.github.com/FlexMeasures/flexmeasures/pull/2618>`_]
 * Several FlexMeasures processes starting at once right after a database migration, such as the web server's workers and a CLI command, no longer fail to start because each tried to create the same starter templates [see `PR #2600 <https://www.github.com/FlexMeasures/flexmeasures/pull/2600>`_]
 
 **Hosting**
 
 * In the Docker image, ``pip install`` (which the docs and the compose stack use to add plugins) now installs where FlexMeasures can import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
+* Fix local documentation builds and stop immediately when a build step fails [see `PR #2827 <https://www.github.com/FlexMeasures/flexmeasures/pull/2827>`_]
+* Fix belief deletion and the solar, process and reporting tutorial runners so they work with current data sources and SQLAlchemy [see `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
+
+
+
 
 
 Automations, in detail
@@ -256,7 +291,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Schedules as well as forecasts: a schedule automation stores what the schedule trigger endpoint accepts, and schedules from each run's own time [see `PR #2293 <https://www.github.com/FlexMeasures/flexmeasures/pull/2293>`_]
 * A scheduler's data source now also records the flex config the scheduler computed under, so a schedule can be traced back to the configuration that produced it, and a schedule automation points at such a data source, the way a forecast automation points at its forecaster's [see `PR #2464 <https://www.github.com/FlexMeasures/flexmeasures/pull/2464>`_]
 * A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation-id>/trigger``) and the asset's *Automations* page (a *Run now* button), for instance to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
-* Automations can be created, edited and deleted in the UI and through new API endpoints (``[POST|PATCH|DELETE] /assets/(id)/automations``), by whoever may add data under the asset, with their recurrence expressed in a selectable IANA timezone, and only involving sensors they can access themselves (read access to the sensors an automation reads, and permission to record data on the sensors it writes to). The *Automations* page shows when each active automation is due to run next, as a clock time in the automation's own timezone, which is also available as ``next_run`` on the automations API endpoints. Each row's *Run now*, *Edit*, *Copy*, *Activate*/*Deactivate* and *Delete* controls are collected into a single *Actions* menu beside *Details*, and *Copy* opens the creation form filled in from that automation, leaving the copy inactive [see `PR #2294 <https://www.github.com/FlexMeasures/flexmeasures/pull/2294>`_, `PR #2563 <https://www.github.com/FlexMeasures/flexmeasures/pull/2563>`_, `PR #2591 <https://www.github.com/FlexMeasures/flexmeasures/pull/2591>`_ and `PR #2647 <https://www.github.com/FlexMeasures/flexmeasures/pull/2647>`_]
+* Automations can be created, edited and deleted in the UI and through new API endpoints (``[POST|PATCH|DELETE] /assets/(id)/automations``), by whoever may add data under the asset, with their recurrence expressed in a selectable IANA timezone, and only involving sensors they can access themselves (read access to the sensors an automation reads, and permission to record data on the sensors it writes to). The *Automations* page shows when each active automation is due to run next, as a clock time in the automation's own timezone, which is also available as ``next-run`` on the automations API endpoints. Each row's *Run now*, *Edit*, *Copy*, *Activate*/*Deactivate* and *Delete* controls are collected into a single *Actions* menu beside *Details*, and *Copy* opens the creation form filled in from that automation, leaving the copy inactive [see `PR #2294 <https://www.github.com/FlexMeasures/flexmeasures/pull/2294>`_, `PR #2563 <https://www.github.com/FlexMeasures/flexmeasures/pull/2563>`_, `PR #2591 <https://www.github.com/FlexMeasures/flexmeasures/pull/2591>`_ and `PR #2647 <https://www.github.com/FlexMeasures/flexmeasures/pull/2647>`_]
 * An automation's output sensors are checked against its creator's permissions when the automation is created, and the schedules it computes are held to exactly those sensors: a scheduler that returns results for any other sensor is refused, rather than recording on a sensor that was only ever checked for read access [see `PR #2536 <https://www.github.com/FlexMeasures/flexmeasures/pull/2536>`_]
 * A forecast automation's cycle jobs can likewise only record on the sensors the automation was checked against, as the jobs of schedule, report and plugin automations already could [see `PR #2699 <https://www.github.com/FlexMeasures/flexmeasures/pull/2699>`_]
 * Reports as well as forecasts and schedules: a report automation stores report parameters, with its reporter and the reporter's configuration on a data source, and reports on a period resolved afresh on each run, either from ``start-offset`` and ``end-offset`` applied to the run time in the automation's timezone, or since the last successful report ended, while a fixed ``start`` or ``end`` is refused; a report job records only on the sensors the automation was checked against [see `PR #2297 <https://www.github.com/FlexMeasures/flexmeasures/pull/2297>`_]
@@ -266,6 +301,15 @@ Automations arrived over several pull requests. This is what each of them contri
 * Automations now keep a durable record of every scheduled run, so a forecast or schedule run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and how its jobs ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_, `PR #2657 <https://www.github.com/FlexMeasures/flexmeasures/pull/2657>`_ and `PR #2670 <https://www.github.com/FlexMeasures/flexmeasures/pull/2670>`_]
 * Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization. A plugin job's result is kept for as long as results on its own queue are kept, and reports the number of beliefs it saved [see `PR #2553 <https://www.github.com/FlexMeasures/flexmeasures/pull/2553>`_ and `PR #2644 <https://www.github.com/FlexMeasures/flexmeasures/pull/2644>`_]
+
+
+v1.0.2 | November 5, 2026
+============================
+
+Bugfixes
+-----------
+* An asset's KPIs can only name sensors the user may read, when the asset is created or edited, and showing an asset's KPIs leaves out any sensor the user may not read [see `GHSA-xcvm-r33m-77v5 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xcvm-r33m-77v5>`_]
+* Deleting an asset and resetting a password in the UI now go through the API, which checks permissions, where any logged-in user could delete any asset with its data by opening a link; the sensor page, the user audit log page and the page listing an organisation's assets now check access, too [see `GHSA-vmgf-59hm-j9m7 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-vmgf-59hm-j9m7>`_ and `PR #2791 <https://www.github.com/FlexMeasures/flexmeasures/pull/2791>`_]
 
 
 v1.0.1 | September 9, 2026

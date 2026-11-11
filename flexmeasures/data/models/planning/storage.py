@@ -2758,8 +2758,12 @@ class StorageScheduler(MetaStorageScheduler):
         - original logic: one device per stock group
         - local/shared-stock logic: multiple devices contribute to one shared stock
 
-        For shared stock groups, each device contribution is integrated separately with
-        its own efficiencies and stock delta, then summed on top of the shared initial stock.
+        For shared stock groups, each device contribution is integrated separately with its own conversion efficiencies and stock delta,
+        then summed.
+        The shared initial stock is integrated along with the first device's contribution,
+        so that the storage losses apply to it, too.
+        All contributions use the group's storage efficiency, taken from its first device,
+        just like the solver does (see ``group_stock_balance``).
 
         Also computes the MWh SoC for devices that have ``soc-minima`` or ``soc-maxima`` constraints
         (even without a state-of-charge sensor) so that unresolved targets can be checked later.
@@ -2807,11 +2811,19 @@ class StorageScheduler(MetaStorageScheduler):
             if len(devices) > 1:
                 soc_contributions = []
                 reference_index = None
+                # The storage losses apply to the shared stock as a whole, including its initial stock.
+                # Integration being linear in the initial stock and the stock changes,
+                # integrating the initial stock along with one contribution only,
+                # and using one storage efficiency for all contributions,
+                # gives the same stock as the solver's recursion over the group.
+                storage_efficiency = (
+                    device_constraints[d0]["efficiency"].astype(float).fillna(1)
+                )
 
                 for d in devices:
                     contribution = integrate_time_series(
                         series=ems_schedule[d],
-                        initial_stock=0,
+                        initial_stock=soc_at_start[d0] if d == d0 else 0,
                         stock_delta=device_constraints[d]["stock delta"]
                         * resolution
                         / timedelta(hours=1),
@@ -2819,20 +2831,16 @@ class StorageScheduler(MetaStorageScheduler):
                         down_efficiency=device_constraints[d][
                             "derivative down efficiency"
                         ],
-                        storage_efficiency=device_constraints[d]["efficiency"]
-                        .astype(float)
-                        .fillna(1),
+                        storage_efficiency=storage_efficiency,
                     )
                     soc_contributions.append(contribution)
 
                     if reference_index is None:
                         reference_index = contribution.index
 
-                initial_stock = soc_at_start[d0]
                 soc_mwh = pd.Series(
                     [
-                        initial_stock
-                        + sum(contrib.iloc[i] for contrib in soc_contributions)
+                        sum(contrib.iloc[i] for contrib in soc_contributions)
                         for i in range(len(soc_contributions[0]))
                     ],
                     index=reference_index,
