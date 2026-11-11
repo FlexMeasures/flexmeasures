@@ -169,6 +169,80 @@ def test_run_job_errors_on_a_missing_job(app, clean_job_redis):
     assert "not found" in result.output.lower()
 
 
+def test_run_worker_handles_a_job_with_the_handler_of_its_own_queue(
+    app, clean_job_redis, monkeypatch
+):
+    """A worker on several queues should handle a failing job with the exception handler of the job's queue (#2526).
+
+    The forecasting queue's handler counts the job's failures in its meta, whereas the generic fallback handler does not.
+    The forecasting queue comes second in the option, so taking the first queue's handler would fail this test, too.
+    """
+    from flexmeasures.cli import jobs as jobs_cli
+    from rq.job import Job
+
+    class BurstWorker(SimpleWorker):
+        """Work in this process until the queues are empty, so that the command returns."""
+
+        def work(self, **kwargs):
+            return super().work(burst=True, with_scheduler=False)
+
+    # The command uses SimpleWorker on macOS and the forking Worker elsewhere.
+    monkeypatch.setattr(jobs_cli, "Worker", BurstWorker)
+    monkeypatch.setattr(jobs_cli, "SimpleWorker", BurstWorker)
+
+    with app.app_context():
+        job = app.queues["forecasting"].enqueue("math.sqrt", -1)
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        jobs_cli.fm_jobs, ["run-worker", "--queue", "scheduling|forecasting"]
+    )
+    assert result.exit_code == 0, result.output
+
+    with app.app_context():
+        job = Job.fetch(job.id, connection=app.redis_connection)
+        assert job.is_failed
+        assert (
+            job.meta.get("failures") == 1
+        ), f"Expected the forecasting queue's exception handler to count the failure, got meta: {job.meta!r}"
+
+
+def test_handle_exception_by_queue_falls_back_and_passes_on_the_result(
+    app, monkeypatch
+):
+    """A job from a queue without a handler of its own should get the generic handler.
+
+    RQ stops calling further exception handlers when one returns False, so the result of the handler should be passed on.
+    """
+    from types import SimpleNamespace
+
+    from flexmeasures.cli import jobs as jobs_cli
+
+    calls = []
+
+    def own_handler(job, exc_type, exc_value, traceback):
+        calls.append(("own", job.origin))
+        return False
+
+    def generic_handler(job, exc_type, exc_value, traceback):
+        calls.append(("generic", job.origin))
+
+    monkeypatch.setitem(jobs_cli.QUEUE_EXCEPTION_HANDLERS, "scheduling", own_handler)
+    monkeypatch.setattr(jobs_cli, "handle_worker_exception", generic_handler)
+
+    error = ValueError("boom")
+    stop = jobs_cli.handle_exception_by_queue(
+        SimpleNamespace(origin="scheduling"), ValueError, error, None
+    )
+    go_on = jobs_cli.handle_exception_by_queue(
+        SimpleNamespace(origin="reporting"), ValueError, error, None
+    )
+
+    assert calls == [("own", "scheduling"), ("generic", "reporting")]
+    assert stop is False
+    assert go_on is None
+
+
 def test_check_source_references(app, db, clean_job_redis, monkeypatch):
     """Waiting jobs referring to a data source that does not exist, or that a database upgrade will merge, are listed; other jobs are not."""
     from datetime import timedelta
