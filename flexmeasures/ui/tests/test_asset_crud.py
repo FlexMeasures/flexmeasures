@@ -307,10 +307,10 @@ def test_graphs_page_preserves_saved_y_axis_setting_in_editor(
     assert b'item["y-axis"] = graph["y-axis"];' in page.data
 
 
-def test_graphs_page_preserves_saved_description_in_editor(
+def test_graphs_page_supports_description_in_editor(
     db, client, setup_assets, as_admin
 ):
-    """The graph editor keeps a saved per-graph description when normalizing UI state."""
+    """The graph editor preserves and supports editing a per-graph description."""
     asset = setup_assets["wind-asset-1"]
     asset.sensors_to_show = [
         {
@@ -329,6 +329,9 @@ def test_graphs_page_preserves_saved_description_in_editor(
     assert page.status_code == 200
     assert b'"description": "Average hourly power"' in page.data
     assert b'item["description"] = graph["description"];' in page.data
+    assert b"editDescription_${index}" in page.data
+    assert b"Description (optional)" in page.data
+    assert b"description: newDescription" in page.data
 
 
 def test_add_asset(db, client, setup_assets, as_admin):
