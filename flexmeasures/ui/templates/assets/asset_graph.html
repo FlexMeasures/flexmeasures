@@ -806,7 +806,22 @@
                     }
                 });
 
-                // 2. Save Button
+                // 2. Description Input
+                const descriptionInput = document.createElement("input");
+                descriptionInput.type = "text";
+                descriptionInput.className = "form-control me-2";
+                descriptionInput.id = `editDescription_${index}`;
+                descriptionInput.placeholder = "Description (optional)";
+                descriptionInput.value = getSensorToShow()[index]?.description || "";
+
+                descriptionInput.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveGraphTitle(index);
+                    }
+                });
+
+                // 3. Save Button
                 const saveBtn = document.createElement("button");
                 saveBtn.className = "btn btn-success btn-sm";
                 saveBtn.textContent = "Save";
@@ -816,6 +831,7 @@
                 };
 
                 header.appendChild(input);
+                header.appendChild(descriptionInput);
                 header.appendChild(saveBtn);
 
                 // Auto-focus the input
@@ -1348,11 +1364,17 @@
 
         async function saveGraphTitle(index) {
             const newTitle = document.getElementById(`editTitle_${index}`).value;
+            const newDescription = document.getElementById(`editDescription_${index}`).value.trim();
             const sensorsToShowOldState = getSensorToShow();
             // sensorsToShowOldState[index].title = newTitle;
-            const newSensorsToShow = sensorsToShowOldState.map((item, i) =>
-                i === index ? { ...item, title: newTitle } : item
-            );
+            const newSensorsToShow = sensorsToShowOldState.map((item, i) => {
+                if (i !== index) return item;
+
+                const { description: _, ...rest } = item;
+                return newDescription
+                    ? { ...rest, title: newTitle, description: newDescription }
+                    : { ...rest, title: newTitle };
+            });
             setActiveCard(null);
             setConfigAsset(null);
             setEditingIndex(null);
