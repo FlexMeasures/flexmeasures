@@ -23,6 +23,8 @@ from flexmeasures.data.models.time_series import TimedBelief
         (6, 5, "m³", True, 6 * -11.28, False, 200),
         (6, 6, "l/h", False, -11.28 / 1000, False, 200),  # 1 m³ = 1000 l
         (3, 6, "m³/h", False, -11.28, False, 200),  # upsample from 20-min intervals
+        (3, 6, "m³", False, 3 * -11.28, False, 200),  # 3 * 20-min intervals per hour
+        (1, 6, "m³", False, -11.28, False, 200),  # 1 * 1-hour interval per hour
         (
             1,
             6,

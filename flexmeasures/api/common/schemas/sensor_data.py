@@ -461,8 +461,8 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
         Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
         """
-        data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
+        data = self.possibly_upsample_values(data)
         bdf = self.load_bdf(data)
         bdf = self.possibly_downsample_bdf(bdf, data["sensor"].event_resolution)
 
