@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-import logging
+
 import pytest
 from flask import Flask
 from werkzeug.sansio.utils import host_is_trusted
