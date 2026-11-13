@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix ``get_data_source()`` raising ``MultipleResultsFound`` when a source with the same name, model, version and type has attributes, and stop ``keep_latest_version()`` from hiding the beliefs of sources that differ only by their attributes [see `PR #2867 <https://www.github.com/FlexMeasures/flexmeasures/pull/2867>`_]
 
 
 v1.1.1 | November 11, 2026
