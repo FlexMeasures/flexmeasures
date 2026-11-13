@@ -287,9 +287,7 @@ Bugfixes
 * In the Docker image, ``pip install`` (which the docs and the compose stack use to add plugins) now installs where FlexMeasures can import it [see `PR #2811 <https://www.github.com/FlexMeasures/flexmeasures/pull/2811>`_]
 * Fix local documentation builds and stop immediately when a build step fails [see `PR #2827 <https://www.github.com/FlexMeasures/flexmeasures/pull/2827>`_]
 * Fix belief deletion and the solar, process and reporting tutorial runners so they work with current data sources and SQLAlchemy [see `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
-
-
-
+* Building a custom application in a test or with ``do_configure_logging=False`` no longer reconfigures root logger handlers and strips pytest's ``caplog`` handler [see `PR #2484 <https://www.github.com/FlexMeasures/flexmeasures/pull/2484>`_]
 
 
 Automations, in detail
