@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Stop a lookup of a script's data source from failing once a source with the same name, model, version and type records attributes, and stop reading the most recent beliefs from hiding the data of sources that differ only by their attributes, such as a scheduler recording its parameters, keeping only the latest version of each [see `PR #2505 <https://www.github.com/FlexMeasures/flexmeasures/pull/2505>`_]
 
 
 v1.1.1 | November 11, 2026
