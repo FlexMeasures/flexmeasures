@@ -1192,9 +1192,14 @@ def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
     # Choose which algorithm to use  TODO: unify loading this into a func store concept
     # first try to look if there's a "custom-scheduler" defined
     if "custom-scheduler" in asset_or_sensor.attributes:
-        scheduler_specs = asset_or_sensor.attributes.get("custom-scheduler")
-        scheduler_class = load_custom_scheduler(scheduler_specs)
-        return scheduler_class
+        scheduler_name = asset_or_sensor.attributes.get("custom-scheduler")
+        # Attributes are editable by account members, so they may only name a registered scheduler (e.g. from a plugin).
+        # The module/class form would import or execute a module or file of their choosing.
+        if not isinstance(scheduler_name, str):
+            raise ValueError(
+                "The custom-scheduler attribute must be the name of a registered scheduler."
+            )
+        return load_custom_scheduler(scheduler_name)
 
     if isinstance(asset_or_sensor, Sensor):
         asset = asset_or_sensor.generic_asset
