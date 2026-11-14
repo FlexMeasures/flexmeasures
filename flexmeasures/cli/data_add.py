@@ -2984,6 +2984,9 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                     f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
                     **MsgStyle.SUCCESS,
                 )
+                shell_var_output[f"FM_TOY_PROCESS_{name.upper()}_COST_SENSOR_ID"] = (
+                    loss_sensor.id
+                )
 
             reporter = ProfitOrLossReporter(
                 consumption_price_sensor=day_ahead_sensor,
@@ -2996,6 +2999,7 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                 f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
                 **MsgStyle.SUCCESS,
             )
+            shell_var_output["FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID"] = ds.id
 
     if shell_vars:
         for variable_name, variable_value in shell_var_output.items():

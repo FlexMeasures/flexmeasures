@@ -74,13 +74,13 @@ Run the command below to show the values for our newly-created `grid connection 
 
 
 Moreover, we can check the freshly created data source, which defines the `ProfitOrLossReporter` with the required configuration.
-Its ID depends on the data sources made before, so we look it up and keep it in a variable:
+Its ID depends on the data sources made before; the command above stored it in ``FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID``,
+just as it stored the IDs of the three cost sensors we use below (``FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID`` and so on).
 You'll notice that the `config` is under the `data_generator` field.
 That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
-    $ FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID=$(flexmeasures show data-sources | awk '$1 ~ /^[0-9]+$/ && /ProfitOrLossReporter/ {print $1}')
     $ flexmeasures show data-sources --show-attributes --id ${FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID}
 
     type: reporter
@@ -183,7 +183,7 @@ Define parameters in a JSON file:
     $ echo "
     $ {
     $     'input': [{'sensor': ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID}}],
-    $     'output': [{'sensor': 15}]
+    $     'output': [{'sensor': ${FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID}}]
     $ }" > inflexible-parameters.json
 
 Create report:
@@ -212,7 +212,7 @@ Define parameters in a JSON file:
     $ echo "
     $ {
     $     'input': [{'sensor': ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID}}],
-    $     'output': [{'sensor': 16}]
+    $     'output': [{'sensor': ${FM_TOY_PROCESS_BREAKABLE_COST_SENSOR_ID}}]
     $ }" > breakable-parameters.json
 
 Create report:
@@ -241,7 +241,7 @@ Define parameters in a JSON file:
     $ echo "
     $ {
     $     'input': [{'sensor': ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID}}],
-    $     'output': [{'sensor': 17}]
+    $     'output': [{'sensor': ${FM_TOY_PROCESS_SHIFTABLE_COST_SENSOR_ID}}]
     $ }" > shiftable-parameters.json
 
 Create report:

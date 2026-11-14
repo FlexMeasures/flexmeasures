@@ -8,6 +8,7 @@ since v1.2.0 | December xx, 2026
 =================================
 
 * Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation. With ``--notify-users``, the admins and consultants of each asset's organisation also receive a digest of the automations they can see.
+* ``flexmeasures add toy-account --kind reporter --shell-vars`` also prints the IDs of the three process cost sensors and of the ``ProfitOrLossReporter``'s data source (``FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID`` and its two siblings, and ``FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID``), so the reporter tutorial needs no IDs that depend on what was made before.
 
 since v1.1.0 | November 05, 2026
 =================================
