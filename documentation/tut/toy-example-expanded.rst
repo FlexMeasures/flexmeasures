@@ -65,9 +65,12 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
 .. code-block:: bash
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
-    Added source <Data source 2 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
+    Added source <Data source 4 (toy-forecaster)>
+    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
+
+Use the ID that ``flexmeasures add source`` prints.
+It depends on the data sources made before: if you followed the previous sections, those are you as a user, the CLI reading in the prices, and the scheduler.
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/9>`_:
 

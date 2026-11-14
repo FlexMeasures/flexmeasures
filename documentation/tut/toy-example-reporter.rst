@@ -73,20 +73,22 @@ Run the command below to show the values for our newly-created `grid connection 
               ██ grid connection capacity (toy-building)
 
 
-Moreover, we can check the freshly created source `<Source id=3>`, which defines the `ProfitOrLossReporter` with the required configuration.
+Moreover, we can check the freshly created data source, which defines the `ProfitOrLossReporter` with the required configuration.
+Its ID depends on the data sources made before, so we look it up and keep it in a variable:
 You'll notice that the `config` is under the `data_generator` field.
 That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
-    $ flexmeasures show data-sources --show-attributes --id 3
+    $ FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID=$(flexmeasures show data-sources | awk '$1 ~ /^[0-9]+$/ && /ProfitOrLossReporter/ {print $1}')
+    $ flexmeasures show data-sources --show-attributes --id ${FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID}
 
     type: reporter
     ========
 
      ID  Name          User ID    Model                 Version    Attributes
    ----  ------------  ---------  --------------------  ---------  ------------------------------------------
-      3  FlexMeasures             ProfitOrLossReporter             {
+     12  FlexMeasures             ProfitOrLossReporter             {
                                                                        "data_generator": {
                                                                            "config": {
                                                                                "consumption_price_sensor": 7,
@@ -188,7 +190,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 3 \
+    $ flexmeasures add report --source ${FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID} \
        --parameters inflexible-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -217,7 +219,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 3 \
+    $ flexmeasures add report --source ${FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID} \
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
@@ -246,7 +248,7 @@ Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 3 \
+    $ flexmeasures add report --source ${FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID} \
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
