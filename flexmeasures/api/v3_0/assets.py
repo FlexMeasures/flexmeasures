@@ -2924,6 +2924,10 @@ class AssetAPI(FlaskView):
         # Special case: public-to-public copies (both None) require site admin.
         if resolved_parent is not None:
             check_access(resolved_parent, "edit-assets")
+            if account is not None and resolved_parent.account_id != account.id:
+                # The copy lands in another account than its parent's,
+                # so the parent's permission does not cover creating assets in that account.
+                check_access(account, "edit-assets")
         elif resolved_account is not None:
             check_access(resolved_account, "edit-assets")
         else:
