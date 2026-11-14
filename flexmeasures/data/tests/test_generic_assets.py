@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from marshmallow import ValidationError
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.services.generic_assets import (
     asset_contains_data,
     format_json_field_change,
+    patch_asset,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -518,3 +520,28 @@ def test_asset_contains_data_names_the_sensors_it_probes(
     [(probe, parameters)] = [s for s in statements if "from timed_belief" in s[0]]
     assert probe.count("select") == 1
     assert sensor.id in parameters.values()
+
+
+def test_patch_asset_refuses_a_parent_in_another_account(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    """patch_asset itself keeps a new parent in the asset's account, so no caller can move an asset under another account's asset."""
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    own_site, own_asset, foreign_site = (
+        GenericAsset(name=name, generic_asset_type=asset_type, owner=owner)
+        for name, owner in [
+            ("own site", setup_accounts_fresh_db["Prosumer"]),
+            ("own asset", setup_accounts_fresh_db["Prosumer"]),
+            ("foreign site", setup_accounts_fresh_db["Supplier"]),
+        ]
+    )
+    db.session.add_all([own_site, own_asset, foreign_site])
+    db.session.flush()
+
+    with pytest.raises(ValidationError, match="same account"):
+        patch_asset(own_asset, {"parent_asset_id": foreign_site.id})
+    assert own_asset.parent_asset_id is None
+
+    patch_asset(own_asset, {"parent_asset_id": own_site.id})
+    assert own_asset.parent_asset_id == own_site.id
