@@ -29,6 +29,16 @@ All hooks must pass with zero failures before committing.
 | **mypy** | Type annotations (via `ci/run_mypy.sh`) |
 | **generate-openapi-specs** | OpenAPI spec generation (local only, skipped in CI) |
 
+## Use the pinned tool versions
+
+The versions in `pyproject.toml` are the ones CI runs, and other versions disagree with them.
+A globally installed black from another release formats differently (for instance around multiline strings),
+so a file it calls clean can still be reformatted in CI.
+Run the hooks through `pre-commit` or `uv run`, which use the pins, rather than a `black` or `flake8` on your `PATH`.
+
+`[tool.uv] required-version` in `pyproject.toml` gates every `uv` command in the checkout (`uv run`, `uv sync`, `uv lock`, and so the hooks too).
+With another `uv` version installed, update it to the required one rather than skipping hooks.
+
 ## Flake8 configuration
 
 Max line length: 160. Max complexity: 13. Ignored rules: E501, W503, E203.
