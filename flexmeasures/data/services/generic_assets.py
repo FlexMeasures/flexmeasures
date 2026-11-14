@@ -20,7 +20,9 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.services.group_membership_audit import (
     note_deletion as note_group_membership_deletion,
 )
+from flexmeasures.auth.loaders import flex_config_sensor_references
 from flexmeasures.auth.policy import check_access
+from flexmeasures.data.services.data_generators import check_sensor_access
 
 """Services for managing assets"""
 
@@ -50,6 +52,18 @@ def _validate_kpi_sensors_for_access(kpis: Any, permission: str) -> None:
                 field_name="sensors_to_show_as_kpis",
             )
         check_access(sensor, permission)
+
+
+def _validate_flex_config_sensors_for_access(flex_config: Any) -> None:
+    """Check access to every sensor a flex-context or flex-model refers to, before it is stored.
+
+    Scheduling reads from the referenced sensors and records results on the output ones,
+    for whoever triggers it later and without checking them again,
+    so storing a reference needs the access a data generator needs (see check_sensor_access):
+    read access to every referenced sensor, and create-children access (recording data) to the output sensors.
+    """
+    all_sensors, output_sensors = flex_config_sensor_references(flex_config)
+    check_sensor_access(input_sensors=all_sensors, output_sensors=output_sensors)
 
 
 def _validate_updated_kpi_sensors(db_asset: GenericAsset, asset_data: dict) -> None:
@@ -134,6 +148,9 @@ def create_asset(asset_data: dict) -> GenericAsset:
     """
     if "sensors_to_show_as_kpis" in asset_data:
         _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
+    for flex_config_field in ("flex_context", "flex_model"):
+        if asset_data.get(flex_config_field):
+            _validate_flex_config_sensors_for_access(asset_data[flex_config_field])
     if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
         asset_data.pop("external_id")  # nothing to set, leave it as None
     asset = GenericAsset(**asset_data)
@@ -688,6 +705,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             # Validate the JSON field against the given schema
             if k != "sensors_to_show":
                 schema_map[k]().load(v)
+                _validate_flex_config_sensors_for_access(v)
             else:
                 # we use `deserialize here because the `SensorsToShowSchema` is a "fields.Field" object rather than a "Schema" object
                 schema_map[k]().deserialize(v)
