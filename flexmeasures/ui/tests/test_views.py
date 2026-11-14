@@ -76,3 +76,42 @@ def test_logged_in_user_page_logs_out_by_post(client, as_prosumer_user1):
         in page.data
     )
     assert b'<a href="' + logout_url + b'"' not in page.data
+
+
+def test_dashboard_keeps_asset_names_out_of_script(
+    db, client, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """Asset and account names land in the map popups and tooltips as JSON strings, never as raw text in the script.
+
+    The popup is a JS template literal, so a raw name with ${...} or a backtick would run as code,
+    and the popup and tooltip are set as HTML, so the strings hold HTML-escaped text.
+    """
+    import re
+
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    marker = "${alert(1)}"
+    asset = GenericAsset(
+        name=f"Site {marker} `x` <img src=x onerror=alert(2)>",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=52.1,
+        longitude=5.1,
+    )
+    db.session.add(asset)
+    db.session.commit()
+    try:
+        dashboard = client.get(url_for("flexmeasures_ui.dashboard_view"))
+        assert dashboard.status_code == 200
+        page = dashboard.data.decode()
+        lines_with_name = [line for line in page.splitlines() if marker in line]
+        assert len(lines_with_name) >= 2  # the popup and the tooltip
+        for line in lines_with_name:
+            # Each occurrence of the name is inside a double-quoted JSON string on that line.
+            assert re.search(r'"[^"]*' + re.escape(marker) + r'[^"]*"', line), line
+        # The markup in the name is HTML-escaped before it is JSON-encoded (tojson writes & as &).
+        assert "<img src=x" not in page
+        assert "\\u0026lt;img src=x" in page
+    finally:
+        db.session.delete(asset)
+        db.session.commit()
