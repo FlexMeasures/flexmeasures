@@ -19,6 +19,13 @@ Use **"organisation"** (not "account") in all user-visible text. The word "accou
 
 The Python backend model is still named `Account`. Database columns, Python identifiers, URLs, and API field names all stay as-is. Only the text **shown to end users** changes.
 
+## "Parent asset", not "ancestor"
+
+In user-visible text (UI strings, tooltips, the changelog), say **"parent asset"** for an asset higher up in the asset tree,
+even when it may be a grandparent.
+That is the word users know from the asset tree; "ancestor" is developer jargon.
+Code identifiers and docstrings may keep "ancestor" where it is the precise term.
+
 ## Internal role names
 
 Never expose internal role names (e.g. `account-admin`, `admin`) in UI text. Use plain language instead:
