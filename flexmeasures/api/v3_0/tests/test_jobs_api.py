@@ -366,10 +366,11 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
     monkeypatch.setattr(FailingScheduler, "compute", fail_with_assertion)
 
     sensor = add_battery_assets["Test battery"].sensors[0]
-    sensor.attributes["custom-scheduler"] = {
-        "module": "flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db",
-        "class": "FailingScheduler",
-    }
+    # Attributes may only name a registered scheduler.
+    monkeypatch.setitem(
+        app.data_generators["scheduler"], "FailingScheduler", FailingScheduler
+    )
+    sensor.attributes["custom-scheduler"] = "FailingScheduler"
     db.session.add(sensor)
     db.session.commit()
 
