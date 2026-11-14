@@ -1378,6 +1378,63 @@ def test_copy_asset_api_copies_direct_sensors(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_copy_asset_api_refuses_a_target_account_the_user_cannot_edit(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """A member may copy under their own parent asset, but not into another account by naming it next to that parent."""
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_parent = GenericAsset(
+        name="copy-target-own-parent",
+        generic_asset_type_id=source_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add(own_parent)
+    db.session.flush()
+    assets_in_supplier_account = db.session.scalars(
+        select(GenericAsset.id).filter_by(account_id=supplier_account.id)
+    ).all()
+
+    response = client.post(
+        url_for(
+            "AssetAPI:copy_assets",
+            id=source_asset.id,
+            account=supplier_account.id,
+            parent=own_parent.id,
+        )
+    )
+    assert response.status_code == 403, response.json
+    assert (
+        db.session.scalars(
+            select(GenericAsset.id).filter_by(account_id=supplier_account.id)
+        ).all()
+        == assets_in_supplier_account
+    )
+
+    # Naming the parent's own account is still fine.
+    response = client.post(
+        url_for(
+            "AssetAPI:copy_assets",
+            id=source_asset.id,
+            account=prosumer_account.id,
+            parent=own_parent.id,
+        )
+    )
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id == own_parent.id
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_copy_asset_api_rejects_copy_to_self(
