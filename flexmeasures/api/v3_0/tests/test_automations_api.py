@@ -498,6 +498,34 @@ def test_post_automation_with_invalid_parameters(
     assert "sensor" in str(response.json)
 
 
+@pytest.mark.parametrize("path_field", ["model-save-dir", "output-path"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_refuses_server_paths(
+    app, add_battery_assets, requesting_user, path_field, tmp_path
+):
+    """Server paths to write models or outputs to are for the CLI only, so a forecast automation may not store them."""
+    battery = add_battery_assets["Test battery"]
+    chosen_dir = tmp_path / "chosen-by-the-client"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts kept on the server",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {
+                    "sensor": battery.sensors[0].id,
+                    path_field: str(chosen_dir),
+                },
+            },
+        )
+    assert response.status_code == 422, response.json
+    assert path_field in str(response.json)
+    assert not chosen_dir.exists()
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
