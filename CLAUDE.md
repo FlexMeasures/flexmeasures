@@ -22,6 +22,10 @@ Most-missed rules, called out so they are not forgotten:
 - **Prove a new test can fail** — break what it covers, confirm it goes red, restore.
   A test that passes with the feature disabled asserts nothing.
   See [`testing.instructions.md`](.github/instructions/testing.instructions.md).
+- **Never run the CLI or the app against a shared development configuration** —
+  a shared Redis hands queued jobs to other people's workers, and a shared database may hold real data.
+  Use the test suite or isolated local services.
+  See [`local-environment.instructions.md`](.github/instructions/local-environment.instructions.md).
 - **Never rebase or force-push a branch under review.**
   When a stacked branch's base was squash-merged, restore that base and merge,
   rather than re-resolving its whole diff.
