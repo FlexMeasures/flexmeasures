@@ -103,3 +103,50 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     )
     # Do not leak metadata about a regressor sensor the caller cannot read.
     assert private_regressor.name not in trigger_res.json["message"]
+
+
+@pytest.mark.parametrize("path_field", ["model-save-dir", "output-path"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_trigger_forecast_refuses_server_paths(
+    app, setup_roles_users, setup_accounts, requesting_user, path_field, tmp_path
+):
+    """Server paths to write models or outputs to are for the CLI only: the API refuses them, before creating anything there."""
+    asset_type = GenericAssetType(name=f"test-asset-type-server-path-{path_field}")
+    asset = GenericAsset(
+        name=f"supplier-asset-server-path-{path_field}",
+        generic_asset_type=asset_type,
+        owner=setup_accounts["Supplier"],
+    )
+    sensor = Sensor(
+        name=f"supplier-sensor-server-path-{path_field}",
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+        generic_asset=asset,
+    )
+    db.session.add_all([asset_type, asset, sensor])
+    db.session.commit()
+
+    client = app.test_client()
+    token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    chosen_dir = tmp_path / "chosen-by-the-client"
+    payload = {
+        "start": "2025-01-05T00:00:00+00:00",
+        "end": "2025-01-05T02:00:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        path_field: str(chosen_dir),
+        "config": {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+        },
+    }
+    response = client.post(
+        url_for("SensorAPI:trigger_forecast", id=sensor.id),
+        json=payload,
+        headers={"Authorization": token},
+    )
+    assert response.status_code == 422, response.json
+    assert path_field in str(response.json)
+    assert not chosen_dir.exists()

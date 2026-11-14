@@ -1942,7 +1942,10 @@ class SensorAPI(FlaskView):
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # Server paths to write models and outputs to are for the CLI only:
+            # excluded fields are refused as unknown, before the schema creates any directory.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["model_save_dir", "output_path"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,

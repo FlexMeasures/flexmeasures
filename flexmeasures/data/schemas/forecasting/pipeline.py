@@ -714,8 +714,8 @@ class ForecasterParametersSchema(Schema):
 
         model_save_dir = data.get("model_save_dir")
         if model_save_dir is None:
-            # Read default from schema
-            model_save_dir = self.fields["model_save_dir"].load_default
+            # Read default from schema (from its declared fields, as the API excludes this one)
+            model_save_dir = self.declared_fields["model_save_dir"].load_default
 
         m_viewpoints = max(predict_period // forecast_frequency, 1)
 
