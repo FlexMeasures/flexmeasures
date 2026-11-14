@@ -71,6 +71,7 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
+    json_text_response,
 )
 from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
@@ -1097,7 +1098,7 @@ class AssetAPI(FlaskView):
             "event_ends_before",
             aliases={"event_starts_after": "start", "event_ends_before": "end"},
         )
-        return json.dumps(asset.chart(**kwargs))
+        return json_text_response(json.dumps(asset.chart(**kwargs)))
 
     @route(
         "/<id>/chart_data", strict_slashes=False
@@ -1148,7 +1149,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
-        return asset.chart_data_json(sensors=sensors, **kwargs)
+        return json_text_response(asset.chart_data_json(sensors=sensors, **kwargs))
 
     @route("/<id>/chart_annotations", strict_slashes=False)
     @use_kwargs(
@@ -1247,7 +1248,7 @@ class AssetAPI(FlaskView):
         # Return JSON records
         df = df.reset_index()
         df["source"] = df["source"].astype(str)
-        return df.to_json(orient="records")
+        return json_text_response(df.to_json(orient="records"))
 
     @route("/<id>/auditlog")
     @use_kwargs(
