@@ -9,7 +9,7 @@ from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
 from datetime import timedelta
 
-from flask import current_app
+from flask import Response, current_app
 from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
@@ -691,3 +691,12 @@ def copy_asset(
     except Exception:
         db.session.rollback()
         raise
+
+
+def json_text_response(json_text: str) -> Response:
+    """Send an already serialized JSON string with the media type application/json.
+
+    Flask sends a str returned from a view as text/html,
+    so a browser opening the URL directly would render markup found in the JSON (for instance in a sensor name).
+    """
+    return current_app.response_class(json_text, mimetype="application/json")
