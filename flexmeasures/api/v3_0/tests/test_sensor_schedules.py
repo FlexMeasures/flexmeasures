@@ -778,10 +778,13 @@ def test_get_schedule_custom_scheduler_fallback(
     )
 
     # Let a failing custom scheduler with a successful fallback scheduler handle this sensor.
-    charging_station.attributes["custom-scheduler"] = {
-        "module": "flexmeasures.data.tests.test_scheduling_jobs",
-        "class": "FailingScheduler2",
-    }
+    # Attributes may only name a registered scheduler.
+    from flexmeasures.data.tests.test_scheduling_jobs import FailingScheduler2
+
+    monkeypatch.setitem(
+        app.data_generators["scheduler"], "FailingScheduler2", FailingScheduler2
+    )
+    charging_station.attributes["custom-scheduler"] = "FailingScheduler2"
 
     message = {
         "start": start,
