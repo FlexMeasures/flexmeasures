@@ -25,6 +25,62 @@ def sensor_references_loader(
     return sensor_refs
 
 
+# Flex-config fields whose sensor the scheduler records its results on, rather than reads from.
+FLEX_CONFIG_OUTPUT_FIELDS = frozenset(
+    {
+        "consumption",
+        "production",
+        "aggregate-consumption",
+        "aggregate-production",
+        "state-of-charge",
+        "group",
+    }
+)
+
+
+def flex_config_sensor_references(
+    flex_config: dict | list | None,
+) -> tuple[list[Sensor], list[Sensor]]:
+    """Return all sensors a flex-context or flex-model refers to, and those among them that the scheduler records results on.
+
+    A sensor referenced anywhere under one of the FLEX_CONFIG_OUTPUT_FIELDS counts as an output.
+    """
+    all_sensors: list[Sensor] = []
+    output_sensors: list[Sensor] = []
+    _collect_flex_config_sensors(flex_config, False, all_sensors, output_sensors)
+    return all_sensors, output_sensors
+
+
+def _collect_flex_config_sensors(
+    data: Any,
+    is_output: bool,
+    all_sensors: list[Sensor],
+    output_sensors: list[Sensor],
+) -> None:
+    if isinstance(data, list):
+        for value in data:
+            _collect_flex_config_sensors(value, is_output, all_sensors, output_sensors)
+        return
+    if not isinstance(data, dict):
+        return
+    for field, value in data.items():
+        field_is_output = (
+            is_output or str(field).replace("_", "-") in FLEX_CONFIG_OUTPUT_FIELDS
+        )
+        if _is_sensor_reference_field(field) or _is_sensor_reference_list_field(field):
+            for reference in _listify(value):
+                if reference is None:
+                    continue
+                sensor = _load_sensor(reference)
+                all_sensors.append(sensor)
+                if field_is_output:
+                    output_sensors.append(sensor)
+        else:
+            _collect_flex_config_sensors(
+                value, field_is_output, all_sensors, output_sensors
+            )
+
+
 def _collect_sensor_references(
     data: Any,
     label_path: tuple[str | int, ...],
