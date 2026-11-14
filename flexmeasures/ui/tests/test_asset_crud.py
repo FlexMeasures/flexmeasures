@@ -705,3 +705,51 @@ def test_group_field_hints_on_properties_page(
     assert lone_page.status_code == 200
     assert b"Consider setting" not in lone_page.data
     assert b"Child assets can" not in lone_page.data
+
+
+def test_edit_asset_refuses_a_parent_in_another_account(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """The UI edit form may not hang an asset under an asset of another account, which would show that account's data on the asset's pages."""
+    own_asset = GenericAsset(
+        name="own asset",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    foreign_asset = GenericAsset(
+        name="foreign site",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Supplier"],
+    )
+    db.session.add_all([own_asset, foreign_asset])
+    db.session.commit()
+    try:
+        form_input = mock_asset_data_as_form_input(
+            dict(
+                id=own_asset.id,
+                name=own_asset.name,
+                generic_asset_type_id=own_asset.generic_asset_type_id,
+                account_id=own_asset.account_id,
+                latitude=None,
+                longitude=None,
+                external_id=None,
+            )
+        )
+        form_input["latitude"] = ""
+        form_input["longitude"] = ""
+        form_input["parent_asset_id"] = foreign_asset.id
+        response = client.post(
+            url_for("AssetCrudUI:post", id=own_asset.id),
+            follow_redirects=True,
+            data=form_input,
+        )
+        assert response.status_code == 200
+        assert b"Editing was successful" not in response.data
+        assert b"same account" in response.data
+        db.session.expire_all()
+        assert db.session.get(GenericAsset, own_asset.id).parent_asset_id is None
+    finally:
+        db.session.rollback()
+        db.session.delete(db.session.get(GenericAsset, own_asset.id))
+        db.session.delete(db.session.get(GenericAsset, foreign_asset.id))
+        db.session.commit()

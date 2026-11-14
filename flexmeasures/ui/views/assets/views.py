@@ -54,7 +54,6 @@ Asset crud view.
 """
 
 asset_schema = AssetSchema()
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 class AssetCrudUI(FlaskView):
@@ -312,7 +311,9 @@ class AssetCrudUI(FlaskView):
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=id))
             try:
-                patch_asset_schema.context = {"asset_id": asset.id}
+                # A schema per request, with the asset under the key its validators read (e.g. the parent's account check).
+                patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+                patch_asset_schema.context = {"asset": asset}
                 loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
                 patch_asset(asset, loaded_asset_data)
                 db.session.commit()
