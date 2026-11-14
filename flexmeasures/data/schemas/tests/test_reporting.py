@@ -387,3 +387,59 @@ def test_report_parameters_prefer_prior_over_a_leftover_belief_time(
         }
     )
     assert loaded["belief_time"].isoformat() == "2023-04-12T06:00:00+00:00"
+
+
+def _single_transformation_config(transformation: dict) -> dict:
+    return {
+        "required_input": [{"name": "sensor_1"}],
+        "required_output": [{"name": "final_output"}],
+        "transformations": [
+            {"df_input": "sensor_1", "df_output": "final_output", **transformation}
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "transformation",
+    [
+        # File writes
+        {"method": "to_csv", "args": ["/tmp/x.py"], "kwargs": {"index": False}},
+        {"method": "to_pickle", "args": ["/tmp/x.pkl"]},
+        {"method": "to_json", "args": ["/tmp/x.json"]},
+        # Expression evaluation
+        {"method": "eval", "args": ["event_value > 3"]},
+        {"method": "query", "args": ["event_value > 3"]},
+        # Methods that call another method or function named by a string
+        {"method": "apply", "args": ["to_csv"]},
+        {"method": "agg", "args": ["to_csv"]},
+        {"method": "aggregate", "args": ["to_csv"]},
+        {"method": "transform", "args": ["to_csv"]},
+        {"method": "pipe", "args": ["to_csv"]},
+        # Attributes that are not data
+        {"property": "to_csv"},
+        {"property": "__class__"},
+        {"property": "_data"},
+    ],
+)
+def test_pandas_reporter_config_refuses_io_and_evaluation(
+    transformation, db, app, setup_dummy_sensors
+):
+    """A reporter config is user input (report triggers and automations), so it may only name pure transformations, not file writes or expression evaluation."""
+    with pytest.raises(ValidationError):
+        PandasReporterConfigSchema().load(_single_transformation_config(transformation))
+
+
+@pytest.mark.parametrize(
+    "transformation",
+    [
+        {"method": "sum", "kwargs": {"axis": 1}},
+        {"method": "where", "args": [True]},
+        {"method": "shift", "kwargs": {"periods": -1}},
+        {"method": "get_attribute", "args": ["capacity_in_mw"]},
+        {"property": "index"},
+    ],
+)
+def test_pandas_reporter_config_allows_pure_transformations(
+    transformation, db, app, setup_dummy_sensors
+):
+    PandasReporterConfigSchema().load(_single_transformation_config(transformation))

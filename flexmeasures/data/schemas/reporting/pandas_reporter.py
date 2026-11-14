@@ -18,6 +18,36 @@ from pandas.core.groupby.grouper import Grouper
 # We’ll do our own strict payload checks instead.
 DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute"}
 
+# The pandas methods a transformation may call, besides the pseudo-methods above.
+# A reporter config comes from users (report triggers and automations),
+# so methods that write files (to_*), evaluate expressions (eval, query),
+# or call another method or function named by a string (apply, agg, aggregate, transform, pipe) are left out.
+ALLOWED_TRANSFORMATION_METHODS = frozenset(
+    {
+        # arithmetic and rounding
+        *("add", "radd", "sub", "subtract", "rsub", "mul", "multiply", "rmul"),
+        *("div", "divide", "truediv", "rdiv", "rtruediv", "floordiv", "rfloordiv"),
+        *("mod", "rmod", "pow", "rpow", "abs", "round", "clip", "dot"),
+        # comparisons, masks and missing values
+        *("gt", "ge", "lt", "le", "eq", "ne", "between", "isin"),
+        *("where", "mask", "isna", "isnull", "notna", "notnull"),
+        *("fillna", "ffill", "bfill", "dropna", "interpolate", "replace"),
+        # aggregations
+        *("sum", "mean", "median", "min", "max", "std", "var", "sem", "prod"),
+        *("count", "nunique", "quantile", "idxmax", "idxmin", "first", "last"),
+        *("size", "any", "all", "cumsum", "cumprod", "cummax", "cummin"),
+        # resampling, grouping and windows
+        *("resample", "resample_events", "asfreq", "groupby", "rolling"),
+        *("expanding", "ewm", "shift", "diff", "pct_change"),
+        # selection and reshaping
+        *("copy", "head", "tail", "xs", "droplevel", "drop", "drop_duplicates"),
+        *("merge", "join", "combine_first", "align", "reindex", "reset_index"),
+        *("set_index", "sort_index", "sort_values", "rename", "rename_axis"),
+        *("astype", "tz_convert", "tz_localize", "stack", "unstack", "squeeze"),
+        *("to_frame", "convert_index_from"),
+    }
+)
+
 
 # Helper: ensure args/kwargs are "primitive-only" (no callables/objects)
 def _is_primitive(x) -> bool:
@@ -34,6 +64,15 @@ def _validate_primitive_payload(args, kwargs):
             raise ValidationError(
                 "Only string keys and primitive values allowed in kwargs."
             )
+
+
+def _refuse_unlisted_method(method: str, skip_sig: set[str]):
+    """Refuse a method that is neither an allowed pandas transformation nor a pseudo-method the host trusts."""
+    if method not in ALLOWED_TRANSFORMATION_METHODS and method not in skip_sig:
+        raise ValidationError(
+            f"Method '{method}' cannot be used in a transformation.",
+            field_name="method",
+        )
 
 
 class Transformation(Schema):
@@ -92,6 +131,21 @@ class Transformation(Schema):
                 )
 
     @validates_schema
+    def validate_property(self, data, **kwargs):
+        """Only data attributes may be read: not private ones, and not methods, which would bypass the method allow-list."""
+        prop = data.get("_property")
+        if prop is None:
+            return
+        if prop.startswith("_") or any(
+            callable(getattr(base_class, prop, None))
+            for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]
+        ):
+            raise ValidationError(
+                f"Property '{prop}' cannot be used in a transformation.",
+                field_name="property",
+            )
+
+    @validates_schema
     def validate_method_call(self, data, **kwargs):
         """Validates the method name and its arguments against a set of base classes.
 
@@ -115,6 +169,8 @@ class Transformation(Schema):
         _validate_primitive_payload(args, kwargs)
 
         skip_sig = self._update_signature_methods()
+
+        _refuse_unlisted_method(method, skip_sig)
 
         # If this method is in the "skip-signature" list, do custom validation and stop
         if method in skip_sig:

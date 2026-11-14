@@ -247,69 +247,47 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     ).all()
 
 
-@pytest.mark.parametrize("shortcut", [True, False])
-def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
+def test_pandas_reporter_valid_range(app, setup_dummy_data):
     """
     Check that we can select a valid range of values, where values outside the range are dropped.
 
-    If shortcut=True, we test a shorter approach (fewer transformations) using pd.eval.
+    A shorter approach with pd.eval is no longer possible: reporter configs may not evaluate expressions.
     """
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     range = [3, 7]
 
-    if shortcut:
-        transformations = [
-            {
-                "df_input": "any values",
-                "method": "eval",
-                "args": [f"event_value > {range[0]} & event_value < {range[1]}"],
-                "df_output": "mask",
-            },
-            {
-                "df_input": "any values",
-                "method": "where",
-                "args": ["@mask"],
-                "df_output": "ranged values",
-            },
-            {
-                # "df_input": "ranged values",  # redundant: defaults to previous df_output
-                "method": "dropna",
-                # "df_output": "ranged values",  # redundant: defaults to current df_input
-            },
-        ]
-    else:
-        transformations = [
-            {
-                "df_input": "any values",
-                "method": "gt",
-                "args": [range[0]],
-                "df_output": "gt_value",
-            },
-            {
-                "df_input": "any values",
-                "method": "lt",
-                "args": [range[1]],
-                "df_output": "lt_value",
-            },
-            {
-                "df_input": "any values",
-                "method": "where",
-                "args": ["@gt_value"],
-                "df_output": "ranged values",
-            },
-            {
-                # "df_input": "ranged values",  # redundant: defaults to previous df_output
-                "method": "where",
-                "args": ["@lt_value"],
-                # "df_output": "ranged values",  # redundant: defaults to current df_input
-            },
-            {
-                # "df_input": "ranged values",  # redundant: defaults to previous df_output
-                "method": "dropna",
-                # "df_output": "ranged values",  # redundant: defaults to current df_input
-            },
-        ]
+    transformations = [
+        {
+            "df_input": "any values",
+            "method": "gt",
+            "args": [range[0]],
+            "df_output": "gt_value",
+        },
+        {
+            "df_input": "any values",
+            "method": "lt",
+            "args": [range[1]],
+            "df_output": "lt_value",
+        },
+        {
+            "df_input": "any values",
+            "method": "where",
+            "args": ["@gt_value"],
+            "df_output": "ranged values",
+        },
+        {
+            # "df_input": "ranged values",  # redundant: defaults to previous df_output
+            "method": "where",
+            "args": ["@lt_value"],
+            # "df_output": "ranged values",  # redundant: defaults to current df_input
+        },
+        {
+            # "df_input": "ranged values",  # redundant: defaults to previous df_output
+            "method": "dropna",
+            # "df_output": "ranged values",  # redundant: defaults to current df_input
+        },
+    ]
 
     reporter_config = dict(
         required_input=[
