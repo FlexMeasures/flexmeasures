@@ -226,6 +226,13 @@ class Config(object):
     FLEXMEASURES_FORCE_HTTPS: bool = False
     # if True, the content could be accessed via HTTPS.
     FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
+    # Headers added to every response (unless the response sets them itself). Set a header to None to leave it out.
+    FLEXMEASURES_SECURITY_HEADERS: dict[str, str | None] = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+    }
 
     SECURITY_PASSWORD_CHECK_BREACHED = (
         "best-effort"  # will try to check https://api.pwnedpasswords.com

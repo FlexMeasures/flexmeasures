@@ -712,6 +712,27 @@ When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<m
 Default: ``False``
 
 
+FLEXMEASURES_SECURITY_HEADERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+HTTP headers FlexMeasures adds to every response, unless the response already sets them.
+The defaults keep browsers from guessing content types (``nosniff``), keep other sites from framing FlexMeasures pages (clickjacking), and keep full URLs out of the ``Referer`` header sent to other sites.
+The ``Content-Security-Policy`` default only restricts framing; it does not restrict scripts, as the UI uses inline scripts.
+Set a header to ``None`` to leave it out (e.g. when your reverse proxy adds it already), or change its value, e.g. to allow framing by another site you trust.
+HSTS (``Strict-Transport-Security``) is added when :ref:`force_https` is ``True``.
+
+Default:
+
+.. code-block:: python
+
+    {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+    }
+
+
 TRUSTED_HOSTS
 ^^^^^^^^^^^^^^
 
