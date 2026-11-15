@@ -241,9 +241,9 @@ def register_rq_dashboard(app):
     def basic_admin_auth():
         """Ensure basic admin authorization."""
 
-        # Requeueing runs jobs again (which write data), so it is not done on GET, which a link or an image could trigger.
-        # The dashboard's own buttons use POST.
-        if request.method == "GET" and "/requeue" in request.path:
+        # Requeueing runs jobs again (which write data), so it is not done on GET (or HEAD, which Flask routes to the same view),
+        # which a link or an image could trigger. The dashboard's own buttons use POST.
+        if request.method in ("GET", "HEAD") and "/requeue" in request.path:
             raise MethodNotAllowed(
                 valid_methods=["POST"],
                 description="Requeueing jobs is only possible with POST.",
