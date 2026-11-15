@@ -12,6 +12,22 @@ from werkzeug.exceptions import (
 )
 from sqlalchemy.orm import Query
 
+# Characters which could end a log line or fake a new one: ASCII control characters (incl. CR and LF), DEL,
+# and the line separators which some log viewers honour (NEL, LINE SEPARATOR, PARAGRAPH SEPARATOR)
+_LOG_UNSAFE_CHARACTERS = re.compile("[\x00-\x1f\x7f\x85\u2028\u2029]")
+
+
+def escape_for_log(value) -> str:
+    """Make a value safe to put into a log line, by escaping control characters (e.g. a newline becomes \\n).
+
+    Use this for anything a client controls, like the request path or an error message which echoes input,
+    so that a client cannot end a log line and write a fake one after it.
+    """
+    return _LOG_UNSAFE_CHARACTERS.sub(
+        lambda match: match.group().encode("unicode_escape").decode("ascii"),
+        str(value),
+    )
+
 
 def log_error(exc: Exception, error_msg: str, verbose: bool = True):
     """Collect metadata about the exception and log it.
@@ -23,14 +39,18 @@ def log_error(exc: Exception, error_msg: str, verbose: bool = True):
     if hasattr(exc, "__cause__") and exc.__cause__ is not None:
         exc_info = (exc.__cause__.__class__, exc.__cause__, last_traceback)
 
-    extra = dict(url=request.path, **get_err_source_info(last_traceback))
+    extra = dict(
+        url=escape_for_log(request.path), **get_err_source_info(last_traceback)
+    )
 
     msg = '{error_name} - URL was: {url} - "{message}"'
     if verbose:
         msg += " [occurred at {src_module} (in {src_func}, line {src_linenr})"
 
     # Fill in message contents
-    msg = msg.format(error_name=exc.__class__.__name__, message=error_msg, **extra)
+    msg = msg.format(
+        error_name=exc.__class__.__name__, message=escape_for_log(error_msg), **extra
+    )
 
     # Log error with or without traceback
     if verbose:
