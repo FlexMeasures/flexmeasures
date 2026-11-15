@@ -805,8 +805,8 @@ For the data, note the following:
     {% if event_starts_after %}
     (function () {
         try {
-            var _start = new Date('{{ event_starts_after }}');
-            var _end   = {% if event_ends_before %}new Date('{{ event_ends_before }}'){% else %}null{% endif %};
+            var _start = new Date({{ event_starts_after | tojson }});
+            var _end   = {% if event_ends_before %}new Date({{ event_ends_before | tojson }}){% else %}null{% endif %};
             syncDeleteInputsWithRange(_start, _end);
         } catch (e) { /* ignore invalid date strings */ }
     })();
