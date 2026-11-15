@@ -572,6 +572,20 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
         }
 
+    def _may_show_flex_config_of_asset(self, asset_id) -> bool:
+        """Whether a plot may show flex-config values of the given asset: one in this asset's account, or a public one."""
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
+            return True
+        try:
+            referenced_asset = db.session.get(GenericAsset, int(asset_id))
+        except (TypeError, ValueError):
+            return True  # not an asset id; left to the schema to refuse
+        if referenced_asset is None:
+            return True  # nothing to show; left to the schema to report
+        return referenced_asset.account_id is None or (
+            referenced_asset.account_id == self.account_id
+        )
+
     def _process_plot_entry(
         self, plot, sensors_list, asset_refs_list, extract_utils, SensorClass
     ):
@@ -583,6 +597,13 @@ class GenericAsset(db.Model, AuthModelMixin):
         if "sensors" in plot:
             sensors_list.extend(plot["sensors"])
         if "asset" in plot:
+            if not self._may_show_flex_config_of_asset(plot.get("asset")):
+                # Like sensors (see _get_accessible_sensor_map), flex-config values may only come from
+                # assets of this asset's own account, or public ones; others would leak another account's values
+                current_app.logger.warning(
+                    f"Cannot include the flex-config of asset {plot.get('asset')} in sensors_to_show on asset {self.id}, as it belongs to another account."
+                )
+                return
             try:
                 extracted_sensors, refs = extract_utils(plot)
             except ValidationError as err:
