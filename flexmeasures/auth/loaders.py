@@ -153,3 +153,68 @@ def _nested_label(label_path: tuple[str | int, ...]) -> str:
     for field in reversed(label_path[:-1]):
         label = {field: label}
     return str(label)
+
+
+# Request fields under which the scheduler records its results, rather than reading from them.
+SCHEDULE_OUTPUT_FIELDS = frozenset(
+    {
+        "consumption",
+        "production",
+        "aggregate-consumption",
+        "aggregate-production",
+        "aggregate-power",
+        "state-of-charge",
+        "group",
+    }
+)
+
+
+def flex_model_output_loader(
+    flex_model: dict | list | None,
+) -> dict[str, list[Sensor]]:
+    """Extract the sensors a flex-model has the scheduler record results on, for permission checking.
+
+    These are the sensors under an output field, and the power sensor of each device (its "sensor").
+    """
+    sensor_refs: dict[str, list[Sensor]] = {}
+    label_path: tuple[str | int, ...] = ("json", "flex-model")
+    for index, device_model in enumerate(_listify(flex_model)):
+        if not isinstance(device_model, dict):
+            continue
+        device_path = (
+            (*label_path, index) if isinstance(flex_model, list) else label_path
+        )
+        if "sensor" in device_model:
+            _add_sensor_reference(
+                sensor_refs, (*device_path, "sensor"), device_model["sensor"]
+            )
+        _collect_output_sensor_references(device_model, device_path, sensor_refs)
+    return sensor_refs
+
+
+def flex_context_output_loader(
+    flex_context: dict | list | None,
+) -> dict[str, list[Sensor]]:
+    """Extract the sensors a flex-context has the scheduler record results on, for permission checking."""
+    sensor_refs: dict[str, list[Sensor]] = {}
+    _collect_output_sensor_references(
+        flex_context, ("json", "flex-context"), sensor_refs
+    )
+    return sensor_refs
+
+
+def _collect_output_sensor_references(
+    data: Any,
+    label_path: tuple[str | int, ...],
+    sensor_refs: dict[str, list[Sensor]],
+) -> None:
+    if isinstance(data, dict):
+        for field, value in data.items():
+            field_path = (*label_path, field)
+            if str(field).replace("_", "-") in SCHEDULE_OUTPUT_FIELDS:
+                _collect_sensor_references(value, field_path, sensor_refs)
+            else:
+                _collect_output_sensor_references(value, field_path, sensor_refs)
+    elif isinstance(data, list):
+        for index, value in enumerate(data):
+            _collect_output_sensor_references(value, (*label_path, index), sensor_refs)
