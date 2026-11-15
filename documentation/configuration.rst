@@ -975,13 +975,38 @@ Default: ``"10 per 5 minutes"``
 FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How many failed attempts to authenticate as one user are allowed: wrong passwords on the login form and on ``/api/requestAuthToken``,
-and wrong two-factor codes. Once a user has used them up, further attempts for that user are refused (with status 429) until the window ends,
-whether the password is right or not. A successful login starts the count afresh.
-The count is per user, not per IP address, so that clients behind the same proxy cannot lock each other out.
-It is kept in the rate limiter's storage (Redis), and is not applied when rate limiting is switched off (``RATELIMIT_ENABLED``).
+How many attempts to authenticate as one email address are allowed from one client address: passwords on the login form and on ``/api/requestAuthToken``,
+and two-factor codes. Each attempt is counted before the credentials are checked, and a successful login or token request clears the count.
+Once the count is used up, further attempts for that email address from that client address are refused (with status 429) until the window ends,
+whether the password is right or not. Addresses without an account are counted the same way, so the answer does not reveal which addresses have one.
+
+Because the count is per client address, someone guessing at an account does not lock its owner, or scripts fetching tokens from elsewhere, out.
+Behind a reverse proxy, every client has the proxy's address unless :ref:`trusted_proxies_config` is set; until then, all clients share one count per email address,
+and anyone who knows an email address can keep its owner (including API scripts) from logging in. Raise this limit to soften that.
+
+The counts are kept in the rate limiter's storage (Redis), and are not applied when rate limiting is switched off (``RATELIMIT_ENABLED``).
 
 Default: ``"10 per 15 minutes"``
+
+FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many attempts to authenticate as one email address are allowed from all client addresses together, against guessing from many addresses at once.
+It works like ``FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT``. Someone who uses this up (from many addresses) keeps the account's owner from logging in until the window ends.
+
+Default: ``"100 per hour"``
+
+.. _trusted_proxies_config:
+
+FLEXMEASURES_TRUSTED_PROXIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The number of reverse proxies (e.g. nginx) in front of FlexMeasures that set ``X-Forwarded-For``.
+FlexMeasures then takes the client address from that header (the entry that many places from the end), rather than the proxy's own address.
+This address is used for counting failed logins, for limiting unauthenticated API calls, and in log lines.
+Only set it if every request passes through that many proxies, which each append to ``X-Forwarded-For``; otherwise clients can make up their address.
+
+Default: ``0`` (use the address of the direct peer)
 
 FLEXMEASURES_PASSWORD_RECOVERY_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
