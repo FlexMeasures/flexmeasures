@@ -140,6 +140,35 @@ def compute_and_save_report(
     return results, save_generator_results(results)
 
 
+def recheck_access_of_triggering_user(
+    rq_job: Job | None, reporter: "Reporter", parameters: dict
+) -> None:
+    """Check the access of the user who triggered a report job, against the sensors the report resolves now.
+
+    A report can resolve its sensors differently in the worker than it did when it was triggered:
+    for example, the AggregatorReporter reads the members of a device group from the flex-config again.
+    So the user's access is checked again, before anything is computed.
+    Jobs not triggered by a user (CLI, automations, which check their own execution user) are not affected.
+    """
+    from flexmeasures.data.models.user import User
+    from flexmeasures.data.services.data_generators import (
+        check_sensor_access_of_user,
+        resolve_data_generator_sensors,
+    )
+
+    trigger = (rq_job.meta.get("trigger") if rq_job is not None else None) or {}
+    user_id = trigger.get("user_id")
+    if user_id is None:
+        return
+    user = db.session.get(User, user_id, populate_existing=True)
+    sensors = resolve_data_generator_sensors(
+        reporter, reporter._parameters_schema.load(parameters)
+    )
+    check_sensor_access_of_user(
+        user, sensors["input_sensors"], sensors["output_sensors"]
+    )
+
+
 @record_outcome_on_automation_run
 def run_report_job(data_source_id: int, parameters: dict) -> dict:
     """Compute and store a report in a reporting worker.
@@ -170,6 +199,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
     )
 
     rq_job = get_current_job()
+    recheck_access_of_triggering_user(rq_job, reporter, parameters)
     permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
     automation_id = automation_id_of_job(rq_job)
     results, saved = compute_and_save_report(

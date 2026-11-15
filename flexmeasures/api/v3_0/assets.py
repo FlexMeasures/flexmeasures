@@ -2425,7 +2425,8 @@ class AssetAPI(FlaskView):
                         f"Report output sensor {output_sensor.id} must belong to asset"
                         f" {asset.id} or one of its descendants."
                     )
-            reporter.set_job_trigger("API")
+            # the worker checks the user's access again, against the sensors the report then resolves
+            reporter.set_job_trigger("API", user_id=current_user.id)
             result = reporter.compute(as_job=True, parameters=parameters)
         except ValidationError as exc:
             db.session.rollback()
