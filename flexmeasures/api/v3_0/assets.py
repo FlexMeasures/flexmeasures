@@ -66,12 +66,12 @@ from flexmeasures.data.services.automations import (
     get_automation_run_stats,
     get_automations_in_scope,
     get_automations_waiting_for,
-    get_dependent_automations,
+    CHAIN_INCLUDES,
+    get_chain_automations,
     plan_automation_chain,
     resolve_automation_sensors,
     run_automation,
     run_automation_chain,
-    run_automation_with_ascendants,
     update_automation,
 )
 from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
@@ -2165,26 +2165,25 @@ class AssetAPI(FlaskView):
     )
     @use_kwargs(
         {
-            "with_dependents": fields.Bool(
-                data_key="with-dependents",
+            "with_downstream": fields.Bool(
+                data_key="with-downstream",
                 load_default=False,
                 metadata={
-                    "description": "Also run the active automations that wait for this one, directly or through others, each once the runs it waits for ended."
+                    "description": "Also run the active automations downstream of this one, which wait for it, directly or through others, each once the runs it waits for ended."
                 },
             ),
-            "with_ascendants": fields.Bool(
-                data_key="with-ascendants",
+            "with_upstream": fields.Bool(
+                data_key="with-upstream",
                 load_default=False,
                 metadata={
-                    "description": "First run the active automations this one waits for, directly or through others, as far as you may run them."
+                    "description": "First run the active automations upstream of this one, which it waits for, directly or through others, as far as you may run them."
                 },
             ),
-            "left_out": fields.List(
+            "exclude": fields.List(
                 fields.Int(),
-                data_key="leave-out",
                 load_default=list,
                 metadata={
-                    "description": "With `with-ascendants`, IDs of automations not to run, along with what only they wait for."
+                    "description": "With `with-upstream` or `with-downstream`, IDs of automations not to run, along with what can only be reached through them."
                 },
             ),
         },
@@ -2200,9 +2199,9 @@ class AssetAPI(FlaskView):
         id: int,
         automation_id: int,
         asset: GenericAsset,
-        with_dependents: bool = False,
-        with_ascendants: bool = False,
-        left_out: list[int] | None = None,
+        with_downstream: bool = False,
+        with_upstream: bool = False,
+        exclude: list[int] | None = None,
     ):
         """
         .. :quickref: Assets; Trigger a single run of an automation.
@@ -2222,19 +2221,17 @@ class AssetAPI(FlaskView):
             so the next recurring run still happens as scheduled, and a missed run is still caught up.
             Inactive automations can be triggered, too, which is how you can try one out before activating it.
 
-            Pass `with-dependents=true` to also run the active automations that wait for this one, directly or through others,
-            for instance to re-run a chain of automations once the data at its start was backfilled.
-            Each of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.
-            This needs permission to manage the automations on each of their assets, too.
-            The response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.
-
-            Pass `with-ascendants=true` to first run the active automations this one waits for, directly or through others, and then this one,
+            Pass `with-upstream=true` to first run the active automations upstream of this one, which it waits for, directly or through others, and then this one,
             for instance to bring it up to date with what its results are based on.
-            A run waits for the runs triggered along with it, and is skipped if one of those failed, unless its dependency allows for failure.
-            An automation you may not run is left out, along with what is above it, and is reported under `left-out`.
-            Pass `leave-out` to leave out automations yourself, such as one of several branches.
+            Pass `with-downstream=true` to also run the active automations downstream of this one, which wait for it, directly or through others,
+            for instance to re-run a chain of automations once the data at its start was backfilled.
+            The included automations run in chain order: each waits for the runs triggered along with it,
+            and is skipped if one of those failed, unless its dependency allows for failure.
+            An automation that is inactive, or that you may not run, is excluded, along with what can only be reached through it.
+            Pass `exclude` to exclude automations yourself, such as one of several branches.
             See the `run-plan` endpoint for what this would come down to.
-            The response lists these runs under `runs`.
+            The response lists the runs under `runs`, in chain order, and the excluded automations under `excluded`, each with the reason;
+            its `job` is that of this automation's own run, if that started right away.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2251,23 +2248,23 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              name: with-dependents
+              name: with-upstream
               required: false
-              description: Also run the active automations that wait for this one, directly or through others.
+              description: First run the active automations upstream of this one, which it waits for, directly or through others. Cannot be combined with `with-downstream`.
               schema:
                 type: boolean
                 default: false
             - in: query
-              name: with-ascendants
+              name: with-downstream
               required: false
-              description: First run the active automations this one waits for, directly or through others. Cannot be combined with `with-dependents`.
+              description: Also run the active automations downstream of this one, which wait for it, directly or through others.
               schema:
                 type: boolean
                 default: false
             - in: query
-              name: leave-out
+              name: exclude
               required: false
-              description: With `with-ascendants`, IDs of automations not to run.
+              description: With `with-upstream` or `with-downstream`, IDs of automations not to run.
               schema:
                 type: array
                 items:
@@ -2290,22 +2287,12 @@ class AssetAPI(FlaskView):
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         n-jobs: 2
                         message: "Request has been accepted for processing."
-                    triggered-with-dependents:
-                      summary: Automation run accepted, along with the automations waiting for it
+                    triggered-with-downstream:
+                      summary: Automation run accepted, along with the automations downstream of it
                       value:
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                        n-jobs: 1
-                        message: "Request has been accepted for processing."
-                        dependent-runs:
-                          - automation: 8
-                            run: 412
-                            dispatch-state: waiting
-                    triggered-with-ascendants:
-                      summary: Automation run accepted, after the automations it waits for
-                      value:
-                        status: ACCEPTED
                         n-jobs: 1
                         message: "Started 1 run(s), and 1 run(s) wait for them."
                         runs:
@@ -2315,7 +2302,24 @@ class AssetAPI(FlaskView):
                           - automation: 8
                             run: 412
                             dispatch-state: waiting
-                        left-out: [5]
+                        excluded: []
+                    triggered-with-upstream:
+                      summary: Automation run accepted, after the automations upstream of it
+                      value:
+                        status: ACCEPTED
+                        job: null
+                        n-jobs: 1
+                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        runs:
+                          - automation: 7
+                            run: 411
+                            dispatch-state: queued
+                          - automation: 8
+                            run: 412
+                            dispatch-state: waiting
+                        excluded:
+                          - automation: 5
+                            reason: You may not run this automation.
             401:
               description: UNAUTHORIZED
             403:
@@ -2332,16 +2336,21 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        if with_dependents and with_ascendants:
+        if with_downstream and with_upstream:
             return unprocessable_entity(
-                "Use either with-dependents or with-ascendants, not both."
+                "Use either with-upstream or with-downstream, not both."
             )
-        if with_ascendants:
-            return self._trigger_automation_with_ascendants(
-                asset, automation, left_out or []
+        if with_upstream or with_downstream:
+            return self._trigger_automation_chain(
+                asset,
+                automation,
+                "upstream" if with_upstream else "downstream",
+                exclude or [],
             )
-        if with_dependents:
-            return self._trigger_automation_chain(asset, automation)
+        if exclude:
+            return unprocessable_entity(
+                "Use exclude along with with-upstream or with-downstream."
+            )
         try:
             returns = run_automation(automation)
         except (
@@ -2377,37 +2386,6 @@ class AssetAPI(FlaskView):
         response["n-jobs"] = returns.get("n_jobs")
         return response, status_code
 
-    def _trigger_automation_with_ascendants(
-        self, asset: GenericAsset, automation: Automation, left_out: list[int]
-    ) -> tuple[dict, int]:
-        """Run the automations this one waits for, and then this one (see `run_automation_with_ascendants`)."""
-        runs, not_running = run_automation_with_ascendants(
-            automation, left_out, may_run=_may_manage_automation
-        )
-        for run in runs:
-            AssetAuditLog.add_record(
-                run.automation.asset,
-                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), on the way to automation {automation.id}.",
-            )
-        db.session.commit()
-        for run in runs:
-            db.session.refresh(run)
-        n_waiting = sum(run.dispatch_state == "waiting" for run in runs)
-        return {
-            "status": "ACCEPTED",
-            "n-jobs": sum(len(run.job_intents) for run in runs),
-            "message": f"Started {len(runs) - n_waiting} run(s), and {n_waiting} run(s) wait for them.",
-            "runs": [
-                {
-                    "automation": run.automation_id,
-                    "run": run.id,
-                    "dispatch-state": run.dispatch_state,
-                }
-                for run in runs
-            ],
-            "left-out": [left.id for left in not_running],
-        }, 202
-
     @route("/<id>/automations/<int:automation_id>/run-plan", methods=["GET"])
     @use_kwargs(
         {
@@ -2418,32 +2396,44 @@ class AssetAPI(FlaskView):
     )
     @use_kwargs(
         {
-            "direction": fields.Str(
+            "include": fields.Str(
                 required=True,
-                validate=validate.OneOf(["ascendants", "dependents"]),
+                validate=validate.OneOf(CHAIN_INCLUDES),
                 metadata={
-                    "description": "Whether to run the automations this one waits for, or those that wait for it."
+                    "description": "Which part of the chain to include: the automations upstream of this one, which it waits for, or those downstream of it, which wait for it."
                 },
-            )
+            ),
+            "exclude": fields.List(
+                fields.Int(),
+                load_default=list,
+                metadata={"description": "IDs of automations not to run."},
+            ),
         },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def get_automation_run_plan(
-        self, id: int, automation_id: int, asset: GenericAsset, direction: str
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        include: str,
+        exclude: list[int] | None = None,
     ):
         """
-        .. :quickref: Assets; See what running an automation along with its ascendants or dependents comes down to.
+        .. :quickref: Assets; See what running an automation along with what is upstream or downstream of it comes down to.
 
         ---
         get:
-          summary: See what running an automation along with its ascendants or dependents comes down to.
+          summary: See what running an automation along with what is upstream or downstream of it comes down to.
           description: |
             Nothing is run.
-            The steps are listed in the order they run, each saying what it waits for among these steps,
-            and whether it will run, or else why not.
-            A step you may not read stays a bare ID.
+            Runs always flow downstream; `include` says which part of the chain is included.
+            The automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.
+            The automations that will not run are listed under `excluded`, each with the reason.
+            They still run on their own schedule, just not because of this request.
+            An automation you may not read stays a bare ID.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2460,12 +2450,20 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              name: direction
+              name: include
               required: true
-              description: Whether to run the automations this one waits for, or those that wait for it.
+              description: Which part of the chain to include, upstream or downstream of this automation.
               schema:
                 type: string
-                enum: [ascendants, dependents]
+                enum: [upstream, downstream]
+            - in: query
+              name: exclude
+              required: false
+              description: IDs of automations not to run.
+              schema:
+                type: array
+                items:
+                  type: integer
           responses:
             200:
               description: PROCESSED
@@ -2473,19 +2471,17 @@ class AssetAPI(FlaskView):
                 application/json:
                   examples:
                     run-plan:
-                      summary: One step does not run
+                      summary: One automation does not run
                       value:
                         steps:
-                          - automation: 5
-                            waits-for: []
-                            will-run: false
-                            reason: You may not run this automation.
                           - automation: 7
-                            waits-for: [5]
-                            will-run: true
+                            waits-for: []
                             name: Forecast
                             asset: 3
                             asset-name: Site
+                        excluded:
+                          - automation: 5
+                            reason: You may not run this automation.
             401:
               description: UNAUTHORIZED
             403:
@@ -2502,25 +2498,37 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        return {
-            "steps": plan_automation_chain(
+        return (
+            plan_automation_chain(
                 automation,
-                direction,
+                include,
+                exclude or [],
                 may_read=_may_read_automation,
                 may_run=_may_manage_automation,
-            )
-        }, 200
+            ),
+            200,
+        )
 
     def _trigger_automation_chain(
-        self, asset: GenericAsset, automation: Automation
+        self,
+        asset: GenericAsset,
+        automation: Automation,
+        include: str,
+        exclude: list[int],
     ) -> tuple[dict, int]:
-        """Run an automation along with the automations that wait for it (see `run_automation_chain`)."""
-        dependents = get_dependent_automations(automation)
-        # The automations waiting for this one may be on other assets, where their runs write data, too.
-        for dependent in dependents:
-            check_access(dependent.asset, "manage-automations")
+        """Run an automation along with what is upstream or downstream of it (see `run_automation_chain`)."""
+        if include == "downstream":
+            # The automations waiting for this one may be on other assets, where their runs write data, too.
+            chain, _ = get_chain_automations(automation, include, exclude)
+            for dependent in chain:
+                check_access(dependent.asset, "manage-automations")
         try:
-            returns, dependent_runs = run_automation_chain(automation)
+            runs, returns, excluded = run_automation_chain(
+                automation,
+                include,
+                exclude,
+                may_run=_may_manage_automation if include == "upstream" else None,
+            )
         except (
             NotImplementedError,
             ValueError,
@@ -2531,37 +2539,41 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)
             )
-        AssetAuditLog.add_record(
-            asset,
-            f"Triggered a run of automation '{automation.name}' ({automation.id}) and of the {len(dependent_runs)} automation(s) waiting for it.",
-        )
-        for run in dependent_runs:
+        for run in runs:
             AssetAuditLog.add_record(
                 run.automation.asset,
-                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), waiting for a run of automation {automation.id}.",
+                (
+                    f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}) and of the automations {include} of it."
+                    if run.automation_id == automation.id
+                    else f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), {'upstream' if include == 'upstream' else 'downstream'} of automation {automation.id}."
+                ),
             )
         db.session.commit()
-        job_id = returns.get("job_id")
+        for run in runs:
+            db.session.refresh(run)
+        job_id = (returns or {}).get("job_id")
         if job_id is not None:
             response, status_code = request_accepted_for_processing(job_id)
         else:
-            response, status_code = {
-                "status": "ACCEPTED",
-                "job": None,
-                "message": returns.get("message")
-                or f"Automation {automation.id} had nothing to queue, so the automations waiting for it go ahead.",
-            }, 202
-        response["n-jobs"] = returns.get("n_jobs")
-        response["dependent-runs"] = []
-        for run in dependent_runs:
-            db.session.refresh(run)
-            response["dependent-runs"].append(
-                {
-                    "automation": run.automation_id,
-                    "run": run.id,
-                    "dispatch-state": run.dispatch_state,
-                }
-            )
+            response, status_code = {"status": "ACCEPTED", "job": None}, 202
+        n_waiting = sum(run.dispatch_state == "waiting" for run in runs)
+        response["message"] = (
+            f"Started {len(runs) - n_waiting} run(s), and {n_waiting} run(s) wait for them."
+        )
+        if returns is not None and job_id is None and returns.get("message"):
+            response["message"] = f"{returns['message']} {response['message']}"
+        response["n-jobs"] = sum(len(run.job_intents) for run in runs)
+        response["runs"] = [
+            {
+                "automation": run.automation_id,
+                "run": run.id,
+                "dispatch-state": run.dispatch_state,
+            }
+            for run in runs
+        ]
+        response["excluded"] = [
+            {"automation": step.id, "reason": reason} for step, reason in excluded
+        ]
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])

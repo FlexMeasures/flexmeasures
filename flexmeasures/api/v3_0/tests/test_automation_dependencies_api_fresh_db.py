@@ -364,18 +364,20 @@ def test_run_plan_tells_what_will_run_and_what_will_not(
                 id=battery.id,
                 automation_id=downstream.id,
             ),
-            query_string={"direction": "ascendants"},
+            query_string={"include": "upstream"},
         )
     assert response.status_code == 200, response.json
-    steps = {step["automation"]: step for step in response.json["steps"]}
-    assert steps[upstream["own"].id]["will-run"] is True
-    assert steps[upstream["public"].id]["will-run"] is False
-    assert steps[upstream["public"].id]["reason"] == "You may not run this automation."
-    assert steps[upstream["public"].id]["name"] == "Upstream on troposphere"
-    assert steps[upstream["foreign"].id] == {
+    assert [step["automation"] for step in response.json["steps"]] == [
+        upstream["own"].id,
+        downstream.id,
+    ]
+    excluded = {step["automation"]: step for step in response.json["excluded"]}
+    assert (
+        excluded[upstream["public"].id]["reason"] == "You may not run this automation."
+    )
+    assert excluded[upstream["public"].id]["name"] == "Upstream on troposphere"
+    assert excluded[upstream["foreign"].id] == {
         "automation": upstream["foreign"].id,
-        "waits-for": [],
-        "will-run": False,
         "reason": "You may not run this automation.",
     }
     assert fresh_db.session.scalars(select(AutomationRun)).all() == []
@@ -384,7 +386,7 @@ def test_run_plan_tells_what_will_run_and_what_will_not(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_automation_with_ascendants(
+def test_trigger_automation_with_upstream(
     app, fresh_db, upstream_automations, requesting_user
 ):
     """What the user may run runs first, what they may not is left out and reported, and what they leave out does not run."""
@@ -397,36 +399,46 @@ def test_trigger_automation_with_ascendants(
         "AssetAPI:trigger_automation", id=battery.id, automation_id=downstream.id
     )
     with app.test_client() as client:
-        response = client.post(url, query_string={"with-ascendants": "true"})
+        response = client.post(url, query_string={"with-upstream": "true"})
         assert response.status_code == 202, response.json
         assert [
             (run["automation"], run["dispatch-state"]) for run in response.json["runs"]
         ] == [(upstream["own"].id, "queued"), (downstream.id, "waiting")]
-        assert response.json["left-out"] == [upstream["public"].id]
+        assert response.json["excluded"] == [
+            {
+                "automation": upstream["public"].id,
+                "reason": "You may not run this automation.",
+            }
+        ]
 
-        left_out = client.post(
+        excluded = client.post(
             url,
             query_string={
-                "with-ascendants": "true",
-                "leave-out": [upstream["own"].id],
+                "with-upstream": "true",
+                "exclude": [upstream["own"].id],
             },
         )
-        assert left_out.status_code == 202, left_out.json
-        assert [run["automation"] for run in left_out.json["runs"]] == [downstream.id]
+        assert excluded.status_code == 202, excluded.json
+        assert [run["automation"] for run in excluded.json["runs"]] == [downstream.id]
+        assert {"automation": upstream["own"].id, "reason": "You left it out."} in (
+            excluded.json["excluded"]
+        )
 
         both = client.post(
-            url, query_string={"with-ascendants": "true", "with-dependents": "true"}
+            url, query_string={"with-upstream": "true", "with-downstream": "true"}
         )
+        exclude_alone = client.post(url, query_string={"exclude": [upstream["own"].id]})
     assert both.status_code == 422, both.json
+    assert exclude_alone.status_code == 422, exclude_alone.json
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_automation_with_dependents(
+def test_trigger_automation_with_downstream(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """Triggering with dependents runs the automations waiting for this one, too, and lists their runs."""
+    """Triggering with downstream runs the automations waiting for this one, too, and lists the runs in chain order."""
     battery, sensor, upstream = upstream_automations
     upstream["own"].parameters = {"sensor": sensor.id}
     fresh_db.session.commit()
@@ -438,20 +450,20 @@ def test_trigger_automation_with_dependents(
                 "AssetAPI:trigger_automation",
                 id=battery.id,
                 automation_id=upstream["own"].id,
-                **{"with-dependents": "true"},
+                **{"with-downstream": "true"},
             )
         )
     assert response.status_code == 202, response.json
+    assert response.json["job"] is not None
     assert [
-        (run["automation"], run["dispatch-state"])
-        for run in response.json["dependent-runs"]
-    ] == [(created.json["id"], "waiting")]
+        (run["automation"], run["dispatch-state"]) for run in response.json["runs"]
+    ] == [(upstream["own"].id, "queued"), (created.json["id"], "waiting")]
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_automation_with_dependents_needs_access_to_each_of_them(
+def test_trigger_automation_with_downstream_needs_access_to_each_of_them(
     app, fresh_db, upstream_automations, requesting_user
 ):
     """An automation waiting for this one on an asset the user may not manage is not run on their say, and neither is this one."""
@@ -466,7 +478,7 @@ def test_trigger_automation_with_dependents_needs_access_to_each_of_them(
                 "AssetAPI:trigger_automation",
                 id=battery.id,
                 automation_id=upstream["own"].id,
-                **{"with-dependents": "true"},
+                **{"with-downstream": "true"},
             )
         )
     assert response.status_code == 403, response.json

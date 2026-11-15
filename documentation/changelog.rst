@@ -11,7 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
-* An automation can wait for the automations whose results it uses: each of its runs waits for their latest runs due at or before its own scheduled time, also on another schedule, and is skipped if one of them failed, from the CLI (``--depends-on``), the API (``depends-on``) and the *Automations* page, and a chain can be re-run on demand from its start (``--with-dependents``) or up to an automation (``--with-ascendants``), which the *Automations* page also draws [see `PR #2706 <https://www.github.com/FlexMeasures/flexmeasures/pull/2706>`_]
+* An automation can wait for the automations whose results it uses: each of its runs waits for their latest runs due at or before its own scheduled time, also on another schedule, and is skipped if one of them failed, from the CLI (``--depends-on``), the API (``depends-on``) and the *Automations* page, and a chain can be re-run on demand from an automation (``--with-downstream``) or up to it (``--with-upstream``), which the *Automations* page also draws [see `PR #2706 <https://www.github.com/FlexMeasures/flexmeasures/pull/2706>`_]
 
 Infrastructure / Support
 -------------------------

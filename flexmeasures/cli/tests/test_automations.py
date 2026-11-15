@@ -3064,10 +3064,10 @@ def test_add_edit_and_show_automation_dependencies(
     assert fresh_db.session.get(Automation, downstream.id).dependencies == []
 
 
-def test_run_automation_with_dependents(
+def test_run_automation_with_downstream(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis
 ):
-    """--with-dependents runs the automations waiting for this one, too, each holding back until the run it waits for ended."""
+    """--with-downstream runs the automations waiting for this one, too, each holding back until the run it waits for ended."""
     from flexmeasures.cli.jobs import run_one_automation
 
     runner = app.test_cli_runner()
@@ -3082,7 +3082,7 @@ def test_run_automation_with_dependents(
     assert added.exit_code == 0, added.output
 
     result = runner.invoke(
-        run_one_automation, ["--automation", str(upstream.id), "--with-dependents"]
+        run_one_automation, ["--automation", str(upstream.id), "--with-downstream"]
     )
 
     assert result.exit_code == 0, result.output
@@ -3121,10 +3121,10 @@ def test_deleting_an_automation_warns_about_what_waits_for_it(
     assert fresh_db.session.get(Automation, upstream.id) is not None
 
 
-def test_run_automation_with_ascendants(
+def test_run_automation_with_upstream(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis
 ):
-    """--with-ascendants runs what this automation waits for first, and --leave-out keeps one of those from running."""
+    """--with-upstream runs what this automation waits for first, and --exclude keeps one of those from running."""
     from flexmeasures.cli.jobs import run_one_automation
 
     runner = app.test_cli_runner()
@@ -3143,35 +3143,39 @@ def test_run_automation_with_ascendants(
 
     result = runner.invoke(
         run_one_automation,
-        ["--automation", str(downstream.id), "--with-ascendants"],
+        ["--automation", str(downstream.id), "--with-upstream"],
     )
     assert result.exit_code == 0, result.output
     assert f"Automation {upstream.id} ('Upstream')" in result.output
     assert f"Automation {downstream.id} ('Downstream')" in result.output
     assert "is waiting" in result.output
 
-    left_out = runner.invoke(
+    excluded = runner.invoke(
         run_one_automation,
         [
             "--automation",
             str(downstream.id),
-            "--with-ascendants",
-            "--leave-out",
+            "--with-upstream",
+            "--exclude",
             str(upstream.id),
         ],
     )
-    assert left_out.exit_code == 0, left_out.output
-    assert f"Automation {upstream.id} ('Upstream')" not in left_out.output
+    assert excluded.exit_code == 0, excluded.output
+    assert (
+        f"Automation {upstream.id} ('Upstream') does not run. You left it out."
+        in excluded.output
+    )
+    assert f"Automation {upstream.id} ('Upstream') run" not in excluded.output
 
     both = runner.invoke(
         run_one_automation,
-        ["--automation", str(upstream.id), "--with-ascendants", "--with-dependents"],
+        ["--automation", str(upstream.id), "--with-upstream", "--with-downstream"],
     )
     assert both.exit_code != 0
     assert "either" in both.output
 
     alone = runner.invoke(
-        run_one_automation, ["--automation", str(upstream.id), "--leave-out", "1"]
+        run_one_automation, ["--automation", str(upstream.id), "--exclude", "1"]
     )
     assert alone.exit_code != 0
 

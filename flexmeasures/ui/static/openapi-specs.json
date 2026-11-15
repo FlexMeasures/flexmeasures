@@ -3747,8 +3747,8 @@
     },
     "/api/v3_0/assets/{id}/automations/{automation-id}/run-plan": {
       "get": {
-        "summary": "See what running an automation along with its ascendants or dependents comes down to.",
-        "description": "Nothing is run.\nThe steps are listed in the order they run, each saying what it waits for among these steps,\nand whether it will run, or else why not.\nA step you may not read stays a bare ID.\n",
+        "summary": "See what running an automation along with what is upstream or downstream of it comes down to.",
+        "description": "Nothing is run.\nRuns always flow downstream; `include` says which part of the chain is included.\nThe automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.\nThe automations that will not run are listed under `excluded`, each with the reason.\nThey still run on their own schedule, just not because of this request.\nAn automation you may not read stays a bare ID.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3775,15 +3775,27 @@
           },
           {
             "in": "query",
-            "name": "direction",
+            "name": "include",
             "required": true,
-            "description": "Whether to run the automations this one waits for, or those that wait for it.",
+            "description": "Which part of the chain to include, upstream or downstream of this automation.",
             "schema": {
               "type": "string",
               "enum": [
-                "ascendants",
-                "dependents"
+                "upstream",
+                "downstream"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "exclude",
+            "required": false,
+            "description": "IDs of automations not to run.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
             }
           }
         ],
@@ -3794,24 +3806,21 @@
               "application/json": {
                 "examples": {
                   "run-plan": {
-                    "summary": "One step does not run",
+                    "summary": "One automation does not run",
                     "value": {
                       "steps": [
                         {
-                          "automation": 5,
-                          "waits-for": [],
-                          "will-run": false,
-                          "reason": "You may not run this automation."
-                        },
-                        {
                           "automation": 7,
-                          "waits-for": [
-                            5
-                          ],
-                          "will-run": true,
+                          "waits-for": [],
                           "name": "Forecast",
                           "asset": 3,
                           "asset-name": "Site"
+                        }
+                      ],
+                      "excluded": [
+                        {
+                          "automation": 5,
+                          "reason": "You may not run this automation."
                         }
                       ]
                     }
@@ -5069,7 +5078,7 @@
     "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
-        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n\nPass `with-dependents=true` to also run the active automations that wait for this one, directly or through others,\nfor instance to re-run a chain of automations once the data at its start was backfilled.\nEach of them gets a run that waits for the runs triggered along with it, and is skipped if one of those failed.\nThis needs permission to manage the automations on each of their assets, too.\nThe response then lists these runs under `dependent-runs`, and its `job` is null if this automation itself had nothing to queue.\n\nPass `with-ascendants=true` to first run the active automations this one waits for, directly or through others, and then this one,\nfor instance to bring it up to date with what its results are based on.\nA run waits for the runs triggered along with it, and is skipped if one of those failed, unless its dependency allows for failure.\nAn automation you may not run is left out, along with what is above it, and is reported under `left-out`.\nPass `leave-out` to leave out automations yourself, such as one of several branches.\nSee the `run-plan` endpoint for what this would come down to.\nThe response lists these runs under `runs`.\n",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n\nPass `with-upstream=true` to first run the active automations upstream of this one, which it waits for, directly or through others, and then this one,\nfor instance to bring it up to date with what its results are based on.\nPass `with-downstream=true` to also run the active automations downstream of this one, which wait for it, directly or through others,\nfor instance to re-run a chain of automations once the data at its start was backfilled.\nThe included automations run in chain order: each waits for the runs triggered along with it,\nand is skipped if one of those failed, unless its dependency allows for failure.\nAn automation that is inactive, or that you may not run, is excluded, along with what can only be reached through it.\nPass `exclude` to exclude automations yourself, such as one of several branches.\nSee the `run-plan` endpoint for what this would come down to.\nThe response lists the runs under `runs`, in chain order, and the excluded automations under `excluded`, each with the reason;\nits `job` is that of this automation's own run, if that started right away.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5096,9 +5105,9 @@
           },
           {
             "in": "query",
-            "name": "with-dependents",
+            "name": "with-upstream",
             "required": false,
-            "description": "Also run the active automations that wait for this one, directly or through others.",
+            "description": "First run the active automations upstream of this one, which it waits for, directly or through others. Cannot be combined with `with-downstream`.",
             "schema": {
               "type": "boolean",
               "default": false
@@ -5106,9 +5115,9 @@
           },
           {
             "in": "query",
-            "name": "with-ascendants",
+            "name": "with-downstream",
             "required": false,
-            "description": "First run the active automations this one waits for, directly or through others. Cannot be combined with `with-dependents`.",
+            "description": "Also run the active automations downstream of this one, which wait for it, directly or through others.",
             "schema": {
               "type": "boolean",
               "default": false
@@ -5116,9 +5125,9 @@
           },
           {
             "in": "query",
-            "name": "leave-out",
+            "name": "exclude",
             "required": false,
-            "description": "With `with-ascendants`, IDs of automations not to run.",
+            "description": "With `with-upstream` or `with-downstream`, IDs of automations not to run.",
             "schema": {
               "type": "array",
               "items": {
@@ -5144,27 +5153,12 @@
                       "message": "Request has been accepted for processing."
                     }
                   },
-                  "triggered-with-dependents": {
-                    "summary": "Automation run accepted, along with the automations waiting for it",
+                  "triggered-with-downstream": {
+                    "summary": "Automation run accepted, along with the automations downstream of it",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "n-jobs": 1,
-                      "message": "Request has been accepted for processing.",
-                      "dependent-runs": [
-                        {
-                          "automation": 8,
-                          "run": 412,
-                          "dispatch-state": "waiting"
-                        }
-                      ]
-                    }
-                  },
-                  "triggered-with-ascendants": {
-                    "summary": "Automation run accepted, after the automations it waits for",
-                    "value": {
-                      "status": "ACCEPTED",
                       "n-jobs": 1,
                       "message": "Started 1 run(s), and 1 run(s) wait for them.",
                       "runs": [
@@ -5179,8 +5173,33 @@
                           "dispatch-state": "waiting"
                         }
                       ],
-                      "left-out": [
-                        5
+                      "excluded": []
+                    }
+                  },
+                  "triggered-with-upstream": {
+                    "summary": "Automation run accepted, after the automations upstream of it",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": null,
+                      "n-jobs": 1,
+                      "message": "Started 1 run(s), and 1 run(s) wait for them.",
+                      "runs": [
+                        {
+                          "automation": 7,
+                          "run": 411,
+                          "dispatch-state": "queued"
+                        },
+                        {
+                          "automation": 8,
+                          "run": 412,
+                          "dispatch-state": "waiting"
+                        }
+                      ],
+                      "excluded": [
+                        {
+                          "automation": 5,
+                          "reason": "You may not run this automation."
+                        }
                       ]
                     }
                   }

@@ -263,31 +263,33 @@ Deleting an automation others wait for warns you first, as they then run without
 
 When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.
 
-To re-run a whole chain, for instance once the data at its start was backfilled, run its first automation along with the automations that wait for it:
+Runs always flow downstream, from the automations that are waited for to those that wait for them.
+To re-run a whole chain, for instance once the data at its start was backfilled, run its first automation along with what is downstream of it:
 
 .. code-block:: bash
 
-    flexmeasures jobs run-automation --automation 7 --with-dependents
+    flexmeasures jobs run-automation --automation 7 --with-downstream
 
 Automation 7 runs right away, and each active automation that waits for it, directly or through others, gets a run that waits for the runs started along with it,
 and is skipped if one of those failed, just like scheduled runs.
 These runs on demand do not affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue, as whoever started them is told.
-The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-dependents=true``, which needs permission to manage the automations on each of the assets involved,
-and the *Automations* page offers *Run with dependents* for an automation that another one listed there waits for.
 
-To bring one automation up to date instead, run what it waits for first, and stop at this automation:
+To bring one automation up to date instead, run what is upstream of it first, and stop at this automation:
 
 .. code-block:: bash
 
-    flexmeasures jobs run-automation --automation 9 --with-ascendants
+    flexmeasures jobs run-automation --automation 9 --with-upstream
 
 The automations it waits for, directly or through others, run first, and each run waits for the runs started along with it, as above.
 What waits for automation 9 does not run.
-With several branches above it, all of them run, unless you leave one out with ``--leave-out``.
-An automation that does not run, because it is inactive or because you may not run it, such as one on a public asset, takes what is above it along,
-and what waits for it goes by the results it already has.
-The API does the same with ``?with-ascendants=true`` and ``leave-out``, and ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan`` tells what that would come down to.
-On the *Automations* page, *Run with ascendants* and *Run with dependents* show this before anything runs.
+
+Either way, the included automations run in chain order.
+With several branches, all of them run, unless you exclude one with ``--exclude``.
+An automation that does not run, because you excluded it, because it is inactive, or because you may not run it, such as one on a public asset, is excluded along with what can only be reached through it.
+It still runs on its own schedule, just not because of this request, and what waits for it goes by the results it already has.
+The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-upstream=true`` (or ``with-downstream=true``) and ``exclude``,
+and ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream`` (or ``include=downstream``) tells what that would come down to.
+On the *Automations* page, *Run with upstream* and *Run with downstream* show this before anything runs.
 
 The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
 what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.

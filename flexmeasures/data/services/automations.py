@@ -3121,36 +3121,6 @@ def dispatch_automation_run(
     }
 
 
-def get_dependent_automations(automation: Automation) -> list[Automation]:
-    """Return the active automations that wait for this one, directly or through others, those nearest to it first.
-
-    An inactive automation is left out, and so are the ones that only wait for it, as it does not run.
-    """
-    reached = {automation.id}
-    frontier = [automation.id]
-    dependents: list[Automation] = []
-    while frontier:
-        found = db.session.scalars(
-            select(Automation)
-            .join(
-                AutomationDependency,
-                AutomationDependency.automation_id == Automation.id,
-            )
-            .where(
-                AutomationDependency.upstream_id.in_(frontier),
-                Automation.active.is_(True),
-            )
-            .order_by(Automation.id)
-        ).unique()
-        frontier = []
-        for dependent in found:
-            if dependent.id not in reached:
-                reached.add(dependent.id)
-                dependents.append(dependent)
-                frontier.append(dependent.id)
-    return dependents
-
-
 def get_automations_waiting_for(automation: Automation) -> list[Automation]:
     """Return the automations that wait for this one directly, active or not."""
     return list(
@@ -3193,72 +3163,125 @@ def get_automations_in_scope(
     )
 
 
-def get_ascendant_automations(
+CHAIN_INCLUDES = ("upstream", "downstream")
+
+
+def _reason_not_to_run(
+    candidate: Automation,
+    exclude: Collection[int],
+    may_run: Callable[[Automation], bool] | None,
+) -> str | None:
+    """Say why an automation in a chain does not run along with it, if it does not."""
+    if candidate.id in exclude:
+        return "You left it out."
+    if not candidate.active:
+        return "It is inactive."
+    if may_run is not None and not may_run(candidate):
+        return "You may not run this automation."
+    return None
+
+
+def _in_chain_order(automations: list[Automation]) -> list[Automation]:
+    """Order automations so that each comes after the ones among them it waits for, those that can run side by side by ID."""
+    by_id = {automation.id: automation for automation in automations}
+    waits_for = {
+        automation.id: {
+            dependency.upstream_id
+            for dependency in automation.dependencies
+            if dependency.upstream_id in by_id
+        }
+        for automation in automations
+    }
+    ordered: list[Automation] = []
+    while waits_for:
+        # Dependencies form no cycle (see `validate_automation_dependencies`), so there is always one ready.
+        ready = sorted(
+            automation_id
+            for automation_id, upstream in waits_for.items()
+            if not upstream
+        ) or sorted(waits_for)
+        for automation_id in ready:
+            ordered.append(by_id[automation_id])
+            del waits_for[automation_id]
+        for upstream in waits_for.values():
+            upstream.difference_update(ready)
+    return ordered
+
+
+def get_chain_automations(
     automation: Automation,
-    left_out: Collection[int] = (),
+    include: str,
+    exclude: Collection[int] = (),
     may_run: Callable[[Automation], bool] | None = None,
-) -> tuple[list[Automation], list[Automation]]:
-    """Return the automations this one waits for, directly or through others, those nearest to it first.
+) -> tuple[list[Automation], list[tuple[Automation, str]]]:
+    """Return the automations to run along with this one, upstream or downstream of it, and those that do not run, with the reason.
 
-    An automation that does not run takes the ones above it along, as nothing would use their results.
+    Upstream are the automations this one waits for, directly or through others; downstream are those that wait for it.
+    An automation that does not run takes along what can only be reached through it:
+    upstream, nothing would use their results, and downstream, they would compute with results that were not renewed.
 
-    :param left_out:    IDs of automations not to run, as asked for, which are not reported on.
-    :param may_run:     whether an automation may be run, by default all of them.
-    :returns:           the automations that run, and those that do not, for being inactive or not allowed.
+    :param include: 'upstream' or 'downstream'.
+    :param exclude: IDs of automations not to run, as asked for.
+    :param may_run: whether an automation may be run, by default all of them.
+    :returns:       the automations that run, this one included, in the order they run (see `_in_chain_order`),
+                    and those that do not, for being left out, inactive or not allowed.
     """
     reached = {automation.id}
     frontier = [automation]
-    ascendants: list[Automation] = []
-    not_running: list[Automation] = []
+    running = [automation]
+    excluded: list[tuple[Automation, str]] = []
     while frontier:
         found = []
         for current in frontier:
-            for dependency in current.dependencies:
-                upstream = dependency.upstream
-                if upstream.id in reached:
+            neighbours = (
+                sorted(
+                    (dependency.upstream for dependency in current.dependencies),
+                    key=lambda upstream: upstream.id,
+                )
+                if include == "upstream"
+                else get_automations_waiting_for(current)
+            )
+            for neighbour in neighbours:
+                if neighbour.id in reached:
                     continue
-                reached.add(upstream.id)
-                if upstream.id in left_out:
+                reached.add(neighbour.id)
+                reason = _reason_not_to_run(neighbour, exclude, may_run)
+                if reason is not None:
+                    excluded.append((neighbour, reason))
                     continue
-                if not upstream.active or (may_run and not may_run(upstream)):
-                    not_running.append(upstream)
-                    continue
-                ascendants.append(upstream)
-                found.append(upstream)
+                running.append(neighbour)
+                found.append(neighbour)
         frontier = found
-    return ascendants, not_running
+    return _in_chain_order(running), excluded
 
 
 def plan_automation_chain(
     automation: Automation,
-    direction: str,
-    may_read: Callable[[Automation], bool],
-    may_run: Callable[[Automation], bool],
-) -> list[dict[str, Any]]:
-    """Say what running an automation along with its ascendants or dependents comes down to, in the order they run.
+    include: str,
+    exclude: Collection[int] = (),
+    may_read: Callable[[Automation], bool] | None = None,
+    may_run: Callable[[Automation], bool] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Say what running an automation along with what is upstream or downstream of it comes down to (see `get_chain_automations`).
 
-    :param direction:   'ascendants' or 'dependents'.
-    :returns:           for each automation, what it waits for among these, and whether it runs, or why not.
-                        One the user may not read stays a bare ID.
+    :returns:   under 'steps', the automations that run, in the order they run, each with what it waits for among them,
+                and under 'excluded', those that do not run, each with the reason.
+                One the user may not read stays a bare ID.
     """
-    if direction == "ascendants":
-        ascendants, not_running = get_ascendant_automations(automation, may_run=may_run)
-        running = [*reversed(ascendants), automation]
-    else:
-        dependents = get_dependent_automations(automation)
-        running = [automation, *dependents]
-        not_running = [dependent for dependent in dependents if not may_run(dependent)]
-    involved = {step.id for step in [*running, *not_running]}
-    steps = []
-    for step in [*not_running, *[a for a in running if a not in not_running]]:
-        reason = None
-        if step in not_running:
-            reason = (
-                "It is inactive."
-                if not step.active
-                else "You may not run this automation."
-            )
-        steps.append(
+    chain, excluded = get_chain_automations(automation, include, exclude, may_run)
+    involved = {step.id for step in chain}
+
+    def describe(step: Automation) -> dict[str, Any]:
+        if may_read is not None and not may_read(step):
+            return {}
+        return {
+            "name": step.name,
+            "asset": step.asset_id,
+            "asset-name": step.asset.name,
+        }
+
+    return {
+        "steps": [
             {
                 "automation": step.id,
                 "waits-for": [
@@ -3266,20 +3289,15 @@ def plan_automation_chain(
                     for dependency in step.dependencies
                     if dependency.upstream_id in involved
                 ],
-                "will-run": reason is None,
-                **({"reason": reason} if reason else {}),
-                **(
-                    {
-                        "name": step.name,
-                        "asset": step.asset_id,
-                        "asset-name": step.asset.name,
-                    }
-                    if may_read(step)
-                    else {}
-                ),
+                **describe(step),
             }
-        )
-    return steps
+            for step in chain
+        ],
+        "excluded": [
+            {"automation": step.id, "reason": reason, **describe(step)}
+            for step, reason in excluded
+        ],
+    }
 
 
 def _new_on_demand_run(
@@ -3359,61 +3377,43 @@ def _start_on_demand_runs(
 
 def run_automation_chain(
     automation: Automation,
-    now: datetime | None = None,
-    owner: str | None = None,
-) -> tuple[dict[str, Any], list[AutomationRun]]:
-    """Run an automation now, along with the automations that wait for it, each of which runs once the runs it waits for ended.
-
-    This is how a chain is re-run, for instance once the data at its start was backfilled.
-    The automation itself runs right away, without waiting for the automations it depends on, as a run on demand does.
-    Each automation that waits for it, directly or through others (see `get_dependent_automations`), gets a run that waits,
-    for the runs asked for along with it only, and that is skipped if one of those failed, as a scheduled run is.
-    None of these runs affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue.
-
-    :returns:   what the automation's own run dispatched (see `dispatch_automation_run`),
-                and the runs that wait for it, in the order of `get_dependent_automations`.
-    """
-    claimed_at = _now_utc()
-    dependents = get_dependent_automations(automation)
-    runs, claimed_runs = _start_on_demand_runs(
-        [automation, *dependents],
-        floor_to_minute(now or claimed_at),
-        owner or _runner_owner(),
-        claimed_at,
-    )
-    returns = dispatch_automation_run(claimed_runs[0])
-    return returns, [runs[dependent.id] for dependent in dependents]
-
-
-def run_automation_with_ascendants(
-    automation: Automation,
-    left_out: Collection[int] = (),
+    include: str,
+    exclude: Collection[int] = (),
     may_run: Callable[[Automation], bool] | None = None,
     now: datetime | None = None,
     owner: str | None = None,
-) -> tuple[list[AutomationRun], list[Automation]]:
-    """Run the automations this one waits for, directly or through others, and then this one, each once the runs it waits for ended.
+) -> tuple[list[AutomationRun], dict[str, Any] | None, list[tuple[Automation, str]]]:
+    """Run an automation now, along with what is upstream or downstream of it (see `get_chain_automations`), each once the runs it waits for ended.
 
-    This is how an automation is brought up to date, with what its results are based on.
-    The ones that wait for nothing asked for here start right away, and there can be several of them.
-    A run is skipped if one it waits for failed, as a scheduled run is, unless its dependency allows for failure.
+    Including what is downstream is how a chain is re-run, for instance once the data at its start was backfilled.
+    Including what is upstream is how an automation is brought up to date, with what its results are based on.
+    The runs that wait for none of the others start right away; each of the others waits for the runs asked for along with it only,
+    and is skipped if one of those failed, as a scheduled run is, unless its dependency allows for failure.
     An automation that does not run is simply not waited for, so what waits for it goes by the results it already has.
     None of these runs affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue.
 
-    :param left_out:    IDs of automations not to run.
-    :param may_run:     whether an automation may be run (see `get_ascendant_automations`).
-    :returns:           the runs in the order they were asked for, ending with this automation's run,
-                        and the automations that do not run, for being inactive or not allowed.
+    :param include: 'upstream' or 'downstream'.
+    :param exclude: IDs of automations not to run.
+    :param may_run: whether an automation may be run, by default all of them.
+    :returns:       the runs in the order they run,
+                    what this automation's own run dispatched if it started right away (see `dispatch_automation_run`),
+                    and the automations that do not run, with the reason.
+    :raises:        whatever this automation's own run raised while queueing its jobs, if it started right away.
     """
     claimed_at = _now_utc()
-    ascendants, not_running = get_ascendant_automations(automation, left_out, may_run)
+    chain, excluded = get_chain_automations(automation, include, exclude, may_run)
     runs, claimed_runs = _start_on_demand_runs(
-        [*reversed(ascendants), automation],
+        chain,
         floor_to_minute(now or claimed_at),
         owner or _runner_owner(),
         claimed_at,
     )
+    returns = None
     for claimed_run in claimed_runs:
+        if claimed_run.run.automation_id == automation.id:
+            # Whoever asked for this automation to run is told right away if it failed to queue its jobs, as for a single run.
+            returns = dispatch_automation_run(claimed_run)
+            continue
         try:
             dispatch_automation_run(claimed_run)
         except Exception as exc:
@@ -3422,7 +3422,7 @@ def run_automation_with_ascendants(
             current_app.logger.warning(
                 f"Automation run {claimed_run.run.id} failed to dispatch: {exc}"
             )
-    return list(runs.values()), not_running
+    return [runs[step.id] for step in chain], returns, excluded
 
 
 def run_automation(

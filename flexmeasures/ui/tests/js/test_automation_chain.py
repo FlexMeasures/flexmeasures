@@ -44,7 +44,7 @@ def test_the_chain_of_an_automation_is_drawn_from_first_to_last(assert_js):
               svg.querySelector('.chain-node[data-automation-id="9"] text').textContent.endsWith("…")
               && svg.querySelector('.chain-node[data-automation-id="9"] title').textContent.includes("community"));
         check("an automation outside any chain says so", page.chainGraph(10).includes("No automation listed here"));
-        eq("only an automation that another listed one waits for offers to run with dependents",
+        eq("only an automation that another listed one waits for offers to run with downstream",
            [7, 8, 9, 10].map((id) => page.hasListedDependents({{id}})), [true, true, false, false]);
     """)
 
@@ -173,12 +173,10 @@ def test_a_run_says_what_it_set_off(assert_js):
         const page = new Function({json.dumps(script)} + "\\nreturn {{ runMessage }};")();
         eq("a run with jobs counts them", page.runMessage(7, {{"n-jobs": 2}}), "Queued 2 job(s) for automation 7.");
         eq("a run without a count still says so", page.runMessage(7, {{}}), "Queued the jobs for automation 7.");
-        eq("nothing to queue is no zero count, and the chain still runs",
-           page.runMessage(7, {{"n-jobs": 0, "dependent-runs": [{{automation: 8}}, {{automation: 9}}]}}),
-           "Automation 7 had nothing to queue. Automation(s) 8, 9 run once the runs they wait for ended.");
-        eq("running with ascendants says what became of the rest",
-           page.runMessage(7, {{runs: [], message: "Started 1 run(s), and 1 run(s) wait for them.", "left-out": [5]}}),
-           "Started 1 run(s), and 1 run(s) wait for them. Automation 7 runs last. Automation(s) 5 do not run.");
+        eq("nothing to queue is no zero count", page.runMessage(7, {{"n-jobs": 0}}), "Automation 7 had nothing to queue.");
+        eq("running a chain says what became of the rest",
+           page.runMessage(7, {{runs: [], message: "Started 1 run(s), and 1 run(s) wait for them.", excluded: [{{automation: 5, reason: "It is inactive."}}]}}),
+           "Started 1 run(s), and 1 run(s) wait for them. Automation(s) 5 do not run.");
     """)
 
 
@@ -197,22 +195,20 @@ def test_deleting_an_automation_tells_what_waits_for_it(assert_js):
     """)
 
 
-def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_left_out(assert_js):
+def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
     script = automation_script(can_manage=True, can_run=True)
     assert_js(f"""
         // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
         window.$ = () => ({{ready: () => {{}}}});
-        const page = new Function({json.dumps(script)} + "\\nreturn {{ runPlanSelection, runPlanStructure, runPlanBranches, runPlanHtml, runPlanQuery, AutomationRow, automationsById }};")();
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ runPlanSelection, runPlanStructure, runPlanBranches, runPlanHtml, runPlanQuery, runPlanLookupQuery, AutomationRow, automationsById }};")();
         // 9 waits for 4 and 7, and 7 waits for 2 and 5, of which 5 is one the user may not run.
-        const steps = [
-            {{automation: 5, "waits-for": [], "will-run": false, reason: "You may not run this automation."}},
-            {{automation: 2, "waits-for": [], "will-run": true, name: "Tariffs", "asset-name": "site"}},
-            {{automation: 4, "waits-for": [], "will-run": true, name: "Meters", "asset-name": "site"}},
-            {{automation: 7, "waits-for": [2, 5], "will-run": true, name: "Prices", "asset-name": "site"}},
-            {{automation: 9, "waits-for": [4, 7], "will-run": true, name: "<b>Forecast</b>", "asset-name": "site"}},
-        ];
-        const plan = {{automationId: 9, direction: "ascendants", steps, leftOut: new Set()}};
-        eq("what may not run is left out", page.runPlanSelection(plan), [2, 4, 7, 9]);
+        const plan = {{automationId: 9, include: "upstream", exclude: new Set(), steps: [
+            {{automation: 2, "waits-for": [], name: "Tariffs", "asset-name": "site"}},
+            {{automation: 4, "waits-for": [], name: "Meters", "asset-name": "site"}},
+            {{automation: 7, "waits-for": [2], name: "Prices", "asset-name": "site"}},
+            {{automation: 9, "waits-for": [4, 7], name: "<b>Forecast</b>", "asset-name": "site"}},
+        ], excluded: [{{automation: 5, reason: "You may not run this automation."}}]}};
+        eq("what runs is what the server says runs", page.runPlanSelection(plan), [2, 4, 7, 9]);
         eq("the IDs show the order, with what can run side by side next to each other", page.runPlanStructure(plan), "2, 4 → 7 → 9");
         eq("only automations that come together can be chosen between", [...page.runPlanBranches(plan)].sort(), [4, 7]);
         const doc = new DOMParser().parseFromString(page.runPlanHtml(plan), "text/html");
@@ -223,32 +219,37 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_left_out(assert_js):
         check("this automation is pointed out", row(9).textContent.includes("This automation"));
         eq("a name stays text", row(9).querySelector("b"), null);
         check("the rest is said to go by the latest results", doc.body.textContent.includes("latest results of those that won't run"));
-        eq("nothing is left out by default", page.runPlanQuery(plan), "with-ascendants=true");
+        eq("nothing is excluded by default", page.runPlanQuery(plan), "with-upstream=true");
+        eq("and the plan is asked for the same way", page.runPlanLookupQuery(plan), "include=upstream");
 
-        plan.leftOut.add(7);
-        eq("leaving out a branch takes along what only it needs", page.runPlanSelection(plan), [4, 9]);
-        eq("the IDs follow", page.runPlanStructure(plan), "4 → 9");
-        eq("and so does the request", page.runPlanQuery(plan), "with-ascendants=true&leave-out=7");
-        const unticked = new DOMParser().parseFromString(page.runPlanHtml(plan), "text/html");
+        // The server answers again for 7 left out, which takes along 2.
+        const without7 = {{...plan, exclude: new Set([7]), steps: [
+            {{automation: 4, "waits-for": [], name: "Meters"}},
+            {{automation: 9, "waits-for": [4], name: "Forecast"}},
+        ], excluded: [{{automation: 7, reason: "You left it out.", name: "Prices"}}]}};
+        eq("the IDs follow", page.runPlanStructure(without7), "4 → 9");
+        eq("and so does the request", page.runPlanQuery(without7), "with-upstream=true&exclude=7");
+        eq("and so does the plan's", page.runPlanLookupQuery(without7), "include=upstream&exclude=7");
+        const unticked = new DOMParser().parseFromString(page.runPlanHtml(without7), "text/html");
         check("its box stays there to tick again", !unticked.querySelector('li[data-automation-id="7"] input').checked);
-        check("what only it needs says it won't run", unticked.querySelector('li[data-automation-id="2"]').textContent.includes("Won't run."));
-        check("an automation only says it waits for what runs", unticked.querySelector('li[data-automation-id="9"]').textContent.includes("Waits for 4")
-              && !unticked.querySelector('li[data-automation-id="9"]').textContent.includes("Waits for 4, 7"));
+        check("it says why it won't run", unticked.querySelector('li[data-automation-id="7"]').textContent.includes("You left it out."));
 
-        const down = {{automationId: 2, direction: "dependents", leftOut: new Set(), steps: [
-            {{automation: 2, "waits-for": [], "will-run": true, name: "Tariffs"}},
-            {{automation: 7, "waits-for": [2], "will-run": true, name: "Prices"}},
+        // 2 is waited for by 7 and 8, which branch off.
+        const down = {{automationId: 2, include: "downstream", exclude: new Set(), excluded: [], steps: [
+            {{automation: 2, "waits-for": [], name: "Tariffs"}},
+            {{automation: 7, "waits-for": [2], name: "Prices"}},
+            {{automation: 8, "waits-for": [2], name: "Costs"}},
         ]}};
-        eq("dependents show the same way", page.runPlanStructure(down), "2 → 7");
-        eq("and there is nothing to choose between", page.runPlanBranches(down).size, 0);
-        eq("and their request is as before", page.runPlanQuery(down), "with-dependents=true");
-        const refused = {{...down, steps: [down.steps[0], {{...down.steps[1], "will-run": false, reason: "You may not run this automation."}}]}};
-        check("dependents one may not run are refused as a whole", page.runPlanHtml(refused).includes("cannot be run"));
+        eq("downstream shows the same way", page.runPlanStructure(down), "2 → 7, 8");
+        eq("and its branches can be chosen between", [...page.runPlanBranches(down)].sort(), [7, 8]);
+        eq("and its request says so", page.runPlanQuery(down), "with-downstream=true");
+        const refused = {{...down, excluded: [{{automation: 9, reason: "You may not run this automation."}}]}};
+        check("downstream automations one may not run are refused as a whole", page.runPlanHtml(refused).includes("cannot be run"));
 
         const row8 = page.AutomationRow({{id: 8, name: "Forecast", type: "forecasting", active: true, "depends-on": [{{automation: 4}}]}});
         const row4 = page.AutomationRow({{id: 4, name: "Meters", type: "forecasting", active: true, "depends-on": []}});
-        check("an automation that waits for another offers to run with ascendants", row8.actions.includes("Run with ascendants"));
-        check("one that waits for nothing does not", !row4.actions.includes("Run with ascendants"));
+        check("an automation that waits for another offers to run with upstream", row8.actions.includes("Run with upstream"));
+        check("one that waits for nothing does not", !row4.actions.includes("Run with upstream"));
     """)
 
 
