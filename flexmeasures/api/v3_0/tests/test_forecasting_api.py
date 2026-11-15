@@ -103,3 +103,81 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     )
     # Do not leak metadata about a regressor sensor the caller cannot read.
     assert private_regressor.name not in trigger_res.json["message"]
+
+
+@pytest.mark.parametrize("source_kind", ["account", "asset", "sensor"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_trigger_forecast_with_unreadable_annotation_regressor_returns_403(
+    app,
+    setup_roles_users,
+    setup_accounts,
+    requesting_user,
+    source_kind,
+):
+    """Annotations used as a regressor must come from an account, asset or sensor the caller can read."""
+    supplier_account = setup_accounts["Supplier"]
+    prosumer_account = setup_accounts["Prosumer"]
+
+    asset_type = GenericAssetType(name=f"test-asset-type-annotations-{source_kind}")
+    db.session.add(asset_type)
+    supplier_asset = GenericAsset(
+        name=f"supplier-annotations-target-asset-{source_kind}",
+        generic_asset_type=asset_type,
+        owner=supplier_account,
+    )
+    target_sensor = Sensor(
+        name=f"supplier-annotations-target-sensor-{source_kind}",
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+        generic_asset=supplier_asset,
+    )
+    prosumer_asset = GenericAsset(
+        name=f"prosumer-annotated-asset-{source_kind}",
+        generic_asset_type=asset_type,
+        owner=prosumer_account,
+    )
+    prosumer_sensor = Sensor(
+        name=f"prosumer-annotated-sensor-{source_kind}",
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+        generic_asset=prosumer_asset,
+    )
+    db.session.add_all([supplier_asset, target_sensor, prosumer_asset, prosumer_sensor])
+    db.session.commit()
+    source_id = {
+        "account": prosumer_account.id,
+        "asset": prosumer_asset.id,
+        "sensor": prosumer_sensor.id,
+    }[source_kind]
+
+    client = app.test_client()
+    token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    payload = {
+        "start": "2025-01-05T00:00:00+00:00",
+        "end": "2025-01-05T02:00:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "config": {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+            "annotation-regressors": [{source_kind: source_id}],
+        },
+    }
+    trigger_res = client.post(
+        url_for("SensorAPI:trigger_forecast", id=target_sensor.id),
+        json=payload,
+        headers={"Authorization": token},
+    )
+    assert trigger_res.status_code == 403, trigger_res.json
+    assert f"{source_kind} {source_id}" in trigger_res.json["message"]
+
+    # Annotations of the caller's own account are fine
+    payload["config"]["annotation-regressors"] = [{"account": supplier_account.id}]
+    trigger_res = client.post(
+        url_for("SensorAPI:trigger_forecast", id=target_sensor.id),
+        json=payload,
+        headers={"Authorization": token},
+    )
+    assert trigger_res.status_code in (200, 202), trigger_res.json

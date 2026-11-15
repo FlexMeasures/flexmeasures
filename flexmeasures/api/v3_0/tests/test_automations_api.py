@@ -667,6 +667,119 @@ def test_post_automation_with_inaccessible_sensor(
     assert response.status_code == 201, response.json
 
 
+@pytest.mark.parametrize("source_kind", ["account", "asset", "sensor"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_with_inaccessible_annotation_regressor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    setup_accounts,
+    requesting_user,
+    source_kind,
+):
+    """Annotations used as a regressor must come from an account, asset or sensor the creator can read."""
+    battery = add_battery_assets["Test battery"]
+    wind_turbine = setup_generic_assets[
+        "test_wind_turbine"
+    ]  # owned by the Supplier account
+    someone_elses_sensor = Sensor(
+        name="annotated sensor",
+        generic_asset=wind_turbine,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    source_id = {
+        "account": setup_accounts["Supplier"].id,
+        "asset": wind_turbine.id,
+        "sensor": someone_elses_sensor.id,
+    }[source_kind]
+    name = f"Forecasts with another account's annotations ({source_kind})"
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{source_kind: source_id}]},
+            },
+        )
+    assert response.status_code == 403, response.json
+    assert f"{source_kind} {source_id}" in response.json["message"]
+    assert (
+        db.session.execute(select(Automation).filter_by(name=name)).scalar_one_or_none()
+        is None
+    )
+
+    # Annotations of their own account are fine
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Forecasts with own annotations ({source_kind})",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{"account": battery.owner.id}]},
+            },
+        )
+    assert response.status_code == 201, response.json
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_forecast_automation_run_rechecks_annotation_regressors(
+    app,
+    db,
+    add_battery_assets,
+    setup_accounts,
+    requesting_user,
+):
+    """Before each run, the creator must still be able to read the annotations the forecast uses."""
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.services.automations import run_automation
+
+    battery = add_battery_assets["Test battery"]
+    annotated_asset = GenericAsset(
+        name="Annotated asset",
+        generic_asset_type=battery.generic_asset_type,
+        owner=battery.owner,
+    )
+    db.session.add(annotated_asset)
+    db.session.commit()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts with annotations of an asset that moves away",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{"asset": annotated_asset.id}]},
+            },
+        )
+    assert response.status_code == 201, response.json
+    automation = db.session.get(Automation, response.json["id"])
+    assert automation.execution_user_id == requesting_user.id
+
+    # The annotated asset now belongs to another account, which the creator cannot read
+    annotated_asset.owner = setup_accounts["Supplier"]
+    db.session.commit()
+    with pytest.raises(Forbidden):
+        run_automation(automation)
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )

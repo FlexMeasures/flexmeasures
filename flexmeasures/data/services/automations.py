@@ -48,6 +48,8 @@ from flexmeasures.data.queries.generic_assets import (
 )
 from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.services.data_generators import (
+    annotation_sources,
+    check_annotation_source_access,
     check_sensor_access,
     resolve_data_generator_sensors,
 )
@@ -2187,6 +2189,7 @@ def _create_builtin_automation(
 
     if check_permissions:
         check_sensor_access(input_sensors, output_sensors)
+        check_annotation_source_access(annotation_sources(data_generator))
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
     # so that this does not reveal where a sensor sits to someone who may not read it.
@@ -2543,6 +2546,16 @@ def run_automation(
     handler = get_automation_handler(automation.type)
     if automation.execution_user_id is not None:
         check_execution_access(automation, resolve_automation_sensors(automation))
+        if automation.type != "scheduling" and automation.generator is not None:
+            check_execution_access(
+                automation,
+                {
+                    "input_sensors": annotation_sources(
+                        automation.generator.data_generator
+                    ),
+                    "output_sensors": [],
+                },
+            )
     return handler.run(
         automation, automation_run=automation_run, scheduled_at=scheduled_at
     )
