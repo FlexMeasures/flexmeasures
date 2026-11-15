@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Repeat posted sensor data, such as a day of SoC limits, daily, on the same weekday, on workdays or on weekends, until a given date, with ``repeat`` and ``until`` on ``[POST] /sensors/(id)/data``; each repeat lands on the same local time, also across daylight saving time transitions, and ``dry-run`` shows what would be saved, without saving it [see `PR #2707 <https://www.github.com/FlexMeasures/flexmeasures/pull/2707>`_ and `PR #2709 <https://www.github.com/FlexMeasures/flexmeasures/pull/2709>`_]
 
 Infrastructure / Support
 -------------------------
