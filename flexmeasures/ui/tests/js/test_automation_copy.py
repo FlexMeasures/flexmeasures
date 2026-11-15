@@ -257,3 +257,20 @@ def test_only_admins_can_switch_monitoring_in_the_form(assert_js):
         check("an admin's checkbox is enabled", !document.getElementById("automationMonitored").disabled, "disabled");
         check("and needs no explanation", !holder.textContent.includes("Only admins"), holder.textContent);
     """)
+
+
+def test_the_monitoring_filter(assert_js):
+    """The listing can be narrowed to monitored or unmonitored automations, and shows all of them by default."""
+    assert_js(f"""
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ matchesMonitoringFilter, setFilter: (value) => {{ monitoringFilter = value; }} }};")();
+
+        const monitored = {{id: 1, monitored: true}};
+        const unmonitored = {{id: 2, monitored: false}};
+        check("all are listed by default", page.matchesMonitoringFilter(monitored) && page.matchesMonitoringFilter(unmonitored), "");
+        page.setFilter("monitored");
+        check("monitored only keeps the monitored ones", page.matchesMonitoringFilter(monitored) && !page.matchesMonitoringFilter(unmonitored), "");
+        page.setFilter("unmonitored");
+        check("unmonitored only keeps the others", !page.matchesMonitoringFilter(monitored) && page.matchesMonitoringFilter(unmonitored), "");
+    """)

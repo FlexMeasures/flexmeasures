@@ -143,6 +143,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         </div>
         {% endif %}
 
+        <div class="mb-2 d-flex align-items-center gap-2">
+          <label for="monitoringFilter" class="form-label mb-0">Show</label>
+          <select class="form-select form-select-sm w-auto" id="monitoringFilter">
+            <option value="all" selected>All automations</option>
+            <option value="monitored">Monitored automations</option>
+            <option value="unmonitored">Unmonitored automations</option>
+          </select>
+        </div>
+
         {% if user_can_manage_automations %}
         <div class="mb-2 text-end">
           <button class="btn btn-primary" id="newAutomationButton" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
@@ -362,6 +371,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // How often the listing catches up with the server, while the tab is in front and nothing is open.
   const REFRESH_INTERVAL_MS = 60000;
   let loadInFlight = false;
+  // Which automations to list by their monitoring: "all", "monitored" or "unmonitored".
+  let monitoringFilter = "all";
+  // The last listing from the server, so that changing the filter does not need another request.
+  let lastListedAutomations = [];
+
+  function matchesMonitoringFilter(automation) {
+    if (monitoringFilter === "monitored") {
+      return automation.monitored !== false;
+    }
+    if (monitoringFilter === "unmonitored") {
+      return automation.monitored === false;
+    }
+    return true;
+  }
   let lastRefreshedAt = null;
   // Only an asset with something below it can widen its scope, so only then is the Asset column worth a place.
   const assetHasChildren = {{ 'true' if asset.child_assets else 'false' }};
@@ -670,10 +693,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       name: esc(automation.name),
       "asset-name": `<a href="/assets/${encodeURIComponent(automation.asset)}/automations">${esc(automation["asset-name"] || "")}</a>`,
       "created-at": createdAt(automation),
+      // Sorted by activity first, then with the unmonitored ones of each kind together.
       active: sortable(
-        automation.active ? 1 : 0,
+        (automation.active ? 2 : 0) + (automation.monitored === false ? 0 : 1),
         `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
-        + (automation.monitored ? "" : ' <i class="fa fa-bell-slash text-muted" title="Not monitored: its failed runs are not reported"></i>')
+        + (automation.monitored === false
+          ? ' <i class="fa fa-bell-slash text-muted" aria-hidden="true" title="Not monitored: its failed runs are not reported"></i><span class="visually-hidden">Not monitored</span>'
+          : ""),
       ),
       recurrence: sortable(
         automation["cron"],
@@ -823,7 +849,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ordering: true,
       order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
-        emptyTable: `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
+        emptyTable: monitoringFilter !== "all"
+          ? `No ${monitoringFilter} automations of type '${esc(automationTypes[automationType] || automationType)}' ${scope}.`
+          : `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
           + (userCanManage ? (["forecasting", "scheduling", "reporting"].includes(automationType)
             ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
             : " Create one with the CLI command `flexmeasures add automation`.") : ""),
@@ -871,6 +899,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  function renderAutomationsTables({ rebuild = false } = {}) {
+    for (const automationType of AUTOMATION_TYPES) {
+      $(`#automationsTable-${automationType}`).show();
+      const ofThisType = lastListedAutomations.filter(
+        automation => automation.type === automationType && matchesMonitoringFilter(automation)
+      );
+      if (rebuild) {
+        makeAutomationsTable(automationType, ofThisType);
+      } else {
+        updateAutomationsTable(automationType, ofThisType);
+      }
+    }
+  }
+
   function loadAutomations({ rebuild = false } = {}) {
     // One refresh at a time: a slow response must not pile up behind the next tick.
     if (loadInFlight) {
@@ -883,15 +925,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       success: function (res) {
         automationsById.clear();
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of AUTOMATION_TYPES) {
-          $(`#automationsTable-${automationType}`).show();
-          const ofThisType = res.automations.filter(automation => automation.type === automationType);
-          if (rebuild) {
-            makeAutomationsTable(automationType, ofThisType);
-          } else {
-            updateAutomationsTable(automationType, ofThisType);
-          }
-        }
+        lastListedAutomations = res.automations;
+        renderAutomationsTables({ rebuild });
         markAutomationsRefreshed();
         openLinkedAutomation();
         // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
@@ -981,6 +1016,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       }
     });
     loadAutomations({ rebuild: true });
+
+    // Rebuilt rather than redrawn, so that an empty table says what it is filtered on.
+    $("#monitoringFilter").on("change", function () {
+      monitoringFilter = this.value;
+      renderAutomationsTables({ rebuild: true });
+    });
 
     // Widen or narrow what the page reports on, and keep that choice for the next visit.
     $("#includeChildAssets").on("change", function () {
