@@ -148,6 +148,9 @@ def create(  # noqa C901
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
         SSLify(app)
+    from flexmeasures.utils.http_headers import register_security_headers
+
+    register_security_headers(app)
 
     # Prepare profiling, if needed
 
