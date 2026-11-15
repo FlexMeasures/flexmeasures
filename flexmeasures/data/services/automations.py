@@ -763,6 +763,40 @@ OUTPUT_SENSOR_FIELDS = (
 )
 
 
+def shortest_cron_interval(cronstr: str) -> timedelta:
+    """The shortest time there can be between two runs of a (five-field) cron expression.
+
+    Only the minute and hour fields are looked at, and a day is assumed to be followed by another day the expression runs on,
+    so this errs on the short side: the answer is never longer than the real shortest interval.
+    """
+    minutes, hours = croniter(cronstr).expanded[:2]
+    minutes = list(range(60)) if minutes == ["*"] else [int(m) for m in minutes]
+    hours = list(range(24)) if hours == ["*"] else [int(h) for h in hours]
+    times = sorted({hour * 60 + minute for hour in hours for minute in minutes})
+    gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+    gaps.append(
+        times[0] + 24 * 60 - times[-1]
+    )  # from the last run of a day to the first of the next
+    return timedelta(minutes=min(gaps))
+
+
+def refuse_too_frequent_cron(cronstr: str, min_interval: timedelta) -> None:
+    """Refuse a cron expression whose runs can come closer together than the given interval.
+
+    :raises ValidationError: under the "cron" key.
+    """
+    interval = shortest_cron_interval(cronstr)
+    if interval < min_interval:
+        raise ValidationError(
+            {
+                "cron": [
+                    f"'{cronstr}' can run every {int(interval.total_seconds() // 60)} minute(s),"
+                    f" but automations may run at most once every {int(min_interval.total_seconds() // 60)} minutes."
+                ]
+            }
+        )
+
+
 def collect_sensors(
     value: Any,
     sensors: dict[int, Sensor] | None = None,
