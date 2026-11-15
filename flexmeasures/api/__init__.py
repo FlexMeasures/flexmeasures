@@ -3,8 +3,7 @@ FlexMeasures API routes and implementations.
 """
 
 from flask import Flask, Blueprint, request, current_app
-import html
-from flask_security.utils import verify_password
+from flask_security.utils import hash_password, verify_password
 from flask_json import as_json
 from flask_login import current_user
 from webargs.flaskparser import use_args
@@ -97,6 +96,8 @@ def request_auth_token(args) -> tuple[dict, int]:
             issued_by = "session"
         else:
             issued_by = "password"
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
             user = db.session.execute(
                 select(User).filter_by(email=email)
             ).scalar_one_or_none()
@@ -105,17 +106,9 @@ def request_auth_token(args) -> tuple[dict, int]:
                     f"token requested for an unknown email address (hash {email_fingerprint(str(email))})",
                     failed=True,
                 )
-                return (
-                    {
-                        "errors": [
-                            "User with email '%s' does not exist" % html.escape(email)
-                        ]
-                    },
-                    404,
-                )
-
-            if "password" not in request.json:
-                return {"errors": ["Please provide the 'password' parameter."]}, 400
+                # Answer as for a wrong password, and take as long, so the answer does not tell which email addresses have an account
+                hash_password(str(request.json["password"]))
+                return {"errors": ["User password does not match."]}, 401
             if not verify_password(request.json["password"], user.password):
                 # Counts against the user's failed attempts, and is logged, through Flask-Security's user_failed_authn signal
                 # (see flexmeasures.auth.login_throttling and flexmeasures.auth.event_logging)
