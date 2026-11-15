@@ -30,7 +30,7 @@ from flexmeasures.data.services.automation_monitoring import (
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.api.common.schemas.users import UserIdField
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import exact_duration_str, server_now
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
 
@@ -519,17 +519,16 @@ def _format_utc(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _format_duration(duration: timedelta) -> str:
-    """Say how long a threshold is, exactly, which a rounded duration such as humanize's would not."""
-    minutes = int(duration.total_seconds() // 60)
-    if minutes % 60 == 0:
-        hours = minutes // 60
-        return "1 hour" if hours == 1 else f"{hours} hours"
-    return "1 minute" if minutes == 1 else f"{minutes} minutes"
-
-
 def _times(count: int) -> str:
     return "once" if count == 1 else f"{count} times"
+
+
+def automation_page_url(automation) -> str | None:
+    """Link to the Automations page of the automation's asset, opening that automation's info, if the server knows its own address."""
+    base_url = app.config.get("FLEXMEASURES_BASE_URL")
+    if not base_url:
+        return None
+    return f"{base_url.rstrip('/')}/assets/{automation.asset_id}/automations?automation={automation.id}"
 
 
 def describe_automation_failures(failures: AutomationFailures) -> str:
@@ -554,6 +553,9 @@ def describe_automation_failures(failures: AutomationFailures) -> str:
         if len(last_error) > MAX_ERROR_LENGTH_IN_DIGEST:
             last_error = last_error[:MAX_ERROR_LENGTH_IN_DIGEST] + " ..."
         lines.append(f"  last error: {last_error}")
+    url = automation_page_url(automation)
+    if url:
+        lines.append(f"  runs and jobs: {url}")
     return "\n".join(lines)
 
 
@@ -570,15 +572,22 @@ def compose_automation_digest(
         if for_host
         else "These automations on assets you look after"
     )
-    closing = (
-        "Each automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
-        if for_host
-        else "Each automation's runs are listed on the Automations page of its asset."
-    )
+    closing = [
+        # With the server's address configured, each automation links to its page instead.
+        (
+            None
+            if app.config.get("FLEXMEASURES_BASE_URL")
+            else "Each automation's runs are listed on the Automations page of its asset."
+        ),
+        "We suggest to check the logs." if for_host else None,
+    ]
     body = (
-        f"{automations} have runs that failed, or that have been executing for longer than {_format_duration(stuck_after)}, which were not reported before:\n\n"
+        f"{automations} have runs that failed, or that have been executing for longer than {exact_duration_str(stuck_after)}, which were not reported before:\n\n"
         + "\n\n".join(describe_automation_failures(f) for f in failures)
-        + f"\n\n{closing}"
+        + "".join(
+            f"\n\n{line}" if i == 0 else f"\n{line}"
+            for i, line in enumerate(l for l in closing if l)
+        )
     )
     return subject, body
 

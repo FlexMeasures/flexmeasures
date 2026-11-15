@@ -129,6 +129,8 @@ class Config(object):
     FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER: timedelta = timedelta(hours=6)
     # Whether `flexmeasures monitor automations` also emails account admins and consultants about the failed runs on their organisations' assets.
     FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS: bool = False
+    # Where this server is reached on the web, e.g. "https://ems.example.com", for links in emails sent outside of a request, such as monitoring digests.
+    FLEXMEASURES_BASE_URL: str | None = None
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""

@@ -879,6 +879,18 @@ Its ``--stuck-after-minutes`` option overrides this setting.
 
 Default: ``timedelta(hours=6)``
 
+.. _base_url:
+
+FLEXMEASURES_BASE_URL
+^^^^^^^^^^^^^^^^^^^^^
+
+Where this server is reached on the web, for instance ``"https://ems.example.com"``.
+Emails sent from the CLI, outside of any request, use it to link to the web pages they are about.
+For instance, the digest of ``flexmeasures monitor automations`` links each failing automation to the Automations page of its asset.
+Without it, these emails carry no links.
+
+Default: ``None``
+
 
 .. _monitor_automations_notify_users:
 
