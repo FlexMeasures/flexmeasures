@@ -979,3 +979,14 @@ def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_le
             eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
         }
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_a_preview_takes_the_place_of_the_draft_values(assert_js):
+    """The values to save include the draft values, so during a preview the draft values are not drawn, and the legend names them once."""
+    assert_js("""
+        import { showsDraftValues } from "/js/fast-chart.js";
+        const drafts = [{ start: new Date(0), end: new Date(3600 * 1000), value: 1 }];
+        eq("draft values are drawn", showsDraftValues({ draftValues: drafts }), true);
+        eq("but not during a preview", showsDraftValues({ draftValues: drafts, previewValues: { points: drafts, superseded: [] } }), false);
+        eq("nor without any", showsDraftValues({ draftValues: [] }), false);
+        """)

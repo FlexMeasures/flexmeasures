@@ -1296,6 +1296,11 @@ const DRAFT_VALUES_COLOR = "#d6336c";
 
 // The overlay for draft values ({start, end, value}, sorted by start): a level line across each slot.
 // Neighbouring slots join with a step, and a gap between slots breaks the line.
+// Whether the chart draws the draft values: not during a preview, whose values to save include them, so the legend names them once.
+export function showsDraftValues(opts) {
+  return Array.isArray(opts.draftValues) && opts.draftValues.length > 0 && !opts.previewValues;
+}
+
 export function buildDraftValuesSeries(drafts, axisIndex) {
   return {
     name: DRAFT_VALUES_NAME,
@@ -1430,7 +1435,7 @@ function supersededTooltip(meta, overlap) {
 
 // The legend entries the overlays above add.
 function overlayLegendEntries(opts) {
-  const drafts = Array.isArray(opts.draftValues) && opts.draftValues.length > 0 ? 1 : 0;
+  const drafts = showsDraftValues(opts) ? 1 : 0;
   const preview = opts.previewValues ? (opts.previewValues.superseded.length > 0 ? 2 : 1) : 0;
   return drafts + preview;
 }
@@ -1903,7 +1908,7 @@ function buildLineBarOption(elementId, groups, opts) {
       }
     });
     // Draft values (see draft-values.js) overlay the first subplot, which on the sensor page shows the sensor they are for.
-    if (i === 0 && Array.isArray(opts.draftValues) && opts.draftValues.length > 0) {
+    if (i === 0 && showsDraftValues(opts)) {
       series.push(buildDraftValuesSeries(opts.draftValues, i));
       seriesMeta.push({ isDraft: true, name: DRAFT_VALUES_NAME, unit: group.units[0] || "", drafts: opts.draftValues });
     }
