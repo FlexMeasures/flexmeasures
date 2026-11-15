@@ -357,6 +357,18 @@ def test_draft_values_panel_visible_for_data_integrator(
     assert b'id="draftValuesPanel"' in response.data
 
 
+def test_draft_values_panel_knows_the_users_own_data_source(
+    db, client, setup_prosumer_restricted_users
+):
+    """The preview tells the user's own earlier values (which new ones update) from other sources' values, by the user's data source."""
+    integrator = find_user_by_email("test_prosumer_integrator@seita.nl")
+    source_id = db.session.scalar(
+        select(DataSource.id).filter(DataSource.user_id == integrator.id)
+    )
+    _, response = _get_sensor_page(client, db, "test_prosumer_integrator@seita.nl")
+    assert f"sourceId: {source_id},".encode() in response.data
+
+
 def test_draft_values_panel_hidden_for_reader(
     db, client, setup_prosumer_restricted_users
 ):

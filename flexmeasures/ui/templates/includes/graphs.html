@@ -421,8 +421,10 @@
         resolutionMs: sensorResolutionMs,
         unit: {{ sensor.unit | tojson }},
         timeZone: {{ sensor.timezone | tojson }},
+        sourceId: {{ user_data_source_id | default(none) | tojson }},
         api: {
-            preview: function (body) { return requestJson(sensorDataPath + '/preview-recurrence', jsonRequest(body)); },
+            // A dry run says what the same request would save, without saving it.
+            preview: function (body) { return requestJson(sensorDataPath, jsonRequest(Object.assign({}, body, { 'dry-run': true }))); },
             fetchExisting: function (query) { return requestJson(sensorDataPath + '?' + query.toString()); },
             save: function (payload) { return requestJson(sensorDataPath, jsonRequest(payload)); },
         },
@@ -444,11 +446,21 @@
             reload: function () { document.dispatchEvent(new CustomEvent('newDataAvailable')); },
         },
         drafts: draftValuesPanel,
-        setVisible: function (visible) {
+        setVisible: function (visible, options) {
             const panel = document.getElementById('draftValuesPanel');
+            const container = panel.closest('.sidepanel-container');
             panel.querySelector('[data-draft-controls]').classList.toggle('d-none', visible);
             panel.querySelector('[data-preview-step]').classList.toggle('d-none', !visible);
-            panel.closest('.sidepanel-container').classList.toggle('sidepanel-pinned', visible);
+            if (visible || !(options && options.keepOpen)) {
+                container.classList.toggle('sidepanel-pinned', visible);
+                return;
+            }
+            // Back to the draft values: stay open while the user edits them on the chart, until the pointer has been over the panel and leaves it.
+            container.addEventListener('pointerenter', function () {
+                container.addEventListener('pointerleave', function () {
+                    container.classList.remove('sidepanel-pinned');
+                }, { once: true });
+            }, { once: true });
         },
     });
     {% endif %}

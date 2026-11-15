@@ -2,7 +2,8 @@ from datetime import timedelta
 
 from flask import current_app, request
 from flask_classful import FlaskView, route
-from flask_security import login_required
+from flask_security import current_user, login_required
+from sqlalchemy import select
 from markupsafe import Markup
 from werkzeug.exceptions import Forbidden, NotFound
 from webargs.flaskparser import use_kwargs
@@ -13,6 +14,8 @@ from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_automations_feeding_sensor,
 )
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.services.data_sources import first_source
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.services.sensors import flex_config_fields_left_without_sensor
 from flexmeasures import Sensor
@@ -101,6 +104,16 @@ def describe_fields_left_without_sensor(sensor: Sensor) -> tuple[str, Markup]:
     return confirm_note, toast
 
 
+def user_data_source_id() -> int | None:
+    """The data source that the current user's posted data is saved under (see get_or_create_source), if they have one yet."""
+    source = first_source(
+        select(DataSource).filter(
+            DataSource.type == "user", DataSource.user_id == current_user.id
+        )
+    )
+    return source.id if source else None
+
+
 class SensorUI(FlaskView):
     """
     This view creates several new UI endpoints for viewing sensors.
@@ -141,6 +154,9 @@ class SensorUI(FlaskView):
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
+            user_data_source_id=(
+                user_data_source_id() if can_create_children else None
+            ),
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
             user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),

@@ -1,12 +1,12 @@
 /**
  * Preview and confirm draft sensor values before saving them (#2469), the second step of the "Draft values" panel.
  *
- * The user chooses whether to repeat the draft values (daily, or on the same weekday only) and until when.
- * Repeats come from the recurrence preview endpoint (POST /sensors/<id>/data/preview-recurrence),
+ * The user chooses whether to repeat the draft values (daily, on workdays, on weekends, or on the same weekday only) and until when.
+ * POST /sensors/<id>/data repeats them on the server, from the draft values with `repeat` and `until`,
  * which resolves daylight saving time transitions and reports what they did.
- * The preview runs as soon as the step opens, and again on each change of these choices.
- * It shows what will be saved on the chart, with the existing values it supersedes,
- * and Confirm saves it through POST /sensors/<id>/data.
+ * The preview is a dry run of that request, which runs as soon as the step opens, and again on each change of these choices.
+ * It shows what will be saved on the chart, with the existing values it updates,
+ * and Confirm sends the same request without the dry run, so the server saves exactly what it previewed.
  *
  * The pure functions build the requests and read their answers; wirePreviewStep connects them to the panel.
  * Values are kept as slots: { start: Date, end: Date, value: number }, like draft values.
@@ -15,7 +15,7 @@
 import { DRAFT_VALUES_RECORDED_EVENT, formatIsoDuration } from "./draft-values.js";
 import { extractApiErrorMessage } from "./ui-utils.js";
 
-// The repeat choices, as the recurrence preview endpoint names them ("none" means saving the draft values only).
+// The repeat choices, as POST /sensors/<id>/data names them ("none" means saving the draft values only).
 export const REPEAT_CHOICES = ["none", "daily", "workdays", "weekends", "same-weekday"];
 
 // Raised when draft values cannot be previewed or saved as asked; its message is meant for the user.
@@ -67,7 +67,7 @@ function addYear(isoDate) {
  * The dates the draft values may be repeated until, in the sensor's timezone.
  *
  * The earliest is the first date a repeat lands on (the day after the draft values start, or a week after for the same weekday),
- * and the latest is one year after they start, the cap of the recurrence preview endpoint.
+ * and the latest is one year after they start, the cap of POST /sensors/<id>/data.
  * The default is one week after they start.
  *
  * @param {Object[]} drafts - The draft values, sorted by start.
@@ -118,19 +118,21 @@ export function draftsToPattern(drafts, resolutionMs, unit) {
 }
 
 /**
- * The body for the recurrence preview endpoint.
+ * The body for POST /sensors/<id>/data that repeats the draft values: the pattern, with `repeat` and `until`.
+ *
+ * Send it with `dry-run` to preview what it would save, and without, to save that.
  *
  * @param {Object} pattern - A pattern from draftsToPattern.
- * @param {string} repeat - "daily" or "same-weekday".
+ * @param {string} repeat - One of REPEAT_CHOICES other than "none".
  * @param {string} until - The last date to repeat on, e.g. "2026-11-01".
  * @returns {Object} The body.
  */
-export function previewRequestBody(pattern, repeat, until) {
+export function repeatRequestBody(pattern, repeat, until) {
   return { ...pattern, values: pattern.values.slice(), repeat: repeat, until: until };
 }
 
 /**
- * The slots with a value in a regular series of values, such as the preview's data or a GET /sensors/data response.
+ * The slots with a value in a regular series of values, such as a GET /sensors/data response.
  *
  * @param {{start: string, values: (number|null)[]}} series - The series, starting at an ISO 8601 time.
  * @param {number} resolutionMs - The resolution of the series, in milliseconds.
@@ -148,47 +150,42 @@ export function gridToPoints(series, resolutionMs) {
 }
 
 /**
- * The body for POST /sensors/data: the pattern, then null values up to the first repeat, then the repeats as previewed.
+ * The slots with a value in the regular series of a dry run's `data`.
  *
- * The preview leaves out the pattern itself, so both are saved in one request,
- * which the API lays out in fixed steps from the pattern's start.
+ * Usually there is one series, but a new one starts wherever the values are not one resolution apart,
+ * such as where the clock change of a far-away timezone is shorter than the resolution.
  *
- * @param {Object} pattern - A pattern from draftsToPattern.
- * @param {Object|null} previewData - The `data` of the preview response, or null to save the pattern only.
+ * @param {Object[]} chunks - The dry run's `data`.
  * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
- * @returns {{start: string, duration: string, values: (number|null)[], unit: string}} The body.
- * @throws {PreviewError} When the repeats do not continue the pattern's fixed steps (daily slots across a clock change).
+ * @returns {Object[]} The slots, sorted by start.
  */
-export function payloadForSaving(pattern, previewData, resolutionMs) {
-  if (!previewData) return { ...pattern, values: pattern.values.slice() };
-  const patternEnd = Date.parse(pattern.start) + pattern.values.length * resolutionMs;
-  const gap = (Date.parse(previewData.start) - patternEnd) / resolutionMs;
-  if (!Number.isInteger(gap) || gap < 0) {
-    throw new PreviewError(
-      "The draft values and their repeats cannot be saved as one series of values, as a daylight saving time transition lies between them. " +
-      "Draft the values on a day after the transition instead.",
-    );
-  }
-  const values = pattern.values.concat(new Array(gap).fill(null), previewData.values);
-  return { start: pattern.start, duration: formatIsoDuration(values.length * resolutionMs), values: values, unit: pattern.unit };
+export function chunksToPoints(chunks, resolutionMs) {
+  return chunks
+    .flatMap((chunk) => gridToPoints(chunk, resolutionMs))
+    .sort((a, b) => a.start - b.start);
 }
 
 /**
- * The query for GET /sensors/data that loads the existing values over the same range as the values to save.
+ * The query for GET /sensors/data that loads the existing values over the range of the values to save.
  *
- * @param {Object} payload - A body from payloadForSaving.
+ * @param {Object[]} points - The slots to save, sorted by start.
  * @param {string} unit - The unit to load the existing values in.
+ * @param {number|null} [sourceId] - Only load the values of this data source.
  * @returns {URLSearchParams} The query.
  */
-export function existingDataQuery(payload, unit) {
-  return new URLSearchParams({ start: payload.start, duration: payload.duration, unit: unit });
+export function existingDataQuery(points, unit, sourceId) {
+  const range = rangeOfPoints(points);
+  const query = new URLSearchParams({
+    start: isoInstant(range.start.getTime()),
+    duration: formatIsoDuration(range.end - range.start),
+    unit: unit,
+  });
+  if (sourceId !== null && sourceId !== undefined) query.set("source", String(sourceId));
+  return query;
 }
 
 /**
  * Pair each existing value with the value to save that overlaps it in time.
- *
- * Kept apart on purpose: the preview highlights these as superseded,
- * and leaving out times that already have data (should that be chosen in #2255) would drop them from the body instead.
  *
  * @param {Object[]} newPoints - The slots to save, sorted by start.
  * @param {Object[]} existingPoints - The existing slots, sorted by start.
@@ -208,21 +205,39 @@ export function findOverlaps(newPoints, existingPoints) {
 }
 
 /**
- * The body to save without the values that would replace existing ones, to keep those and only fill the gaps.
+ * Split the existing values that the values to save overlap by whose they are.
  *
- * @param {Object} payload - A body from payloadForSaving.
+ * New values supersede the user's own earlier values (they come from the same data source),
+ * while values from other sources, such as a meter, stay alongside them.
+ *
+ * @param {Object[]} newPoints - The slots to save, sorted by start.
+ * @param {Object[]} ownPoints - The user's own existing slots, sorted by start.
+ * @param {Object[]} allPoints - The existing slots of all sources, sorted by start.
+ * @returns {{own: Object[], others: Object[]}} The overlapped slots, as from findOverlaps.
+ */
+export function splitOverlapsBySource(newPoints, ownPoints, allPoints) {
+  const own = findOverlaps(newPoints, ownPoints);
+  const ownStarts = new Set(own.map((o) => o.start.getTime()));
+  const others = findOverlaps(newPoints, allPoints).filter((o) => !ownStarts.has(o.start.getTime()));
+  return { own: own, others: others };
+}
+
+/**
+ * A regular series to save without the values that would update existing ones, to keep those and only fill the gaps.
+ *
+ * @param {Object} series - A body in the shape of posted sensor data.
  * @param {Object[]} overlaps - The existing slots it overlaps, from findOverlaps.
  * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
  * @returns {Object} The body, with null where values already exist.
  */
-export function keepExisting(payload, overlaps, resolutionMs) {
-  const values = payload.values.slice();
-  const t0 = Date.parse(payload.start);
+export function keepExisting(series, overlaps, resolutionMs) {
+  const values = series.values.slice();
+  const t0 = Date.parse(series.start);
   for (const overlap of overlaps) {
     const i = (overlap.start.getTime() - t0) / resolutionMs;
     if (Number.isInteger(i) && i >= 0 && i < values.length) values[i] = null;
   }
-  return { ...payload, values: values };
+  return { ...series, values: values };
 }
 
 /**
@@ -255,12 +270,18 @@ function defaultFormatDate(isoDate) {
 export function transitionWarning(transition, options) {
   const format = (options && options.formatDate) || defaultFormatDate;
   const day = format(transition.date);
-  const hours = transition.wall_clock_start + "–" + transition.wall_clock_end;
-  if (transition.kind === "spring_forward" && transition.n_omitted > 0) {
-    return `On ${day} the clock skips ${hours}: ${plural(transition.n_omitted, "value")} will not be written.`;
+  const hours = transition["wall-clock-start"] + "–" + transition["wall-clock-end"];
+  if (transition.kind === "spring-forward") {
+    const parts = [];
+    if (transition["n-omitted"] > 0) parts.push(`${plural(transition["n-omitted"], "value")} will not be written`);
+    if (transition["n-shifted"] > 0) {
+      parts.push(`${plural(transition["n-shifted"], "value")} will start at ${transition["wall-clock-end"]}, when the clock resumes`);
+    }
+    return parts.length > 0 ? `On ${day} the clock skips ${hours}: ${parts.join(", and ")}.` : null;
   }
-  if (transition.kind === "fall_back" && transition.n_duplicated > 0) {
-    const those = transition.n_duplicated === 1 ? "that value" : `those ${transition.n_duplicated.toLocaleString()} values`;
+  if (transition.kind === "fall-back" && transition["n-duplicated"] > 0) {
+    const n = transition["n-duplicated"];
+    const those = n === 1 ? "that value" : `those ${n.toLocaleString()} values`;
     return `On ${day} ${hours} occurs twice: ${those} will be written to both.`;
   }
   return null;
@@ -299,24 +320,84 @@ export function repeatedHourProblem(drafts, timeZone, options) {
   );
 }
 
+// The local wall-clock time of an instant, as milliseconds since 1970 read as if the timezone were UTC.
+function wallClockMs(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type) => Number(parts.find((p) => p.type === type).value);
+  return Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
+}
+
+const REPEAT_PHRASES = {
+  daily: "every day",
+  workdays: "on workdays",
+  weekends: "on weekend days",
+  "same-weekday": "every week",
+};
+
+/**
+ * Why draft values are too long to be repeated as chosen, or null when they fit.
+ *
+ * Repeated every day (or on some days), draft values may span at most one day of local time, and repeated every week, one week.
+ * The server refuses longer ones; this explains that in terms of the draft values, before asking it.
+ *
+ * @param {{start: Date, end: Date}[]} drafts - The draft values, sorted by start.
+ * @param {string} repeat - One of REPEAT_CHOICES other than "none".
+ * @param {string} timeZone - The sensor's timezone.
+ * @param {Object} [options]
+ * @param {function(Date): string} [options.formatTime] - How times are shown.
+ * @returns {string|null} The explanation.
+ */
+export function patternTooLongProblem(drafts, repeat, timeZone, options) {
+  const formatTime = (options && options.formatTime) || ((date) => date.toLocaleString());
+  const weekly = repeat === "same-weekday";
+  const periodMs = (weekly ? 7 : 1) * 24 * 3600 * 1000;
+  const first = drafts[0];
+  const last = drafts[drafts.length - 1];
+  const spanMs = wallClockMs(last.end, timeZone) - wallClockMs(first.start, timeZone);
+  if (spanMs <= periodMs) return null;
+  const hours = Math.round(spanMs / 3600000);
+  const span = hours < 48 ? plural(hours, "hour") : plural(Math.floor(hours / 24), "day") + (hours % 24 ? " and " + plural(hours % 24, "hour") : "");
+  return (
+    `Your draft values span ${span}, from ${formatTime(first.start)} until ${formatTime(last.end)}. ` +
+    `To repeat them ${REPEAT_PHRASES[repeat]}, they can span at most one ${weekly ? "week" : "day"}. ` +
+    (weekly ? "Remove some draft values, or choose Do not repeat." : "Remove some draft values, or choose Every week.")
+  );
+}
+
 /**
  * The counts and warnings to show for a preview.
  *
- * @param {Object|null} report - The preview's report, or null when the draft values are not repeated.
- * @param {number} patternCount - The number of draft values, which the report does not count.
+ * @param {Object|null} report - The dry run's report, or null when the draft values are not repeated.
+ * @param {number} patternCount - The number of draft values, which are all saved when they are not repeated.
  * @param {Object} [options] - Passed on to transitionWarning.
- * @returns {{toCreate: number, omitted: number, duplicated: number, warnings: string[]}} The summary.
+ * @param {Date} [options.patternStart] - When the draft values start, to name their weekday if the repeat days leave them out.
+ * @param {string} [options.timeZone] - The sensor's timezone, for that weekday.
+ * @returns {{toCreate: number, omitted: number, duplicated: number, patternIncluded: boolean, warnings: string[]}} The summary.
  */
 export function summarizePreview(report, patternCount, options) {
-  if (!report) return { toCreate: patternCount, omitted: 0, duplicated: 0, warnings: [] };
+  if (!report) return { toCreate: patternCount, omitted: 0, duplicated: 0, patternIncluded: true, warnings: [] };
   const warnings = report.transitions.map((t) => transitionWarning(t, options)).filter(Boolean);
-  if (report.fallback_reason) warnings.push(report.fallback_reason);
+  const patternIncluded = report["pattern-included"] !== false;
+  if (!patternIncluded) warnings.unshift(patternLeftOutMessage(patternCount, options) + " Only their repeats are saved.");
   return {
-    toCreate: patternCount + report.n_values,
-    omitted: report.n_omitted,
-    duplicated: report.n_duplicated,
+    toCreate: report["n-values"],
+    omitted: report["n-omitted"],
+    duplicated: report["n-duplicated"],
+    patternIncluded: patternIncluded,
     warnings: warnings,
   };
+}
+
+// Why the draft values themselves are not saved: the repeat days leave out the day they fall on.
+function patternLeftOutMessage(patternCount, options) {
+  const opts = options || {};
+  const weekday = opts.patternStart
+    ? opts.patternStart.toLocaleDateString("en-GB", { weekday: "long", timeZone: opts.timeZone })
+    : null;
+  const those = patternCount === 1 ? "Your draft value falls" : `Your ${patternCount.toLocaleString()} draft values fall`;
+  return weekday ? `${those} on a ${weekday}, outside the repeat days.` : `${those} outside the repeat days.`;
 }
 
 /**
@@ -351,7 +432,7 @@ export function errorText(answer) {
  * data-preview-until-group (shown when repeating), holding data-preview-until (a date field),
  * data-preview-error (an inline alert), data-preview-run (runs a failed preview again),
  * data-preview-busy (shown while previewing),
- * data-preview-result (shown once previewed), holding data-preview-create, -omitted, -duplicated and -superseded (counts),
+ * data-preview-result (shown once previewed), holding data-preview-create, -omitted, -duplicated, -superseded and -alongside (counts),
  * data-preview-warnings (a list), data-preview-show-all and data-preview-show-drafts (zoom links),
  * and data-preview-back, data-preview-discard and data-preview-confirm.
  *
@@ -364,14 +445,16 @@ export function errorText(answer) {
  * @param {number} options.resolutionMs - The sensor's event resolution, in milliseconds.
  * @param {string} options.unit - The sensor's unit.
  * @param {string} options.timeZone - The sensor's timezone.
+ * @param {number|null} [options.sourceId] - The user's own data source, whose earlier values new ones update, if they have one yet.
  * @param {Object} options.api - The requests, each resolving to {ok, status, body} (see requestJson):
- *   preview(body), fetchExisting(query) and save(payload).
+ *   preview(body) for a dry run of POST /sensors/<id>/data, fetchExisting(query) and save(payload).
  * @param {Object} options.chart - How the step drives the chart:
  *   showPreview({points, superseded}|null), getWindow() and setWindow(range) for the visible time range, and reload().
  * @param {Object} options.drafts - The draft step: discard() clears the draft values without asking.
- * @param {function(boolean)} options.setVisible - Shows this step instead of the draft step, or the other way around.
+ * @param {function(boolean, Object)} options.setVisible - Shows this step instead of the draft step, or the other way around;
+ *   with {keepOpen: true}, the panel stays open on the draft step, as the user goes back to edit the draft values on the chart.
  * @param {function(string): boolean} [options.confirm] - Asks the user to confirm (window.confirm by default).
- * @param {function(string, string)} [options.notify] - Shows a message and its type (showToast by default).
+ * @param {function(string, string, Object)} [options.notify] - Shows a message (which may hold a link), its type and showToast's options (showToast by default).
  * @param {EventTarget} [options.target] - Where the hand-off arrives (document by default).
  * @param {function(Date): string} [options.formatTime] - How times are shown.
  * @param {function(string): string} [options.formatDate] - How dates such as "2026-10-25" are shown in warnings.
@@ -410,6 +493,8 @@ export function wirePreviewStep(root, options) {
   let saving = false;
   // The window shown before the preview zoomed, to go back to.
   let windowBefore = null;
+  // Draft values that the repeat days left out of the last save, which the user may still save.
+  let leftOut = null;
   // Each run, and each change that makes a run out of date, takes a new number, so a late answer is ignored.
   let run = 0;
 
@@ -417,15 +502,15 @@ export function wirePreviewStep(root, options) {
   const existingField = el("existing");
   const keepingExisting = () => !!existingField && existingField.value === "keep";
 
-  // What Confirm saves: everything previewed, or, to keep existing values, everything but what overlaps them.
+  // What Confirm saves: the previewed request as it is, or, to keep the user's earlier values, the previewed values except those.
   function toSave() {
     const keep = keepingExisting() && result.overlaps.length > 0;
     if (!keep) {
-      return { payload: result.payload, points: result.points, superseded: result.overlaps, count: result.summary.toCreate };
+      return { payloads: [result.body], points: result.points, superseded: result.overlaps, count: result.summary.toCreate };
     }
     const kept = new Set(result.overlaps.map((o) => o.start.getTime()));
     return {
-      payload: keepExisting(result.payload, result.overlaps, opts.resolutionMs),
+      payloads: result.chunks.map((chunk) => keepExisting(chunk, result.overlaps, opts.resolutionMs)),
       points: result.points.filter((p) => !kept.has(p.start.getTime())),
       superseded: [],
       count: result.summary.toCreate - result.overlaps.length,
@@ -453,20 +538,25 @@ export function wirePreviewStep(root, options) {
       link.setAttribute("aria-disabled", saving ? "true" : "false");
     }
     if (result) {
-      const { summary, overlaps } = result;
+      const { summary, overlaps, others } = result;
       el("create").textContent = saved.count.toLocaleString();
       el("omitted").textContent = summary.omitted.toLocaleString();
       el("duplicated").textContent = summary.duplicated.toLocaleString();
       el("superseded").textContent = overlaps.length.toLocaleString();
+      const rows = [["omitted", summary.omitted], ["duplicated", summary.duplicated], ["superseded", overlaps.length]];
+      if (el("alongside")) {
+        el("alongside").textContent = others.length.toLocaleString();
+        rows.push(["alongside", others.length]);
+      }
       // Rows that do not apply would only add noise.
-      for (const [name, n] of [["omitted", summary.omitted], ["duplicated", summary.duplicated], ["superseded", overlaps.length]]) {
+      for (const [name, n] of rows) {
         el(name).parentElement.classList.toggle("d-none", n === 0);
       }
-      // The choice about existing values only matters when there are some.
+      // The choice about the user's earlier values only matters when there are some; values from other sources stay anyway.
       if (existingField) {
         el("existing-group").classList.toggle("d-none", overlaps.length === 0);
         existingField.disabled = saving;
-        el("superseded-label").textContent = keepingExisting() ? "Existing values kept" : "Updating existing values";
+        el("superseded-label").textContent = keepingExisting() ? "Your earlier values, kept" : "Updating your earlier values";
       }
       warningList.replaceChildren(
         ...summary.warnings.map((warning) => {
@@ -511,12 +601,12 @@ export function wirePreviewStep(root, options) {
     opts.chart.setWindow(range);
   }
 
-  function close(restoreWindow) {
+  function close(restoreWindow, keepOpen) {
     invalidate();
     if (restoreWindow && windowBefore) opts.chart.setWindow(windowBefore);
     windowBefore = null;
     open = false;
-    opts.setVisible(false);
+    opts.setVisible(false, { keepOpen: !!keepOpen });
   }
 
   const controller = {
@@ -567,7 +657,9 @@ export function wirePreviewStep(root, options) {
         if (!until || until < bounds.min || until > bounds.max) {
           return fail("Choose a date to repeat until, from " + bounds.min + " to " + bounds.max + ".");
         }
-        const problem = repeatedHourProblem(drafts, opts.timeZone, { formatDate: opts.formatDate });
+        const problem =
+          patternTooLongProblem(drafts, chosen, opts.timeZone, { formatTime: opts.formatTime }) ||
+          repeatedHourProblem(drafts, opts.timeZone, { formatDate: opts.formatDate });
         if (problem) return fail(problem);
       }
       busy = true;
@@ -575,27 +667,44 @@ export function wirePreviewStep(root, options) {
       try {
         const pattern = draftsToPattern(drafts, opts.resolutionMs, opts.unit);
         let report = null;
-        let repeats = null;
+        let body = pattern;
+        let chunks = [pattern];
         if (chosen !== "none") {
-          const answer = await opts.api.preview(previewRequestBody(pattern, chosen, until));
+          // The same request saves the values later, without the dry run, so the server saves what it previews here.
+          body = repeatRequestBody(pattern, chosen, until);
+          const answer = await opts.api.preview(body);
           if (thisRun !== run) return;
           if (!answer.ok) return fail(errorText(answer), answer.status === 0 || answer.status >= 500);
-          repeats = answer.body.data;
+          chunks = answer.body.data;
           report = answer.body.report;
         }
-        const payload = payloadForSaving(pattern, repeats, opts.resolutionMs);
-        const existingAnswer = await opts.api.fetchExisting(existingDataQuery(payload, opts.unit));
+        const points = chunksToPoints(chunks, opts.resolutionMs);
+        const [allAnswer, ownAnswer] = await Promise.all([
+          opts.api.fetchExisting(existingDataQuery(points, opts.unit)),
+          opts.sourceId === null || opts.sourceId === undefined
+            ? Promise.resolve(null)
+            : opts.api.fetchExisting(existingDataQuery(points, opts.unit, opts.sourceId)),
+        ]);
         if (thisRun !== run) return;
-        if (!existingAnswer.ok) {
-          return fail("The existing data could not be loaded to compare with: " + errorText(existingAnswer), true);
+        for (const existingAnswer of [allAnswer, ownAnswer]) {
+          if (existingAnswer && !existingAnswer.ok) {
+            return fail("The existing data could not be loaded to compare with: " + errorText(existingAnswer), true);
+          }
         }
-        const points = gridToPoints(payload, opts.resolutionMs);
-        const overlaps = findOverlaps(points, gridToPoints(existingAnswer.body, opts.resolutionMs));
+        const existing = splitOverlapsBySource(
+          points,
+          ownAnswer ? gridToPoints(ownAnswer.body, opts.resolutionMs) : [],
+          gridToPoints(allAnswer.body, opts.resolutionMs),
+        );
         result = {
-          payload: payload,
+          body: body,
+          chunks: chunks,
           points: points,
-          overlaps: overlaps,
-          summary: summarizePreview(report, drafts.length, { formatDate: opts.formatDate }),
+          overlaps: existing.own,
+          others: existing.others,
+          summary: summarizePreview(report, drafts.length, {
+            formatDate: opts.formatDate, patternStart: drafts[0].start, timeZone: opts.timeZone,
+          }),
         };
         busy = false;
         showOnChart();
@@ -617,10 +726,10 @@ export function wirePreviewStep(root, options) {
     showDrafts() {
       zoomTo(rangeOfPoints(drafts));
     },
-    // Go back to the draft step, with the draft values as they were.
+    // Go back to the draft step, with the draft values as they were, keeping the panel open to edit them.
     back() {
       if (saving) return;
-      close(true);
+      close(true, true);
     },
     // Discard the draft values, after confirmation.
     discard() {
@@ -635,7 +744,7 @@ export function wirePreviewStep(root, options) {
       const slots = handedOver.map((d) => ({ start: new Date(d.start), end: new Date(d.end), value: d.value }));
       let payload;
       try {
-        payload = payloadForSaving(draftsToPattern(slots, opts.resolutionMs, opts.unit), null, opts.resolutionMs);
+        payload = draftsToPattern(slots, opts.resolutionMs, opts.unit);
       } catch (e) {
         opts.notify(e instanceof PreviewError ? e.message : "Nothing was saved: " + e.message, "error");
         return;
@@ -662,23 +771,47 @@ export function wirePreviewStep(root, options) {
       const thisRun = run;
       saving = true;
       render();
+      const { payloads } = toSave();
       let answer;
-      try {
-        answer = await opts.api.save(toSave().payload);
-      } catch (e) {
-        answer = { ok: false, status: 0, body: { message: e.message } };
+      let nSaved = 0;
+      for (const payload of payloads) {
+        try {
+          answer = await opts.api.save(payload);
+        } catch (e) {
+          answer = { ok: false, status: 0, body: { message: e.message } };
+        }
+        if (!answer.ok) break;
+        nSaved++;
       }
       saving = false;
       if (thisRun !== run) return;
       if (!answer.ok) {
-        error = "Nothing was saved: " + errorText(answer);
+        error = (nSaved === 0 ? "Nothing was saved: " : "Only part of the values was saved: ") + errorText(answer);
         render();
         return;
       }
+      const patternLeftOut = !result.summary.patternIncluded;
+      const savedDrafts = drafts;
       opts.notify(savedMessage(answer), "success");
+      if (patternLeftOut) {
+        leftOut = savedDrafts;
+        opts.notify(
+          patternLeftOutMessage(savedDrafts.length, { patternStart: savedDrafts[0].start, timeZone: opts.timeZone }) +
+            ' They were not saved. <a href="#" class="link-light" data-draft-save-left-out>Save them too</a>',
+          "info",
+          { delay: 15000 },
+        );
+      }
       opts.drafts.discard();
       close(false);
       opts.chart.reload();
+    },
+    // Save the draft values that the repeat days left out of the last save, as they are.
+    async saveLeftOut() {
+      if (!leftOut) return;
+      const handedOver = leftOut;
+      leftOut = null;
+      await controller.saveAsIs(handedOver);
     },
   };
 
@@ -712,6 +845,13 @@ export function wirePreviewStep(root, options) {
   onLink("back", () => controller.back());
   onLink("discard", () => controller.discard());
   confirmButton.addEventListener("click", () => controller.save());
+  // The link in the toast about left-out draft values; toasts live outside the panel.
+  document.addEventListener("click", (event) => {
+    const link = event.target && event.target.closest && event.target.closest("[data-draft-save-left-out]");
+    if (!link) return;
+    event.preventDefault();
+    controller.saveLeftOut();
+  });
   opts.target.addEventListener(DRAFT_VALUES_RECORDED_EVENT, (event) => {
     if (!event.detail || event.detail.sensorId !== opts.sensorId) return;
     if (event.detail.action === "save") controller.saveAsIs(event.detail.drafts);
@@ -727,6 +867,6 @@ function savedMessage(answer) {
   return answer.status === 202 ? "Saved, values will appear shortly." : "Saved.";
 }
 
-function showToastIfAvailable(message, type) {
-  if (typeof showToast === "function") showToast(message, type);
+function showToastIfAvailable(message, type, options) {
+  if (typeof showToast === "function") showToast(message, type, options);
 }

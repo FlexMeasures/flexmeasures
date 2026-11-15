@@ -2,30 +2,34 @@
 
 import json
 
-# A report as the recurrence preview endpoint returns it, for 15-minute values repeated daily in Europe/Amsterdam,
+# Transitions as a dry run of POST /sensors/<id>/data reports them, for 15-minute values repeated daily in Europe/Amsterdam,
 # over both transitions of a pattern covering 01:00-04:00 (four slots per hour, all with a value).
-SPRING_FORWARD = dict(
-    date="2027-03-28",
-    kind="spring_forward",
-    shift="PT1H",
-    wall_clock_start="02:00",
-    wall_clock_end="03:00",
-    omitted=["02:00", "02:15", "02:30", "02:45"],
-    duplicated=[],
-    n_omitted=4,
-    n_duplicated=0,
-)
-FALL_BACK = dict(
-    date="2026-10-25",
-    kind="fall_back",
-    shift="PT1H",
-    wall_clock_start="02:00",
-    wall_clock_end="03:00",
-    omitted=[],
-    duplicated=["02:00", "02:15", "02:30", "02:45"],
-    n_omitted=0,
-    n_duplicated=4,
-)
+SPRING_FORWARD = {
+    "date": "2027-03-28",
+    "kind": "spring-forward",
+    "shift": "PT1H",
+    "wall-clock-start": "02:00",
+    "wall-clock-end": "03:00",
+    "omitted": ["02:00", "02:15", "02:30", "02:45"],
+    "duplicated": [],
+    "shifted": [],
+    "n-omitted": 4,
+    "n-duplicated": 0,
+    "n-shifted": 0,
+}
+FALL_BACK = {
+    "date": "2026-10-25",
+    "kind": "fall-back",
+    "shift": "PT1H",
+    "wall-clock-start": "02:00",
+    "wall-clock-end": "03:00",
+    "omitted": [],
+    "duplicated": ["02:00", "02:15", "02:30", "02:45"],
+    "shifted": [],
+    "n-omitted": 0,
+    "n-duplicated": 4,
+    "n-shifted": 0,
+}
 
 # A panel step with every element wirePreviewStep looks for, an API that records its requests and answers as told,
 # and a chart that records what the step asks of it.
@@ -50,6 +54,7 @@ document.body.insertAdjacentHTML("beforeend", `
       </div>
       <div><span data-preview-create></span></div><div><span data-preview-omitted></span></div>
       <div><span data-preview-duplicated></span></div><div><span data-preview-superseded-label></span><span data-preview-superseded></span></div>
+      <div><span data-preview-alongside></span></div>
       <ul data-preview-warnings></ul>
       <button data-preview-show-all type="button"></button>
       <button data-preview-show-drafts type="button"></button>
@@ -75,6 +80,11 @@ for (const name of Object.keys(calls)) {
   };
 }
 const ok = (body, status) => ({ ok: true, status: status || 200, body: body });
+// A dry run's answer: the draft values themselves, then their repeat on the next day, in one series, as the server lays them out.
+const dryRun = (report) => ok({
+  data: [{ start: "2026-11-02T06:00:00+01:00", duration: "P1DT1H", values: [80, 81, 82, 83].concat(new Array(92).fill(null), [80, 81, 82, 83]), unit: "kWh" }],
+  report: Object.assign({ "n-values": 8, "n-omitted": 0, "n-duplicated": 0, "n-shifted": 0, "pattern-included": true, "n-transitions-checked": 0, transitions: [] }, report),
+});
 const noExistingData = (query) => ok({ start: query.get("start"), values: [] });
 answers.fetchExisting = noExistingData;
 answers.save = ok({ status: "PROCESSED" });
@@ -90,12 +100,14 @@ const confirmations = [];
 let confirmAnswer = true;
 const notes = [];
 const target = new EventTarget();
+// A test that needs the user's own data source sets window.STEP_SOURCE_ID before this runs.
 const step = wirePreviewStep(root, {
   sensorId: 42, resolutionMs: QUARTER, unit: "kWh", timeZone: "Europe/Amsterdam",
+  sourceId: window.STEP_SOURCE_ID ?? null,
   api: api, chart: chart, drafts: draftStep, target: target,
-  setVisible: (shown) => visible.push(shown),
+  setVisible: (shown, options) => visible.push(options && options.keepOpen ? "kept open" : shown),
   confirm: (message) => { confirmations.push(message); return confirmAnswer; },
-  notify: (message, type) => notes.push([message, type]),
+  notify: (message, type, options) => notes.push(options ? [message, type, options] : [message, type]),
   formatTime: (date) => date.toISOString(),
   formatDate: (isoDate) => isoDate,
 });
@@ -134,15 +146,15 @@ def test_until_bounds_follow_the_sensor_timezone(assert_js):
 
 def test_draft_values_become_one_pattern_with_gaps(assert_js):
     assert_js("""
-        import { draftsToPattern, previewRequestBody, PreviewError } from "/js/draft-values-preview.js";
+        import { draftsToPattern, repeatRequestBody, PreviewError } from "/js/draft-values-preview.js";
         const HOUR = 3600 * 1000;
         const t0 = Date.UTC(2026, 10, 2, 5, 0);
         const slot = (h, value) => ({ start: new Date(t0 + h * HOUR), end: new Date(t0 + (h + 1) * HOUR), value: value });
         const pattern = draftsToPattern([slot(0, 80), slot(1, 90), slot(4, 70)], HOUR, "kWh");
         eq("the pattern holds every slot from the first draft value to the last, with null between them",
            pattern, { start: "2026-11-02T05:00:00Z", duration: "PT5H", values: [80, 90, null, null, 70], unit: "kWh" });
-        eq("the preview request adds the repetition to the pattern",
-           previewRequestBody(pattern, "daily", "2026-11-09"),
+        eq("the request to repeat them adds the repetition to the pattern",
+           repeatRequestBody(pattern, "daily", "2026-11-09"),
            { start: "2026-11-02T05:00:00Z", duration: "PT5H", values: [80, 90, null, null, 70], unit: "kWh", repeat: "daily", until: "2026-11-09" });
         let refused = null;
         try { draftsToPattern([], HOUR, "kWh"); } catch (e) { refused = e; }
@@ -167,26 +179,21 @@ def test_daily_draft_values_across_a_clock_change_are_refused(assert_js):
     )
 
 
-def test_saving_adds_the_repeats_after_the_pattern(assert_js):
-    """The preview leaves out the pattern, so it is put back in front of the repeats, with null values up to the first one."""
+def test_a_dry_run_in_several_series_becomes_one_list_of_slots(assert_js):
+    """A dry run starts a new series where values are not one resolution apart, such as an extra event filling half an hour."""
     assert_js("""
-        import { draftsToPattern, payloadForSaving, gridToPoints, PreviewError } from "/js/draft-values-preview.js";
+        import { chunksToPoints, existingDataQuery } from "/js/draft-values-preview.js";
         const HOUR = 3600 * 1000;
-        const t0 = Date.UTC(2026, 10, 2, 5, 0);
-        const pattern = { start: "2026-11-02T05:00:00Z", duration: "PT2H", values: [80, 90], unit: "kWh" };
-        eq("without repeats, the pattern is saved as it is", payloadForSaving(pattern, null, HOUR), pattern);
-        // As the endpoint answers, in the sensor's timezone: the next day at 06:00.
-        const repeats = { start: "2026-11-03T06:00:00+01:00", duration: "PT26H", values: [80, 90].concat(new Array(22).fill(null), [80, 90]), unit: "kWh" };
-        const payload = payloadForSaving(pattern, repeats, HOUR);
-        eq("the body starts at the pattern", payload.start, pattern.start);
-        eq("and runs to the end of the last repeat", payload.duration, "P2DT2H");
-        eq("the pattern comes first, then null up to the first repeat, then the repeats unchanged",
-           payload.values, [80, 90].concat(new Array(22).fill(null), repeats.values));
-        eq("so the values land where the preview put them",
-           gridToPoints(payload, HOUR).map((p) => (p.start.getTime() - t0) / HOUR), [0, 1, 24, 25, 48, 49]);
-        let refused = null;
-        try { payloadForSaving(pattern, { ...repeats, start: "2026-11-03T06:30:00+01:00" }, HOUR); } catch (e) { refused = e; }
-        check("repeats off the pattern's grid are refused", refused instanceof PreviewError, String(refused));
+        const points = chunksToPoints([
+          { start: "2026-04-04T14:00:00Z", duration: "PT1H", values: [1] },
+          { start: "2026-04-04T14:30:00Z", duration: "PT1H", values: [1] },
+          { start: "2026-04-04T15:30:00Z", duration: "PT2H", values: [2, null] },
+        ], HOUR);
+        eq("the slots of all series, sorted by start, without null values",
+           points.map((p) => [p.start.toISOString().slice(11, 16), p.value]), [["14:00", 1], ["14:30", 1], ["15:30", 2]]);
+        eq("the existing values are loaded over all of them",
+           existingDataQuery(points, "kWh").toString(), "start=2026-04-04T14%3A00%3A00Z&duration=PT2H30M&unit=kWh");
+        eq("or over those of one data source", existingDataQuery(points, "kWh", 9).get("source"), "9");
         """)
 
 
@@ -223,23 +230,51 @@ def test_the_report_becomes_counts_and_warnings(assert_js):
         const spring = {json.dumps(SPRING_FORWARD)};
         const fall = {json.dumps(FALL_BACK)};
         const formatDate = (isoDate) => isoDate;
-        const report = {{ n_values: 1916, n_omitted: 4, n_duplicated: 4, mode: "wall_clock", period: "daily", n_occurrences: 160,
-                          transitions: [fall, spring], fallback_reason: null }};
+        const report = {{ "n-values": 1928, "n-omitted": 4, "n-duplicated": 4, "n-shifted": 0, period: "daily", "n-occurrences": 160,
+                          "pattern-included": true, "n-transitions-checked": 2, transitions: [fall, spring] }};
         const summary = summarizePreview(report, 12, {{ formatDate }});
-        eq("the draft values count among the values to create", summary.toCreate, 1928);
+        eq("the values to create include the draft values, as the server counts them", summary.toCreate, 1928);
         eq("omitted and duplicated values come from the report", [summary.omitted, summary.duplicated], [4, 4]);
         eq("each transition gives a warning", summary.warnings, [
           "On 2026-10-25 02:00–03:00 occurs twice: those 4 values will be written to both.",
           "On 2027-03-28 the clock skips 02:00–03:00: 4 values will not be written.",
         ]);
         eq("one value is spoken of in the singular",
-           transitionWarning({{ ...spring, n_omitted: 1 }}, {{ formatDate }}), "On 2027-03-28 the clock skips 02:00–03:00: 1 value will not be written.");
-        eq("a transition that affects no value gives no warning", transitionWarning({{ ...fall, n_duplicated: 0 }}, {{ formatDate }}), null);
-        const absolute = {{ ...report, mode: "absolute", transitions: [], fallback_reason: "Values are repeated every 24 hours instead." }};
-        eq("a fallback to fixed steps is a warning too", summarizePreview(absolute, 1, {{ formatDate }}).warnings, ["Values are repeated every 24 hours instead."]);
+           transitionWarning({{ ...spring, "n-omitted": 1 }}, {{ formatDate }}), "On 2027-03-28 the clock skips 02:00–03:00: 1 value will not be written.");
+        const halfHour = {{ ...spring, "wall-clock-end": "02:30", "n-omitted": 0, "n-shifted": 1 }};
+        eq("a value that starts when the clock resumes is told", transitionWarning(halfHour, {{ formatDate }}),
+           "On 2027-03-28 the clock skips 02:00–02:30: 1 value will start at 02:30, when the clock resumes.");
+        eq("a transition that affects no value gives no warning", transitionWarning({{ ...fall, "n-duplicated": 0 }}, {{ formatDate }}), null);
+        const leftOut = summarizePreview({{ ...report, "pattern-included": false, transitions: [] }}, 12,
+          {{ formatDate, patternStart: new Date(Date.UTC(2026, 9, 24, 10)), timeZone: "Europe/Amsterdam" }});
+        eq("draft values the repeat days leave out are named first", leftOut.warnings,
+           ["Your 12 draft values fall on a Saturday, outside the repeat days. Only their repeats are saved."]);
+        eq("and are not among the values to save", leftOut.patternIncluded, false);
         eq("without repeats, the draft values are all there is", summarizePreview(null, 12),
-           {{ toCreate: 12, omitted: 0, duplicated: 0, warnings: [] }});
+           {{ toCreate: 12, omitted: 0, duplicated: 0, patternIncluded: true, warnings: [] }});
         check("dates are shown readably by default", /2026/.test(transitionWarning(fall)) && !/2026-10-25/.test(transitionWarning(fall)), transitionWarning(fall));
+        """)
+
+
+def test_draft_values_too_long_to_repeat_are_explained(assert_js):
+    """Repeated on some days, draft values may span one day of local time, and repeated every week, one week."""
+    assert_js("""
+        import { patternTooLongProblem } from "/js/draft-values-preview.js";
+        const HOUR = 3600 * 1000;
+        const t0 = Date.UTC(2026, 10, 1, 23, 0); // 2 November 2026, 00:00 in Amsterdam
+        const span = (hours) => [{ start: new Date(t0), end: new Date(t0 + HOUR), value: 1 },
+                                 { start: new Date(t0 + (hours - 1) * HOUR), end: new Date(t0 + hours * HOUR), value: 2 }];
+        const formatTime = (date) => date.toISOString().slice(0, 16);
+        eq("one day fits", patternTooLongProblem(span(24), "daily", "Europe/Amsterdam", { formatTime }), null);
+        eq("one day and an hour does not, said in the panel's own words",
+           patternTooLongProblem(span(25), "workdays", "Europe/Amsterdam", { formatTime }),
+           "Your draft values span 25 hours, from 2026-11-01T23:00 until 2026-11-03T00:00. To repeat them on workdays, they can span at most one day. Remove some draft values, or choose Every week.");
+        eq("a week fits every week", patternTooLongProblem(span(7 * 24), "same-weekday", "Europe/Amsterdam"), null);
+        check("more than a week does not", /at most one week.*Do not repeat/.test(patternTooLongProblem(span(7 * 24 + 1), "same-weekday", "Europe/Amsterdam")), "");
+        // 25 October 2026 lasts 25 hours in Amsterdam, which is still one day of local time.
+        const fallBackDay = [{ start: new Date(Date.UTC(2026, 9, 24, 22)), end: new Date(Date.UTC(2026, 9, 24, 23)), value: 1 },
+                             { start: new Date(Date.UTC(2026, 9, 25, 22)), end: new Date(Date.UTC(2026, 9, 25, 23)), value: 2 }];
+        eq("a day is measured on the local clock", patternTooLongProblem(fallBackDay, "daily", "Europe/Amsterdam"), null);
         """)
 
 
@@ -321,13 +356,9 @@ def test_saving_as_they_are_skips_the_step(assert_js):
 
 
 def test_previewing_daily_repeats_and_confirming_them(assert_js):
-    """The repeats come from the endpoint, the counts and warnings from its report, and the overlaps from the existing data."""
+    """The values come from a dry run, the counts and warnings from its report, and the overlaps from the existing data; saving sends the same request."""
     assert_js(STEP + f"""
-        // Repeats the next day only, as the endpoint answers: in the sensor's timezone.
-        const repeats = {{ start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }};
-        const report = {{ n_values: 4, n_omitted: 0, n_duplicated: 4, mode: "wall_clock", period: "daily", n_occurrences: 1,
-                          transitions: [{json.dumps(FALL_BACK)}], fallback_reason: null }};
-        answers.preview = ok({{ data: repeats, report: report }});
+        answers.preview = dryRun({{ "n-duplicated": 4, "n-transitions-checked": 1, transitions: [{json.dumps(FALL_BACK)}] }});
         // Existing values at the second draft value, and at the first repeat.
         answers.fetchExisting = (query) => {{
           const values = new Array(100).fill(null);
@@ -341,17 +372,16 @@ def test_previewing_daily_repeats_and_confirming_them(assert_js):
         pickUntil("2026-11-03");
         await settle();
         eq("each choice is previewed in turn", calls.preview.map((body) => body.until), ["2026-11-09", "2026-11-03"]);
-        eq("the pattern is sent with its repetition", calls.preview.slice(-1), [{{
-          start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh", repeat: "daily", until: "2026-11-03",
-        }}]);
+        const body = {{ start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh", repeat: "daily", until: "2026-11-03" }};
+        eq("the pattern is sent with its repetition", calls.preview.slice(-1), [body]);
         eq("the existing values are loaded over the whole range, for the last choice only",
            calls.fetchExisting.map((q) => q.get("duration")), ["PT1H", "P1DT1H"]);
-        eq("the counts", ["create", "omitted", "duplicated", "superseded"].map((name) => part(name).textContent), ["8", "0", "4", "2"]);
+        eq("the counts", ["create", "omitted", "duplicated", "superseded", "alongside"].map((name) => part(name).textContent), ["8", "0", "4", "0", "2"]);
         eq("of which only those that apply are shown",
-           ["omitted", "duplicated", "superseded"].map((name) => !part(name).parentElement.classList.contains("d-none")), [false, true, true]);
+           ["omitted", "duplicated", "superseded", "alongside"].map((name) => !part(name).parentElement.classList.contains("d-none")), [false, true, false, true]);
         eq("the warning", Array.from(part("warnings").children).map((li) => li.textContent),
            ["On 2026-10-25 02:00–03:00 occurs twice: those 4 values will be written to both."]);
-        eq("the superseded values are highlighted", chart.previews[chart.previews.length - 1].superseded.map((o) => o.existing), [50, 60]);
+        eq("values of other sources stay, so none are ringed as superseded", chart.previews[chart.previews.length - 1].superseded, []);
         const whole = chart.windows[chart.windows.length - 1];
         eq("the chart shows the whole range", [whole.start.getTime(), whole.end.getTime()], [T0, T0 + 25 * HOUR]);
         await click("show-drafts");
@@ -359,11 +389,64 @@ def test_previewing_daily_repeats_and_confirming_them(assert_js):
         await click("show-all");
         eq("and out again", [chart.window.start.getTime(), chart.window.end.getTime()], [T0, T0 + 25 * HOUR]);
         await click("confirm");
-        eq("confirming posts the pattern and its repeats in one body", calls.save.length, 1);
-        eq("with the repeats unchanged at the end", calls.save[0].values.slice(-4), repeats.values);
-        eq("and null in between", calls.save[0].values.slice(4, -4), new Array(92).fill(null));
+        eq("confirming sends the request that was previewed, for the server to save what it previewed", calls.save, [body]);
         eq("a background save says the values come later", notes, [["Saved, values will appear shortly.", "success"]]);
         eq("and clears the draft values", draftStep.discarded, 1);
+        """)
+
+
+def test_new_values_update_only_the_users_own_earlier_values(assert_js):
+    """Values from the user's own data source are superseded; those of other sources, such as a meter, stay alongside."""
+    assert_js("window.STEP_SOURCE_ID = 9;\n" + STEP + """
+        // The user saved a value at the second draft value before, and a meter has one at the second and the fourth.
+        answers.fetchExisting = (query) => ok({ start: query.get("start"),
+          values: query.get("source") === "9" ? [null, 50, null, null] : [null, 50, null, 70] });
+        handOver(42, drafts);
+        await settle();
+        eq("the existing values are loaded for all sources, and for the user's own", calls.fetchExisting.map((q) => q.get("source")), [null, "9"]);
+        eq("one earlier value of theirs is updated, and one value of another source stays alongside",
+           [part("superseded").textContent, part("alongside").textContent], ["1", "1"]);
+        eq("said as such", part("superseded-label").textContent, "Updating your earlier values");
+        eq("only their own earlier value is ringed as superseded", chart.previews[chart.previews.length - 1].superseded.map((o) => o.existing), [50]);
+        check("and only about those, they may choose to keep them", !part("existing-group").classList.contains("d-none"), "");
+        """)
+
+
+def test_draft_values_left_out_by_the_repeat_days_can_still_be_saved(assert_js):
+    """Repeated on workdays, draft values on a Saturday are not saved; the toast says so, with a way to save them too."""
+    assert_js(STEP + """
+        const saturday = drafts.map((d) => ({ start: new Date(d.start.getTime() - 2 * 24 * HOUR), end: new Date(d.end.getTime() - 2 * 24 * HOUR), value: d.value }));
+        answers.preview = ok({
+          data: [{ start: "2026-11-02T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }],
+          report: { "n-values": 4, "n-omitted": 0, "n-duplicated": 0, "n-shifted": 0, "pattern-included": false, "n-transitions-checked": 0, transitions: [] },
+        });
+        handOver(42, saturday);
+        part("repeat").insertAdjacentHTML("beforeend", '<option value="workdays">Every workday</option>');
+        choose("workdays");
+        await settle();
+        eq("the preview says so first", part("warnings").firstChild.textContent,
+           "Your 4 draft values fall on a Saturday, outside the repeat days. Only their repeats are saved.");
+        eq("and counts their repeats only", part("confirm").textContent, "Save 4 values");
+        await click("confirm");
+        eq("saving tells it again, with a way to save them too, for longer than a plain message", notes.slice(1).map((n) => [n[1], n[2]]),
+           [["info", { delay: 15000 }]]);
+        check("by a link", notes[1][0].includes("They were not saved.") && notes[1][0].includes("data-draft-save-left-out"), notes[1][0]);
+        await step.saveLeftOut();
+        eq("which posts the draft values as they are", calls.save.slice(-1),
+           [{ start: "2026-10-31T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }]);
+        await step.saveLeftOut();
+        eq("once", calls.save.length, 2);
+        """)
+
+
+def test_draft_values_too_long_to_repeat_are_refused_in_the_panel(assert_js):
+    assert_js(STEP + """
+        const long = [drafts[0], { start: new Date(T0 + 24 * HOUR), end: new Date(T0 + 24 * HOUR + QUARTER), value: 1 }];
+        handOver(42, long);
+        choose("daily");
+        await settle();
+        check("the panel explains it in its own words", part("error").textContent.startsWith("Your draft values span 24 hours"), part("error").textContent);
+        eq("without asking the server", calls.preview.length, 0);
         """)
 
 
@@ -409,8 +492,8 @@ def test_a_refused_preview_shows_inline(assert_js):
         choose("same-weekday");
         await settle();
         check("a failure that may pass can be run again", !part("run").classList.contains("d-none"), part("error").textContent);
-        answers.preview = ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
-                               report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } });
+        answers.preview = ok({ data: [{ start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }],
+                               report: { "n-values": 4, "n-omitted": 0, "n-duplicated": 0, "pattern-included": true, transitions: [] } });
         await click("run");
         check("which can succeed", !part("confirm").disabled && part("error").classList.contains("d-none"), part("error").textContent);
         check("and puts the button away", part("run").classList.contains("d-none"), "");
@@ -429,8 +512,8 @@ def test_changing_the_repetition_takes_the_preview_away(assert_js):
         eq("and the old preview leaves the chart", chart.previews[chart.previews.length - 1], null);
         check("the result is hidden", part("result").classList.contains("d-none"), "");
         eq("the new choice is previewed by itself", calls.preview.length, 1);
-        answerLate(ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
-                        report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } }));
+        answerLate(ok({ data: [{ start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }],
+                        report: { "n-values": 4, "n-omitted": 0, "n-duplicated": 0, "pattern-included": true, transitions: [] } }));
         await settle();
         check("and can be confirmed once it is in", !part("confirm").disabled, "");
         """)
@@ -445,7 +528,7 @@ def test_a_late_answer_for_an_old_choice_is_ignored(assert_js):
         choose("daily");
         choose("same-weekday");
         eq("both choices were sent", calls.preview.map((body) => body.repeat), ["daily", "same-weekday"]);
-        pending[0](ok({ data: { start: "2026-11-03T06:00:00+01:00", values: [1] }, report: { n_values: 1, n_omitted: 0, n_duplicated: 0, transitions: [] } }));
+        pending[0](ok({ data: [{ start: "2026-11-03T06:00:00+01:00", values: [1] }], report: { "n-values": 1, "n-omitted": 0, "n-duplicated": 0, "pattern-included": true, transitions: [] } }));
         await settle();
         eq("the answer to the old choice is not shown", step.result, null);
         check("nor can it be confirmed", part("confirm").disabled, "");
@@ -454,14 +537,14 @@ def test_a_late_answer_for_an_old_choice_is_ignored(assert_js):
 
 def test_back_to_edit_keeps_the_draft_values_and_saves_nothing(assert_js):
     assert_js(STEP + """
-        answers.preview = ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
-                               report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } });
+        answers.preview = ok({ data: [{ start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }],
+                               report: { "n-values": 4, "n-omitted": 0, "n-duplicated": 0, "pattern-included": true, transitions: [] } });
         handOver(42, drafts);
         choose("daily");
         await settle();
         check("the chart zoomed out to the repeats", chart.windows.length > 0, "");
         await click("back");
-        eq("the step closes", visible, [true, false]);
+        eq("the step closes, keeping the panel open to edit the draft values", visible, [true, "kept open"]);
         eq("the draft values are kept", draftStep.discarded, 0);
         eq("nothing is saved", calls.save.length, 0);
         eq("the chart goes back to the window shown before", chart.window.start.getTime(), T0 - 2 * 24 * HOUR);
@@ -500,8 +583,8 @@ def test_a_refused_save_keeps_the_draft_values(assert_js):
 
 def test_existing_values_can_be_kept(assert_js):
     """Where values already exist, the user may keep them and only fill the gaps, which saves the rest and redraws the preview."""
-    assert_js(STEP + """
-        // Existing values at the second and fourth draft value.
+    assert_js("window.STEP_SOURCE_ID = 9;\n" + STEP + """
+        // The user's own earlier values at the second and fourth draft value.
         answers.fetchExisting = (query) => ok({ start: query.get("start"), values: [null, 50, null, 70] });
         handOver(42, drafts);
         await settle();
@@ -510,10 +593,10 @@ def test_existing_values_can_be_kept(assert_js):
         part("existing").value = "keep";
         part("existing").dispatchEvent(new Event("change"));
         eq("keeping them saves the others only", part("confirm").textContent, "Save 2 values");
-        eq("which the counts say", [part("create").textContent, part("superseded-label").textContent], ["2", "Existing values kept"]);
+        eq("which the counts say", [part("create").textContent, part("superseded-label").textContent], ["2", "Your earlier values, kept"]);
         const shown = chart.previews[chart.previews.length - 1];
         eq("and the chart shows", [shown.points.map((p) => p.value), shown.superseded.length], [[80, 82], 0]);
-        eq("without asking again", calls.fetchExisting.length, 1);
+        eq("without asking again", calls.fetchExisting.length, 2);
         await click("confirm");
         eq("only the gaps are saved", calls.save[0].values, [80, null, 82, null]);
         """)
