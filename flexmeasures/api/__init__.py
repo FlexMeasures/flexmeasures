@@ -46,6 +46,8 @@ def request_auth_token(args) -> tuple[dict, int]:
           Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting
           SECURITY_TOKEN_MAX_AGE.
 
+          The password is required also when the request comes from a logged-in session. Deactivated users get no token.
+
       requestBody:
         required: true
         content:
@@ -79,6 +81,11 @@ def request_auth_token(args) -> tuple[dict, int]:
         email = request.json["email"]
         if current_user.is_authenticated and current_user.email == email:
             user = current_user
+            # A session alone does not get a token: that would turn a copied session cookie into a portable credential
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
+            if not verify_password(request.json["password"], user.password):
+                return {"errors": ["User password does not match."]}, 401
         else:
             user = db.session.execute(
                 select(User).filter_by(email=email)
@@ -97,6 +104,9 @@ def request_auth_token(args) -> tuple[dict, int]:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
                 return {"errors": ["User password does not match."]}, 401
+        if not user.active:
+            # Flask-Security would refuse the token anyway; do not issue it
+            return {"errors": ["This user is deactivated."]}, 401
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:

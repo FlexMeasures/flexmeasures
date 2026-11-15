@@ -17,7 +17,7 @@
     "/api/requestAuthToken": {
       "post": {
         "summary": "Obtain a fresh authentication access token.",
-        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n",
+        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n\nThe password is required also when the request comes from a logged-in session. Deactivated users get no token.\n",
         "requestBody": {
           "required": true,
           "content": {
