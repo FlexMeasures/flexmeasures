@@ -568,6 +568,49 @@ def test_patch_account_roles(client, setup_api_test_data, requesting_user, db):
     assert role_names == {"Prosumer", "Supplier"}
 
 
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl", "test_prosumer_user_2@seita.nl"],
+    indirect=True,
+)
+def test_patch_own_account_roles_is_refused_for_non_admins(
+    client, setup_api_test_data, requesting_user, db
+):
+    """A member or account-admin may not give their own account another role
+    (such as Consultancy), but may resend the roles it already has."""
+    account = requesting_user.account
+    original_role_ids = sorted(role.id for role in account.account_roles)
+    consultancy_role = db.session.execute(
+        select(AccountRole).filter_by(name=CONSULTANCY_ACCOUNT_ROLE)
+    ).scalar_one()
+    assert consultancy_role.id not in original_role_ids
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"account_roles": original_role_ids + [consultancy_role.id]},
+    )
+    assert response.status_code == 403, response.json
+    db.session.expire_all()
+    assert sorted(role.id for role in account.account_roles) == original_role_ids
+
+    # Dropping a role is a change, too
+    if original_role_ids:
+        response = client.patch(
+            url_for("AccountAPI:patch", id=account.id),
+            json={"account_roles": []},
+        )
+        assert response.status_code == 403, response.json
+        db.session.expire_all()
+        assert sorted(role.id for role in account.account_roles) == original_role_ids
+
+    # Resending the current roles, in another order, is not a change
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"account_roles": list(reversed(original_role_ids))},
+    )
+    assert response.status_code == 200, response.json
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_patch_account_roles_invalid_role_id(
     client, setup_api_test_data, requesting_user
