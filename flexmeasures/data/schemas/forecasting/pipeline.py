@@ -106,6 +106,54 @@ class AnnotationRegressorSchema(Schema):
             raise ValidationError("Specify exactly one of account, asset, or sensor.")
 
 
+# The model-params keys that may be set from the API (forecast trigger and forecast automations),
+# with the range each value has to be in. Model params are handed on to Darts and LightGBM as keyword arguments,
+# which also take resource settings (e.g. threads), network settings for distributed training and file paths,
+# so only these bounded tuning knobs are passed on from the API. The CLI may still set any parameter.
+API_MODEL_PARAM_BOUNDS: dict[str, tuple[type, float, float]] = {
+    "max_depth": (int, 1, 16),
+    "min_child_samples": (int, 1, 10_000),
+    "min_data_per_group": (int, 1, 10_000),
+    "num_leaves": (int, 2, 256),
+    "n_estimators": (int, 1, 500),
+    "learning_rate": (float, 0.001, 1),
+    "min_split_gain": (float, 0, 1_000),
+    "reg_alpha": (float, 0, 1_000),
+    "reg_lambda": (float, 0, 1_000),
+    "subsample": (float, 0.01, 1),
+    "colsample_bytree": (float, 0.01, 1),
+}
+
+
+def validate_model_params_from_api(model_params) -> None:
+    """Refuse model params from the API other than bounded numeric tuning knobs (see API_MODEL_PARAM_BOUNDS).
+
+    :raises ValidationError: under the "model-params" key.
+    """
+    if model_params is None:
+        return
+    if not isinstance(model_params, dict):
+        raise ValidationError({"model-params": ["Must be an object."]})
+    errors = []
+    for key, value in model_params.items():
+        if key not in API_MODEL_PARAM_BOUNDS:
+            errors.append(
+                f"'{key}' cannot be set through the API. Allowed keys: {', '.join(sorted(API_MODEL_PARAM_BOUNDS))}."
+            )
+            continue
+        value_type, lower, upper = API_MODEL_PARAM_BOUNDS[key]
+        is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if (
+            not is_number
+            or (value_type is int and not float(value).is_integer())
+            or not lower <= value <= upper
+        ):
+            kind = "an integer" if value_type is int else "a number"
+            errors.append(f"'{key}' must be {kind} from {lower} to {upper}.")
+    if errors:
+        raise ValidationError({"model-params": errors})
+
+
 class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
@@ -777,10 +825,19 @@ class ForecasterParametersSchema(Schema):
         return result
 
 
+class ApiTrainPredictPipelineConfigSchema(TrainPredictPipelineConfigSchema):
+    """The forecasting config as accepted from the API, which allows only some model params."""
+
+    @validates_schema(pass_original=True)
+    def refuse_unsafe_model_params(self, data: dict, original_data, **kwargs):
+        if isinstance(original_data, dict):
+            validate_model_params_from_api(original_data.get("model-params"))
+
+
 class ForecastingTriggerSchema(ForecasterParametersSchema):
 
     config = fields.Nested(
-        TrainPredictPipelineConfigSchema(),
+        ApiTrainPredictPipelineConfigSchema(),
         required=False,
         load_default={},
         metadata={
