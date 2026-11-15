@@ -48,6 +48,7 @@ from flexmeasures.api.common.utils.deprecation_utils import (
     _add_headers as add_deprecation_header,
 )
 from flexmeasures.auth.policy import check_access
+from flexmeasures.api.v3_0.jobs import check_job_read_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.auth.loaders import (
     flex_context_loader,
@@ -1358,6 +1359,8 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+        # The sensor in the URL is not enough: the job itself must concern something the user may read
+        check_job_read_access(job)
 
         if (
             not current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT")
