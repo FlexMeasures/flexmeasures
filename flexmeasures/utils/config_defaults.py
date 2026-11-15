@@ -70,6 +70,16 @@ class Config(object):
     SECURITY_RESET_PASSWORD_TEMPLATE: str = "admin/reset_password.html"
     SECURITY_TOKEN_AUTHENTICATION_HEADER: str = "Authorization"
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
+    # Browser cookies for UI sessions: not sent along with requests that other sites start (SameSite),
+    # not readable by scripts (HttpOnly), and "remember me" lasts two weeks rather than Flask-Login's year.
+    # The production and staging configs also mark them Secure (HTTPS only).
+    SESSION_COOKIE_HTTPONLY: bool = True
+    SESSION_COOKIE_SAMESITE: str | None = "Lax"
+    SESSION_COOKIE_SECURE: bool = False
+    REMEMBER_COOKIE_HTTPONLY: bool = True
+    REMEMBER_COOKIE_SAMESITE: str | None = "Lax"
+    REMEMBER_COOKIE_SECURE: bool = False
+    REMEMBER_COOKIE_DURATION: timedelta = timedelta(days=14)
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
     FLEXMEASURES_SECRETS_ENCRYPTION_KEYS: dict[str, str] | None = None
@@ -270,11 +280,15 @@ warnable: dict[str, str] = {
 class ProductionConfig(Config):
     DEBUG: bool = False
     LOGGING_LEVEL: int = logging.ERROR
+    SESSION_COOKIE_SECURE: bool = True
+    REMEMBER_COOKIE_SECURE: bool = True
 
 
 class StagingConfig(Config):
     DEBUG: bool = False
     LOGGING_LEVEL: int = logging.WARNING
+    SESSION_COOKIE_SECURE: bool = True
+    REMEMBER_COOKIE_SECURE: bool = True
 
 
 class DevelopmentConfig(Config):
