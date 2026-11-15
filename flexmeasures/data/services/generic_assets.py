@@ -735,6 +735,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
                 f"Updated: {k}, From: {getattr(db_asset, k)}, To: {v}"
             )
 
+    _refuse_parent_cycle(db_asset, asset_data)
+
     # Iterate over each field or attribute updates and create a separate audit log entry for each.
     for event in audit_log_data:
         AssetAuditLog.add_record(db_asset, event)
@@ -764,3 +766,27 @@ def delete_asset(asset: GenericAsset):
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)
+
+
+def _refuse_parent_cycle(db_asset: GenericAsset, asset_data: dict):
+    """Refuse a new parent that is the asset itself or one of its descendants.
+
+    Such a parent would make the asset tree a cycle, which code walking up or down the tree would follow forever.
+
+    :raises ValidationError: if the new parent would close a cycle.
+    """
+    parent_id = asset_data.get("parent_asset_id")
+    if parent_id is None or parent_id == db_asset.parent_asset_id:
+        return
+    seen: set[int] = set()
+    ancestor_id: int | None = parent_id
+    while ancestor_id is not None and ancestor_id not in seen:
+        if ancestor_id == db_asset.id:
+            raise ValidationError(
+                "The parent asset cannot be the asset itself or one of its descendants.",
+                "parent_asset_id",
+            )
+        seen.add(ancestor_id)
+        ancestor_id = db.session.execute(
+            sa.select(GenericAsset.parent_asset_id).filter_by(id=ancestor_id)
+        ).scalar_one_or_none()
