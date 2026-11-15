@@ -85,6 +85,19 @@ def flexmeasures_cli():
     pass
 
 
+def _sentry_attach_user_id(event, hint):
+    """Identify the user of a request by id only (no email address, username or IP address)."""
+    try:
+        from flask import has_request_context
+        from flask_login import current_user
+
+        if has_request_context() and current_user.is_authenticated:
+            event["user"] = {"id": str(current_user.id)}
+    except Exception:  # noqa: B902 - never lose an error report over this
+        pass
+    return event
+
+
 def init_sentry(app: Flask):
     """
     Configure Sentry.
@@ -125,6 +138,13 @@ def init_sentry(app: Flask):
                 _make_sentry_daily_rate_limiter(app, daily_rate_limit, redis_connection)
             )
 
+    # Personal data (email addresses, usernames, IP addresses, cookies and headers) only goes to Sentry if the host opts in.
+    # Without it, we attach only the id of the user, which is enough to look them up.
+    sentry_config = dict(app.config["FLEXMEASURES_SENTRY_CONFIG"])
+    send_default_pii = bool(sentry_config.pop("send_default_pii", False))
+    if not send_default_pii:
+        filters.append(_sentry_attach_user_id)
+
     def before_send(event, hint):
         for event_filter in filters:
             event = event_filter(event, hint)
@@ -137,10 +157,10 @@ def init_sentry(app: Flask):
         integrations=[FlaskIntegration(), RqIntegration()],
         debug=app.debug,
         release=f"flexmeasures@{fm_version}",
-        send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
+        send_default_pii=send_default_pii,
         environment=app.config.get("FLEXMEASURES_ENV"),
         before_send=before_send if filters else None,
-        **app.config["FLEXMEASURES_SENTRY_CONFIG"],
+        **sentry_config,
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
     sentry_sdk.set_tag("platform-name", app.config.get("FLEXMEASURES_PLATFORM_NAME"))
