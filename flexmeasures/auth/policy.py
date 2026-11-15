@@ -238,7 +238,8 @@ def can_modify_role(  # noqa: C901
     - admin: can only be changed in CLI / directly in the DB, so not here
     - admin-reader: can be added and removed by admins
     - account-admin: can be added and removed by admins and consultants (in consultancy account)
-    - consultant: can be added and removed by admins and account-admins (in same account)
+    - consultant: can be added and removed by admins and account-admins (in same account);
+      account-admins can only add it in an account with the Consultancy account role
 
     """
     roles = []
@@ -282,6 +283,12 @@ def can_modify_role(  # noqa: C901
             if (
                 user.has_role(ACCOUNT_ADMIN_ROLE)
                 and user.account.id == modified_user.account.id
+                and (
+                    # account-admins may only hand out the consultant role in a consultancy account
+                    modified_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE)
+                    # but they may always take it away
+                    or role.name in [r.name for r in modified_user.flexmeasures_roles]
+                )
             ):
                 continue
             return False

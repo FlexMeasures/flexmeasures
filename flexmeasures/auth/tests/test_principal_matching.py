@@ -40,6 +40,10 @@ class MockUser:
     def has_role(self, role):
         return role in self.roles
 
+    @property
+    def flexmeasures_roles(self):
+        return [SimpleNamespace(name=role) for role in self.roles]
+
 
 def make_mock_user(
     user_id: int,
@@ -171,10 +175,24 @@ def test_principals_match(mock_user, principals, should_match):
             [3],
             False,
         ),
-        # Account-admin user should be able to modify (consultant) role
+        # Account-admin user should be able to remove the (consultant) role
         (
             make_mock_user(18, ["account-admin"], 4, []),
             make_mock_user(24, ["consultant"], 4, []),
+            [4],
+            True,
+        ),
+        # Account-admin user should not be able to give the consultant role in an account without the Consultancy role
+        (
+            make_mock_user(18, ["account-admin"], 4, []),
+            make_mock_user(24, [], 4, []),
+            [4],
+            False,
+        ),
+        # Account-admin user should be able to give the consultant role in a consultancy account
+        (
+            make_mock_user(18, ["account-admin"], 4, ["Consultancy"]),
+            make_mock_user(24, [], 4, ["Consultancy"]),
             [4],
             True,
         ),
