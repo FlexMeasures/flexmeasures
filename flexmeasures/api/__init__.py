@@ -106,6 +106,8 @@ def request_auth_token(args) -> tuple[dict, int]:
             if "password" not in request.json:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
+                # Counts against the user's failed attempts (see flexmeasures.auth.login_throttling)
+                user.track_failed_authn("password")
                 return {"errors": ["User password does not match."]}, 401
             if _requires_second_factor(user) and not current_app.config.get(
                 "FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA", False
