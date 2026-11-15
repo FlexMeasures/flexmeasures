@@ -972,6 +972,25 @@ Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
 
+FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many failed attempts to authenticate as one user are allowed: wrong passwords on the login form and on ``/api/requestAuthToken``,
+and wrong two-factor codes. Once a user has used them up, further attempts for that user are refused (with status 429) until the window ends,
+whether the password is right or not. A successful login starts the count afresh.
+The count is per user, not per IP address, so that clients behind the same proxy cannot lock each other out.
+It is kept in the rate limiter's storage (Redis), and is not applied when rate limiting is switched off (``RATELIMIT_ENABLED``).
+
+Default: ``"10 per 15 minutes"``
+
+FLEXMEASURES_PASSWORD_RECOVERY_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many password recovery requests (the "forgot password" form) are allowed per email address,
+so that the form cannot be used to flood someone's inbox.
+
+Default: ``"5 per hour"``
+
 Demonstrations
 --------------
 

@@ -96,6 +96,8 @@ def request_auth_token(args) -> tuple[dict, int]:
             if "password" not in request.json:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
+                # Counts against the user's failed attempts (see flexmeasures.auth.login_throttling)
+                user.track_failed_authn("password")
                 return {"errors": ["User password does not match."]}, 401
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}

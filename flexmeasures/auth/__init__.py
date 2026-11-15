@@ -63,6 +63,11 @@ def register_at(app: Flask):
     # add our custom handler for a user login event
     user_logged_in.connect(remember_login)
 
+    # limit failed attempts to authenticate per user
+    from flexmeasures.auth.login_throttling import register_at as register_throttling_at
+
+    register_throttling_at(app)
+
     password_reset.connect(log_password_reset)
     password_changed.connect(log_password_changed)
     reset_password_instructions_sent.connect(log_reset_password_instructions_sent)
