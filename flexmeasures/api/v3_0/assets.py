@@ -2035,6 +2035,11 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             _refuse_too_frequent_automation(automation_data)
+            if automation_data.get("active") and not automation.active:
+                # Activating an automation (e.g. a copy, which starts inactive) holds its cron expression to the same rule
+                _refuse_too_frequent_automation(
+                    {"cronstr": automation_data.get("cronstr", automation.cronstr)}
+                )
         except ValidationError as e:
             return unprocessable_entity(e.messages)
         update_automation(automation, origin="API", **automation_data)
