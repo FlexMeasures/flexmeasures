@@ -465,6 +465,7 @@ def test_post_sensor_data_rejects_large_json(
     assert response.json["status"] == "PAYLOAD_TOO_LARGE"
 
 
+@pytest.mark.parametrize("limit, expected_status", [(100, 413), (1_000_000, 200)])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -473,27 +474,38 @@ def test_post_sensor_data_rejects_large_json_without_content_length(
     setup_api_test_data,
     requesting_user,
     monkeypatch,
+    limit,
+    expected_status,
 ):
-    """A body sent without a Content-Length header (chunked) is held to the same limit while it is read."""
+    """A body sent without a Content-Length header (chunked) is held to the same limit, and processed if it is within it."""
     monkeypatch.setitem(
         current_app.config,
         "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
-        100,
+        limit,
     )
     sensor = setup_api_test_data["some gas sensor"]
     body = json.dumps(make_sensor_data_request_for_gas_sensor()).encode()
-    assert len(body) > 100
+    assert 100 < len(body) < 1_000_000
 
     response = client.post(
         url_for("SensorAPI:post_data", id=sensor.id),
         input_stream=io.BytesIO(body),
         content_type="application/json",
+        headers={
+            "Transfer-Encoding": "chunked"
+        },  # so the request has no content length
         # as WSGI servers that handle chunked transfer encoding (e.g. gunicorn) mark the stream
         environ_overrides={"wsgi.input_terminated": True},
     )
 
-    assert response.status_code == 413, response.json
-    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+    assert response.status_code == expected_status, response.json
+    if expected_status == 413:
+        assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+    else:  # the body was read and parsed (earlier tests in this module may have posted the same data)
+        assert response.json["status"] in (
+            "PROCESSED",
+            "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED",
+        )
 
 
 @pytest.mark.parametrize(
