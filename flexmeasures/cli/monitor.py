@@ -29,7 +29,7 @@ from flexmeasures.data.services.automation_monitoring import (
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.api.common.schemas.users import UserIdField
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import exact_duration_str, server_now
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
 
@@ -518,15 +518,6 @@ def _format_utc(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _format_duration(duration: timedelta) -> str:
-    """Say how long a threshold is, exactly, which a rounded duration such as humanize's would not."""
-    minutes = int(duration.total_seconds() // 60)
-    if minutes % 60 == 0:
-        hours = minutes // 60
-        return "1 hour" if hours == 1 else f"{hours} hours"
-    return "1 minute" if minutes == 1 else f"{minutes} minutes"
-
-
 def _times(count: int) -> str:
     return "once" if count == 1 else f"{count} times"
 
@@ -607,7 +598,7 @@ def monitor_automations(
 
     subject = f"Failed runs of {len(failures)} automation(s)"
     body = (
-        f"These automations have runs that failed, or that have been executing for longer than {_format_duration(stuck_after)}, which were not reported before:\n\n"
+        f"These automations have runs that failed, or that have been executing for longer than {exact_duration_str(stuck_after)}, which were not reported before:\n\n"
         + "\n\n".join(describe_automation_failures(f) for f in failures)
         + "\n\nEach automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
     )
