@@ -778,6 +778,23 @@ def test_draft_value_tooltip_reads_the_slot_under_the_pointer(assert_js):
         """)
 
 
+def test_a_preview_overlays_the_values_to_save_and_rings_what_they_supersede(assert_js):
+    assert_js("""
+        import { buildPreviewValuesSeries, buildSupersededValuesSeries } from "/js/fast-chart.js";
+        const HOUR = 3600 * 1000;
+        const slot = (h, value) => ({ start: new Date(h * HOUR), end: new Date((h + 1) * HOUR), value });
+        const values = buildPreviewValuesSeries([slot(0, 1), slot(24, 1)], 0);
+        eq("the values to save are drawn like draft values, broken between repeats", values.data, [
+            [0, 1], [HOUR, 1], [24 * HOUR, null], [24 * HOUR, 1], [25 * HOUR, 1],
+        ]);
+        eq("as a solid line, with their own legend entry", [values.name, values.lineStyle.type], ["Values to save", undefined]);
+        const superseded = buildSupersededValuesSeries([{ start: new Date(0), end: new Date(HOUR), existing: 5, proposed: 1 }], 0);
+        eq("a superseded value is ringed at its existing value, in the middle of its slot", superseded.data, [[HOUR / 2, 5]]);
+        eq("with its own legend entry", superseded.name, "Superseded values");
+        eq("as a ring", superseded.symbol, "emptyCircle");
+        """)
+
+
 def test_the_hover_marker_goes_to_the_draft_point_nearest_the_pointer(assert_js):
     """The index is that of the point in the draft values series, counting the null that breaks the line at a gap."""
     assert_js("""
@@ -962,3 +979,14 @@ def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_le
             eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
         }
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_a_preview_takes_the_place_of_the_draft_values(assert_js):
+    """The values to save include the draft values, so during a preview the draft values are not drawn, and the legend names them once."""
+    assert_js("""
+        import { showsDraftValues } from "/js/fast-chart.js";
+        const drafts = [{ start: new Date(0), end: new Date(3600 * 1000), value: 1 }];
+        eq("draft values are drawn", showsDraftValues({ draftValues: drafts }), true);
+        eq("but not during a preview", showsDraftValues({ draftValues: drafts, previewValues: { points: drafts, superseded: [] } }), false);
+        eq("nor without any", showsDraftValues({ draftValues: [] }), false);
+        """)

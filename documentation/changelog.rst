@@ -11,7 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
-* Repeat posted sensor data, such as a day of SoC limits, daily, on the same weekday, on workdays or on weekends, until a given date, with ``repeat`` and ``until`` on ``[POST] /sensors/(id)/data``; each repeat lands on the same local time, also across daylight saving time transitions, and ``dry-run`` shows what would be saved, without saving it. On a sensor's page, the new *Draft values* panel lets you draft such values over the chart, by selecting time ranges or drawing them [see `PR #2707 <https://www.github.com/FlexMeasures/flexmeasures/pull/2707>`_, `PR #2709 <https://www.github.com/FlexMeasures/flexmeasures/pull/2709>`_ and `PR #2710 <https://www.github.com/FlexMeasures/flexmeasures/pull/2710>`_]
+* Repeat posted sensor data, such as a day of SoC limits, daily, on the same weekday, on workdays or on weekends, until a given date, with ``repeat`` and ``until`` on ``[POST] /sensors/(id)/data``; each repeat lands on the same local time, also across daylight saving time transitions, and ``dry-run`` shows what would be saved, without saving it. On a sensor's page, the new *Draft values* panel lets you draft such values over the chart, by selecting time ranges or drawing them, then preview them, repeated or not, next to the existing data, and save them [see `PR #2707 <https://www.github.com/FlexMeasures/flexmeasures/pull/2707>`_, `PR #2709 <https://www.github.com/FlexMeasures/flexmeasures/pull/2709>`_, `PR #2710 <https://www.github.com/FlexMeasures/flexmeasures/pull/2710>`_ and `PR #2712 <https://www.github.com/FlexMeasures/flexmeasures/pull/2712>`_]
 
 Infrastructure / Support
 -------------------------
