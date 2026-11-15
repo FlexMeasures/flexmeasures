@@ -583,6 +583,15 @@ A duration such as ``"1 week"`` or ``"7 days"``, or an ISO 8601 duration such as
 
 Default: ``"1 week"``
 
+FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``SECURITY_TWO_FACTOR`` is enabled, users who log in with a second factor cannot get an API token from ``/api/requestAuthToken`` with their email and password alone, as that would skip the second factor.
+They log in first (completing the second factor), and then request a token from that session.
+Set this to ``True`` to allow password-only token requests again, for instance while API clients of such users still authenticate with a password.
+
+Default: ``False``
+
 SECURITY_TWO_FACTOR_RESCUE_MAIL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
