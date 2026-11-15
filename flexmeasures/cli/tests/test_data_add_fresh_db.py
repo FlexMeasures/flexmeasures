@@ -532,7 +532,7 @@ def test_add_user_roles(
     """``--roles`` accepts a comma-separated list and/or repeated options (see issue #1237)."""
     from flexmeasures.cli.data_add import new_user
 
-    monkeypatch.setattr("getpass.getpass", lambda prompt="": "testtest")
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "testtest-long")
 
     account = setup_accounts_fresh_db["Prosumer"]
     username = f"cli-user-{'-'.join(sorted(expected_roles)) or 'noroles'}"
