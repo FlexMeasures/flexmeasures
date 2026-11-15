@@ -954,10 +954,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
       `Won't run. ${esc(step.reason)}`,
     ]));
-    const refused = plan.include === "downstream" && plan.excluded.some((step) => step.reason === "You may not run this automation.");
-    const warning = refused
-      ? `<p class="text-danger mt-2 mb-0">You need permission to run all of these, so this cannot be run.</p>`
-      : plan.excluded.length ? `<p class="text-muted mt-2 mb-0">The rest goes by the latest results of those that won't run.</p>` : "";
+    const warning = plan.excluded.length ? `<p class="text-muted mt-2 mb-0">The rest goes by the latest results of those that won't run.</p>` : "";
     return `<p class="fs-5 mb-2" id="runPlanStructure">${runPlanStructure(plan)}</p>
       ${branches.size ? `<p class="small text-muted mb-2">Untick a branch to leave it out, along with what can only be reached through it.</p>` : ""}
       <ul class="list-group">${[...rows, ...excludedRows].join("")}</ul>${warning}`;
@@ -1749,9 +1746,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
     function showRunPlan() {
       const count = runPlanSelection(runPlan).length;
-      const refused = runPlan.include === "downstream" && runPlan.excluded.some((step) => step.reason === "You may not run this automation.");
       $("#runPlanBody").html(runPlanHtml(runPlan));
-      $("#runPlanConfirm").text(`Run ${count} automation${count === 1 ? "" : "s"}`).prop("disabled", refused);
+      $("#runPlanConfirm").text(`Run ${count} automation${count === 1 ? "" : "s"}`);
     }
 
     // What a chain comes down to can reach beyond this page, so the server says, before anything runs.

@@ -243,8 +243,9 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
         eq("downstream shows the same way", page.runPlanStructure(down), "2 → 7, 8");
         eq("and its branches can be chosen between", [...page.runPlanBranches(down)].sort(), [7, 8]);
         eq("and its request says so", page.runPlanQuery(down), "with-downstream=true");
-        const refused = {{...down, excluded: [{{automation: 9, reason: "You may not run this automation."}}]}};
-        check("downstream automations one may not run are refused as a whole", page.runPlanHtml(refused).includes("cannot be run"));
+        const held = {{...down, excluded: [{{automation: 9, reason: "You may not run this automation."}}]}};
+        check("a downstream automation one may not run is excluded, and the rest still runs",
+              page.runPlanHtml(held).includes("Won't run. You may not run this automation.") && !page.runPlanHtml(held).includes("cannot be run"));
 
         const row8 = page.AutomationRow({{id: 8, name: "Forecast", type: "forecasting", active: true, "depends-on": [{{automation: 4}}]}});
         const row4 = page.AutomationRow({{id: 4, name: "Meters", type: "forecasting", active: true, "depends-on": []}});

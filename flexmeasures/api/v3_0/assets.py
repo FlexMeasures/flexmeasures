@@ -67,7 +67,6 @@ from flexmeasures.data.services.automations import (
     get_automations_in_scope,
     get_automations_waiting_for,
     CHAIN_INCLUDES,
-    get_chain_automations,
     plan_automation_chain,
     resolve_automation_sensors,
     run_automation,
@@ -2517,17 +2516,12 @@ class AssetAPI(FlaskView):
         exclude: list[int],
     ) -> tuple[dict, int]:
         """Run an automation along with what is upstream or downstream of it (see `run_automation_chain`)."""
-        if include == "downstream":
-            # The automations waiting for this one may be on other assets, where their runs write data, too.
-            chain, _ = get_chain_automations(automation, include, exclude)
-            for dependent in chain:
-                check_access(dependent.asset, "manage-automations")
         try:
+            # The automations in a chain may be on other assets, where their runs write data, too.
+            # One the user may not run is excluded, rather than refusing the whole chain,
+            # as another organisation may wait for this automation, which reading it is enough for.
             runs, returns, excluded = run_automation_chain(
-                automation,
-                include,
-                exclude,
-                may_run=_may_manage_automation if include == "upstream" else None,
+                automation, include, exclude, may_run=_may_manage_automation
             )
         except (
             NotImplementedError,

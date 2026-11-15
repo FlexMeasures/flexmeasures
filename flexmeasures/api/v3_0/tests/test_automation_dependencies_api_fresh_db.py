@@ -463,11 +463,12 @@ def test_trigger_automation_with_downstream(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_automation_with_downstream_needs_access_to_each_of_them(
+def test_trigger_automation_with_downstream_excludes_what_the_user_may_not_run(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """An automation waiting for this one on an asset the user may not manage is not run on their say, and neither is this one."""
+    """Another organisation's automation waiting for this one does not run on the user's say, and does not keep the rest from running."""
     battery, sensor, upstream = upstream_automations
+    upstream["own"].parameters = {"sensor": sensor.id}
     fresh_db.session.add(
         AutomationDependency(automation=upstream["foreign"], upstream=upstream["own"])
     )
@@ -481,5 +482,13 @@ def test_trigger_automation_with_downstream_needs_access_to_each_of_them(
                 **{"with-downstream": "true"},
             )
         )
-    assert response.status_code == 403, response.json
-    assert fresh_db.session.scalars(select(AutomationRun)).all() == []
+    assert response.status_code == 202, response.json
+    assert [run["automation"] for run in response.json["runs"]] == [upstream["own"].id]
+    assert response.json["excluded"] == [
+        {
+            "automation": upstream["foreign"].id,
+            "reason": "You may not run this automation.",
+        }
+    ]
+    runs = fresh_db.session.scalars(select(AutomationRun)).all()
+    assert [run.automation_id for run in runs] == [upstream["own"].id]
