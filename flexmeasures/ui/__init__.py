@@ -15,7 +15,7 @@ import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, MethodNotAllowed
 
 from flexmeasures.auth import policy as auth_policy
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
@@ -241,13 +241,16 @@ def register_rq_dashboard(app):
     def basic_admin_auth():
         """Ensure basic admin authorization."""
 
-        if (
-            current_user.has_role(ADMIN_READER_ROLE)
-            and (request.method != "GET")
-            and ("requeue" not in request.path)
-        ):
+        # Requeueing runs jobs again (which write data), so it is not done on GET, which a link or an image could trigger.
+        # The dashboard's own buttons use POST.
+        if request.method == "GET" and "/requeue" in request.path:
+            raise MethodNotAllowed(
+                valid_methods=["POST"],
+                description="Requeueing jobs is only possible with POST.",
+            )
+        if current_user.has_role(ADMIN_READER_ROLE) and (request.method != "GET"):
             raise Forbidden(
-                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Edition or deletion operations are forbidden."
+                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Requeueing, editing or deleting is forbidden."
             )
 
         return
