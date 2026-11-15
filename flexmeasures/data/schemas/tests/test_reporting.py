@@ -419,6 +419,13 @@ def _single_transformation_config(transformation: dict) -> dict:
         {"property": "to_csv"},
         {"property": "__class__"},
         {"property": "_data"},
+        # Attributes that lead from the sensor or asset to other objects
+        {"property": "owner"},
+        {"property": "secrets"},
+        {"property": "account"},
+        {"property": "consultancy_account"},
+        {"property": "users"},
+        {"property": "attributes"},
     ],
 )
 def test_pandas_reporter_config_refuses_io_and_evaluation(
@@ -437,6 +444,8 @@ def test_pandas_reporter_config_refuses_io_and_evaluation(
         {"method": "shift", "kwargs": {"periods": -1}},
         {"method": "get_attribute", "args": ["capacity_in_mw"]},
         {"property": "index"},
+        {"property": "sensor"},
+        {"property": "generic_asset"},
     ],
 )
 def test_pandas_reporter_config_allows_pure_transformations(
