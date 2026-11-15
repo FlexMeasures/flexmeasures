@@ -135,3 +135,93 @@ def test_post_asset_flex_context_needs_access_to_its_sensors(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     assert response.status_code == 201, response.json
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "field, stored, patched, expected_status",
+    [
+        # A reference an admin stored, which the member may not set, stays while another field changes.
+        (
+            "flex_context",
+            {"consumption-price": {"sensor": "foreign price"}},
+            {
+                "consumption-price": {"sensor": "foreign price"},
+                "site-power-capacity": "100 kW",
+            },
+            200,
+        ),
+        (
+            "flex_context",
+            {"aggregate-power": {"sensor": "public power"}},
+            {
+                "aggregate-power": {"sensor": "public power"},
+                "site-power-capacity": "100 kW",
+            },
+            200,
+        ),
+        (
+            "flex_model",
+            {"consumption": {"sensor": "public power"}},
+            {"consumption": {"sensor": "public power"}, "roundtrip-efficiency": "90%"},
+            200,
+        ),
+        # A new reference is still checked.
+        (
+            "flex_context",
+            {"consumption-price": {"sensor": "foreign price"}},
+            {
+                "consumption-price": {"sensor": "foreign price"},
+                "site-power-capacity": {"sensor": "foreign power"},
+            },
+            403,
+        ),
+        # A sensor stored as an input that becomes an output is checked as an output.
+        (
+            "flex_context",
+            {"site-power-capacity": {"sensor": "public power"}},
+            {
+                "site-power-capacity": {"sensor": "public power"},
+                "aggregate-power": {"sensor": "public power"},
+            },
+            403,
+        ),
+    ],
+)
+def test_patch_asset_flex_config_keeps_stored_references(
+    client,
+    fresh_db,
+    sensors_in_reach,
+    requesting_user,
+    field,
+    stored,
+    patched,
+    expected_status,
+):
+    """The UI's flex-context editor always sends the whole config, so only references that are new are checked."""
+    asset_id, sensor_ids = sensors_in_reach
+
+    def with_ids(config: dict) -> dict:
+        return {
+            key: (
+                {"sensor": sensor_ids[value["sensor"]]}
+                if isinstance(value, dict)
+                else value
+            )
+            for key, value in config.items()
+        }
+
+    asset = fresh_db.session.get(GenericAsset, asset_id)
+    setattr(asset, field, with_ids(stored))  # as set by an admin, or before E2
+    fresh_db.session.commit()
+
+    response = client.patch(
+        url_for("AssetAPI:patch", id=asset_id), json={field: with_ids(patched)}
+    )
+
+    assert response.status_code == expected_status, response.json
+    fresh_db.session.expire_all()
+    stored_now = getattr(fresh_db.session.get(GenericAsset, asset_id), field)
+    assert stored_now == with_ids(patched if expected_status == 200 else stored)
