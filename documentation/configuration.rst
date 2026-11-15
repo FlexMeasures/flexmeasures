@@ -379,6 +379,16 @@ Set to ``None`` to disable this FlexMeasures-specific limit.
 
 Default: ``3 * 1024 * 1024``
 
+FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum number of values that one request to the sensor data API may expand to, when it asks to repeat its values (with ``repeat`` and ``until``).
+Such a request is small, so the request size limit above does not bound what it saves.
+A year of 15-minute values (about 35,000) fits within the default.
+Set to ``None`` to disable this limit (repeating stays limited to one year).
+
+Default: ``100000``
+
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE

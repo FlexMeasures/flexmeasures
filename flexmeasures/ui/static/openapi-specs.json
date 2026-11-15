@@ -642,7 +642,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n\n<strong>Repeating values.</strong>\nWith `repeat` and `until`, the values are a pattern (such as one day of SoC limits) that is saved, and then repeated daily, on the same weekday only, on workdays or on weekends, until the given date.\nThe pattern itself is saved too, unless the repeat days leave out the day it starts on (such as a Saturday pattern repeated on workdays).\nThe pattern may be at most one day long when repeated daily, on workdays or on weekends, or one week long when repeated on the same weekday,\nit may not be finer than the sensor's resolution, and the sensor may not record instantaneous values.\nEach repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:\nvalues whose local time is skipped (spring forward) are left out, and values whose local time occurs twice (fall back) are saved to both instants.\nWhere the sensor's resolution is coarser than the clock change (such as hourly data where clocks shift by 30 minutes), values stay on their local time:\na slot only partly skipped starts when the clock resumes, and the repeated part of the clock is filled by one more event of the preceding slot.\nThe response then includes a `report`, which counts the values saved, lists the clock changes that left out, repeated or moved a value, and counts the clock changes checked.\nRepeating is limited to one year after the pattern starts, and to FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES values (100,000 by default).\n\n<strong>Dry run.</strong>\nWith `dry-run`, nothing is saved, and the response holds the values that would be saved (`data`), in the posted unit, plus the `report` when repeating.\nA dry run is always answered directly, rather than as a job.\n`data` lists the values in the shape of posted sensor data, as one or more regular series, in time order:\nusually one, but a new series starts wherever the values are not one resolution apart (around some clock changes), and null values fill the gaps between repeats.\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -678,6 +678,21 @@
                     "duration": "PT1H",
                     "unit": "m\u00b3/h"
                   }
+                },
+                "repeat_dry_run": {
+                  "summary": "Check what repeating two hourly SoC minima daily would save",
+                  "value": {
+                    "values": [
+                      80,
+                      90
+                    ],
+                    "start": "2026-11-02T06:00:00+01:00",
+                    "duration": "PT2H",
+                    "unit": "kWh",
+                    "repeat": "daily",
+                    "until": "2026-11-03",
+                    "dry-run": true
+                  }
                 }
               }
             }
@@ -688,7 +703,66 @@
             "description": "ACCEPTED"
           },
           "200": {
-            "description": "PROCESSED"
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "repeat_dry_run": {
+                    "summary": "What repeating two hourly SoC minima daily would save",
+                    "value": {
+                      "data": [
+                        {
+                          "start": "2026-11-02T06:00:00+01:00",
+                          "duration": "PT26H",
+                          "values": [
+                            80,
+                            90,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            80,
+                            90
+                          ],
+                          "unit": "kWh"
+                        }
+                      ],
+                      "report": {
+                        "n-values": 4,
+                        "period": "daily",
+                        "n-occurrences": 1,
+                        "pattern-included": true,
+                        "n-omitted": 0,
+                        "n-duplicated": 0,
+                        "n-shifted": 0,
+                        "n-transitions-checked": 0,
+                        "transitions": []
+                      },
+                      "status": "PROCESSED",
+                      "message": "Request has been processed."
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "INVALID_REQUEST"
@@ -7726,6 +7800,23 @@
               "PostWeatherDataRequest"
             ],
             "description": "Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
+          },
+          "repeat": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "same-weekday",
+              "workdays",
+              "weekends"
+            ],
+            "description": "Repeat the values every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone, until the date given by `until`. The values are then a pattern of at most one day (or one week, for `same-weekday`).",
+            "example": "daily"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "description": "With `repeat`: the last date to repeat the values on, inclusive, in the sensor's timezone. At most one year after the values start.",
+            "example": "2026-11-30"
           }
         },
         "required": [

@@ -8,6 +8,8 @@ API change log
 v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
+- ``POST /api/v3_0/sensors/<id>/data`` accepts ``repeat`` (``daily``, ``same-weekday``, ``workdays`` or ``weekends``) and ``until`` (an inclusive local date), to save the posted values and repeat them on the same local time until that date; the response then includes a ``report`` on what daylight saving time transitions did to the repeats. It also accepts ``dry-run``, to get the values that would be saved (as ``data``) without saving them, answered directly rather than as a job.
+- ``POST /api/v3_0/sensors/<id>/data`` refuses a calendar ``duration`` (such as ``P1M``) with a 422, rather than failing with a 500.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
 
 v3.0-34 | November 05, 2026

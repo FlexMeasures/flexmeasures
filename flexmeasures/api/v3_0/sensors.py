@@ -5,6 +5,8 @@ from http import HTTPStatus
 import isodate
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
@@ -368,6 +370,34 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+
+def regular_series(values: pd.Series, resolution: timedelta) -> list[dict]:
+    """Split values indexed by event start into regular series, in the shape of posted sensor data.
+
+    A new series starts wherever two events are not one resolution apart in absolute time,
+    such as around a clock change that values on their local time cannot follow in fixed steps.
+    Slots without a value are given as null.
+    """
+    if values.empty:
+        return []
+    if resolution == timedelta(0):
+        breaks = [0, len(values)]
+    else:
+        steps = values.index.to_series().diff().iloc[1:]
+        breaks = [0] + [i + 1 for i, step in enumerate(steps) if step != resolution]
+        breaks.append(len(values))
+    chunks = []
+    for first, last in zip(breaks[:-1], breaks[1:]):
+        chunk = values.iloc[first:last]
+        chunks.append(
+            dict(
+                start=isodate.datetime_isoformat(chunk.index[0]),
+                duration=duration_isoformat(len(chunk) * resolution),
+                values=chunk.astype(object).where(chunk.notna(), None).tolist(),
+            )
+        )
+    return chunks
 
 
 class SensorAPI(FlaskView):
@@ -745,7 +775,14 @@ class SensorAPI(FlaskView):
         "post-data",
         ctx_arg_name="sensor",
     )
-    def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
+    def post_data(
+        self,
+        id: int,
+        sensor: Sensor,
+        sensor_data: dict,
+        dry_run: bool = False,
+        expanded: dict | None = None,
+    ):
         """
         .. :quickref: Data; Post sensor data
         ---
@@ -764,6 +801,24 @@ class SensorAPI(FlaskView):
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
+
+            **Repeating values.**
+            With `repeat` and `until`, the values are a pattern (such as one day of SoC limits) that is saved, and then repeated daily, on the same weekday only, on workdays or on weekends, until the given date.
+            The pattern itself is saved too, unless the repeat days leave out the day it starts on (such as a Saturday pattern repeated on workdays).
+            The pattern may be at most one day long when repeated daily, on workdays or on weekends, or one week long when repeated on the same weekday,
+            it may not be finer than the sensor's resolution, and the sensor may not record instantaneous values.
+            Each repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:
+            values whose local time is skipped (spring forward) are left out, and values whose local time occurs twice (fall back) are saved to both instants.
+            Where the sensor's resolution is coarser than the clock change (such as hourly data where clocks shift by 30 minutes), values stay on their local time:
+            a slot only partly skipped starts when the clock resumes, and the repeated part of the clock is filled by one more event of the preceding slot.
+            The response then includes a `report`, which counts the values saved, lists the clock changes that left out, repeated or moved a value, and counts the clock changes checked.
+            Repeating is limited to one year after the pattern starts, and to FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES values (100,000 by default).
+
+            **Dry run.**
+            With `dry-run`, nothing is saved, and the response holds the values that would be saved (`data`), in the posted unit, plus the `report` when repeating.
+            A dry run is always answered directly, rather than as a job.
+            `data` lists the values in the shape of posted sensor data, as one or more regular series, in time order:
+            usually one, but a new series starts wherever the values are not one resolution apart (around some clock changes), and null values fill the gaps between repeats.
 
           security:
             - ApiAuthKey: []
@@ -784,11 +839,44 @@ class SensorAPI(FlaskView):
                       "start": "2021-06-07T00:00:00+02:00"
                       "duration": "PT1H"
                       "unit": "m³/h"
+                  repeat_dry_run:
+                    summary: Check what repeating two hourly SoC minima daily would save
+                    value:
+                      "values": [80, 90]
+                      "start": "2026-11-02T06:00:00+01:00"
+                      "duration": "PT2H"
+                      "unit": "kWh"
+                      "repeat": "daily"
+                      "until": "2026-11-03"
+                      "dry-run": true
           responses:
             202:
               description: ACCEPTED
             200:
               description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    repeat_dry_run:
+                      summary: What repeating two hourly SoC minima daily would save
+                      value:
+                        data:
+                          - start: "2026-11-02T06:00:00+01:00"
+                            duration: "PT26H"
+                            values: [80, 90, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 80, 90]
+                            unit: "kWh"
+                        report:
+                          n-values: 4
+                          period: "daily"
+                          n-occurrences: 1
+                          pattern-included: true
+                          n-omitted: 0
+                          n-duplicated: 0
+                          n-shifted: 0
+                          n-transitions-checked: 0
+                          transitions: []
+                        status: PROCESSED
+                        message: Request has been processed.
             400:
               description: INVALID_REQUEST
             401:
@@ -802,12 +890,31 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        report = None
+        if expanded is not None and expanded["report"] is not None:
+            report = {
+                "n-values": int(expanded["values"].notna().sum()),
+                **expanded["report"].to_dict(),
+            }
+        if dry_run:
+            response, code = request_processed()
+            response["data"] = [
+                dict(chunk, unit=sensor_data["unit"])
+                for chunk in regular_series(
+                    expanded["values"], resolution=sensor.event_resolution
+                )
+            ]
+            if report is not None:
+                response["report"] = report
+            return response, code
         response, code = process_sensor_data_ingestion(
             sensor_id=sensor.id,
             user_id=current_user.id,
             sensor_data=sensor_data,
             force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
+        if report is not None:
+            response = dict(response, report=report)
         return response, code
 
     @route("/<id>/data", methods=["GET"])
