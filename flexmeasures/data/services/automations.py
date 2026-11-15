@@ -1734,7 +1734,15 @@ def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     """
     involved = []
     for automation in db.session.scalars(select(Automation)).unique():
-        automation_sensors = get_automation_sensors(automation)
+        try:
+            automation_sensors = get_automation_sensors(automation)
+        except Exception as exc:  # noqa: B902
+            # One broken automation (e.g. with an asset attribute naming a module that does not exist)
+            # should not keep admins from checking all the others, as run-automations does, too.
+            current_app.logger.warning(
+                f"Could not tell which sensors automation {automation.id} involves: {exc.__class__.__name__}: {exc}"
+            )
+            continue
         if sensor.id in {
             involved_sensor.id
             for key in ("input_sensors", "output_sensors")
