@@ -405,9 +405,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
   // Which automations the Waits for lists and the chains go by, and those fetched for a scope beyond this page.
+  // Named by what they hold; the first two only differ while the automations of the assets below this one are listed.
   const AUTOMATION_SCOPES = {
-    listed: "Automations on this page",
-    asset: "Automations on this asset only",
+    listed: "This asset and the assets below it",
+    asset: "This asset only",
     public: "Automations on public assets",
     all: "Every automation you can see",
   };
@@ -601,8 +602,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return scopedAutomations.get(automationScope) || [...automationsById.values()];
   }
 
+  // Without the assets below it, what is listed is this asset only, which is then offered once.
   function automationScopeOptions() {
+    const listsBelow = includeChildAssets && assetHasChildren;
     return Object.entries(AUTOMATION_SCOPES)
+      .filter(([scope]) => listsBelow || scope !== "asset")
+      .map(([scope, label]) => [scope, !listsBelow && scope === "listed" ? AUTOMATION_SCOPES.asset : label])
       .map(([scope, label]) => `<option value="${scope}"${scope === automationScope ? " selected" : ""}>${label}</option>`)
       .join("");
   }
@@ -1417,6 +1422,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#includeChildAssets").on("change", function () {
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
+      if (!includeChildAssets && automationScope === "asset") {
+        automationScope = "listed";
+      }
+      $(".automation-scope").html(automationScopeOptions());
       loadAutomations({ rebuild: true });
     });
 

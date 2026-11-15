@@ -298,3 +298,56 @@ def test_the_waits_for_picker_ticks_what_an_automation_waits_for(assert_js):
         eq("a click anywhere on a row ticks its box, and is sent along",
            page.dependsOnValues("#picker", "#allowFailure").map((dependency) => dependency.automation), [7, 8, 5]);
     """)
+
+
+@pytest.mark.parametrize(
+    "has_children, include_children, expected",
+    [
+        (
+            True,
+            True,
+            [
+                "This asset and the assets below it",
+                "This asset only",
+                "Automations on public assets",
+                "Every automation you can see",
+            ],
+        ),
+        (
+            True,
+            False,
+            [
+                "This asset only",
+                "Automations on public assets",
+                "Every automation you can see",
+            ],
+        ),
+        (
+            False,
+            True,
+            [
+                "This asset only",
+                "Automations on public assets",
+                "Every automation you can see",
+            ],
+        ),
+    ],
+)
+def test_the_scopes_to_pick_from_are_named_by_what_they_hold(
+    assert_js, has_children, include_children, expected
+):
+    """Only with the assets below it listed is there more on the page than this asset, so only then are both offered."""
+    script = automation_script(
+        can_manage=True,
+        can_run=True,
+        has_children=has_children,
+        include_children=include_children,
+    )
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ automationScopeOptions }};")();
+        const select = document.createElement("select");
+        select.innerHTML = page.automationScopeOptions();
+        eq("the scopes offered", [...select.options].map((option) => option.textContent), {json.dumps(expected)});
+    """)
