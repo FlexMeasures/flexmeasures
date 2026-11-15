@@ -917,6 +917,7 @@ FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Token which external services can use to check on the status of recurring tasks within FlexMeasures.
+They send it in the ``Authorization`` header. Leave it unset (or empty) to switch these checks off.
 
 Default: ``None``
 
