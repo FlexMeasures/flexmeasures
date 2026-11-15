@@ -3763,7 +3763,7 @@
     "/api/v3_0/assets/{id}/automations/{automation-id}/run-plan": {
       "get": {
         "summary": "See what running an automation along with what is upstream or downstream of it comes down to.",
-        "description": "Nothing is run.\nRuns always flow downstream; `include` says which part of the chain is included.\nThe automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.\nThe automations that will not run are listed under `excluded`, each with the reason.\nThey still run on their own schedule, just not because of this request.\nAn automation you may not read stays a bare ID.\n",
+        "description": "Nothing is run.\nRuns always flow downstream; `include` says which part of the chain is included.\nThe automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.\nThe automations that will not run are listed under `excluded`, each with the reason,\nwhich of the steps wait for it, and, if you may read it, when it last succeeded (null if it never did).\nThey still run on their own schedule, just not because of this request,\nand the steps that wait for them go by the results they last produced.\nAn automation you may not read stays a bare ID.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3835,7 +3835,14 @@
                       "excluded": [
                         {
                           "automation": 5,
-                          "reason": "You may not run this automation."
+                          "reason": "You may not run this automation.",
+                          "waited-for-by": [
+                            7
+                          ],
+                          "name": "Day-ahead prices",
+                          "asset": 2,
+                          "asset-name": "Market",
+                          "last-succeeded-at": null
                         }
                       ]
                     }

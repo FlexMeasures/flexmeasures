@@ -829,7 +829,11 @@ def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
     )
 
     assert plan["excluded"] == [
-        {"automation": public.id, "reason": "You may not run this automation."}
+        {
+            "automation": public.id,
+            "reason": "You may not run this automation.",
+            "waited-for-by": [forecast.id],
+        }
     ]
     assert [step["automation"] for step in plan["steps"]] == [meters.id, forecast.id]
     assert plan["steps"][1]["waits-for"] == [meters.id]
@@ -843,6 +847,28 @@ def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
     )
     assert [step["automation"] for step in downwards["steps"]] == [forecast.id]
     assert [step["automation"] for step in downwards["excluded"]] == [schedule.id]
+    # What the user may read says when it last succeeded, which it has not yet.
+    assert downwards["excluded"][0]["last-succeeded-at"] is None
+    assert downwards["excluded"][0]["waited-for-by"] == []
+
+
+def test_a_plan_says_when_an_excluded_automation_last_succeeded(
+    fresh_db, app, make_automation
+):
+    """What waits for an excluded automation goes by the results it last produced, so the plan says when that was."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+    _work(app, _run_of(fresh_db, snapper))
+    snapper_run = _run_of(fresh_db, snapper)
+    assert snapper_run.execution_state == "succeeded"
+
+    plan = plan_automation_chain(flows, "upstream", exclude=[snapper.id])
+
+    assert plan["excluded"][0]["last-succeeded-at"] == (
+        snapper_run.execution_completed_at.isoformat()
+    )
+    assert plan["excluded"][0]["waited-for-by"] == [flows.id]
 
 
 def test_a_plan_lists_a_diamond_in_the_order_it_runs(fresh_db, make_automation):

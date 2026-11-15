@@ -200,7 +200,7 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
     assert_js(f"""
         // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
         window.$ = () => ({{ready: () => {{}}}});
-        const page = new Function({json.dumps(script)} + "\\nreturn {{ runPlanSelection, runPlanStructure, runPlanBranches, runPlanHtml, runPlanQuery, runPlanLookupQuery, AutomationRow, automationsById }};")();
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ runPlanSelection, runPlanStructure, runPlanBranches, runPlanHtml, runPlanQuery, runPlanLookupQuery, runPlanWarnings, AutomationRow, automationsById }};")();
         // 9 waits for 4 and 7, and 7 waits for 2 and 5, of which 5 is one the user may not run.
         const plan = {{automationId: 9, include: "upstream", exclude: new Set(), steps: [
             {{automation: 2, "waits-for": [], name: "Tariffs", "asset-name": "site"}},
@@ -218,7 +218,7 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
         check("a branch has a ticked box", row(7).querySelector("input").checked);
         check("this automation is pointed out", row(9).textContent.includes("This automation"));
         eq("a name stays text", row(9).querySelector("b"), null);
-        check("the rest is said to go by the latest results", doc.body.textContent.includes("latest results of those that won't run"));
+        check("there is nothing to warn about while it is not known what an excluded one last did", !doc.body.textContent.includes("will likely fail"));
         eq("nothing is excluded by default", page.runPlanQuery(plan), "with-upstream=true");
         eq("and the plan is asked for the same way", page.runPlanLookupQuery(plan), "include=upstream");
 
@@ -233,6 +233,17 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
         const unticked = new DOMParser().parseFromString(page.runPlanHtml(without7), "text/html");
         check("its box stays there to tick again", !unticked.querySelector('li[data-automation-id="7"] input').checked);
         check("it says why it won't run", unticked.querySelector('li[data-automation-id="7"]').textContent.includes("You left it out."));
+
+        // Of those that won't run, one never succeeded and one did.
+        const stale = {{...without7, excluded: [
+            {{automation: 7, reason: "You left it out.", name: "Prices", "waited-for-by": [9], "last-succeeded-at": null}},
+            {{automation: 4, reason: "It is inactive.", name: "Meters", "waited-for-by": [9], "last-succeeded-at": "2026-08-05T01:00:00+00:00"}},
+        ], steps: [{{automation: 9, "waits-for": [], name: "Forecast"}}]}};
+        const staleDoc = new DOMParser().parseFromString(page.runPlanHtml(stale), "text/html");
+        eq("one that never succeeded is warned about, naming what will likely fail", page.runPlanWarnings(stale),
+           ["Prices has never run successfully, so Forecast will likely fail."]);
+        check("and its row says so", staleDoc.querySelector('li[data-automation-id="7"]').textContent.includes("Never ran successfully"));
+        check("one that did says when", staleDoc.querySelector('li[data-automation-id="4"]').textContent.includes("Last succeeded"));
 
         // 2 is waited for by 7 and 8, which branch off.
         const down = {{automationId: 2, include: "downstream", exclude: new Set(), excluded: [], steps: [

@@ -953,11 +953,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const excludedRows = plan.excluded.map((step) => row(step.automation, false, runPlanName(step), [
       ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
       `Won't run. ${esc(step.reason)}`,
+      ...(step["last-succeeded-at"] ? [`Last succeeded ${esc(new Date(step["last-succeeded-at"]).toLocaleString())}`] : []),
+      ...(step["last-succeeded-at"] === null ? ["Never ran successfully"] : []),
     ]));
-    const warning = plan.excluded.length ? `<p class="text-muted mt-2 mb-0">The rest goes by the latest results of those that won't run.</p>` : "";
+    const warnings = runPlanWarnings(plan).map((warning) => `<p class="text-warning-emphasis mt-2 mb-0">${warning}</p>`);
     return `<p class="fs-5 mb-2" id="runPlanStructure">${runPlanStructure(plan)}</p>
       ${branches.size ? `<p class="small text-muted mb-2">Untick a branch to leave it out, along with what can only be reached through it.</p>` : ""}
-      <ul class="list-group">${[...rows, ...excludedRows].join("")}</ul>${warning}`;
+      <ul class="list-group">${[...rows, ...excludedRows].join("")}</ul>${warnings.join("")}`;
+  }
+
+  /* A warning for each automation that won't run and has never succeeded, while steps that do run wait for it,
+     as those would compute without its results. It does not keep the plan from running. */
+  function runPlanWarnings(plan) {
+    const names = new Map(plan.steps.map((step) => [step.automation, step.name || `Automation ${step.automation}`]));
+    return plan.excluded
+      .filter((step) => step["last-succeeded-at"] === null && (step["waited-for-by"] || []).length)
+      .map((step) => `${esc(step.name)} has never run successfully, so ${step["waited-for-by"].map((id) => esc(names.get(id))).join(" and ")} will likely fail.`);
   }
 
   // What came of asking for a run, in which an automation with nothing to do can still set off the ones waiting for it.

@@ -3396,7 +3396,9 @@ def plan_automation_chain(
     """Say what running an automation along with what is upstream or downstream of it comes down to (see `get_chain_automations`).
 
     :returns:   under 'steps', the automations that run, in the order they run, each with what it waits for among them,
-                and under 'excluded', those that do not run, each with the reason.
+                and under 'excluded', those that do not run, each with the reason,
+                which of the steps wait for it, and when it last succeeded (null if never),
+                as the steps that wait for it go by the results it produced then.
                 One the user may not read stays a bare ID.
     """
     chain, excluded = get_chain_automations(automation, include, exclude, may_run)
@@ -3411,6 +3413,27 @@ def plan_automation_chain(
             "asset-name": step.asset.name,
         }
 
+    def describe_excluded(step: Automation, reason: str) -> dict[str, Any]:
+        described = {
+            "automation": step.id,
+            "reason": reason,
+            "waited-for-by": [
+                other.id
+                for other in chain
+                if any(
+                    dependency.upstream_id == step.id
+                    for dependency in other.dependencies
+                )
+            ],
+            **describe(step),
+        }
+        if "name" in described:
+            last_succeeded_at = get_last_succeeded_at(step)
+            described["last-succeeded-at"] = (
+                last_succeeded_at.isoformat() if last_succeeded_at is not None else None
+            )
+        return described
+
     return {
         "steps": [
             {
@@ -3424,11 +3447,18 @@ def plan_automation_chain(
             }
             for step in chain
         ],
-        "excluded": [
-            {"automation": step.id, "reason": reason, **describe(step)}
-            for step, reason in excluded
-        ],
+        "excluded": [describe_excluded(step, reason) for step, reason in excluded],
     }
+
+
+def get_last_succeeded_at(automation: Automation) -> datetime | None:
+    """Return when the latest successful run of an automation ended, scheduled or on demand, or None if none did."""
+    return db.session.scalar(
+        select(func.max(AutomationRun.execution_completed_at)).where(
+            AutomationRun.automation_id == automation.id,
+            AutomationRun.execution_state == "succeeded",
+        )
+    )
 
 
 def _new_on_demand_run(

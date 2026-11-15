@@ -427,7 +427,9 @@ def test_run_plan_tells_what_will_run_and_what_will_not(
     assert excluded[upstream["foreign"].id] == {
         "automation": upstream["foreign"].id,
         "reason": "You may not run this automation.",
+        "waited-for-by": [downstream.id],
     }
+    assert excluded[upstream["public"].id]["last-succeeded-at"] is None
     assert fresh_db.session.scalars(select(AutomationRun)).all() == []
 
 

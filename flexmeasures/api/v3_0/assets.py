@@ -2493,8 +2493,10 @@ class AssetAPI(FlaskView):
             Nothing is run.
             Runs always flow downstream; `include` says which part of the chain is included.
             The automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.
-            The automations that will not run are listed under `excluded`, each with the reason.
-            They still run on their own schedule, just not because of this request.
+            The automations that will not run are listed under `excluded`, each with the reason,
+            which of the steps wait for it, and, if you may read it, when it last succeeded (null if it never did).
+            They still run on their own schedule, just not because of this request,
+            and the steps that wait for them go by the results they last produced.
             An automation you may not read stays a bare ID.
           security:
             - ApiKeyAuth: []
@@ -2544,6 +2546,11 @@ class AssetAPI(FlaskView):
                         excluded:
                           - automation: 5
                             reason: You may not run this automation.
+                            waited-for-by: [7]
+                            name: Day-ahead prices
+                            asset: 2
+                            asset-name: Market
+                            last-succeeded-at: null
             401:
               description: UNAUTHORIZED
             403:
