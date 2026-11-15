@@ -129,11 +129,6 @@ def register_rq_dashboard(app):
     )
 
     @login_required
-    def basic_auth():
-        """Ensure basic authorization."""
-        return
-
-    @login_required
     @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
     def basic_admin_auth():
         """Ensure basic admin authorization."""
@@ -149,12 +144,9 @@ def register_rq_dashboard(app):
 
         return
 
-    # Logged-in users can view queues on the demo server, but only admins can view them on other servers
-    if app.config.get("FLEXMEASURES_ENV") != "documentation":
-        if app.config.get("FLEXMEASURES_MODE", "") == "demo":
-            rq_dashboard.blueprint.before_request(basic_auth)
-        else:
-            rq_dashboard.blueprint.before_request(basic_admin_auth)
+    # Only admins (and admin-readers, to look) may use the dashboard, in every mode and environment:
+    # it shows the arguments, results and errors of every account's jobs, and can delete them.
+    rq_dashboard.blueprint.before_request(basic_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
