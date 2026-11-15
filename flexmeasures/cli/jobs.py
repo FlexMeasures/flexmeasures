@@ -109,17 +109,17 @@ def run_automations():
     now = floor_to_minute(server_now())
     report: list[dict] = []
     claimed_runs = get_dispatchable_automation_runs(now, report=report)
-    # A killed job's run is failed here, which can skip or set off the runs waiting for it, too.
+    # A killed job's run, or an abandoned run on demand, is failed here, which can skip or set off the runs waiting for it, too.
     for event in report:
         run = event["run"]
         failed = run.execution_state in ("failed", "skipped", "canceled")
         click.secho(
             f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
-            + (
-                ", as its job ended without saying so"
-                if event["event"] == "reconciled"
-                else ", as the runs it waits for ended"
-            )
+            + {
+                "reconciled": ", as its job ended without saying so",
+                "abandoned": ", as its dispatch was abandoned",
+                "released": ", as the runs it waits for ended",
+            }[event["event"]]
             + "."
             + (f" {event['message']}" if event["message"] else ""),
             **(MsgStyle.WARN if failed else MsgStyle.SUCCESS),

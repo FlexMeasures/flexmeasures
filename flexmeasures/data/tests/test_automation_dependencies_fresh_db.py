@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from marshmallow import ValidationError
@@ -294,6 +294,35 @@ def test_a_killed_job_ends_its_run_and_what_waits_for_it(
             fresh_db.session.get(AutomationRun, dependent_run_id).execution_state
             == "skipped"
         )
+
+
+def test_an_abandoned_run_on_demand_ends_and_so_does_what_waits_for_it(
+    fresh_db, app, make_automation
+):
+    """A chain recorded on demand, whose first run nobody went on to queue, is ended by the runner once the claim on it expires."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    # Whoever asked for the chain went down between recording its runs and queueing the first one.
+    runs, _ = automation_services._start_on_demand_runs(
+        [snapper, flows], SCHEDULED_AT, "api-process", TICK
+    )
+    snapper_run, flows_run = runs[snapper.id], runs[flows.id]
+
+    report = []
+    get_dispatchable_automation_runs(TICK + timedelta(minutes=5), report=report)
+    assert report == []
+    assert _states(fresh_db, [snapper_run])[snapper.id] == ("claimed", "pending")
+
+    get_dispatchable_automation_runs(TICK + timedelta(minutes=11), report=report)
+
+    assert [(event["run"].id, event["event"]) for event in report] == [
+        (snapper_run.id, "abandoned"),
+        (flows_run.id, "released"),
+    ]
+    assert _states(fresh_db, [snapper_run, flows_run]) == {
+        snapper.id: ("failed", "pending"),
+        flows.id: ("queued", "skipped"),
+    }
 
 
 @pytest.mark.parametrize(

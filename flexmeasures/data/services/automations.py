@@ -357,7 +357,7 @@ def get_dispatchable_automation_runs(
     A run whose job was killed never gets to say so, so that is looked up first (see `reconcile_unfinished_automation_jobs`).
 
     :param report:  a list to add what else became of runs along the way to,
-                    each as a dict with the 'run', the 'event' ('reconciled' or 'released') and a 'message',
+                    each as a dict with the 'run', the 'event' ('reconciled', 'abandoned' or 'released') and a 'message',
                     such as a run failed for a killed job, and the run waiting for it, skipped as a result.
     """
     if now is None:
@@ -366,6 +366,7 @@ def get_dispatchable_automation_runs(
     token = _tick_report.set(report)
     try:
         reconcile_unfinished_automation_jobs()
+        give_up_abandoned_on_demand_runs(now)
     finally:
         _tick_report.reset(token)
     claimed_runs: list[ClaimedAutomationRun] = []
@@ -418,6 +419,36 @@ def get_dispatchable_automation_runs(
         if claimed is not None:
             claimed_runs.append(claimed)
     return claimed_runs
+
+
+def give_up_abandoned_on_demand_runs(now: datetime) -> None:
+    """Fail the runs on demand whose dispatch was abandoned, so that what waits for them is not left waiting forever.
+
+    Whoever asked for a run on demand claims it, and lets go of it once its jobs are queued.
+    One that stopped halfway, such as an API process that went down between recording a chain of runs and queueing the first,
+    leaves its claim to expire, and as the runner does not retry runs on demand (see `get_dispatchable_automation_runs`), nothing else would end it.
+    """
+    for run in db.session.scalars(
+        select(AutomationRun)
+        .where(
+            AutomationRun.trigger == "on-demand",
+            AutomationRun.dispatch_state.in_(("claimed", "partially_queued")),
+            AutomationRun.dispatch_completed_at.is_(None),
+            AutomationRun.claim_owner.is_not(None),
+            AutomationRun.claim_expires_at <= now,
+        )
+        .order_by(AutomationRun.id)
+    ).all():
+        position = _tick_report_position()
+        if run.dispatch_state == "claimed":
+            run.dispatch_state = "failed"
+        run.claim_owner = None
+        run.claim_expires_at = None
+        run.last_error_type = "DispatchAbandoned"
+        run.last_error_message = "Whoever asked for this run stopped before it queued all of its jobs, and a run on demand is not retried."
+        db.session.commit()
+        _report_to_tick(run, "abandoned", run.last_error_message, position)
+        _release_runs_waiting_for_ended_run(run)
 
 
 def _dispatch_was_given_up(run: AutomationRun) -> bool:
