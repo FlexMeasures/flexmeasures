@@ -393,3 +393,92 @@ def test_pandas_reporter_droplevels_respects_input_override(app, setup_dummy_dat
             ],
             output=[dict(name="sensor_3_copy", sensor=report_sensor)],
         )
+
+
+def _compute_with_steps(sensor, report_sensor, steps: list[dict]):
+    reporter = PandasReporter(
+        config=dict(
+            required_input=[{"name": "sensor_1"}],
+            required_output=[{"name": "sensor_1"}],
+            transformations=steps,
+        )
+    )
+    return reporter.compute(
+        start=datetime(2023, 4, 10, tzinfo=utc),
+        end=datetime(2023, 4, 10, 10, tzinfo=utc),
+        input=[dict(name="sensor_1", sensor=sensor)],
+        output=[dict(name="sensor_1", sensor=report_sensor)],
+    )
+
+
+def test_pandas_reporter_reads_sensor_attributes(app, db, setup_dummy_data):
+    """As in PR #1669: the sensor property and the get_attribute pseudo-method read a sensor's attribute."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+    s1.attributes = {**s1.attributes, "capacity_in_mw": 2}
+    db.session.flush()
+
+    report = _compute_with_steps(
+        s1,
+        report_sensor,
+        [
+            dict(df_input="sensor_1", df_output="the_sensor", property="sensor"),
+            dict(
+                df_input="the_sensor",
+                df_output="capacity",
+                method="get_attribute",
+                args=["capacity_in_mw"],
+            ),
+            dict(
+                df_input="sensor_1",
+                df_output="sensor_1",
+                method="clip",
+                kwargs=dict(upper="@capacity"),
+            ),
+        ],
+    )
+    assert report[0]["data"]["event_value"].max() <= 2
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        # A sensor (an ORM object) as an argument to a pandas method
+        [
+            dict(df_input="sensor_1", df_output="the_sensor", property="sensor"),
+            dict(
+                df_input="sensor_1",
+                df_output="filled",
+                method="fillna",
+                args=["@the_sensor"],
+            ),
+        ],
+        # A pandas method on something that is not a pandas object (here a string attribute)
+        [
+            dict(df_input="sensor_1", df_output="the_sensor", property="sensor"),
+            dict(
+                df_input="the_sensor",
+                df_output="text",
+                method="get_attribute",
+                args=["some_text"],
+            ),
+            dict(
+                df_input="text",
+                df_output="changed_text",
+                method="replace",
+                args=["secret", "public"],
+            ),
+        ],
+        # The asset property on a pandas object
+        [dict(df_input="sensor_1", df_output="the_asset", property="generic_asset")],
+    ],
+)
+def test_pandas_reporter_refuses_steps_on_other_objects(
+    app, db, setup_dummy_data, steps
+):
+    """Transformations may only work on pandas objects (and read attributes of the sensor and its asset)."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+    s1.attributes = {**s1.attributes, "some_text": "secret"}
+    db.session.flush()
+
+    with pytest.raises(ValueError, match="A transformation cannot"):
+        _compute_with_steps(s1, report_sensor, steps)
