@@ -2782,9 +2782,11 @@ def test_show_automations_lists_all_and_shows_one(
         f"{automation.generator.name} (ID: {automation.generator.id}, model: {automation.generator.model})"
         in result.output
     )
-    assert "Reads from" in result.output
-    assert "Writes to" in result.output
-    reads_from, writes_to = result.output.split("Reads from:")[1].split("Writes to:")
+    assert "Sensors it reads" in result.output
+    assert "Sensors it writes" in result.output
+    reads_from, writes_to = result.output.split("Sensors it reads:")[1].split(
+        "Sensors it writes:"
+    )
     assert "sensor 1" in writes_to
     assert "sensor 1" in reads_from and "sensor 2" in reads_from
 
@@ -2919,7 +2921,7 @@ def test_show_automations_handles_unresolved_sensors(
         f"Could not determine the sensors of automation {automation.id}"
         in result.output
     )
-    assert "Reads from" not in result.output
+    assert "Sensors it reads" not in result.output
 
 
 def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown(
@@ -2958,7 +2960,7 @@ def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown
     assert result.exit_code == 0, result.output
     assert f"Automation {automation.id} ('Broken schedules')" in result.output
     assert "Could not determine the sensors of schedule automation" in result.output
-    assert "Reads from" not in result.output
+    assert "Sensors it reads" not in result.output
 
 
 def test_show_automations_shows_a_schedule_automation(
@@ -3053,7 +3055,14 @@ def test_add_edit_and_show_automation_dependencies(
 
     shown = runner.invoke(list_automations, ["--id", downstream.id])
     assert shown.exit_code == 0, shown.output
-    assert f"Upstream (ID: {upstream.id}), also when it fails" in shown.output
+    assert (
+        f"Upstream (ID: {upstream.id}, {upstream.cronstr} in {upstream.timezone}), also when it fails"
+        in shown.output
+    )
+    shown_upstream = runner.invoke(list_automations, ["--id", upstream.id])
+    assert shown_upstream.exit_code == 0, shown_upstream.output
+    assert "Waited for by" in shown_upstream.output
+    assert f"Downstream (ID: {downstream.id})" in shown_upstream.output
 
     # The upstream automation can move to another schedule while another one waits for it.
     moved = runner.invoke(
