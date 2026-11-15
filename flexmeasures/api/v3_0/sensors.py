@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import isodate
-import json
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -40,7 +41,6 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     GetSensorDataQuerySchema,
     PostSensorDataSchema,
     PostSensorDataRequestSchema,
-    RecurrencePreviewSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -94,8 +94,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.recurrence import RecurrenceError, expand_wall_clock_recurrence
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
@@ -215,7 +214,7 @@ class DeleteSensorAnnotationsSchema(Schema):
             description="Only delete annotations starting at or after this datetime (ISO 8601).",
         ),
     )
-    until = AwareDateTimeField(
+    end = AwareDateTimeField(
         required=False,
         metadata=dict(
             description="Only delete annotations ending at or before this datetime (ISO 8601).",
@@ -224,20 +223,23 @@ class DeleteSensorAnnotationsSchema(Schema):
 
     @validates_schema
     def validate_time_window(self, data, **kwargs):
-        """Validate that ``until`` is not before ``start``."""
+        """Validate that ``end`` is not before ``start``."""
         start = data.get("start")
-        until = data.get("until")
-        if start is not None and until is not None and until < start:
-            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        end = data.get("end")
+        if start is not None and end is not None and end < start:
+            raise ValidationError({"end": ["'end' must not be before 'start'."]})
 
 
-class DeleteSensorDataSchema(Schema):
+class DeleteSensorDataSchema(SupportsLegacyFieldAliases, Schema):
     """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
 
-    Validates that ``until`` is not before ``start``, and for non-instantaneous sensors,
-    that ``until`` is at least one sensor resolution later than ``start``.
+    Validates that ``end`` is not before ``start``, and for non-instantaneous sensors,
+    that ``end`` is at least one sensor resolution later than ``start``.
     The sensor must be provided via schema context (``context["sensor"]``).
+    ``until`` is still accepted in place of ``end``, as it was the name until v1.1.0.
     """
+
+    legacy_field_aliases = {"until": "end"}
 
     source = SourceIdField(
         required=False,
@@ -251,30 +253,30 @@ class DeleteSensorDataSchema(Schema):
             description="Only delete data with event start at or after this datetime (ISO 8601).",
         ),
     )
-    until = AwareDateTimeField(
+    end = AwareDateTimeField(
         required=False,
         metadata=dict(
-            description="Only delete data with event end at or before this datetime (ISO 8601).",
+            description="Only delete data with event end at or before this datetime (ISO 8601). Formerly called `until`, which is still accepted.",
         ),
     )
 
     @validates_schema
     def validate_time_window(self, data, **kwargs):
-        """Validate start/until consistency against each other and the sensor resolution."""
+        """Validate start/end consistency against each other and the sensor resolution."""
         start = data.get("start")
-        until = data.get("until")
-        if start is None or until is None:
+        end = data.get("end")
+        if start is None or end is None:
             return
-        if until < start:
-            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        if end < start:
+            raise ValidationError({"end": ["'end' must not be before 'start'."]})
         sensor = self.context.get("sensor")
         if sensor is not None:
             resolution = sensor.event_resolution
-            if resolution > timedelta(0) and until < start + resolution:
+            if resolution > timedelta(0) and end < start + resolution:
                 raise ValidationError(
                     {
-                        "until": [
-                            f"For a sensor with resolution {resolution}, 'until' must be"
+                        "end": [
+                            f"For a sensor with resolution {resolution}, 'end' must be"
                             f" at least one resolution step ({resolution}) after 'start'."
                         ]
                     }
@@ -368,6 +370,34 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+
+def regular_series(values: pd.Series, resolution: timedelta) -> list[dict]:
+    """Split values indexed by event start into regular series, in the shape of posted sensor data.
+
+    A new series starts wherever two events are not one resolution apart in absolute time,
+    such as around a clock change that values on their local time cannot follow in fixed steps.
+    Slots without a value are given as null.
+    """
+    if values.empty:
+        return []
+    if resolution == timedelta(0):
+        breaks = [0, len(values)]
+    else:
+        steps = values.index.to_series().diff().iloc[1:]
+        breaks = [0] + [i + 1 for i, step in enumerate(steps) if step != resolution]
+        breaks.append(len(values))
+    chunks = []
+    for first, last in zip(breaks[:-1], breaks[1:]):
+        chunk = values.iloc[first:last]
+        chunks.append(
+            dict(
+                start=isodate.datetime_isoformat(chunk.index[0]),
+                duration=duration_isoformat(len(chunk) * resolution),
+                values=chunk.astype(object).where(chunk.notna(), None).tolist(),
+            )
+        )
+    return chunks
 
 
 class SensorAPI(FlaskView):
@@ -550,6 +580,7 @@ class SensorAPI(FlaskView):
             .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
             .outerjoin(Account, GenericAsset.owner)
             .filter(filter_statement)
+            .order_by(Sensor.id)
         )
 
         if filter is not None:
@@ -600,6 +631,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -611,6 +643,10 @@ class SensorAPI(FlaskView):
             The file should have columns for a timestamp (event_start) and a value (event_value).
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
+
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -715,6 +751,9 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        if not belief_time_measured_instantly:
+            # Fix the belief time now, so data processed by a queued job is not believed later than its upload
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -736,7 +775,14 @@ class SensorAPI(FlaskView):
         "post-data",
         ctx_arg_name="sensor",
     )
-    def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
+    def post_data(
+        self,
+        id: int,
+        sensor: Sensor,
+        sensor_data: dict,
+        dry_run: bool = False,
+        expanded: dict | None = None,
+    ):
         """
         .. :quickref: Data; Post sensor data
         ---
@@ -755,6 +801,24 @@ class SensorAPI(FlaskView):
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
+
+            **Repeating values.**
+            With `repeat` and `until`, the values are a pattern (such as one day of SoC limits) that is saved, and then repeated daily, on the same weekday only, on workdays or on weekends, until the given date.
+            The pattern itself is saved too, unless the repeat days leave out the day it starts on (such as a Saturday pattern repeated on workdays).
+            The pattern may be at most one day long when repeated daily, on workdays or on weekends, or one week long when repeated on the same weekday,
+            it may not be finer than the sensor's resolution, and the sensor may not record instantaneous values.
+            Each repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:
+            values whose local time is skipped (spring forward) are left out, and values whose local time occurs twice (fall back) are saved to both instants.
+            Where the sensor's resolution is coarser than the clock change (such as hourly data where clocks shift by 30 minutes), values stay on their local time:
+            a slot only partly skipped starts when the clock resumes, and the repeated part of the clock is filled by one more event of the preceding slot.
+            The response then includes a `report`, which counts the values saved, lists the clock changes that left out, repeated or moved a value, and counts the clock changes checked.
+            Repeating is limited to one year after the pattern starts, and to FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES values (100,000 by default).
+
+            **Dry run.**
+            With `dry-run`, nothing is saved, and the response holds the values that would be saved (`data`), in the posted unit, plus the `report` when repeating.
+            A dry run is always answered directly, rather than as a job.
+            `data` lists the values in the shape of posted sensor data, as one or more regular series, in time order:
+            usually one, but a new series starts wherever the values are not one resolution apart (around some clock changes), and null values fill the gaps between repeats.
 
           security:
             - ApiAuthKey: []
@@ -775,132 +839,44 @@ class SensorAPI(FlaskView):
                       "start": "2021-06-07T00:00:00+02:00"
                       "duration": "PT1H"
                       "unit": "m³/h"
-          responses:
-            202:
-              description: ACCEPTED
-            200:
-              description: PROCESSED
-            400:
-              description: INVALID_REQUEST
-            401:
-              description: UNAUTHORIZED
-            403:
-              description: INVALID_SENDER
-            413:
-              description: PAYLOAD_TOO_LARGE
-            422:
-              description: UNPROCESSABLE_ENTITY
-          tags:
-            - Sensors
-        """
-        response, code = process_sensor_data_ingestion(
-            sensor_id=sensor.id,
-            user_id=current_user.id,
-            sensor_data=sensor_data,
-            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
-        )
-        return response, code
-
-    @route("/<id>/data/preview-recurrence", methods=["POST"])
-    @use_args(
-        RecurrencePreviewSchema(),
-        location="combined_sensor_data_description",
-        as_kwargs=True,
-    )
-    @permission_required_for_context(
-        "post-data",
-        ctx_arg_name="sensor",
-    )
-    def preview_recurrence(
-        self,
-        id: int,
-        sensor: Sensor,
-        pattern: pd.Series,
-        unit: str,
-        repeat: str,
-        until: date,
-        belief_timing: dict,
-    ):
-        """
-        .. :quickref: Data; Preview a repeated pattern of sensor data
-        ---
-        post:
-          summary: Preview a repeated pattern of sensor data
-          description: |
-            Repeat a pattern of sensor values daily, or on the same weekday only, until a given date, and return the repeats without saving them.
-            To save them, post the returned `data` to [POST /sensors/{id}/data](#/Sensors/post_api_v3_0_sensors__id__data) as it is.
-
-            The pattern is sent in the shape of posted sensor data, and is checked in the same way:
-            the unit has to be convertible to the sensor's unit, and the resolution has to fit the sensor's resolution.
-            It may be coarser than the sensor's resolution (its values are then upsampled), but not finer.
-            It may be at most one day long when repeated daily, or one week long when repeated on the same weekday.
-            The list of values may include null values, which are repeated as null values.
-
-            Each repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:
-            values whose local time is skipped (spring forward) are left out, as that time has no slot,
-            and values whose local time occurs twice (fall back) are repeated to both instants.
-            The `report` counts the values to be saved, and says which values each transition left out or repeated twice.
-            If the sensor resolution cannot follow a clock change (such as hourly data where clocks shift by 30 minutes),
-            the pattern is repeated every 24 hours (or 168 hours) instead, and the report says so.
-
-            Repeating is limited to one year after the pattern starts,
-            and to as many values as can be posted in one request (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES, 3 MiB by default).
-            Requires the same permission as posting data to the sensor.
-
-          security:
-            - ApiKeyAuth: []
-          parameters:
-            - name: id
-              in: path
-              required: true
-              schema: SensorId
-          requestBody:
-            content:
-              application/json:
-                schema: RecurrencePreviewSchema
-                examples:
-                  repeat_daily:
-                    summary: Repeat two hourly SoC minima daily, for two days
+                  repeat_dry_run:
+                    summary: Check what repeating two hourly SoC minima daily would save
                     value:
                       "values": [80, 90]
                       "start": "2026-11-02T06:00:00+01:00"
                       "duration": "PT2H"
                       "unit": "kWh"
                       "repeat": "daily"
-                      "until": "2026-11-04"
+                      "until": "2026-11-03"
+                      "dry-run": true
           responses:
+            202:
+              description: ACCEPTED
             200:
               description: PROCESSED
               content:
                 application/json:
-                  schema:
-                    type: object
-                    properties:
-                      data:
-                        type: object
-                        description: The repeated values, in the shape of posted sensor data, with null values for slots without a value.
-                      report:
-                        type: object
-                        description: |
-                          Counts of the values to be saved (`n_values`), and of the values left out (`n_omitted`) or repeated twice (`n_duplicated`) by daylight saving time transitions,
-                          plus the transitions themselves, and whether repeats follow the local time (`mode` is `wall_clock`) or fall back to fixed steps of 24 hours (`absolute`).
-                  example:
-                    data:
-                      start: "2026-11-03T06:00:00+01:00"
-                      duration: "PT26H"
-                      values: [80, 90, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 80, 90]
-                      unit: "kWh"
-                    report:
-                      n_values: 4
-                      n_omitted: 0
-                      n_duplicated: 0
-                      mode: "wall_clock"
-                      period: "daily"
-                      n_occurrences: 2
-                      transitions: []
-                      fallback_reason: null
-                    status: PROCESSED
-                    message: Request has been processed.
+                  examples:
+                    repeat_dry_run:
+                      summary: What repeating two hourly SoC minima daily would save
+                      value:
+                        data:
+                          - start: "2026-11-02T06:00:00+01:00"
+                            duration: "PT26H"
+                            values: [80, 90, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 80, 90]
+                            unit: "kWh"
+                        report:
+                          n-values: 4
+                          period: "daily"
+                          n-occurrences: 1
+                          pattern-included: true
+                          n-omitted: 0
+                          n-duplicated: 0
+                          n-shifted: 0
+                          n-transitions-checked: 0
+                          transitions: []
+                        status: PROCESSED
+                        message: Request has been processed.
             400:
               description: INVALID_REQUEST
             401:
@@ -914,78 +890,32 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-        resolution = sensor.event_resolution
-        max_size = current_app.config.get(
-            "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"
+        report = None
+        if expanded is not None and expanded["report"] is not None:
+            report = {
+                "n-values": int(expanded["values"].notna().sum()),
+                **expanded["report"].to_dict(),
+            }
+        if dry_run:
+            response, code = request_processed()
+            response["data"] = [
+                dict(chunk, unit=sensor_data["unit"])
+                for chunk in regular_series(
+                    expanded["values"], resolution=sensor.event_resolution
+                )
+            ]
+            if report is not None:
+                response["report"] = report
+            return response, code
+        response, code = process_sensor_data_ingestion(
+            sensor_id=sensor.id,
+            user_id=current_user.id,
+            sensor_data=sensor_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
-
-        def too_large(size: str):
-            return unprocessable_entity(
-                f"The repeats take {size} bytes, more than can be posted in one request ({int(max_size)} bytes); repeat until an earlier date, and preview the rest in another part."
-            )
-
-        # Refuse a range that cannot fit before expanding it, as each slot takes 2 bytes at the least (such as "0,").
-        # The first and last periods may be partly empty, and a clock change may take away up to two hours (as in Antarctica/Troll).
-        period = timedelta(days=7 if repeat == "same-weekday" else 1)
-        end_of_until = pd.Timestamp(until + timedelta(days=1)).tz_localize(
-            sensor.timezone, ambiguous=True, nonexistent="shift_forward"
-        )
-        min_slots = (
-            end_of_until - pattern.index[0] - 2 * period - timedelta(hours=2)
-        ) // resolution
-        if max_size is not None and 2 * min_slots > max_size:
-            return too_large(f"at least {2 * min_slots}")
-
-        on_days = {
-            "workdays": lambda day: day.weekday() < 5,
-            "weekends": lambda day: day.weekday() >= 5,
-        }.get(repeat)
-
-        try:
-            expanded, report = expand_wall_clock_recurrence(
-                pattern,
-                until=until,
-                tz=sensor.timezone,
-                resolution=resolution,
-                same_weekday_only=repeat == "same-weekday",
-                on_days=on_days,
-            )
-        except RecurrenceError as exc:
-            return unprocessable_entity(str(exc))
-        if expanded.empty:
-            return unprocessable_entity(
-                f"The pattern is not repeated before {until.isoformat()} ends; repeat it until a later date."
-            )
-        data = dict(
-            start=isodate.datetime_isoformat(expanded.index[0]),
-            duration=duration_isoformat(len(expanded) * resolution),
-            values=expanded.astype(object).where(expanded.notna(), None).tolist(),
-            unit=unit,
-            **belief_timing,
-        )
-        # Posted values are laid out in fixed steps from the start's UTC offset (see PostSensorDataSchema.load_bdf),
-        # which a resolution of a day or more cannot keep across a clock change, so check they would be saved where they are previewed.
-        posted_index = pd.date_range(
-            pd.Timestamp(data["start"]), periods=len(expanded), freq=resolution
-        )
-        if not (posted_index == expanded.index).all():
-            return unprocessable_entity(
-                f"The repeats cross a daylight saving time transition in {sensor.timezone}, "
-                f"which posted data cannot follow at a resolution of {duration_isoformat(resolution)}, as it is laid out in fixed steps; "
-                "preview the ranges before and after the transition separately."
-            )
-        size = len(json.dumps(data, separators=(",", ":")).encode())
-        if max_size is not None and size > max_size:
-            return too_large(str(size))
-
-        report_dict = dict(
-            n_values=int(expanded.notna().sum()),
-            n_omitted=sum(t.n_omitted for t in report.transitions),
-            n_duplicated=sum(t.n_duplicated for t in report.transitions),
-            **report.to_dict(),
-        )
-        d, s = request_processed()
-        return dict(data=data, report=report_dict, **d), s
+        if report is not None:
+            response = dict(response, report=report)
+        return response, code
 
     @route("/<id>/data", methods=["GET"])
     @use_args(
@@ -1660,7 +1590,14 @@ class SensorAPI(FlaskView):
         )
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor: Sensor):
@@ -1723,6 +1660,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -1943,7 +1882,7 @@ class SensorAPI(FlaskView):
           summary: Delete sensor data
           description: >
             This endpoint deletes data for a sensor.
-            Optionally, filter by source, start time and/or until time.
+            Optionally, filter by source, start time and/or end time.
             A missing source means all sources are deleted.
           security:
             - ApiKeyAuth: []
@@ -1981,20 +1920,20 @@ class SensorAPI(FlaskView):
 
         source = body.get("source")
         start = body.get("start")
-        until = body.get("until")
+        end = body.get("end")
 
         query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
         if source is not None:
             query = query.where(TimedBelief.source_id == source.id)
         if start is not None:
             query = query.where(TimedBelief.event_start >= start)
-        if until is not None:
-            # "until" means the event must end at or before this datetime.
+        if end is not None:
+            # "end" means the event must end at or before this datetime.
             # Event end = event_start + sensor.event_resolution, so the condition is:
-            #   event_start + resolution <= until  ⟺  event_start <= until - resolution
-            # For instantaneous sensors (resolution = 0) this becomes event_start <= until.
+            #   event_start + resolution <= end  ⟺  event_start <= end - resolution
+            # For instantaneous sensors (resolution = 0) this becomes event_start <= end.
             query = query.where(
-                TimedBelief.event_start <= until - sensor.event_resolution
+                TimedBelief.event_start <= end - sensor.event_resolution
             )
         db.session.execute(query)
 
@@ -2003,8 +1942,8 @@ class SensorAPI(FlaskView):
             audit_message += f", source: {source.id}"
         if start is not None:
             audit_message += f", from: {start}"
-        if until is not None:
-            audit_message += f", until: {until}"
+        if end is not None:
+            audit_message += f", until: {end}"
         AssetAuditLog.add_record(
             sensor.generic_asset,
             audit_message,
@@ -2029,8 +1968,8 @@ class SensorAPI(FlaskView):
           summary: Delete sensor annotations
           description: >
             This endpoint deletes the annotations of a sensor.
-            Optionally, filter by source, start time and/or until time.
-            Only annotations that lie entirely between the start and until times are deleted.
+            Optionally, filter by source, start time and/or end time.
+            Only annotations that lie entirely between the start and end times are deleted.
             An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.
           security:
             - ApiKeyAuth: []
@@ -2082,7 +2021,7 @@ class SensorAPI(FlaskView):
 
         source = body.get("source")
         start = body.get("start")
-        until = body.get("until")
+        end = body.get("end")
 
         query = select(Annotation.id).join(
             SensorAnnotationRelationship,
@@ -2093,8 +2032,8 @@ class SensorAPI(FlaskView):
             query = query.where(Annotation.source_id == source.id)
         if start is not None:
             query = query.where(Annotation.start >= start)
-        if until is not None:
-            query = query.where(Annotation.end <= until)
+        if end is not None:
+            query = query.where(Annotation.end <= end)
         annotation_ids = db.session.scalars(query).all()
 
         if annotation_ids:
@@ -2127,8 +2066,8 @@ class SensorAPI(FlaskView):
                 audit_message += f", source: {source.id}"
             if start is not None:
                 audit_message += f", from: {start}"
-            if until is not None:
-                audit_message += f", until: {until}"
+            if end is not None:
+                audit_message += f", until: {end}"
             AssetAuditLog.add_record(sensor.generic_asset, audit_message)
         db.session.commit()
 
@@ -2260,7 +2199,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        {"asset": AssetIdField(data_key="asset", required=False, load_default=None)},
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
@@ -2274,6 +2213,7 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint fetches the current status of data for the specified sensor.
             The status includes information about the sensor data's status, staleness and resolution.
+            Data that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2282,7 +2222,7 @@ class SensorAPI(FlaskView):
               description: ID of the sensor to fetch status for.
               schema: SensorId
             - in: query
-              name: asset_id
+              name: asset
               required: false
               description: |
                 ID of the asset whose status page the sensor is reported on.
@@ -2312,6 +2252,27 @@ class SensorAPI(FlaskView):
                           asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
+                    partial-aggregate:
+                      summary: An aggregate leaving out a member
+                      description: |
+                        The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.
+                        `missing-members` lists the sensors left out, and is left out itself where no member is missing.
+                      value:
+                        - staleness: "PT6M"
+                          stale: false
+                          staleness_since: "2024-01-15T14:30:00+00:00"
+                          reason: "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report"
+                          source_type: "reporter"
+                          id: 88750
+                          name: "power"
+                          resolution: "PT15M"
+                          asset_id: 12
+                          asset_name: "Street"
+                          relation: "sensor belongs to this asset"
+                          missing-members:
+                            - id: 88754
+                              name: "power"
+                              asset-name: "Heat pump"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:

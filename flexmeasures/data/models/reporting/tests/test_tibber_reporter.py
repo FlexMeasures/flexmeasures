@@ -168,14 +168,15 @@ def tibber_test_data(fresh_db, app):
     """
 
     # Add EnergyTax, VAT and Tibber Tariff beliefs to the DB
-    for sensor, source_name, value in [
-        (VAT, "Tax Authority", 0.21),
-        (EnergyTax, "Tax Authority", 125.99),  # EUR / MWh
-        (tibber_tariff, "Tibber", 18.0),  # EUR /MWh
+    tax_authority, tibber = DataSource("Tax Authority"), DataSource("Tibber")
+    for sensor, source, value in [
+        (VAT, tax_authority, 0.21),
+        (EnergyTax, tax_authority, 125.99),  # EUR / MWh
+        (tibber_tariff, tibber, 18.0),  # EUR /MWh
     ]:
         belief = TimedBelief(
             sensor=sensor,
-            source=DataSource(source_name),
+            source=source,
             event_value=value,
             event_start=datetime(2023, 1, 1, tzinfo=utc),
             belief_time=datetime(2023, 1, 1, tzinfo=utc),

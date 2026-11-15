@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -108,6 +109,24 @@ def test_add_plan_with_invalid_rate_limit(app, fresh_db):
     assert result.exit_code != 0
     assert "not a valid rate limit" in result.output
     assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
+
+
+def test_add_plan_with_several_rate_limits(app, fresh_db):
+    """A rate limit is one limit, so a string holding several (which Flask-Limiter would take) is refused."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan,
+        to_flags(
+            {"name": "Layered", "trigger-rate-limit": "10 per minute; 100 per hour"}
+        ),
+    )
+
+    assert result.exit_code != 0
+    assert "holds 2 rate limits" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Layered")).scalar() is None
 
 
 def test_edit_plan(app, fresh_db):
@@ -1214,7 +1233,7 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
         ),
     )
     check_command_ran_without_error(result)
-    assert "Saved 5 beliefs of the report for sensor" in result.output
+    assert "Recorded 5 beliefs of the report for sensor" in result.output
 
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
@@ -1223,6 +1242,46 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
         event_ends_before="2023-04-10T10:00:00+00:00",
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+
+@pytest.mark.parametrize(
+    "flags, config_saved",
+    [([], True), (["--save-config"], True), (["--no-save-config"], False)],
+)
+def test_add_report_saves_its_config_unless_told_not_to(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, flags, config_saved
+):
+    """A report's data source holds the config the report was computed under, unless `--no-save-config` is passed.
+
+    That tells reports computed under different configs apart, and lets `--source` compute one again.
+    """
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+    cli_input = _report_cli_input(
+        tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+    )
+
+    check_command_ran_without_error(
+        runner.invoke(add_report, to_flags(cli_input) + flags)
+    )
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after=cli_input["start"], event_ends_before=cli_input["end"]
+    )
+    data_generator = stored_report.sources[0].attributes["data_generator"]
+    if config_saved:
+        reporter_config = yaml.safe_load(
+            (tmp_path / "reporter_config.yaml").read_text()
+        )
+        assert (
+            data_generator["config"]["transformations"]
+            == reporter_config["transformations"]
+        )
+    else:
+        assert "config" not in data_generator
 
 
 def test_add_report_says_when_a_rerun_saves_nothing_new(
@@ -1245,8 +1304,11 @@ def test_add_report_says_when_a_rerun_saves_nothing_new(
     rerun = runner.invoke(add_report, cli_input)
 
     check_command_ran_without_error(rerun)
-    assert "repeats beliefs already on record, so nothing new was saved" in rerun.output
-    assert "Success. Saved" not in rerun.output
+    assert (
+        "repeats beliefs already on record, so nothing new was recorded (computed 5, recorded 0)"
+        in rerun.output
+    )
+    assert "Success. Recorded" not in rerun.output
     assert _count_beliefs(fresh_db, report_sensor_id) == recorded
 
 
@@ -1432,7 +1494,7 @@ def test_add_process(
     # ProcessScheduler's make_schedule() call returns a dict (not the boolean
     # True), which used to be falsy enough to silently suppress this message;
     # confirm the message still appears.
-    assert "New schedule is stored." in result.output
+    assert "Scheduling done: computed" in result.output
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
@@ -1467,18 +1529,59 @@ def test_add_schedule_dry_run_saves_no_beliefs(
 
     result = runner.invoke(add_schedule, cli_input + ["--dry-run"])
     check_command_ran_without_error(result)
-    assert "Not saving schedule for sensor `power`" in result.output
+    assert "Not recording schedule for sensor `power`" in result.output
     assert "covering events from" in result.output
-    assert "computed but not stored (because of --dry-run)" in result.output
-    assert "New schedule is stored." not in result.output
     sensor = fresh_db.session.get(Sensor, process_power_sensor)
     assert len(sensor.search_beliefs()) == 0
+    # A dry run still says how much it computed, which a normal run then records in full.
+    n_computed = int(
+        re.search(
+            r"Scheduling done: computed (\d+), recorded 0, as this was a dry run\.",
+            result.output,
+        ).group(1)
+    )
+    assert n_computed > 0
 
     # A normal run does record the schedule, so the dry run really skipped that step
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
-    assert "New schedule is stored." in result.output
-    assert len(sensor.search_beliefs()) > 0
+    assert (
+        f"Scheduling done: computed {n_computed}, recorded {n_computed}.\n"
+        in result.output
+    )
+    assert len(sensor.search_beliefs()) == n_computed
+
+    # Running it again computes the same schedule, which is already on record, so nothing new is saved.
+    result = runner.invoke(add_schedule, cli_input)
+    check_command_ran_without_error(result)
+    assert (
+        f"Scheduling done: computed {n_computed}, recorded 0, as the rest was already on record."
+        in result.output
+    )
+    assert len(sensor.search_beliefs()) == n_computed
+
+
+def test_add_schedule_says_when_the_scheduler_computed_nothing(
+    app, fresh_db, process_power_sensor, add_market_prices_fresh_db, monkeypatch
+):
+    """A schedule of no beliefs is said to be one, rather than reported as a new schedule stored with 0 beliefs."""
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.services.scheduling_result import SchedulingJobResult
+
+    monkeypatch.setattr(
+        data_add, "make_schedule", lambda **kwargs: SchedulingJobResult().to_dict()
+    )
+    runner = app.test_cli_runner()
+    cli_input = to_flags(_process_schedule_cli_input(fresh_db, process_power_sensor))
+
+    result = runner.invoke(data_add.add_schedule, cli_input)
+
+    check_command_ran_without_error(result)
+    assert (
+        "The scheduler computed no beliefs, so no new schedule was stored."
+        in result.output
+    )
+    assert "Scheduling done" not in result.output
 
 
 def test_add_schedule_rejects_dry_run_as_job(app, fresh_db, add_market_prices_fresh_db):
@@ -1587,6 +1690,10 @@ def test_add_toy_account_reporter_uses_kw_scale_units(app, fresh_db):
     assert grid_connection_capacity.unit == "kW"
     assert headroom.unit == "kW"
     assert grid_connection_capacity.search_beliefs().values.flatten().tolist() == [500]
+    capacity_belief = fresh_db.session.scalar(
+        select(TimedBelief).where(TimedBelief.sensor_id == grid_connection_capacity.id)
+    )
+    assert capacity_belief.source.user.email == "toy-user@flexmeasures.io"
 
 
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):

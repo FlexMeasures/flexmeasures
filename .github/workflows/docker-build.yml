@@ -51,11 +51,32 @@ jobs:
         run:
           echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
           >> .env
+      - name: Write a config file for the container's instance folder
+        run: |
+          mkdir -p ci-instance
+          echo 'FLEXMEASURES_PLATFORM_NAME = "Docker build check"' > ci-instance/flexmeasures.cfg
       - name: Keep running flexmeasures container in background
-        run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
+        run: docker run -t -d --env-file .env --network=host -v "$PWD/ci-instance:/app/instance:ro" --name fm-container flexmeasures:latest
+      - name: Check that the image serves the UI's libraries itself
+        run: docker exec fm-container python -c
+          "from flexmeasures.ui.utils.vendor_assets import missing_files; assert not missing_files(), missing_files()"
       - name: Execute database upgrade
         run: docker exec --env-file .env fm-container flexmeasures
           db upgrade
+      - name: Check the image's server, config and pip
+        run: |
+          # Answer a few requests at once, so that more than one gunicorn worker serves them.
+          pids=()
+          for i in $(seq 8); do curl --silent --fail --retry 10 --retry-connrefused --retry-delay 3 http://127.0.0.1:5000/api/ops/ping > /dev/null & pids+=($!); done
+          # Wait for each request by its PID, as a bare `wait` would succeed even if requests failed.
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          # Gunicorn's own logging survives the app configuring its logging (#2512 preloads the app in gunicorn's arbiter).
+          docker logs fm-container 2>&1 | grep -q "Booting worker" || { echo "::error::Gunicorn logged nothing about its workers."; exit 1; }
+          # The config mounted at /app/instance is read, by the server and by the CLI.
+          if docker logs fm-container 2>&1 | grep -q "flexmeasures.cfg could not be found"; then echo "::error::The server did not find the config mounted at /app/instance."; exit 1; fi
+          docker exec fm-container python -c "from flexmeasures.app import create; name = create().config['FLEXMEASURES_PLATFORM_NAME']; assert name == 'Docker build check', name"
+          # pip installs into the virtual environment that FlexMeasures runs from.
+          docker exec fm-container sh -c 'pip --version' | grep -q "/app/.venv/" || { echo "::error::pip does not install into FlexMeasures' virtual environment."; exit 1; }
       - name: Add toy user
         run: docker exec --env-file .env fm-container flexmeasures
           add toy-account --kind battery --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV

@@ -41,14 +41,19 @@ COPY flexmeasures ./flexmeasures
 COPY .git ./.git
 COPY .flaskenv wsgi.py ./
 
-# Install FlexMeasures itself in the virtual environment. Released images pass
-# their tag-derived version explicitly because the partial tracked working tree
-# copied above appears dirty to hatch-vcs. An empty value preserves Git-derived
-# versions for local builds.
+# Install FlexMeasures itself in the virtual environment.
+# --no-editable installs it as a regular package, so its source files are bytecode-compiled here, like every other dependency, rather than on every container boot.
+# Released images pass their tag-derived version explicitly, because the partial tracked working tree copied above appears dirty to hatch-vcs.
+# An empty value preserves Git-derived versions for local builds.
 ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
     SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
-    uv sync --frozen --reinstall-package flexmeasures --no-dev
+    uv sync --frozen --reinstall-package flexmeasures --no-dev --no-editable
+
+# Fetch the UI's third-party libraries into the installed package, so the UI also works without internet access.
+# Each file is checked against the hash recorded in flexmeasures/ui/utils/vendor_assets.py, and the build fails on a mismatch.
+# It runs outside /app, because python -m would otherwise import the source copy in /app/flexmeasures, which the runtime image leaves behind.
+RUN cd / && python -m flexmeasures.ui.utils.fetch_vendor_assets
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -91,23 +96,40 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtual environment from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Copy application code
-COPY --from=builder /app/flexmeasures ./flexmeasures
-COPY --from=builder /app/.flaskenv /app/wsgi.py ./
+# Give the virtual environment a pip of its own, so that `pip install`, as our docs and docker-compose.yml use for plugins and requirements, installs where FlexMeasures can import it.
+RUN python -m ensurepip --default-pip
 
-# Set environment variables to optimize Python
+# Installed as a regular package, FlexMeasures looks for its instance folder at ${VIRTUAL_ENV}/var/flexmeasures-instance, which is where Flask places it for installed packages.
+# Hosts mount their config and secrets at /app/instance, as the Docker docs say, so point the one at the other.
+RUN mkdir -p ${VIRTUAL_ENV}/var && \
+    rm -rf ${VIRTUAL_ENV}/var/flexmeasures-instance && \
+    ln -s /app/instance ${VIRTUAL_ENV}/var/flexmeasures-instance
+
+# Copy the application's entry point and its configuration.
+# FlexMeasures itself is already installed, non-editable, inside ${VIRTUAL_ENV}, so its source files need no separate copy.
+COPY --from=builder /app/.flaskenv /app/wsgi.py ./
+COPY gunicorn.conf.py ./
+
+# Set environment variables to optimize Python.
+# PYTHONPATH lets a source tree mounted at /app/flexmeasures take precedence over the installed package, in every process,
+# so that the CLI, the job workers and the server all run the same code.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 EXPOSE 5000
 
 # Gunicorn configuration:
-# - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem
+# - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem, see:
 #   http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
 # - Using 2 workers to avoid health check timeouts when another request is taking a long time
+# - preload loads the app once, before forking the workers, instead of once per worker, which cuts boot time;
+#   gunicorn.conf.py's post_fork hook then disposes of the inherited connection pool, so workers don't share live connections (see that file's docstring).
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "--worker-tmp-dir", "/dev/shm", \
      "--workers", "2", \
      "--threads", "4", \
+     "--preload", \
+     "--config", "gunicorn.conf.py", \
      "wsgi:application"]

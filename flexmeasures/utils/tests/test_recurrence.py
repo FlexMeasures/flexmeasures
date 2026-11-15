@@ -41,7 +41,7 @@ DAY = timedelta(days=1)
             "Europe/Amsterdam",
             QUARTER,
             date(2026, 3, 29),
-            "spring_forward",
+            "spring-forward",
             HOUR,
             [time(2, 0), time(2, 15), time(2, 30), time(2, 45)],
             [],
@@ -50,7 +50,7 @@ DAY = timedelta(days=1)
             "Europe/Amsterdam",
             QUARTER,
             date(2026, 10, 25),
-            "fall_back",
+            "fall-back",
             HOUR,
             [],
             [time(2, 0), time(2, 15), time(2, 30), time(2, 45)],
@@ -60,7 +60,7 @@ DAY = timedelta(days=1)
             "Australia/Sydney",
             QUARTER,
             date(2026, 4, 5),
-            "fall_back",
+            "fall-back",
             HOUR,
             [],
             [time(2, 0), time(2, 15), time(2, 30), time(2, 45)],
@@ -69,7 +69,7 @@ DAY = timedelta(days=1)
             "Australia/Sydney",
             HOUR,
             date(2026, 10, 4),
-            "spring_forward",
+            "spring-forward",
             HOUR,
             [time(2, 0)],
             [],
@@ -79,7 +79,7 @@ DAY = timedelta(days=1)
             "Australia/Lord_Howe",
             QUARTER,
             date(2026, 4, 5),
-            "fall_back",
+            "fall-back",
             timedelta(minutes=30),
             [],
             [time(1, 30), time(1, 45)],
@@ -88,7 +88,7 @@ DAY = timedelta(days=1)
             "Australia/Lord_Howe",
             QUARTER,
             date(2026, 10, 4),
-            "spring_forward",
+            "spring-forward",
             timedelta(minutes=30),
             [time(2, 0), time(2, 15)],
             [],
@@ -121,8 +121,8 @@ def test_daily_repeat_follows_the_wall_clock_across_dst(
     # The result is one contiguous series, so it can be sent as one array.
     assert (expanded.index.to_series().diff().iloc[1:] == resolution).all()
 
-    assert report.mode == "wall_clock"
     assert report.n_occurrences == 3
+    assert report.n_transitions_checked == 1
     (transition,) = report.transitions
     assert transition.date == transition_date
     assert transition.kind == kind
@@ -133,26 +133,123 @@ def test_daily_repeat_follows_the_wall_clock_across_dst(
     assert transition.n_duplicated == len(exp_duplicated)
 
 
-def test_repeat_falls_back_to_absolute_steps_if_the_resolution_cannot_follow_the_clock():
-    """An hourly sensor cannot follow Lord Howe Island's 30-minute clock change, so it repeats every 24 hours instead."""
+@pytest.mark.parametrize(
+    "tz, pattern_day, until, resolution, exp_starts, exp_kind, exp_effect",
+    [
+        # Lord Howe Island turns its clock back 30 minutes at 02:00, so 01:30-02:00 runs twice:
+        # an extra hour of the 01:00 value fills it, starting half an hour before the second run, so 02:00 still starts on the hour.
+        (
+            "Australia/Lord_Howe",
+            "2026-04-03",
+            date(2026, 4, 6),
+            HOUR,
+            [
+                ("2026-04-05T00:00+11:00", 0),
+                ("2026-04-05T01:00+11:00", 60),
+                ("2026-04-05T01:30+11:00", 60),
+                ("2026-04-05T02:00+10:30", 120),
+                ("2026-04-05T03:00+10:30", 180),
+            ],
+            "fall-back",
+            dict(duplicated=(time(1, 0),)),
+        ),
+        # Lord Howe Island skips 02:00-02:30: the 02:00 slot starts when the clock resumes, at 02:30.
+        (
+            "Australia/Lord_Howe",
+            "2026-10-02",
+            date(2026, 10, 5),
+            HOUR,
+            [
+                ("2026-10-04T00:00+10:30", 0),
+                ("2026-10-04T01:00+10:30", 60),
+                ("2026-10-04T02:30+11:00", 120),
+                ("2026-10-04T03:00+11:00", 180),
+                ("2026-10-04T04:00+11:00", 240),
+            ],
+            "spring-forward",
+            dict(shifted=(time(2, 0),)),
+        ),
+        # Two-hourly slots on odd hours: no slot starts in the repeated hour, so the 01:00 slot fills it.
+        (
+            "Europe/Amsterdam",
+            "2026-10-23 01:00",
+            date(2026, 10, 26),
+            2 * HOUR,
+            [
+                ("2026-10-25T01:00+02:00", 60),
+                ("2026-10-25T02:00+02:00", 60),
+                ("2026-10-25T03:00+01:00", 180),
+                ("2026-10-25T05:00+01:00", 300),
+            ],
+            "fall-back",
+            dict(duplicated=(time(1, 0),)),
+        ),
+        # Two-hourly slots on even hours: the 02:00 slot loses its first hour, and starts at 03:00.
+        (
+            "Europe/Amsterdam",
+            "2026-03-27",
+            date(2026, 3, 30),
+            2 * HOUR,
+            [
+                ("2026-03-29T00:00+01:00", 0),
+                ("2026-03-29T03:00+02:00", 120),
+                ("2026-03-29T04:00+02:00", 240),
+            ],
+            "spring-forward",
+            dict(shifted=(time(2, 0),)),
+        ),
+        # A day that starts with a skipped midnight still gets its value, from 01:00.
+        (
+            "America/Santiago",
+            "2026-09-05",
+            date(2026, 9, 7),
+            DAY,
+            [
+                ("2026-09-06T01:00-03:00", 0),
+                ("2026-09-07T00:00-03:00", 0),
+            ],
+            "spring-forward",
+            dict(shifted=(time(0, 0),)),
+        ),
+    ],
+)
+def test_repeats_stay_on_local_time_if_the_resolution_is_coarser_than_the_clock_change(
+    tz, pattern_day, until, resolution, exp_starts, exp_kind, exp_effect
+):
+    """Without an absolute fallback, slots keep their local start time, and the clock change is absorbed by one extra or moved event."""
+    if resolution == DAY:
+        # One calendar day, built directly, as the day after it starts with a skipped midnight.
+        pattern = pd.Series([0.0], index=[pd.Timestamp(pattern_day, tz=tz)])
+    else:
+        pattern = minute_of_day_pattern(tz, pattern_day, DAY, resolution)
+
+    expanded, report = expand_wall_clock_recurrence(pattern, until, tz, resolution)
+
+    transition_day = pd.Timestamp(exp_starts[0][0]).date()
+    for start, value in exp_starts:
+        assert expanded[pd.Timestamp(start)] == value, start
+    # Every listed event is consecutive, so nothing else was written in between.
+    on_day = expanded[
+        (expanded.index >= pd.Timestamp(exp_starts[0][0]))
+        & (expanded.index <= pd.Timestamp(exp_starts[-1][0]))
+    ]
+    assert len(on_day) == len(exp_starts)
+    (transition,) = report.transitions
+    assert transition.date == transition_day
+    assert transition.kind == exp_kind
+    for effect in ("omitted", "duplicated", "shifted"):
+        assert getattr(transition, effect) == exp_effect.get(effect, ())
+
+
+def test_fill_leaves_no_gap_in_absolute_time():
+    """Around Lord Howe Island's fall-back, hourly events cover every instant, overlapping by half an hour."""
     tz = "Australia/Lord_Howe"
     pattern = minute_of_day_pattern(tz, "2026-04-03", DAY, HOUR)
 
-    expanded, report = expand_wall_clock_recurrence(pattern, date(2026, 4, 6), tz, HOUR)
+    expanded, _ = expand_wall_clock_recurrence(pattern, date(2026, 4, 6), tz, HOUR)
 
-    assert report.mode == "absolute"
-    assert "PT30M" in report.fallback_reason
-    (transition,) = report.transitions
-    assert transition.date == date(2026, 4, 5)
-    assert transition.n_omitted == transition.n_duplicated == 0
-
-    # Values stay exactly a whole number of 24 hours away from their source, and on the hourly grid.
-    assert (expanded.index.to_series().diff().iloc[1:] == HOUR).all()
-    hours_since_pattern = (expanded.index - pattern.index[0]) // HOUR
-    assert (expanded.to_numpy() == (hours_since_pattern % 24) * 60.0).all()
-    # After the change, those values land half an hour off their local time.
-    after = expanded[expanded.index >= pd.Timestamp("2026-04-06", tz=tz)]
-    assert (after.index.minute == 30).all()
+    starts = expanded.index.tz_convert("UTC")
+    assert (starts.to_series().diff().iloc[1:] <= HOUR).all()
 
 
 @pytest.mark.parametrize("tz", ["Asia/Kolkata", "UTC"])
@@ -166,7 +263,7 @@ def test_daily_repeat_without_dst(tz):
 
     assert len(expanded) == 3 * 96
     assert (expanded.to_numpy() == local_minute_of_day(expanded.index)).all()
-    assert report.mode == "wall_clock"
+    assert report.n_transitions_checked == 0
     assert report.transitions == ()
 
 
@@ -214,7 +311,9 @@ def test_repeat_on_some_days_only():
     # The weekend is a gap in one contiguous series, so its clock change writes nothing twice.
     assert expanded["2026-10-24":"2026-10-25"].isna().all()
     assert (expanded.index.to_series().diff().iloc[1:] == HOUR).all()
-    assert sum(t.n_duplicated for t in report.transitions) == 0
+    # The clock change was checked, but is not listed, as it affected no value.
+    assert report.n_transitions_checked == 1
+    assert report.transitions == ()
 
 
 def test_repeat_on_some_days_keeps_resolving_dst():
@@ -247,22 +346,34 @@ def test_repeat_on_no_day_writes_nothing():
     assert report.n_occurrences == 0
 
 
-def test_repeat_on_some_days_with_absolute_steps():
-    """When repeats fall back to absolute steps, the filter still decides which repeats are written."""
-    tz = "Australia/Lord_Howe"
-    pattern = minute_of_day_pattern(tz, "2026-04-03", DAY, HOUR)  # a Friday
+@pytest.mark.parametrize(
+    "pattern_day, on_days, exp_included, exp_first",
+    [
+        ("2026-10-23", None, True, "2026-10-23"),  # a Friday, repeated daily
+        ("2026-10-23", is_workday, True, "2026-10-23"),
+        # A Saturday pattern repeated on workdays is left out, so the first value is on Monday.
+        ("2026-10-24", is_workday, False, "2026-10-26"),
+    ],
+)
+def test_include_pattern(pattern_day, on_days, exp_included, exp_first):
+    """The pattern itself is returned too, unless the repeat days leave out its own day."""
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, pattern_day, DAY, HOUR)
 
     expanded, report = expand_wall_clock_recurrence(
-        pattern, date(2026, 4, 7), tz, HOUR, on_days=is_workday
+        pattern, date(2026, 10, 30), tz, HOUR, on_days=on_days, include_pattern=True
     )
 
-    assert report.mode == "absolute"
-    assert report.n_occurrences == 2
-    # Monday and Tuesday only, each 24 hours long, starting half an hour before local midnight after the clock change.
-    starts = expanded.dropna().index
-    assert len(starts) == 2 * 24
-    assert starts[0] == pd.Timestamp("2026-04-05T23:30", tz=tz)
-    assert expanded[: pd.Timestamp("2026-04-05T23:00", tz=tz)].isna().all()
+    assert report.pattern_included is exp_included
+    assert expanded.dropna().index[0] == pd.Timestamp(exp_first, tz=tz)
+    if exp_included:
+        assert (expanded[: pattern.index[-1]] == pattern).all()
+    # The pattern is not counted as a repeat.
+    without_pattern, _ = expand_wall_clock_recurrence(
+        pattern, date(2026, 10, 30), tz, HOUR, on_days=on_days
+    )
+    assert report.n_occurrences == _.n_occurrences
+    assert without_pattern.index[0] > pattern.index[-1]
 
 
 @pytest.mark.parametrize(
@@ -367,6 +478,19 @@ def test_until_before_the_first_repeat_writes_nothing():
     assert report.n_occurrences == 0
 
 
+@pytest.mark.parametrize("include_pattern", [False, True])
+def test_until_before_the_pattern_writes_nothing(include_pattern):
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, "2026-06-01", DAY, HOUR)
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 5, 31), tz, HOUR, include_pattern=include_pattern
+    )
+
+    assert expanded.empty
+    assert report.pattern_included is False
+
+
 def test_nan_stays_a_gap_and_is_not_reported():
     """A slot without a value stays empty in every repeat, and a clock change skipping or repeating it does not count it."""
     tz = "Europe/Amsterdam"
@@ -379,9 +503,8 @@ def test_nan_stays_a_gap_and_is_not_reported():
 
     assert expanded[expanded.index.hour.isin([2, 7])].isna().all()
     assert expanded[~expanded.index.hour.isin([2, 7])].notna().all()
-    (transition,) = report.transitions
-    assert transition.kind == "spring_forward"
-    assert transition.n_omitted == 0
+    assert report.n_transitions_checked == 1
+    assert report.transitions == ()
 
 
 def test_instantaneous_sensor():
@@ -429,7 +552,6 @@ def test_daily_resolution_stays_on_local_midnight():
         pattern, date(2026, 4, 6), tz, DAY, same_weekday_only=True
     )
 
-    assert report.mode == "wall_clock"
     assert (expanded.index.hour == 0).all()
     assert expanded[pd.Timestamp("2026-03-30", tz=tz)] == 10.0
     assert expanded[pd.Timestamp("2026-03-31", tz=tz)] == 20.0
@@ -464,16 +586,20 @@ def test_report_is_json_serializable():
     _, report = expand_wall_clock_recurrence(pattern, date(2026, 10, 26), tz, QUARTER)
 
     described = json.loads(json.dumps(report.to_dict()))
+    assert described["n-transitions-checked"] == 1
+    assert described["n-duplicated"] == 4
     assert described["transitions"] == [
         {
             "date": "2026-10-25",
-            "kind": "fall_back",
+            "kind": "fall-back",
             "shift": "PT1H",
-            "wall_clock_start": "02:00",
-            "wall_clock_end": "03:00",
+            "wall-clock-start": "02:00",
+            "wall-clock-end": "03:00",
             "omitted": [],
             "duplicated": ["02:00", "02:15", "02:30", "02:45"],
-            "n_omitted": 0,
-            "n_duplicated": 4,
+            "shifted": [],
+            "n-omitted": 0,
+            "n-duplicated": 4,
+            "n-shifted": 0,
         }
     ]

@@ -253,16 +253,29 @@ def test_profit_reporter_parameters_schema(
 def test_specialized_reporter_schemas_preserve_required_dataflow_fields(
     db, app, setup_dummy_sensors
 ):
-    """Overridden input/output fields remain required by the reporter contract."""
-    with pytest.raises(ValidationError) as aggregator_error:
+    """Overridden input/output fields remain required by the reporter contract.
+
+    The AggregatorReporter is the exception, and deliberately so: a report over a device group takes both
+    the sensors to aggregate and the sensor to record on from the flex-config, so its schema accepts
+    parameters naming neither, and the reporter itself says what is missing when it can find neither
+    there (see test_aggregator.py). What the schema still holds it to is recording on at most one sensor.
+    """
+    AggregatorParametersSchema().load(
+        {
+            "input": [{"sensor": 1}],
+            "start": start,
+            "end": end,
+        }
+    )
+    with pytest.raises(ValidationError) as too_many_outputs:
         AggregatorParametersSchema().load(
             {
-                "input": [{"sensor": 1}],
+                "output": [{"sensor": 1}, {"sensor": 3}],
                 "start": start,
                 "end": end,
             }
         )
-    assert "output" in aggregator_error.value.messages
+    assert "output" in too_many_outputs.value.messages
 
     with pytest.raises(ValidationError) as profit_error:
         ProfitOrLossReporterParametersSchema().load(

@@ -1,4 +1,5 @@
 .. Adapted from https://stackoverflow.com/a/62613202
+
 {{ fullname | escape | underline}}
 
 {% block modules %}
@@ -25,7 +26,7 @@
 
 
    {% for item in attributes %}
-   .. autoattribute::
+   .. autodata::
       {{ item }}
    {%- endfor %}
    {% endif %}

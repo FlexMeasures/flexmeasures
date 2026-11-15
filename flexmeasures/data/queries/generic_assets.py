@@ -73,10 +73,9 @@ def get_location_queries(
     Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first(). Note that this function will still load and inspect assets to do its job.
 
     The Charge Points are named on the basis of the first EVSE in their list,
-    using either the whole EVSE name or that part that comes before a " -" delimiter. For example:
-    If:
+    using either the whole EVSE name or that part that comes before a " -" delimiter. For example, if:
         evse_name = "Seoul Hilton - charger 1"
-    Then:
+    then:
         charge_point_name = "Seoul Hilton (Charge Point)"
 
     A Charge Point is a special case. If all assets on a location are of type EVSE,
@@ -202,6 +201,18 @@ def query_assets_by_search_terms(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> Select:
+    """Build an asset query with optional search terms and deterministic ordering.
+
+    Append ascending asset ID as a tie-breaker when sorting by a supported field;
+    order by ascending asset ID if either sorting argument is omitted or ``sort_by`` is unsupported.
+    This gives a total order for stable LIMIT/OFFSET pagination while the result set is unchanged.
+
+    :param search_terms:     Terms matched against asset names, account names, or numeric asset ID prefixes; None disables searching.
+    :param filter_statement: Additional filter applied to the selected assets.
+    :param sort_by:          Sort field: ``id``, ``name``, or ``owner``.
+    :param sort_dir:         Sort direction: ``asc`` or ``desc``.
+    :returns:                A SQLAlchemy ``Select`` statement with deterministic ordering.
+    """
     select_statement = select(GenericAsset)
 
     # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
@@ -275,10 +286,17 @@ def query_assets_by_search_terms(
                 order_by_column = None
             if order_by_column is not None:
                 query = query.order_by(
-                    order_by_column.asc()
-                    if sort_dir == "asc"
-                    else order_by_column.desc()
+                    (
+                        order_by_column.asc()
+                        if sort_dir == "asc"
+                        else order_by_column.desc()
+                    ),
+                    asset_alias.id,
                 )
+            else:
+                query = query.order_by(asset_alias.id)
+        else:
+            query = query.order_by(asset_alias.id)
 
     else:
         query = query.where(filter_statement)
@@ -290,7 +308,14 @@ def query_assets_by_search_terms(
                     if sort_dir == "asc"
                     else valid_sort_columns[sort_by].desc()
                 )
-                query = query.order_by(order_by_clause)
+                query = query.order_by(
+                    order_by_clause,
+                    GenericAsset.id,
+                )
+            else:
+                query = query.order_by(GenericAsset.id)
+        else:
+            query = query.order_by(GenericAsset.id)
     return query
 
 

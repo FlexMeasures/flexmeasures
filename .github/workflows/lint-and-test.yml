@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ "3.10", "3.11", "3.12" ]
+        py_version: [ "3.11", "3.12" ]
         include:
         # Include coverage for Python 3.12
           - py_version: 3.12
@@ -55,16 +55,11 @@ jobs:
         # NB the --ignore and -k "not ..." statements are not used to ignore test modules,
         # but only to ignore some modules with doctests that do not (yet) pass (e.g. requiring app contexts)
         run: |
-          if [[ "${{ matrix.py_version }}" == "3.10" ]]; then
-            PYTEST_K="not get_object_or_literal and not get_or_create_model and not find_smallest_common_unit"
-          else
-            PYTEST_K="not get_object_or_literal and not get_or_create_model"
-          fi
-          
           uv run pytest -v \
           --doctest-modules \
           --ignore documentation \
           --ignore wsgi.py \
+          --ignore gunicorn.conf.py \
           --ignore flexmeasures/cli/data_add.py \
           --ignore flexmeasures/cli/data_delete.py \
           --ignore flexmeasures/cli/data_edit.py \
@@ -74,7 +69,7 @@ jobs:
           --ignore flexmeasures/cli/monitor.py \
           --ignore flexmeasures/data/migrations \
           --ignore flexmeasures/data/scripts \
-          -k "$PYTEST_K" \
+          -k "not get_object_or_literal and not get_or_create_model" \
           --cov=flexmeasures \
           --cov-branch \
           --cov-report=lcov

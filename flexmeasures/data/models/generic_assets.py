@@ -18,6 +18,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.data.models.charts.belief_charts import (
+    CHARGE_POINT_SESSIONS_TITLE,
+    charge_point_chart_sensors,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
@@ -343,10 +347,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         All logged-in users can read if the asset is public.
         For non-public assets, we allow reading to whoever can read the account.
-        Both creation of children (beliefs, child assets) as well as editing
-        is allowed for every user in the account or consultants.
-        Deletion is only allowed for account admins, as well as for consultants.
-
+        Creating and editing child assets, sensors and data is allowed for every user in the account or consultants.
         Members may delete an asset only if it holds no data;
         deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
@@ -750,17 +751,24 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
+        A sensor reference whose sensor was deleted, and which has no default, does not define its field,
+        so the field is taken from a farther ancestor, if any, until a new sensor is picked for it.
 
         :returns: Dictionary mapping each flex-context field name to a dictionary with
                   the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
         """
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+        from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
         from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
+
+        def defines_field(value) -> bool:
+            return not (is_unset_sensor_reference(value) and "default" not in value)
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
         flex_context = {
             field: dict(value=value, asset=self)
             for field, value in (self.flex_context or {}).items()
+            if defines_field(value)
         }
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
@@ -774,7 +782,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             # An ancestor's flex_context may still be None (e.g. a pending asset
             # created without one, before its column default is applied on flush).
             for field, value in (parent_asset.flex_context or {}).items():
-                if field in flex_context:
+                if field in flex_context or not defines_field(value):
                     continue
                 if field in INFLEXIBLE_DEVICE_KEYS and inflexible_family_defined:
                     continue
@@ -983,6 +991,36 @@ class GenericAsset(db.Model, AuthModelMixin):
             annotation_type=annotation_type,
         )
         return db.session.scalar(select(func.count()).select_from(query.subquery()))
+
+    def chart_sensors(
+        self, chart_type: str | None = None
+    ) -> list["Sensor"]:  # noqa F821
+        """The sensors in this asset's sensors_to_show whose data the given chart type draws.
+
+        The default chart leaves the graph of charging-session timestamps to the Charge Points chart,
+        and the Charge Points chart draws only those timestamps and its two companion graphs;
+        loading the rest would be loading data that is thrown away.
+        Any other chart type, or none, gets all sensors.
+
+        :param chart_type: "chart_for_multiple_sensors", "chart_for_chargepoint_sessions" or None.
+        :returns: a unique list of sensors, in the order of sensors_to_show (for the Charge Points chart, its session sensors first).
+        """
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensors_to_show = self.validate_sensors_to_show()
+
+        if chart_type == "chart_for_multiple_sensors":
+            # A sensor that is also in another graph is still drawn, so it stays.
+            return SensorsToShowSchema.flatten(
+                [
+                    entry
+                    for entry in sensors_to_show
+                    if entry.get("title") != CHARGE_POINT_SESSIONS_TITLE
+                ]
+            )
+        if chart_type == "chart_for_chargepoint_sessions":
+            return charge_point_chart_sensors(sensors_to_show)
+        return SensorsToShowSchema.flatten(sensors_to_show)
 
     def chart(
         self,
@@ -1477,11 +1515,12 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange(self) -> dict[str, datetime]:
         """Time range for which sensor data exists.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.sensors)
 
@@ -1489,11 +1528,12 @@ class GenericAsset(db.Model, AuthModelMixin):
     def timerange_of_sensors_to_show(self) -> dict[str, datetime]:
         """Time range for which sensor data exists, for sensors to show.
 
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         return self.get_timerange(self.validate_sensors_to_show())
 
@@ -1502,11 +1542,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
-        :returns: dictionary with start and end, for example:
-                  {
-                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
-                  }
+        :returns: dictionary with start and end,
+            for example:
+                {
+                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                }
         """
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 

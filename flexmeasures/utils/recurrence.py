@@ -8,6 +8,11 @@ so each repeat lands on the same local time-of-day, rather than a fixed 24 hours
 Daylight saving time transitions are resolved here, once, by an explicit policy:
 by default, slots whose local time does not exist (spring forward) are omitted,
 and slots whose local time occurs twice (fall back) are written to both instants.
+Where the sensor resolution is coarser than the clock change (such as hourly data on Lord Howe Island, whose clocks shift by 30 minutes),
+repeats still start on the local time of their slot:
+a slot only partly skipped by the clock starts when the clock resumes,
+and the repeated part of the clock is filled from the slot that precedes it, as an extra event.
+Such events may overlap their neighbours, which is fine for limits.
 The report returned alongside the values says which slots that concerned, so they can be previewed.
 
 This module is pure: it depends on neither Flask, the database nor the UI.
@@ -35,14 +40,16 @@ class RecurrenceError(ValueError):
 class NonexistentTime(Enum):
     """What to do with a slot whose local time is skipped by a spring-forward transition."""
 
-    #: Omit the slot, as RFC 5545 does for nonexistent recurrence times.
+    #: Omit the slot if the clock skips all of it, as RFC 5545 does for nonexistent recurrence times,
+    #: and start it when the clock resumes if the clock skips only its beginning.
     DROP = "drop"
 
 
 class AmbiguousTime(Enum):
     """What to do with a slot whose local time occurs twice in a fall-back transition."""
 
-    #: Write the value to both instants, which is the safe reading for a limit.
+    #: Write the value to both instants, which is the safe reading for a limit,
+    #: and fill any part of the repeated clock that no slot starts in from the slot that precedes it.
     BOTH = "both"
 
 
@@ -62,20 +69,25 @@ class DstPolicy:
 class DstTransition:
     """One clock change within the range being written, and the slots it affected.
 
-    Slots are given as local wall-clock times on the date of the transition,
+    Slots are given as their local wall-clock start times,
     because an omitted slot has no instant to give.
     Slots without a value (NaN in the pattern) are not counted as affected.
     """
 
     date: date
-    kind: Literal["spring_forward", "fall_back"]
+    kind: Literal["spring-forward", "fall-back"]
     #: The size of the clock change, such as 1 hour, or 30 minutes on Lord Howe Island.
     shift: timedelta
     #: The local wall-clock times that are skipped (spring forward) or that occur twice (fall back).
     wall_clock_start: time
     wall_clock_end: time
+    #: Slots not written, because the clock skips all of them.
     omitted: tuple[time, ...] = ()
+    #: Slots written twice: to both instants of their local time,
+    #: or once more as an extra event filling the repeated part of the clock that no slot starts in.
     duplicated: tuple[time, ...] = ()
+    #: Slots whose start is skipped but whose end is not, which start when the clock resumes instead.
+    shifted: tuple[time, ...] = ()
 
     @property
     def n_omitted(self) -> int:
@@ -84,46 +96,74 @@ class DstTransition:
 
     @property
     def n_duplicated(self) -> int:
-        """Count the slots written to both instants of their ambiguous local time."""
+        """Count the slots written twice around a fall-back transition."""
         return len(self.duplicated)
+
+    @property
+    def n_shifted(self) -> int:
+        """Count the slots that start when the clock resumes, rather than at their own local time."""
+        return len(self.shifted)
+
+    @property
+    def has_effect(self) -> bool:
+        """Tell whether the clock change left out, repeated or moved any value."""
+        return bool(self.n_omitted or self.n_duplicated or self.n_shifted)
 
     def to_dict(self) -> dict:
         """Describe the transition in JSON-serializable terms."""
-        return dict(
-            date=self.date.isoformat(),
-            kind=self.kind,
-            shift=isodate.duration_isoformat(self.shift),
-            wall_clock_start=self.wall_clock_start.isoformat(timespec="minutes"),
-            wall_clock_end=self.wall_clock_end.isoformat(timespec="minutes"),
-            omitted=[t.isoformat(timespec="minutes") for t in self.omitted],
-            duplicated=[t.isoformat(timespec="minutes") for t in self.duplicated],
-            n_omitted=self.n_omitted,
-            n_duplicated=self.n_duplicated,
-        )
+        return {
+            "date": self.date.isoformat(),
+            "kind": self.kind,
+            "shift": isodate.duration_isoformat(self.shift),
+            "wall-clock-start": self.wall_clock_start.isoformat(timespec="minutes"),
+            "wall-clock-end": self.wall_clock_end.isoformat(timespec="minutes"),
+            "omitted": [t.isoformat(timespec="minutes") for t in self.omitted],
+            "duplicated": [t.isoformat(timespec="minutes") for t in self.duplicated],
+            "shifted": [t.isoformat(timespec="minutes") for t in self.shifted],
+            "n-omitted": self.n_omitted,
+            "n-duplicated": self.n_duplicated,
+            "n-shifted": self.n_shifted,
+        }
 
 
 @dataclass(frozen=True)
 class RecurrenceReport:
     """What the expansion did, for previewing it before anything is written."""
 
-    #: "wall_clock" normally, or "absolute" when the sensor resolution cannot follow a clock change.
-    mode: Literal["wall_clock", "absolute"]
     period: Literal["daily", "weekly"]
     #: The number of repeats, not counting the pattern itself.
     n_occurrences: int
+    #: Whether the pattern itself is part of the result.
+    pattern_included: bool = False
+    #: The number of clock changes within the range written, whether or not they affected any value.
+    n_transitions_checked: int = 0
+    #: The clock changes that left out, repeated or moved a value.
     transitions: tuple[DstTransition, ...] = field(default_factory=tuple)
-    #: Why the expansion fell back to absolute repetition, if it did.
-    fallback_reason: str | None = None
+
+    @property
+    def n_omitted(self) -> int:
+        return sum(t.n_omitted for t in self.transitions)
+
+    @property
+    def n_duplicated(self) -> int:
+        return sum(t.n_duplicated for t in self.transitions)
+
+    @property
+    def n_shifted(self) -> int:
+        return sum(t.n_shifted for t in self.transitions)
 
     def to_dict(self) -> dict:
         """Describe the report in JSON-serializable terms."""
-        return dict(
-            mode=self.mode,
-            period=self.period,
-            n_occurrences=self.n_occurrences,
-            transitions=[t.to_dict() for t in self.transitions],
-            fallback_reason=self.fallback_reason,
-        )
+        return {
+            "period": self.period,
+            "n-occurrences": self.n_occurrences,
+            "pattern-included": self.pattern_included,
+            "n-omitted": self.n_omitted,
+            "n-duplicated": self.n_duplicated,
+            "n-shifted": self.n_shifted,
+            "n-transitions-checked": self.n_transitions_checked,
+            "transitions": [t.to_dict() for t in self.transitions],
+        }
 
 
 def expand_wall_clock_recurrence(
@@ -134,23 +174,23 @@ def expand_wall_clock_recurrence(
     same_weekday_only: bool = False,
     policy: DstPolicy = DstPolicy(),
     on_days: Callable[[date], bool] | None = None,
+    include_pattern: bool = False,
 ) -> tuple[pd.Series, RecurrenceReport]:
     """Repeat a pattern of sensor values daily (or weekly) by local wall-clock time, until a given date.
 
     Each source slot is mapped by its local time-of-day, so a value at 07:00 lands at 07:00 on every repeat, also across a DST transition.
-    The first repeat directly follows the pattern (one day or one week later), and the pattern itself is not returned.
+    The first repeat directly follows the pattern (one day or one week later).
     Repeating stops at the end of `until`: a slot is written only if it starts before the local midnight that follows it,
     so the last repeat is cut short there if it would run into the next day.
 
-    For a sensor with a resolution, the result is one contiguous series at that resolution,
-    from the first slot written to the last, so it can be sent as one array of values.
-    Where there is no value to write (a NaN in the pattern, a gap between repeats, or an omitted slot), the result holds NaN.
+    For a sensor with a resolution, the result lists every slot from the first written to the last, at that resolution,
+    so the gaps between repeats show as NaN, just like a NaN in the pattern or an omitted slot.
+    Where the resolution is coarser than a clock change (such as hourly data on Lord Howe Island, whose clocks shift by 30 minutes),
+    the slots stay on their local time, so the result is not regular in absolute time around that change,
+    and it holds extra events: a slot only partly skipped starts when the clock resumes,
+    and the repeated part of the clock that no slot starts in is filled by one more event of the preceding slot, ending where the next slot starts.
+    Such events may overlap their neighbours.
     For an instantaneous sensor (a zero resolution), the result holds only the repeated instants.
-
-    If the resolution does not divide the size of a clock change in the range written (such as hourly data on Lord Howe Island, whose clocks shift by 30 minutes),
-    following the wall clock would break the sensor's grid of events,
-    so the pattern is repeated by absolute steps of 24 hours (or 168 hours) instead, and the report says so.
-    That fallback never applies to resolutions of a day or more, whose slots are calendar days.
 
     :param pattern:             Values with a timezone-aware index, regular at the sensor resolution; NaN means "no value".
     :param until:               The last local date (in `tz`) to write values on, inclusive.
@@ -160,7 +200,8 @@ def expand_wall_clock_recurrence(
     :param policy:              How to resolve DST transitions.
     :param on_days:             Only repeat on the local dates for which this returns True, such as workdays,
                                 where a repeat's date is the date its first slot falls on.
-    :returns:                   The repeated values, indexed in `tz`, and a report of what DST transitions did to them.
+    :param include_pattern:     Also return the pattern itself, unless `on_days` leaves out the date it starts on.
+    :returns:                   The values, indexed in `tz`, and a report of what DST transitions did to them.
     :raises RecurrenceError:    When the pattern is longer than the recurrence period, is not regular at the resolution,
                                 or covers the repeated hour of a fall-back transition (two values would claim the same wall-clock time).
     """
@@ -178,64 +219,36 @@ def expand_wall_clock_recurrence(
     n_occurrences = max(
         0, int(np.ceil((end_of_until - wall_clock[0]) / pd.Timedelta(period))) - 1
     )
-    # Which repeats to write, by the local date each starts on.
+    # Which occurrences to write, by the local date each starts on, where occurrence 0 is the pattern itself.
     first_day = wall_clock[0].date()
     kept_occurrences = np.array(
         [
-            on_days is None or on_days(first_day + k * period)
-            for k in range(1, n_occurrences + 1)
+            (k > 0 or include_pattern)
+            and (on_days is None or on_days(first_day + k * period))
+            for k in range(0, n_occurrences + 1)
         ],
         dtype=bool,
     )
-    if n_occurrences == 0 or not kept_occurrences.any():
+    n_kept_repeats = int(kept_occurrences[1:].sum())
+    pattern_included = bool(kept_occurrences[0])
+    # Nothing to write: no occurrence is kept, or `until` ends before the pattern starts.
+    if not kept_occurrences.any() or end_of_until <= wall_clock[0]:
         empty = pd.Series(
             [], index=pd.DatetimeIndex([], tz=tz), dtype=float, name=pattern.name
         )
-        return empty, RecurrenceReport(
-            mode="wall_clock", period=period_name, n_occurrences=0
-        )
+        return empty, RecurrenceReport(period=period_name, n_occurrences=0)
 
     end_instant = end_of_until.tz_localize(
         tz, ambiguous=True, nonexistent="shift_forward"
     )
-    transitions = _clock_changes(tz, local_index[0], end_instant)
-    pattern_end = local_index[-1] + resolution
-    written_transitions = [t for t in transitions if t[0] >= pattern_end]
-
-    # Wall-clock repeats stay on the sensor's grid only if the resolution divides every clock change they cross.
-    # Slots of a day or more are calendar days, which follow the wall clock whatever the size of the change.
-    incompatible = [
-        abs(after - before)
-        for _, before, after in transitions
-        if timedelta(0) < resolution < timedelta(days=1)
-        and abs(after - before) % resolution != timedelta(0)
+    written_from = local_index[0] if pattern_included else local_index[-1] + resolution
+    transitions = [
+        t
+        for t in _clock_changes(tz, local_index[0], end_instant)
+        if t[0] >= written_from
     ]
-    if incompatible:
-        expanded = _expand_absolute(
-            pattern,
-            local_index,
-            kept_occurrences,
-            period,
-            resolution,
-            end_instant,
-            tz,
-        )
-        report = RecurrenceReport(
-            mode="absolute",
-            period=period_name,
-            n_occurrences=int(kept_occurrences.sum()),
-            transitions=tuple(
-                _describe(t, omitted=[], duplicated=[]) for t in written_transitions
-            ),
-            fallback_reason=(
-                f"The sensor resolution ({isodate.duration_isoformat(resolution)}) does not divide a clock change of "
-                f"{isodate.duration_isoformat(incompatible[0])} in {tz}, "
-                f"so values are repeated every {int(period / timedelta(hours=1))} hours instead of at the same local time."
-            ),
-        )
-        return expanded, report
 
-    expanded, omitted, duplicated = _expand_wall_clock(
+    expanded, effects = _expand_wall_clock(
         pattern,
         wall_clock,
         kept_occurrences,
@@ -244,15 +257,15 @@ def expand_wall_clock_recurrence(
         end_of_until,
         tz,
         policy,
+        transitions,
     )
+    described = [_describe(t, **effects) for t in transitions]
     report = RecurrenceReport(
-        mode="wall_clock",
         period=period_name,
-        n_occurrences=int(kept_occurrences.sum()),
-        transitions=tuple(
-            _describe(t, omitted=omitted, duplicated=duplicated)
-            for t in written_transitions
-        ),
+        n_occurrences=n_kept_repeats,
+        pattern_included=pattern_included,
+        n_transitions_checked=len(described),
+        transitions=tuple(t for t in described if t.has_effect),
     )
     return expanded, report
 
@@ -348,16 +361,24 @@ def _expand_wall_clock(
     end_of_until: pd.Timestamp,
     tz: str,
     policy: DstPolicy,
-) -> tuple[pd.Series, list[pd.Timestamp], list[pd.Timestamp]]:
+    transitions: list[tuple[pd.Timestamp, timedelta, timedelta]],
+) -> tuple[pd.Series, dict]:
     """Repeat the pattern on the wall clock, and localize each repeat in the sensor's timezone.
 
-    Returns the expanded series, and the naive local times of the slots with a value that were omitted or duplicated.
+    Occurrence 0 is the pattern itself.
+    Returns the expanded series, and the naive local start times of the slots with a value that were omitted, duplicated or shifted,
+    where extra fill events are listed per transition, as their slot lies outside the repeated part of the clock.
     """
+    if policy.nonexistent is not NonexistentTime.DROP:
+        raise NotImplementedError(f"DST policy {policy.nonexistent} is not supported.")
+    if policy.ambiguous is not AmbiguousTime.BOTH:
+        raise NotImplementedError(f"DST policy {policy.ambiguous} is not supported.")
+
     # Repeats are stepped on naive local times, where adding whole days always keeps the time-of-day.
     # Don't step tz-aware times instead: freq="24h", pd.Timedelta("1D") and pd.offsets.Day(1) are absolute (Day is a Tick offset, despite its name, at least before pandas 3),
     # and even a calendar-aware pd.DateOffset(days=1) can only land on one of the two instants of an ambiguous local time, where we may want both.
     n_occurrences = len(kept_occurrences)
-    steps = pd.TimedeltaIndex(np.arange(1, n_occurrences + 1) * pd.Timedelta(period))
+    steps = pd.TimedeltaIndex(np.arange(0, n_occurrences) * pd.Timedelta(period))
     targets = pd.DatetimeIndex(
         (wall_clock.values[None, :] + steps.values[:, None]).ravel()
     )
@@ -367,7 +388,6 @@ def _expand_wall_clock(
 
     if resolution > timedelta(0):
         # Lay the values on a contiguous wall-clock grid, so the gaps between repeats show as NaN.
-        # Given the resolution divides any clock change (checked by the caller), localizing this grid gives the sensor's own grid of events.
         grid = pd.date_range(repeated.index[0], repeated.index[-1], freq=resolution)
         repeated = repeated.reindex(grid)
 
@@ -383,52 +403,76 @@ def _expand_wall_clock(
     ambiguous = ~nonexistent & (first != second)
     has_value = repeated.notna().to_numpy()
 
-    if policy.nonexistent is NonexistentTime.DROP:
-        kept = ~nonexistent
-    else:
-        raise NotImplementedError(f"DST policy {policy.nonexistent} is not supported.")
-    if policy.ambiguous is AmbiguousTime.BOTH:
-        index = first[kept].append(second[ambiguous])
-        expanded_values = np.concatenate(
-            [repeated.to_numpy()[kept], repeated.to_numpy()[ambiguous]]
-        )
-    else:
-        raise NotImplementedError(f"DST policy {policy.ambiguous} is not supported.")
-    expanded = pd.Series(expanded_values, index=index, name=pattern.name).sort_index()
+    # A slot whose start is skipped, but whose end is not, starts when the clock resumes, which is the instant of the clock change.
+    # Don't use nonexistent="shift_forward" for this: pandas shifts by a whole hour, which overshoots a 30-minute change.
+    shifted: np.ndarray = np.zeros(len(repeated), dtype=bool)
+    resumed: list[pd.Timestamp] = []
+    if resolution > timedelta(0):
+        for instant, before, after in transitions:
+            if after <= before:
+                continue
+            window_start = instant.tz_convert("UTC").tz_localize(None) + before
+            window_end = window_start + (after - before)
+            partly_skipped = (
+                (repeated.index >= window_start)
+                & (repeated.index < window_end)
+                & (repeated.index + resolution > window_end)
+            )
+            shifted |= partly_skipped
+            resumed += [instant.tz_convert(tz)] * int(partly_skipped.sum())
+    omitted = nonexistent & ~shifted
 
-    omitted = list(repeated.index[nonexistent & has_value])
-    duplicated = list(repeated.index[ambiguous & has_value])
-    return expanded, omitted, duplicated
-
-
-def _expand_absolute(
-    pattern: pd.Series,
-    local_index: pd.DatetimeIndex,
-    kept_occurrences: np.ndarray,
-    period: timedelta,
-    resolution: timedelta,
-    end_instant: pd.Timestamp,
-    tz: str,
-) -> pd.Series:
-    """Repeat the pattern by absolute steps of the period, keeping the sensor's grid of events intact."""
-    # Absolute on purpose: tz-aware times plus a Timedelta keep their distance in hours, not their time-of-day.
-    n_occurrences = len(kept_occurrences)
-    steps = pd.TimedeltaIndex(np.arange(1, n_occurrences + 1) * pd.Timedelta(period))
-    targets = pd.DatetimeIndex(
-        (
-            local_index.tz_convert("UTC").tz_localize(None).values[None, :]
-            + steps.values[:, None]
-        ).ravel()
-    ).tz_localize("UTC")
-    values = np.tile(pattern.to_numpy(dtype=float), n_occurrences)
-    keep = (targets < end_instant) & np.repeat(kept_occurrences, len(pattern))
-    repeated = pd.Series(
-        values[keep], index=targets[keep].tz_convert(tz), name=pattern.name
+    starts = (
+        first[~nonexistent]
+        .append(second[ambiguous])
+        .append(pd.DatetimeIndex(resumed, tz=tz))
     )
-    if repeated.empty:
-        return repeated
-    grid = pd.date_range(repeated.index[0], repeated.index[-1], freq=resolution)
-    return repeated.reindex(grid)
+    expanded_values = np.concatenate(
+        [
+            repeated.to_numpy()[~nonexistent],
+            repeated.to_numpy()[ambiguous],
+            repeated.to_numpy()[shifted],
+        ]
+    )
+
+    # Fill the repeated part of the clock that no slot starts in, from the slot that precedes it.
+    filled: dict[pd.Timestamp, list[pd.Timestamp]] = {}
+    if timedelta(0) < resolution < timedelta(days=1):
+        fill_starts, fill_values = [], []
+        for instant, before, after in transitions:
+            if after >= before:
+                continue
+            window_start = instant.tz_convert("UTC").tz_localize(None) + after
+            window_end = window_start + (before - after)
+            in_window = repeated.index[
+                (repeated.index >= window_start) & (repeated.index < window_end)
+            ]
+            next_start = in_window[0] if len(in_window) else window_end
+            preceding = repeated.index[repeated.index <= window_start]
+            if next_start == window_start or len(preceding) == 0:
+                continue
+            slot = preceding[-1]
+            if np.isnan(repeated[slot]):
+                continue
+            # The extra event ends where the next slot starts on the second run of the clock.
+            fill_starts.append(
+                (instant + (next_start - window_start) - resolution).tz_convert(tz)
+            )
+            fill_values.append(repeated[slot])
+            filled[instant] = [slot]
+        if fill_starts:
+            starts = starts.append(pd.DatetimeIndex(fill_starts))
+            expanded_values = np.concatenate([expanded_values, fill_values])
+
+    expanded = pd.Series(expanded_values, index=starts, name=pattern.name).sort_index()
+
+    effects = dict(
+        omitted=list(repeated.index[omitted & has_value]),
+        duplicated=list(repeated.index[ambiguous & has_value]),
+        shifted=list(repeated.index[shifted & has_value]),
+        filled=filled,
+    )
+    return expanded, effects
 
 
 def _clock_changes(
@@ -467,25 +511,32 @@ def _describe(
     change: tuple[pd.Timestamp, timedelta, timedelta],
     omitted: list[pd.Timestamp],
     duplicated: list[pd.Timestamp],
+    shifted: list[pd.Timestamp],
+    filled: dict[pd.Timestamp, list[pd.Timestamp]],
 ) -> DstTransition:
-    """Describe one clock change, with the omitted and duplicated slots that fall within it."""
+    """Describe one clock change, with the omitted, duplicated and shifted slots that fall within it."""
     instant, before, after = change
     naive_instant = instant.tz_convert("UTC").tz_localize(None)
     # The wall-clock window that is skipped (spring forward) or that occurs twice (fall back).
     window_start = naive_instant + min(before, after)
     window_end = naive_instant + max(before, after)
-    in_window = [
-        t
-        for t in (omitted if after > before else duplicated)
-        if window_start <= t < window_end
-    ]
-    slots = tuple(t.time() for t in in_window)
+
+    def in_window(slots: list[pd.Timestamp]) -> tuple[time, ...]:
+        return tuple(t.time() for t in slots if window_start <= t < window_end)
+
+    spring_forward = after > before
     return DstTransition(
         date=(naive_instant + before).date(),
-        kind="spring_forward" if after > before else "fall_back",
+        kind="spring-forward" if spring_forward else "fall-back",
         shift=abs(after - before),
         wall_clock_start=window_start.time(),
         wall_clock_end=window_end.time(),
-        omitted=slots if after > before else (),
-        duplicated=slots if after < before else (),
+        omitted=in_window(omitted) if spring_forward else (),
+        duplicated=(
+            ()
+            if spring_forward
+            else tuple(t.time() for t in filled.get(instant, []))
+            + in_window(duplicated)
+        ),
+        shifted=in_window(shifted) if spring_forward else (),
     )

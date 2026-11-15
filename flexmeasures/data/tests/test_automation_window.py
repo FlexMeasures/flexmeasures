@@ -75,6 +75,34 @@ def test_forecast_automation_window_is_believed_when_it_is_computed(
     assert pd.Timestamp(message["prior"]) == pd.Timestamp("2026-03-27T11:00:30+00:00")
 
 
+@pytest.mark.parametrize(
+    "timing",
+    [{}, {"start-offset": "1D,DB", "end-offset": "2D,DB"}],
+    ids=["without offsets", "with offsets"],
+)
+def test_a_forecast_automation_ignores_data_recorded_after_its_run(
+    app, freeze_server_now, timing
+):
+    """A forecast automation's run gets a prior of the run time, so a job which only runs later forecasts with the data the run had.
+
+    A prior the run already carries, such as the one it pinned on its first attempt, is kept.
+    """
+    freeze_server_now(datetime(2026, 3, 27, 11, 0, 30, tzinfo=timezone.utc))
+    message = resolve_automation_window(
+        {"sensor": 1, **timing}, "forecasting", TIMEZONE, SCHEDULED_AT
+    )
+    assert pd.Timestamp(message["prior"]) == pd.Timestamp("2026-03-27T11:00:30+00:00")
+
+    pinned_prior = "2026-03-27T10:00:05+00:00"
+    message = resolve_automation_window(
+        {"sensor": 1, "prior": pinned_prior, **timing},
+        "forecasting",
+        TIMEZONE,
+        SCHEDULED_AT,
+    )
+    assert message["prior"] == pinned_prior
+
+
 def test_a_delayed_run_still_covers_the_window_it_was_due_for(app, freeze_server_now):
     """Offsets apply to the claimed cron occurrence, so a run that only happens after midnight still schedules the day it was due for."""
     freeze_server_now(datetime(2026, 3, 27, 23, 30, tzinfo=timezone.utc))

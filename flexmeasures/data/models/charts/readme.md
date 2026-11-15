@@ -1,7 +1,10 @@
 # Developer docs for adding chart specs
 
-Chart specs can be specified as a dictionary with a vega-lite specification or as an altair chart.
-Alternatively, they can be specified as a function that returns a dict (with vega-lite specs) or an altair chart.
-This approach is useful if you need to parameterize the specification with kwargs.
+A chart type is a function in `belief_charts` that returns a dict (with vega-lite specs) or an altair chart.
+Parameterize the specification with kwargs.
+
+Only the chart types listed in `SENSOR_CHART_TYPES` or `ASSET_CHART_BUILDERS` (in `charts/__init__.py`) are built,
+so list a new chart type there to make it available to chart requests.
+`chart_type_to_chart_specs` applies the FlexMeasures defaults (see `defaults.py`) to a copy of the specs.
 
 Todo: support a plug-in architecture, see https://packaging.python.org/guides/creating-and-discovering-plugins/

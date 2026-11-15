@@ -16,19 +16,26 @@ def validate_rate_limit(value: str | None) -> None:
 
     Accepts limits like "500 per minute", the special value "unlimited", and None
     (which callers use to mean: fall back to the server-wide config setting).
+    Flask-Limiter would also take several limits in one string (separated by semicolons),
+    but we accept one, so that each budget is one number, and a reset clears the whole of it.
 
     :param value:        The rate limit to validate.
-    :raises ValueError:  When the value is not a parseable rate limit.
+    :raises ValueError:  When the value is not a parseable rate limit, or holds more than one.
     """
     if value is None or value == UNLIMITED_RATE_LIMIT:
         return
     try:
-        limits.parse(value)
+        items = limits.parse_many(value)
     except ValueError as exc:
         raise ValueError(
             f"'{value}' is not a valid rate limit."
             f" Use a limit like '10 per 5 minutes', or '{UNLIMITED_RATE_LIMIT}'."
         ) from exc
+    if len(items) > 1:
+        raise ValueError(
+            f"'{value}' holds {len(items)} rate limits, but a rate limit is one limit."
+            f" Use a limit like '10 per 5 minutes', or '{UNLIMITED_RATE_LIMIT}'."
+        )
 
 
 def validate_color_hex(value):
