@@ -13,12 +13,12 @@ from marshmallow import (
     Schema,
     ValidationError,
 )
-from pytz import all_timezones_set
 
 from flexmeasures.data import ma
 from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.utils import (
     get_by_id,
     FMValidationError,
@@ -28,7 +28,7 @@ from flexmeasures.data.schemas.utils import (
 
 
 class CronField(MarshmallowClickMixin, fields.Str):
-    """Field that validates a cron string (e.g. "0 6 * * *")."""
+    """Field that validates a cron string (e.g. ``"0 6 * * *"``)."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)
@@ -47,16 +47,6 @@ class CronField(MarshmallowClickMixin, fields.Str):
             raise FMValidationError(
                 f"'{value}' does not match any possible date."
             ) from exc
-        return value
-
-
-class TimezoneField(MarshmallowClickMixin, fields.Str):
-    """Field that validates an exact IANA timezone name."""
-
-    def _deserialize(self, value, attr, obj, **kwargs) -> str:
-        value = super()._deserialize(value, attr, obj, **kwargs)
-        if value not in all_timezones_set:
-            raise FMValidationError(f"Timezone '{value}' does not exist.")
         return value
 
 
@@ -213,10 +203,10 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     schedule_revision = ma.auto_field(
-        data_key="schedule-revision",
+        data_key="revision",
         dump_only=True,
         metadata={
-            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
             "example": 2,
         },
     )

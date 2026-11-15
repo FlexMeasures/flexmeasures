@@ -32,6 +32,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     SourceIdField,
 )
+from flexmeasures.data.services.generic_assets import delete_asset
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
@@ -277,7 +278,7 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
             f"Delete {asset.__repr__()}, including all its sensors, data and children?"
         )
         click.confirm(prompt, abort=True)
-    db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
+    delete_asset(asset)
     db.session.commit()
 
 
@@ -484,7 +485,9 @@ def delete_beliefs(  # noqa: C901
     )
 
     # Prompt based on count of query
-    num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
+    num_beliefs_up_for_deletion = db.session.scalar(
+        select(func.count()).select_from(q.subquery())
+    )
     # repr(entity) includes the IDs, which matters for the confirmation prompt
     if num_beliefs_up_for_deletion == 0:
         done("0 beliefs found.")
@@ -500,7 +503,9 @@ def delete_beliefs(  # noqa: C901
     )
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
-    num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
+    num_beliefs_after = db.session.scalar(
+        select(func.count()).select_from(q.subquery())
+    )
     # only show the entity names for the final confirmation
     message = f"{num_beliefs_after} beliefs left on sensors "
     if sensors:
@@ -583,7 +588,9 @@ def delete_unchanged_beliefs(
     if end:
         q = q.join(Sensor, TimedBelief.sensor_id == Sensor.id)
         q = q.filter(TimedBelief.event_start <= end - Sensor.event_resolution)
-    num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
+    num_beliefs_before = db.session.scalar(
+        select(func.count()).select_from(q.subquery())
+    )
     unchanged_queries = []
     num_forecasts_up_for_deletion = 0
     num_measurements_up_for_deletion = 0
@@ -598,7 +605,7 @@ def delete_unchanged_beliefs(
         )
         unchanged_queries.append(q_unchanged_forecasts)
         num_forecasts_up_for_deletion = db.session.scalar(
-            select(func.count()).select_from(q_unchanged_forecasts)
+            select(func.count()).select_from(q_unchanged_forecasts.subquery())
         )
     if delete_unchanged_measurements:
         q_unchanged_measurements = query_unchanged_beliefs(
@@ -611,7 +618,7 @@ def delete_unchanged_beliefs(
         )
         unchanged_queries.append(q_unchanged_measurements)
         num_measurements_up_for_deletion = db.session.scalar(
-            select(func.count()).select_from(q_unchanged_measurements)
+            select(func.count()).select_from(q_unchanged_measurements.subquery())
         )
 
     num_beliefs_up_for_deletion = (
@@ -633,7 +640,9 @@ def delete_unchanged_beliefs(
         db.session.delete(b)
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
-    num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
+    num_beliefs_after = db.session.scalar(
+        select(func.count()).select_from(q.subquery())
+    )
     done(f"{num_beliefs_after} beliefs left.")
 
 

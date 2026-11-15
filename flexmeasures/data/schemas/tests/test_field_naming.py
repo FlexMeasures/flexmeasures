@@ -3,6 +3,12 @@
 The API is moving to kebab-case throughout (see issue #2540), and the way that stalls is not
 a decision to reverse it but a field added in the old style while nobody is looking.
 These tests hold the line: the debt is listed, and the list may only shrink.
+
+Names are checked in two places.
+The Marshmallow schemas FlexMeasures defines are where most fields are declared.
+The published OpenAPI specs catch what those schemas cannot show,
+such as a parameter declared inline in `use_kwargs({...})`, whose schema Marshmallow generates in its own module,
+or a response field documented on an endpoint rather than declared in a schema.
 """
 
 from __future__ import annotations
@@ -24,6 +30,8 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
     {
         "account_id",
         "account_roles",
+        "active_user_id",
+        "authentication_token",
         "all_accessible",
         "asset_type",
         "belief_horizon",
@@ -34,19 +42,29 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "child_assets",
         "consultancy_account_id",
         "consumption_price_sensor",
+        "database_redis",
+        "database_sql",
         "default_asset_view",
         "df_input",
         "df_output",
+        "ended_at",
+        "enqueued_at",
         "end_time",
         "entity_address",
+        "event_datetime",
+        "event_end_time",
         "event_ends_before",
         "event_resolution",
+        "event_start_time",
         "event_starts_after",
+        "exc_info",
         "exclude_source_types",
         "external_id",
         "flex_context",
         "flex_model",
         "flexmeasures_roles",
+        "flexmeasures_version",
+        "func_name",
         "generic_asset_id",
         "generic_asset_type",
         "generic_asset_type_id",
@@ -75,6 +93,7 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "production_price_sensor",
         "required_input",
         "required_output",
+        "scheduler_info",
         "secondary_color",
         "sensors_to_show",
         "sensors_to_show_as_kpis",
@@ -83,6 +102,7 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "source_types",
         "staleness_search",
         "start_time",
+        "started_at",
         "sum_multiple",
         "use_as_default",
         "use_latest_version_only",
@@ -155,6 +175,67 @@ def _cli_option_names() -> dict[str, set[str]]:
     return options
 
 
+def _openapi_specs() -> dict:
+    """The published OpenAPI specs, which the pre-commit hook regenerates from the endpoints' docstrings and schemas."""
+    import json
+    from importlib.resources import files
+
+    return json.loads(
+        files("flexmeasures.ui").joinpath("static/openapi-specs.json").read_text()
+    )
+
+
+def _openapi_parameter_names(specs: dict) -> dict[str, set[str]]:
+    """Map each query, header or cookie parameter the specs name to the operations taking it.
+
+    Path parameters are left to their own test, as Flask cannot name a route variable with a dash.
+    """
+    names: dict[str, set[str]] = {}
+    for path, operations in specs["paths"].items():
+        for method, operation in operations.items():
+            if not isinstance(operation, dict):
+                continue
+            for parameter in operation.get("parameters", []):
+                if parameter.get("in") != "path":
+                    names.setdefault(parameter["name"], set()).add(
+                        f"{method.upper()} {path}"
+                    )
+    return names
+
+
+def _openapi_property_names(specs: dict) -> dict[str, set[str]]:
+    """Map each property of a request or response body the specs describe to where it is described."""
+    names: dict[str, set[str]] = {}
+
+    def walk(node, where: str):
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                for name in properties:
+                    names.setdefault(name, set()).add(where)
+            for value in node.values():
+                walk(value, where)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value, where)
+
+    for path, operations in specs["paths"].items():
+        walk(operations, path)
+    for name, schema in specs.get("components", {}).get("schemas", {}).items():
+        walk(schema, f"#/components/schemas/{name}")
+    return names
+
+
+@pytest.fixture(scope="module")
+def openapi_names() -> dict[str, set[str]]:
+    """Every parameter and body property the published specs name, mapped to where they name it."""
+    specs = _openapi_specs()
+    names = _openapi_parameter_names(specs)
+    for name, places in _openapi_property_names(specs).items():
+        names.setdefault(name, set()).update(places)
+    return names
+
+
 @pytest.fixture(scope="module")
 def wire_names(app) -> dict[str, set[str]]:
     """Importing the schema modules needs an application context."""
@@ -209,12 +290,14 @@ def test_a_command_line_option_is_kebab_case(cli_option_names):
     )
 
 
-def test_the_list_of_known_snake_case_names_has_no_stale_entries(wire_names):
-    """An entry stays only while the field it excuses is still spelled that way.
+def test_the_list_of_known_snake_case_names_has_no_stale_entries(
+    wire_names, openapi_names
+):
+    """An entry stays only while the field it excuses is still spelled that way, in a schema or in the published specs.
 
     Without this the list would quietly outlive the debt it records, and stop being a measure of it.
     """
-    stale = sorted(KNOWN_SNAKE_CASE_WIRE_NAMES - set(wire_names))
+    stale = sorted(KNOWN_SNAKE_CASE_WIRE_NAMES - set(wire_names) - set(openapi_names))
 
     assert not stale, (
         "these names are excused but no longer on the wire, so drop them from"
@@ -259,4 +342,47 @@ def test_a_path_parameter_in_the_openapi_specs_is_kebab_case():
         not declared
     ), "these path parameters are declared with an underscore:\n  " + "\n  ".join(
         declared
+    )
+
+
+def test_a_query_parameter_in_the_openapi_specs_is_kebab_case():
+    """The same rule, for the query, header and cookie parameters the published specs name.
+
+    Endpoints often declare these inline, as in `@use_kwargs({"asset": AssetIdField(data_key="asset")}, location="query")`,
+    and Marshmallow generates the schema for such a dict in its own module, out of reach of the test on schemas.
+    """
+    offenders = {
+        name: sorted(operations)
+        for name, operations in _openapi_parameter_names(_openapi_specs()).items()
+        if "_" in name and name not in KNOWN_SNAKE_CASE_WIRE_NAMES
+    }
+
+    assert not offenders, (
+        "these parameters are named with an underscore in the OpenAPI specs:\n"
+        + "\n".join(
+            f"  {name}: {', '.join(operations)}"
+            for name, operations in sorted(offenders.items())
+        )
+        + "\n\nSpell them with dashes, giving the field a `data_key` where its attribute name cannot be."
+    )
+
+
+def test_a_body_property_in_the_openapi_specs_is_kebab_case():
+    """The same rule, for the request and response body properties the published specs describe.
+
+    This catches a response field documented on its endpoint, whose payload is built as a plain dict rather than dumped by a schema.
+    """
+    offenders = {
+        name: sorted(places)
+        for name, places in _openapi_property_names(_openapi_specs()).items()
+        if "_" in name and name not in KNOWN_SNAKE_CASE_WIRE_NAMES
+    }
+
+    assert not offenders, (
+        "these body properties are named with an underscore in the OpenAPI specs:\n"
+        + "\n".join(
+            f"  {name}: {', '.join(places)}"
+            for name, places in sorted(offenders.items())
+        )
+        + "\n\nSpell them with dashes."
     )

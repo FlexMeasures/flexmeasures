@@ -405,6 +405,37 @@ def test_account_audit_log_shows_system_for_unattributed_event(db, client, as_ad
     assert b"None (Id: None)" not in audit_log_page.data
 
 
+@pytest.mark.parametrize(
+    "login_fixture, may_read",
+    [
+        ("as_prosumer_account_admin", True),
+        # A member without a role may read the account, but not its audit log.
+        ("as_prosumer_user1", False),
+    ],
+)
+def test_account_audit_log_is_for_whoever_may_read_it(
+    db, client, request, login_fixture, may_read
+):
+    """The account audit log page follows the same rule as the API, which is stricter than reading the account."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    db.session.add(
+        AuditLog(
+            event_datetime=server_now(),
+            event=f"Event only some may read ({login_fixture})",
+            affected_account_id=account.id,
+        )
+    )
+    db.session.commit()
+    request.getfixturevalue(login_fixture)
+
+    response = client.get(url_for("AccountCrudUI:auditlog", account_id=account.id))
+
+    assert response.status_code == (200 if may_read else 403)
+    assert (
+        f"Event only some may read ({login_fixture})".encode() in response.data
+    ) == may_read
+
+
 def test_account_page_forbidden_for_different_account_user(
     db, client, setup_accounts, as_dummy_user3
 ):

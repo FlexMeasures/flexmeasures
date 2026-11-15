@@ -221,6 +221,9 @@
           "403": {
             "description": "INVALID_SENDER"
           },
+          "404": {
+            "description": "NOT_FOUND"
+          },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
           },
@@ -318,7 +321,7 @@
     "/api/v3_0/sensors/{id}/annotations": {
       "delete": {
         "summary": "Delete sensor annotations",
-        "description": "This endpoint deletes the annotations of a sensor. Optionally, filter by source, start time and/or until time. Only annotations that lie entirely between the start and until times are deleted. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.\n",
+        "description": "This endpoint deletes the annotations of a sensor. Optionally, filter by source, start time and/or end time. Only annotations that lie entirely between the start and end times are deleted. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -449,7 +452,7 @@
     "/api/v3_0/sensors/{id}/data": {
       "delete": {
         "summary": "Delete sensor data",
-        "description": "This endpoint deletes data for a sensor. Optionally, filter by source, start time and/or until time. A missing source means all sources are deleted.\n",
+        "description": "This endpoint deletes data for a sensor. Optionally, filter by source, start time and/or end time. A missing source means all sources are deleted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -639,7 +642,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n\n<strong>Repeating values.</strong>\nWith `repeat` and `until`, the values are a pattern (such as one day of SoC limits) that is saved, and then repeated daily, on the same weekday only, on workdays or on weekends, until the given date.\nThe pattern itself is saved too, unless the repeat days leave out the day it starts on (such as a Saturday pattern repeated on workdays).\nThe pattern may be at most one day long when repeated daily, on workdays or on weekends, or one week long when repeated on the same weekday,\nit may not be finer than the sensor's resolution, and the sensor may not record instantaneous values.\nEach repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:\nvalues whose local time is skipped (spring forward) are left out, and values whose local time occurs twice (fall back) are saved to both instants.\nWhere the sensor's resolution is coarser than the clock change (such as hourly data where clocks shift by 30 minutes), values stay on their local time:\na slot only partly skipped starts when the clock resumes, and the repeated part of the clock is filled by one more event of the preceding slot.\nThe response then includes a `report`, which counts the values saved, lists the clock changes that left out, repeated or moved a value, and counts the clock changes checked.\nRepeating is limited to one year after the pattern starts, and to FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES values (100,000 by default).\n\n<strong>Dry run.</strong>\nWith `dry-run`, nothing is saved, and the response holds the values that would be saved (`data`), in the posted unit, plus the `report` when repeating.\nA dry run is always answered directly, rather than as a job.\n`data` lists the values in the shape of posted sensor data, as one or more regular series, in time order:\nusually one, but a new series starts wherever the values are not one resolution apart (around some clock changes), and null values fill the gaps between repeats.\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -675,6 +678,21 @@
                     "duration": "PT1H",
                     "unit": "m\u00b3/h"
                   }
+                },
+                "repeat_dry_run": {
+                  "summary": "Check what repeating two hourly SoC minima daily would save",
+                  "value": {
+                    "values": [
+                      80,
+                      90
+                    ],
+                    "start": "2026-11-02T06:00:00+01:00",
+                    "duration": "PT2H",
+                    "unit": "kWh",
+                    "repeat": "daily",
+                    "until": "2026-11-03",
+                    "dry-run": true
+                  }
                 }
               }
             }
@@ -685,7 +703,66 @@
             "description": "ACCEPTED"
           },
           "200": {
-            "description": "PROCESSED"
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "repeat_dry_run": {
+                    "summary": "What repeating two hourly SoC minima daily would save",
+                    "value": {
+                      "data": [
+                        {
+                          "start": "2026-11-02T06:00:00+01:00",
+                          "duration": "PT26H",
+                          "values": [
+                            80,
+                            90,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            80,
+                            90
+                          ],
+                          "unit": "kWh"
+                        }
+                      ],
+                      "report": {
+                        "n-values": 4,
+                        "period": "daily",
+                        "n-occurrences": 1,
+                        "pattern-included": true,
+                        "n-omitted": 0,
+                        "n-duplicated": 0,
+                        "n-shifted": 0,
+                        "n-transitions-checked": 0,
+                        "transitions": []
+                      },
+                      "status": "PROCESSED",
+                      "message": "Request has been processed."
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "INVALID_REQUEST"
@@ -1160,7 +1237,7 @@
     "/api/v3_0/sensors/{id}/status": {
       "get": {
         "summary": "Get sensor status",
-        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\n",
+        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\nData that is not stale may still be incomplete, in which case the status says what it leaves out (see the examples).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1177,7 +1254,7 @@
           },
           {
             "in": "query",
-            "name": "asset_id",
+            "name": "asset",
             "required": false,
             "description": "ID of the asset whose status page the sensor is reported on.\nThis asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.\nIt only affects the reported relation between the sensor and the asset.\nDefaults to the asset that the sensor belongs to.\n",
             "schema": {
@@ -1207,6 +1284,32 @@
                         "asset_id": 1,
                         "asset_name": "Building A",
                         "relation": "sensor belongs to this asset"
+                      }
+                    ]
+                  },
+                  "partial-aggregate": {
+                    "summary": "An aggregate leaving out a member",
+                    "description": "The status of a device group's aggregate, recorded by an `AggregatorReporter`, whose most recent aggregate old enough to count as stale left out the heat pump's meter, because it did not report.\n`missing-members` lists the sensors left out, and is left out itself where no member is missing.\n",
+                    "value": [
+                      {
+                        "staleness": "PT6M",
+                        "stale": false,
+                        "staleness_since": "2024-01-15T14:30:00+00:00",
+                        "reason": "most recent data is 6 minutes old, which is not more than 30 minutes old; the most recent aggregate old enough to count as stale leaves out 'Heat pump' / power (88754), which did not report",
+                        "source_type": "reporter",
+                        "id": 88750,
+                        "name": "power",
+                        "resolution": "PT15M",
+                        "asset_id": 12,
+                        "asset_name": "Street",
+                        "relation": "sensor belongs to this asset",
+                        "missing-members": [
+                          {
+                            "id": 88754,
+                            "name": "power",
+                            "asset-name": "Heat pump"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -1486,142 +1589,6 @@
           },
           "403": {
             "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Sensors"
-        ]
-      }
-    },
-    "/api/v3_0/sensors/{id}/data/preview-recurrence": {
-      "post": {
-        "summary": "Preview a repeated pattern of sensor data",
-        "description": "Repeat a pattern of sensor values daily, or on the same weekday only, until a given date, and return the repeats without saving them.\nTo save them, post the returned `data` to [POST /sensors/{id}/data](#/Sensors/post_api_v3_0_sensors__id__data) as it is.\n\nThe pattern is sent in the shape of posted sensor data, and is checked in the same way:\nthe unit has to be convertible to the sensor's unit, and the resolution has to fit the sensor's resolution.\nIt may be coarser than the sensor's resolution (its values are then upsampled), but not finer.\nIt may be at most one day long when repeated daily, or one week long when repeated on the same weekday.\nThe list of values may include null values, which are repeated as null values.\n\nEach repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:\nvalues whose local time is skipped (spring forward) are left out, as that time has no slot,\nand values whose local time occurs twice (fall back) are repeated to both instants.\nThe `report` counts the values to be saved, and says which values each transition left out or repeated twice.\nIf the sensor resolution cannot follow a clock change (such as hourly data where clocks shift by 30 minutes),\nthe pattern is repeated every 24 hours (or 168 hours) instead, and the report says so.\n\nRepeating is limited to one year after the pattern starts,\nand to as many values as can be posted in one request (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES, 3 MiB by default).\nRequires the same permission as posting data to the sensor.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecurrencePreview"
-              },
-              "examples": {
-                "repeat_daily": {
-                  "summary": "Repeat two hourly SoC minima daily, for two days",
-                  "value": {
-                    "values": [
-                      80,
-                      90
-                    ],
-                    "start": "2026-11-02T06:00:00+01:00",
-                    "duration": "PT2H",
-                    "unit": "kWh",
-                    "repeat": "daily",
-                    "until": "2026-11-04"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "description": "The repeated values, in the shape of posted sensor data, with null values for slots without a value."
-                    },
-                    "report": {
-                      "type": "object",
-                      "description": "Counts of the values to be saved (`n_values`), and of the values left out (`n_omitted`) or repeated twice (`n_duplicated`) by daylight saving time transitions,\nplus the transitions themselves, and whether repeats follow the local time (`mode` is `wall_clock`) or fall back to fixed steps of 24 hours (`absolute`).\n"
-                    }
-                  }
-                },
-                "example": {
-                  "data": {
-                    "start": "2026-11-03T06:00:00+01:00",
-                    "duration": "PT26H",
-                    "values": [
-                      80,
-                      90,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      80,
-                      90
-                    ],
-                    "unit": "kWh"
-                  },
-                  "report": {
-                    "n_values": 4,
-                    "n_omitted": 0,
-                    "n_duplicated": 0,
-                    "mode": "wall_clock",
-                    "period": "daily",
-                    "n_occurrences": 2,
-                    "transitions": [],
-                    "fallback_reason": null
-                  },
-                  "status": "PROCESSED",
-                  "message": "Request has been processed."
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "413": {
-            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -1929,7 +1896,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nBy default, FlexMeasures records the data at the time of upload.\nSet belief-time-measured-instantly to record each value when its event ended,\nor set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3515,7 +3482,7 @@
       },
       "patch": {
         "summary": "Update an asset given its identifier.",
-        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n- account_id\n",
+        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n\nThe optional `account_id` field is deprecated. If supplied, it must match the asset's current account; it cannot change ownership.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3690,7 +3657,7 @@
                       "cursor": "2026-07-11T06:00:00+02:00",
                       "next-run": "2026-07-12T06:00:00+02:00",
                       "recurrence-description": "At 06:00",
-                      "schedule-revision": 1,
+                      "revision": 1,
                       "active": true,
                       "parameters": {
                         "sensor": 2092
@@ -3734,7 +3701,7 @@
                         "latest-run": {
                           "id": 12,
                           "scheduled-at": "2026-07-11T04:00:00+00:00",
-                          "schedule-revision": 1,
+                          "revision": 1,
                           "dispatch-state": "queued",
                           "execution-state": "succeeded",
                           "attempt-count": 1,
@@ -3892,7 +3859,7 @@
                           "cursor": "2026-07-11T06:00:00+02:00",
                           "next-run": "2026-07-12T06:00:00+02:00",
                           "recurrence-description": "At 06:00",
-                          "schedule-revision": 1,
+                          "revision": 1,
                           "active": true,
                           "job-stats": {
                             "finished": 3
@@ -4144,7 +4111,7 @@
           {
             "in": "query",
             "name": "chart-type",
-            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+            "description": "The chart to draw; leave it out for the asset's default chart.",
             "schema": {
               "type": "string"
             },
@@ -5060,7 +5027,7 @@
                 "examples": {
                   "triggered": {
                     "summary": "Automation run accepted",
-                    "description": "The automation queued its jobs, which will be picked up by a worker.\nThe `job` field holds the Universally Unique Identifier (UUID) of the job to follow,\nand `n_jobs` says how many jobs the run queued in total.\n",
+                    "description": "The automation queued its jobs, which will be picked up by a worker.\nThe `job` field holds the Universally Unique Identifier (UUID) of the job to follow,\nand `n-jobs` says how many jobs the run queued in total.\n",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
@@ -5448,7 +5415,7 @@
     "/api/v3_0/jobs/{uuid}": {
       "get": {
         "summary": "Get the status of a background job",
-        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object. For a\n<code>StorageScheduler</code> job it holds soft state-of-charge constraint\nanalysis: <code>unresolved</code> lists constraints the scheduler could not\nsatisfy, and <code>resolved</code> lists constraints that were satisfied\nwith some margin. Each device entry's <code>soc-minima</code>/<code>soc-maxima</code>\nvalue is a list, holding one entry per violated slot (for\n<code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>),\nordered chronologically. Both arrays are empty when the flex model\ndefines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other\nthan <code>StorageScheduler</code> was used. The <code>num-beliefs</code> field holds\nthe total number of beliefs (scheduled values) saved to the database.\nThis is the only place constraint analysis is available \u2014 the sensor\nschedule endpoint (<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>)\nreturns power values only.\n",
+        "description": "Look up a background job by its UUID and see whether it is queued, running, finished, or failed.\n\nThe response includes a status message plus job metadata,\nsuch as the queue name, function name, timestamps, and the job result when available.\n\nFailed jobs also include traceback information when the worker stored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object.\nFor a <code>StorageScheduler</code> job, it holds soft state-of-charge constraint analysis:\n<code>unresolved</code> lists constraints the scheduler could not satisfy,\nand <code>resolved</code> lists constraints that were satisfied with some margin.\nEach device entry's <code>soc-minima</code>/<code>soc-maxima</code> value is a list,\nholding one entry per violated slot (for <code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>), ordered chronologically.\nBoth arrays are empty when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used.\nThis is the only place constraint analysis is available:\nthe sensor schedule endpoint (<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>) returns power values only.\nThe <code>outputs</code> field lists one entry per sensor the schedule records on:\nthe <code>sensor</code> (its ID), the number of beliefs (scheduled values) the scheduler computed for it (<code>num-computed-beliefs</code>),\nand the number recorded in the database (<code>num-recorded-beliefs</code>), which leaves out beliefs that were already on record or had no value.\nThe <code>num-beliefs</code> field holds the total of <code>num-computed-beliefs</code> across <code>outputs</code>.\n\nFor a finished reporting job, <code>result</code> is an object holding the same <code>outputs</code> field, with one entry per output sensor of the report.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5493,7 +5460,7 @@
                       "description": "Human-readable description of the job status."
                     },
                     "result": {
-                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
+                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). Its <code>outputs</code> field lists, per sensor the schedule records on, the <code>sensor</code> (its ID), <code>num-computed-beliefs</code> and <code>num-recorded-beliefs</code>, and its <code>num-beliefs</code> field holds the total of <code>num-computed-beliefs</code> across <code>outputs</code>. For a finished reporting job, this is an object holding the same <code>outputs</code> field.\n",
                       "nullable": true
                     },
                     "func-name": {
@@ -5598,6 +5565,13 @@
                           }
                         ],
                         "resolved": [],
+                        "outputs": [
+                          {
+                            "sensor": 5,
+                            "num-computed-beliefs": 96,
+                            "num-recorded-beliefs": 96
+                          }
+                        ],
                         "num-beliefs": 96
                       },
                       "func-name": "flexmeasures.data.services.scheduling.create_schedule",
@@ -7252,7 +7226,7 @@
             "format": "date-time",
             "description": "Only delete annotations starting at or after this datetime (ISO 8601)."
           },
-          "until": {
+          "end": {
             "type": "string",
             "format": "date-time",
             "description": "Only delete annotations ending at or before this datetime (ISO 8601)."
@@ -7272,10 +7246,10 @@
             "format": "date-time",
             "description": "Only delete data with event start at or after this datetime (ISO 8601)."
           },
-          "until": {
+          "end": {
             "type": "string",
             "format": "date-time",
-            "description": "Only delete data with event end at or before this datetime (ISO 8601)."
+            "description": "Only delete data with event end at or before this datetime (ISO 8601). Formerly called `until`, which is still accepted."
           }
         },
         "additionalProperties": false
@@ -7826,61 +7800,6 @@
               "PostWeatherDataRequest"
             ],
             "description": "Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
-          }
-        },
-        "required": [
-          "duration",
-          "sensor",
-          "start",
-          "unit"
-        ],
-        "additionalProperties": false
-      },
-      "RecurrencePreview": {
-        "type": "object",
-        "properties": {
-          "start": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
-            "example": "2026-01-15T10:00+01:00"
-          },
-          "duration": {
-            "type": "string",
-            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
-            "example": "PT1H",
-            "format": "duration"
-          },
-          "horizon": {
-            "type": "string",
-            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
-            "example": "PT2H",
-            "format": "duration"
-          },
-          "prior": {
-            "type": "string",
-            "format": "date-time",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
-            "example": "2026-01-14T20:00+01:00"
-          },
-          "unit": {
-            "type": "string",
-            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
-            "example": "m\u00b3/h"
-          },
-          "sensor": {
-            "type": "integer",
-            "description": "ID of the sensor on which the data is recorded.",
-            "example": 14
-          },
-          "values": {
-            "description": "The values of the pattern, at most one recurrence period long; null means no value.",
-            "example": [
-              80,
-              80,
-              null,
-              90
-            ]
           },
           "repeat": {
             "type": "string",
@@ -7890,23 +7809,21 @@
               "workdays",
               "weekends"
             ],
-            "description": "Repeat the pattern every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone.",
+            "description": "Repeat the values every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone, until the date given by `until`. The values are then a pattern of at most one day (or one week, for `same-weekday`).",
             "example": "daily"
           },
           "until": {
             "type": "string",
             "format": "date",
-            "description": "The last date to repeat the pattern on, inclusive, in the sensor's timezone. At most one year after the pattern starts.",
+            "description": "With `repeat`: the last date to repeat the values on, inclusive, in the sensor's timezone. At most one year after the values start.",
             "example": "2026-11-30"
           }
         },
         "required": [
           "duration",
-          "repeat",
           "sensor",
           "start",
-          "unit",
-          "until"
+          "unit"
         ],
         "additionalProperties": false
       },
@@ -7974,6 +7891,15 @@
               "null"
             ],
             "default": false
+          },
+          "prior": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
+            "example": "2026-10-15T12:00:00+02:00"
           },
           "unit": {
             "type": "string"

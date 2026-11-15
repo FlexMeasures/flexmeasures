@@ -228,6 +228,7 @@ The asset chart shows both commodities together, with the battery's stock level 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/multi-commodity.png
     :align: center
     :alt: Asset-level chart of the hybrid site, showing battery power, battery state of charge, and the gas boiler.
+
 |
 
 Reading the chart top to bottom:

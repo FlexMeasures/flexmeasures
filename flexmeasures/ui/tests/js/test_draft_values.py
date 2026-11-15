@@ -390,6 +390,22 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         """)
 
 
+def test_adding_says_where_the_next_range_is(assert_js):
+    assert_js(PANEL + """
+        const toasts = [];
+        window.showToast = (message, type) => toasts.push({ message, type });
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("4");
+        panel.add();
+        eq("one toast says how many values were added and which range comes next", toasts.length, 1);
+        eq("with the times the panel shows",
+           toasts[0].message,
+           "Added 4 values. Next range selected: " + new Date(T0 + 3600000).toISOString() + " – " + new Date(T0 + 2 * 3600000).toISOString());
+        eq("as information", toasts[0].type, "info");
+        """)
+
+
 def test_the_range_proposed_after_add_is_not_handed_over_unless_given_a_value(
     assert_js,
 ):
@@ -489,6 +505,25 @@ def test_the_scale_to_draw_on(assert_js):
         eq("the lowest value is 0 for an axis that does not go below it", [proposedDrawFloor(0), proposedDrawFloor(5), proposedDrawFloor(null)], [0, 0, 0]);
         eq("and mirrors the highest for one that does", [proposedDrawFloor(-10), proposedDrawFloor(-37)], [-20, -80]);
         eq("values are worth a power of ten no finer than a pixel", [drawnValueStep(0.27), drawnValueStep(0.004), drawnValueStep(3)], [1, 0.01, 10]);
+        """)
+
+
+def test_a_typed_scale_applies_before_the_stroke_it_precedes(assert_js):
+    """Pressing on the chart blurs the field, whose change comes after the stroke began, so the press itself applies what was typed."""
+    assert_js(PANEL + """
+        button("draw").click();
+        await Promise.resolve();
+        eq("drawing starts with the proposed scale", chart.scales, [[20, -6]]);
+        button("draw-max").value = "50";
+        eq("a typed value is not applied before anything happens", chart.scales.length, 1);
+        target.dispatchEvent(new Event("pointerdown"));
+        eq("the press that starts a stroke applies it", chart.scales, [[20, -6], [50, -6]]);
+        target.dispatchEvent(new Event("pointerdown"));
+        button("draw-max").dispatchEvent(new Event("change"));
+        eq("and nothing is applied twice", chart.scales.length, 2);
+        button("draw-min").value = "-40";
+        target.dispatchEvent(new Event("pointerdown"));
+        eq("the lowest value likewise", chart.scales[2], [50, -40]);
         """)
 
 

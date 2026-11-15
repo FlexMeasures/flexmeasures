@@ -387,6 +387,8 @@ export function wireDraftValuesPanel(root, options) {
   let recording = false;
   let drawing = false;
   let slots = [];
+  // The scale last handed to the chart, to tell whether what is typed still waits to be applied.
+  let appliedScale = null;
   // Whether the selection is the next range proposed after Add, rather than one the user chose.
   let proposed = false;
   const defaultDuration = formatIsoDuration(defaultDraftDuration(opts.resolutionMs));
@@ -519,7 +521,16 @@ export function wireDraftValuesPanel(root, options) {
       const yMax = drawMaxInput ? parseDraftValue(drawMaxInput.value) : null;
       const yMin = drawMinInput ? parseDraftValue(drawMinInput.value) : null;
       if (!drawing || (yMax === null && yMin === null) || !opts.chart.setDrawScale) return;
+      appliedScale = [yMax, yMin].join();
       opts.chart.setDrawScale(yMax, yMin);
+    },
+    // Apply a typed scale that the field did not report yet: a field only reports a change once it loses focus,
+    // which pressing on the chart causes after the stroke began, and the chart re-renders on a new scale, so the stroke would be lost.
+    applyPendingDrawScale() {
+      if (!drawing) return;
+      const yMax = drawMaxInput ? parseDraftValue(drawMaxInput.value) : null;
+      const yMin = drawMinInput ? parseDraftValue(drawMinInput.value) : null;
+      if ([yMax, yMin].join() !== appliedScale) controller.setDrawScale();
     },
     stopDrawing() {
       if (!drawing) return;
@@ -624,6 +635,7 @@ export function wireDraftValuesPanel(root, options) {
       const value = parseDraftValue(valueInput.value);
       if (!recording || slots.length === 0 || value === null) return;
       setDrafts(fillSlots(drafts, slots, value));
+      const added = slots.length;
       const end = slots[slots.length - 1].end;
       const duration = parseIsoDuration(durationInput.value);
       clearSelection();
@@ -633,6 +645,14 @@ export function wireDraftValuesPanel(root, options) {
         proposed = slots.length > 0;
       }
       render();
+      // The next range is easy to overlook on the chart, so say what was added and where the selection moved to.
+      if (proposed) {
+        const next = { start: slots[0].start, end: slots[slots.length - 1].end };
+        showToastIfAvailable(
+          "Added " + (added === 1 ? "1 value" : added + " values") + ". Next range selected: " + opts.formatTime(next.start) + " – " + formatGroupEnd(next),
+          "info",
+        );
+      }
     },
     remove(startMs) {
       setDrafts(removeDraft(drafts, startMs));
@@ -691,8 +711,10 @@ export function wireDraftValuesPanel(root, options) {
     });
   }
   opts.target.addEventListener("chartdrawn", (event) => controller.addStroke(event.detail));
-  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale());
-  if (drawMinInput) drawMinInput.addEventListener("change", () => controller.setDrawScale());
+  // In the capture phase and on the press, which comes before the chart starts a stroke.
+  opts.target.addEventListener("pointerdown", () => controller.applyPendingDrawScale(), true);
+  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.applyPendingDrawScale());
+  if (drawMinInput) drawMinInput.addEventListener("change", () => controller.applyPendingDrawScale());
   // Another chart tool was picked, which ended drawing.
   opts.target.addEventListener("chartdrawmodeended", () => {
     drawing = false;
