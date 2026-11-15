@@ -622,6 +622,14 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+SECURITY_PASSWORD_LENGTH_MIN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Minimum length of a new password, when users set or reset their password and when ``flexmeasures add user`` creates one.
+Existing passwords keep working.
+
+Default: ``12``
+
 .. _flexmeasures_secrets_encryption_keys:
 
 FLEXMEASURES_SECRETS_ENCRYPTION_KEYS

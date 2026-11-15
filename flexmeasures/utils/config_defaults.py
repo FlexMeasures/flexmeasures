@@ -72,6 +72,8 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+    # Minimum length of new passwords (Flask-Security's default is 8; ASVS level 2 asks for 12)
+    SECURITY_PASSWORD_LENGTH_MIN: int = 12
     FLEXMEASURES_SECRETS_ENCRYPTION_KEYS: dict[str, str] | None = None
 
     # Two Factor Authentication

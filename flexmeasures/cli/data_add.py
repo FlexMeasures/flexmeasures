@@ -30,6 +30,8 @@ import click
 # whose stubs shadow the inline types that click ships itself, and predate both of these (added in click 8.0).
 from click.core import ParameterSource  # type: ignore[attr-defined]
 import getpass
+
+from flask_security.utils import password_length_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -448,6 +450,11 @@ def new_user(
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
     if pwd1 != pwd2:
         click.secho("Passwords do not match!", **MsgStyle.ERROR)
+        raise click.Abort()
+    # Hold the password to the same policy as the password forms (SECURITY_PASSWORD_LENGTH_MIN)
+    password_problems = password_length_validator(pwd1)
+    if password_problems:
+        click.secho(" ".join(password_problems), **MsgStyle.ERROR)
         raise click.Abort()
     created_user = create_user(
         username=username,
