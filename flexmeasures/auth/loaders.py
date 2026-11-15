@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from marshmallow import ValidationError
+
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas.utils import FMValidationError
 
 
 def flex_model_loader(flex_model: dict | list | None) -> dict[str, list[Sensor]]:
@@ -65,7 +68,11 @@ def _add_sensor_reference(
 def _load_sensor(sensor: Sensor | int) -> Sensor:
     if isinstance(sensor, Sensor):
         return sensor
-    return SensorIdField().deserialize(sensor)
+    try:
+        return SensorIdField().deserialize(sensor)
+    except ValidationError as exc:
+        # Such as for a string that is not a number, which would otherwise not be answered with a 422.
+        raise FMValidationError(exc.messages) from exc
 
 
 def _is_sensor_reference_field(field: Any) -> bool:

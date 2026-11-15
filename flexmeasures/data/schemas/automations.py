@@ -28,7 +28,7 @@ from flexmeasures.data.schemas.utils import (
 
 
 class CronField(MarshmallowClickMixin, fields.Str):
-    """Field that validates a cron string (e.g. "0 6 * * *")."""
+    """Field that validates a cron string (e.g. ``"0 6 * * *"``)."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)
@@ -203,10 +203,10 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     schedule_revision = ma.auto_field(
-        data_key="schedule-revision",
+        data_key="revision",
         dump_only=True,
         metadata={
-            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
             "example": 2,
         },
     )

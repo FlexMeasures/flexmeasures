@@ -1060,3 +1060,27 @@ def test_sensor_page_dates_validation(
     )
     assert error.encode() in sensor_page.data
     assert "UNPROCESSABLE_ENTITY".encode() in sensor_page.data
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_sensor_status_reports_relation_to_the_given_asset(
+    db, client, setup_api_test_data, requesting_user
+):
+    """The ``asset`` query parameter names the asset whose status page the sensor is reported on."""
+    sensor = setup_api_test_data["some gas sensor"]
+    other_asset = db.session.scalars(
+        select(GenericAsset).where(GenericAsset.id != sensor.generic_asset_id)
+    ).first()
+
+    own = client.get(url_for("SensorAPI:get_status", id=sensor.id))
+    other = client.get(
+        url_for("SensorAPI:get_status", id=sensor.id),
+        query_string={"asset": other_asset.id},
+    )
+
+    assert own.status_code == 200 and other.status_code == 200
+    assert own.json["sensors_data"][0]["relation"] == "sensor belongs to this asset"
+    assert (
+        other.json["sensors_data"][0]["relation"]
+        == f"sensor belongs to asset '{sensor.generic_asset.name}'"
+    )

@@ -212,7 +212,7 @@ class DeleteSensorAnnotationsSchema(Schema):
             description="Only delete annotations starting at or after this datetime (ISO 8601).",
         ),
     )
-    until = AwareDateTimeField(
+    end = AwareDateTimeField(
         required=False,
         metadata=dict(
             description="Only delete annotations ending at or before this datetime (ISO 8601).",
@@ -221,20 +221,23 @@ class DeleteSensorAnnotationsSchema(Schema):
 
     @validates_schema
     def validate_time_window(self, data, **kwargs):
-        """Validate that ``until`` is not before ``start``."""
+        """Validate that ``end`` is not before ``start``."""
         start = data.get("start")
-        until = data.get("until")
-        if start is not None and until is not None and until < start:
-            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        end = data.get("end")
+        if start is not None and end is not None and end < start:
+            raise ValidationError({"end": ["'end' must not be before 'start'."]})
 
 
-class DeleteSensorDataSchema(Schema):
+class DeleteSensorDataSchema(SupportsLegacyFieldAliases, Schema):
     """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
 
-    Validates that ``until`` is not before ``start``, and for non-instantaneous sensors,
-    that ``until`` is at least one sensor resolution later than ``start``.
+    Validates that ``end`` is not before ``start``, and for non-instantaneous sensors,
+    that ``end`` is at least one sensor resolution later than ``start``.
     The sensor must be provided via schema context (``context["sensor"]``).
+    ``until`` is still accepted in place of ``end``, as it was the name until v1.1.0.
     """
+
+    legacy_field_aliases = {"until": "end"}
 
     source = SourceIdField(
         required=False,
@@ -248,30 +251,30 @@ class DeleteSensorDataSchema(Schema):
             description="Only delete data with event start at or after this datetime (ISO 8601).",
         ),
     )
-    until = AwareDateTimeField(
+    end = AwareDateTimeField(
         required=False,
         metadata=dict(
-            description="Only delete data with event end at or before this datetime (ISO 8601).",
+            description="Only delete data with event end at or before this datetime (ISO 8601). Formerly called `until`, which is still accepted.",
         ),
     )
 
     @validates_schema
     def validate_time_window(self, data, **kwargs):
-        """Validate start/until consistency against each other and the sensor resolution."""
+        """Validate start/end consistency against each other and the sensor resolution."""
         start = data.get("start")
-        until = data.get("until")
-        if start is None or until is None:
+        end = data.get("end")
+        if start is None or end is None:
             return
-        if until < start:
-            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        if end < start:
+            raise ValidationError({"end": ["'end' must not be before 'start'."]})
         sensor = self.context.get("sensor")
         if sensor is not None:
             resolution = sensor.event_resolution
-            if resolution > timedelta(0) and until < start + resolution:
+            if resolution > timedelta(0) and end < start + resolution:
                 raise ValidationError(
                     {
-                        "until": [
-                            f"For a sensor with resolution {resolution}, 'until' must be"
+                        "end": [
+                            f"For a sensor with resolution {resolution}, 'end' must be"
                             f" at least one resolution step ({resolution}) after 'start'."
                         ]
                     }
@@ -1772,7 +1775,7 @@ class SensorAPI(FlaskView):
           summary: Delete sensor data
           description: >
             This endpoint deletes data for a sensor.
-            Optionally, filter by source, start time and/or until time.
+            Optionally, filter by source, start time and/or end time.
             A missing source means all sources are deleted.
           security:
             - ApiKeyAuth: []
@@ -1810,20 +1813,20 @@ class SensorAPI(FlaskView):
 
         source = body.get("source")
         start = body.get("start")
-        until = body.get("until")
+        end = body.get("end")
 
         query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
         if source is not None:
             query = query.where(TimedBelief.source_id == source.id)
         if start is not None:
             query = query.where(TimedBelief.event_start >= start)
-        if until is not None:
-            # "until" means the event must end at or before this datetime.
+        if end is not None:
+            # "end" means the event must end at or before this datetime.
             # Event end = event_start + sensor.event_resolution, so the condition is:
-            #   event_start + resolution <= until  ⟺  event_start <= until - resolution
-            # For instantaneous sensors (resolution = 0) this becomes event_start <= until.
+            #   event_start + resolution <= end  ⟺  event_start <= end - resolution
+            # For instantaneous sensors (resolution = 0) this becomes event_start <= end.
             query = query.where(
-                TimedBelief.event_start <= until - sensor.event_resolution
+                TimedBelief.event_start <= end - sensor.event_resolution
             )
         db.session.execute(query)
 
@@ -1832,8 +1835,8 @@ class SensorAPI(FlaskView):
             audit_message += f", source: {source.id}"
         if start is not None:
             audit_message += f", from: {start}"
-        if until is not None:
-            audit_message += f", until: {until}"
+        if end is not None:
+            audit_message += f", until: {end}"
         AssetAuditLog.add_record(
             sensor.generic_asset,
             audit_message,
@@ -1858,8 +1861,8 @@ class SensorAPI(FlaskView):
           summary: Delete sensor annotations
           description: >
             This endpoint deletes the annotations of a sensor.
-            Optionally, filter by source, start time and/or until time.
-            Only annotations that lie entirely between the start and until times are deleted.
+            Optionally, filter by source, start time and/or end time.
+            Only annotations that lie entirely between the start and end times are deleted.
             An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.
           security:
             - ApiKeyAuth: []
@@ -1911,7 +1914,7 @@ class SensorAPI(FlaskView):
 
         source = body.get("source")
         start = body.get("start")
-        until = body.get("until")
+        end = body.get("end")
 
         query = select(Annotation.id).join(
             SensorAnnotationRelationship,
@@ -1922,8 +1925,8 @@ class SensorAPI(FlaskView):
             query = query.where(Annotation.source_id == source.id)
         if start is not None:
             query = query.where(Annotation.start >= start)
-        if until is not None:
-            query = query.where(Annotation.end <= until)
+        if end is not None:
+            query = query.where(Annotation.end <= end)
         annotation_ids = db.session.scalars(query).all()
 
         if annotation_ids:
@@ -1956,8 +1959,8 @@ class SensorAPI(FlaskView):
                 audit_message += f", source: {source.id}"
             if start is not None:
                 audit_message += f", from: {start}"
-            if until is not None:
-                audit_message += f", until: {until}"
+            if end is not None:
+                audit_message += f", until: {end}"
             AssetAuditLog.add_record(sensor.generic_asset, audit_message)
         db.session.commit()
 
@@ -2089,7 +2092,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        {"asset": AssetIdField(data_key="asset", required=False, load_default=None)},
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
@@ -2112,7 +2115,7 @@ class SensorAPI(FlaskView):
               description: ID of the sensor to fetch status for.
               schema: SensorId
             - in: query
-              name: asset_id
+              name: asset
               required: false
               description: |
                 ID of the asset whose status page the sensor is reported on.

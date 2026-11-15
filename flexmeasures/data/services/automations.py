@@ -2302,7 +2302,7 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
     return {
         "id": run.id,
         "scheduled-at": run.scheduled_at.isoformat(),
-        "schedule-revision": run.schedule_revision,
+        "revision": run.schedule_revision,
         "dispatch-state": run.dispatch_state,
         "execution-state": run.execution_state,
         "attempt-count": run.attempt_count,

@@ -105,7 +105,8 @@ We'll go with ``development`` here:
             $ docker run -d --env FLEXMEASURES_ENV=development lfenergy/flexmeasures
          
 
-The default environment setting is ``production``\ , which will probably not work well on your localhost, as FlexMeasures then expects SSL-encrypted communication. 
+The default environment setting is ``production``.
+On your own computer, ``development`` is more practical, as it shows debugging information and more log output.
 
 
 Tell FlexMeasures where the time series database is
@@ -254,7 +255,7 @@ For the asset type ID, I consult ``flexmeasures show asset-types``.
 
 For the account ID, I looked at the output of ``flexmeasures add account`` (the command we issued above) ― I could also have consulted ``flexmeasures show accounts``.
 
-The second way to add an asset is the UI ― head over to ``https://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
+The second way to add an asset is the UI ― head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v3_0/assets <../api/v3_0.html#post--api-v3_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
@@ -297,7 +298,7 @@ It's finally time to start running FlexMeasures. This here is the direct form yo
         .. code-block:: bash
 
            # or everything on the terminal 
-           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SECURITY_TOTP_SECRETS={"1": "something-secret"} --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
+           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
 
 
 This might print some warnings, see the next section where we go into more detail. For instance, when you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.

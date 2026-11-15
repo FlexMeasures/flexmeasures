@@ -77,13 +77,14 @@ class Forecaster(DataGenerator):
         """Overwrite with the actual computation of your forecast.
 
         :param as_job:  If True, runs as a job.
-        :returns:       List of dictionaries, for example:
-                 [
-                     {
-                         "sensor": 501,
-                         "data": <a BeliefsDataFrame>,
-                     },
-                 ]
+        :returns:       List of dictionaries,
+            for example:
+                [
+                    {
+                        "sensor": 501,
+                        "data": <a BeliefsDataFrame>,
+                    },
+                ]
         """
         raise NotImplementedError()
 

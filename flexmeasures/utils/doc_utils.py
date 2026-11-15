@@ -8,20 +8,20 @@ def rst_to_openapi(text: str) -> str:
     """
     Convert a string with RST markup to OpenAPI-safe text.
 
-    - Replaces :ref:`to some section` with "the docs" and links in the docs with a search link
-    - Replaces :ref:`section A <anchor>` with "section A", also adding the search link for "anchor"
-    - Removes any RST footnote references like [#]_ or [1]_ or [label]_
-    - Converts external hyperlinks like `text <url>`_ to HTML anchors:
+    - Replaces ``:ref:`to some section``` with "the docs" and links in the docs with a search link
+    - Replaces ``:ref:`section A <anchor>``` with "section A", also adding the search link for "anchor"
+    - Removes any RST footnote references like ``[#]_`` or ``[1]_`` or ``[label]_``
+    - Converts external hyperlinks like ```text <url>`_`` to HTML anchors:
 
       >>> rst_to_openapi("see `the S2 standard <https://docs.s2standard.org>`_ for details")
       'see <a href="https://docs.s2standard.org" target="_blank" rel="noopener noreferrer">the S2 standard</a> for details'
 
-    - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
-    - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
-    - Converts ``inline code`` to <code>
-    - Converts **bold** to <strong>
-    - Converts *italic* to <em>
-    - Converts :ref:`strings <with cross-references>` to just strings
+    - Replaces ``:abbr:`X (Y)``` with ``<abbr title="Y">X</abbr>``
+    - Converts ``:math:`base^{exp}``` into HTML sup/sub notation for OpenAPI
+    - Converts inline code, in double backquotes, to ``<code>``
+    - Converts ``**bold**`` to ``<strong>``
+    - Converts ``*italic*`` to ``<em>``
+    - Converts ``:ref:`strings <with cross-references>``` to just strings
     """
 
     # Replace cross-references with a mention of the docs
