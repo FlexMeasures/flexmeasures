@@ -57,9 +57,12 @@ def request_entity_too_large_handler(error: RequestEntityTooLarge):
 
 def _enforce_request_size_limit(request: Request, config_key: str):
     max_size = current_app.config.get(config_key)
-    if max_size is None or request.content_length is None:
+    if max_size is None:
         return
-    if request.content_length > max_size:
+    # Also have Werkzeug enforce the limit while reading the body,
+    # which covers bodies sent without a Content-Length header (chunked transfer encoding).
+    request.max_content_length = int(max_size)
+    if request.content_length is not None and request.content_length > max_size:
         raise RequestEntityTooLarge(
             description=(
                 f"Request body exceeds the configured limit of {max_size} bytes."

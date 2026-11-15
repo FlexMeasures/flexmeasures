@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import io
+import json
 from flask import current_app, url_for
 import pandas as pd
 import pytest
@@ -453,6 +455,58 @@ def test_post_sensor_data_rejects_large_json(
 
     assert response.status_code == 413
     assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_large_json_without_content_length(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    """A body sent without a Content-Length header (chunked) is held to the same limit while it is read."""
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        100,
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+    body = json.dumps(make_sensor_data_request_for_gas_sensor()).encode()
+    assert len(body) > 100
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        input_stream=io.BytesIO(body),
+        content_type="application/json",
+        # as WSGI servers that handle chunked transfer encoding (e.g. gunicorn) mark the stream
+        environ_overrides={"wsgi.input_terminated": True},
+    )
+
+    assert response.status_code == 413, response.json
+    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_any_request_body_has_a_size_limit(
+    client, setup_api_test_data, requesting_user
+):
+    """Requests other than sensor data ingestion are held to Flask's MAX_CONTENT_LENGTH, which is set by default."""
+    max_size = current_app.config["MAX_CONTENT_LENGTH"]
+    assert max_size is not None
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        data=b"{}",
+        content_type="application/json",
+        environ_overrides={"CONTENT_LENGTH": str(max_size + 1)},
+    )
+
+    assert response.status_code == 413
 
 
 @pytest.mark.parametrize(
