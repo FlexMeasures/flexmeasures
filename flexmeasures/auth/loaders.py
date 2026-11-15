@@ -35,6 +35,7 @@ FLEX_CONFIG_OUTPUT_FIELDS = frozenset(
         "production",
         "aggregate-consumption",
         "aggregate-production",
+        "aggregate-power",
         "state-of-charge",
         "group",
     }
