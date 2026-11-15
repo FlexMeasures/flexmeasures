@@ -28,6 +28,7 @@ from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
 from werkzeug.exceptions import RequestEntityTooLarge
 from flexmeasures.api.v3_0.users import AuthRequestSchema
+from flexmeasures.auth.event_logging import email_fingerprint, log_authentication_event
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
@@ -79,11 +80,17 @@ def request_auth_token(args) -> tuple[dict, int]:
         email = request.json["email"]
         if current_user.is_authenticated and current_user.email == email:
             user = current_user
+            issued_by = "session"
         else:
+            issued_by = "password"
             user = db.session.execute(
                 select(User).filter_by(email=email)
             ).scalar_one_or_none()
             if not user:
+                log_authentication_event(
+                    f"token requested for an unknown email address (hash {email_fingerprint(str(email))})",
+                    failed=True,
+                )
                 return (
                     {
                         "errors": [
@@ -96,8 +103,13 @@ def request_auth_token(args) -> tuple[dict, int]:
             if "password" not in request.json:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
+                # Logged through Flask-Security's user_failed_authn signal (see flexmeasures.auth.event_logging)
+                user.track_failed_authn("password")
                 return {"errors": ["User password does not match."]}, 401
         token = user.get_auth_token()
+        log_authentication_event(
+            f"auth token issued to user {user.id} (by {issued_by})"
+        )
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:
         current_app.logger.error(f"Exception in /requestAuthToken endpoint: {e}")

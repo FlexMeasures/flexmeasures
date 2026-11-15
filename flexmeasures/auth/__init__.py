@@ -40,6 +40,7 @@ def register_at(app: Flask):
     from flexmeasures.auth.forms import (
         FlexMeasuresChangePasswordForm,
         FlexMeasuresForgotPasswordForm,
+        FlexMeasuresLoginForm,
     )
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
@@ -47,6 +48,7 @@ def register_at(app: Flask):
         app,
         user_datastore,
         forgot_password_form=FlexMeasuresForgotPasswordForm,
+        login_form=FlexMeasuresLoginForm,
         change_password_form=FlexMeasuresChangePasswordForm,
     )
 
@@ -62,6 +64,11 @@ def register_at(app: Flask):
 
     # add our custom handler for a user login event
     user_logged_in.connect(remember_login)
+
+    # log authentication events (logins, failures, logouts)
+    from flexmeasures.auth.event_logging import register_at as register_event_logging_at
+
+    register_event_logging_at(app)
 
     password_reset.connect(log_password_reset)
     password_changed.connect(log_password_changed)
