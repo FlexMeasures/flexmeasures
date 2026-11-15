@@ -1,5 +1,20 @@
 export const apiBasePath = window.location.origin;
 
+/**
+ * Escape text for use in HTML.
+ *
+ * @param {*} value - The text (or any value, which is turned into text).
+ * @returns {string} The text with &, <, >, " and ' escaped.
+ */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 // Fetch Account Details
 export async function getAccount(accountId) {
   const cacheKey = `account_${accountId}`;

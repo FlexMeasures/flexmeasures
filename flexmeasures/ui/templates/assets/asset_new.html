@@ -256,7 +256,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
 
 (function () {
     const perPage = 15;
-    let parentAssetId = "{{ parent_asset_id }}";
+    let parentAssetId = {{ (parent_asset_id or "") | string | tojson }};
     let currentPage = 1;
     let isLoading = false;
     let hasInitializedCopyTab = false;

@@ -316,7 +316,7 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage
+        extractApiErrorMessage, escapeHtml
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     let hasInitialized = false;
@@ -583,7 +583,7 @@
             }
 
             const errorMessage = extractApiErrorMessage(errorData, response.statusText);
-            showToast(`Failed to update the flex context <div>${errorMessage}</div>`, "error");
+            showToast(`Failed to update the flex context <div>${escapeHtml(errorMessage)}</div>`, "error");
         } else {
             showToast("Flex context updated successfully", "success");
         }
