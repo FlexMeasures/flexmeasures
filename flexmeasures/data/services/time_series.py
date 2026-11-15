@@ -98,6 +98,8 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         event_ends_before=bdf.event_ends.max(),
         source=source_ids,
         most_recent_beliefs_only=False,  # all beliefs
+        # each new belief is compared with its own source's, so no source may hide another of its family here, as a complete aggregate would hide a partial one
+        use_latest_version_per_event=False,
         **kwargs,
     )
     return _drop_unchanged_beliefs_compared_to_db(bdf, bdf_db=bdf_db)
@@ -193,12 +195,15 @@ def _belief_keys_per_row(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
     """The event start, source key, belief time, cumulative probability and value of each row, in the frame's row order.
 
     Expects a frame indexed by belief time.
+    Times are given in UTC, so that keys from frames in different time zones line up:
+    a time in the hour that a clock change repeats equals its UTC instant but hashes differently (PEP 495 leaves fold out of the hash),
+    so a column mixing time zones does not match such a belief to itself.
     """
     return pd.DataFrame(
         {
-            "event_start": bdf.index.get_level_values("event_start"),
+            "event_start": bdf.index.get_level_values("event_start").tz_convert("UTC"),
             "source_id": _source_keys(bdf.index),
-            "belief_time": bdf.index.get_level_values("belief_time"),
+            "belief_time": bdf.index.get_level_values("belief_time").tz_convert("UTC"),
             "cumulative_probability": bdf.index.get_level_values(
                 "cumulative_probability"
             ),

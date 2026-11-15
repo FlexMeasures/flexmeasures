@@ -132,7 +132,11 @@ def test_drop_unchanged_compares_against_latest_prior_belief(
 
     sensor = get_test_sensor(db)
     assert sensor is not None, "Expected a test sensor to exist in the test database"
-    source = DataSource(name="Drop unchanged repro source", type="demo script")
+    # One source per parametrization, as identical sources are refused.
+    source = DataSource(
+        name=f"Drop unchanged repro source ({'descending' if sort_descending else 'ascending'})",
+        type="demo script",
+    )
     db.session.add(source)
     db.session.commit()
 
@@ -511,6 +515,63 @@ def test_drop_unchanged_compared_to_db_mixed_timezone_and_resolution():
     )
     result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
     assert [r[4] for r in _rows(result)] == [3.0]
+
+
+@pytest.mark.parametrize(
+    "stored_belief_time, candidate_belief_time",
+    [
+        # Events in the repeated hour, believed days before.
+        ("2025-10-24 08:00", "2025-10-24 10:00"),
+        # Belief times in it too: each event believed one hour ahead, by both frames.
+        (timedelta(hours=1), timedelta(hours=1)),
+    ],
+    ids=["event-starts", "event-starts-and-belief-times"],
+)
+def test_drop_unchanged_compared_to_db_over_the_repeated_hour_of_a_clock_change(
+    stored_belief_time: str | timedelta, candidate_belief_time: str | timedelta
+):
+    """Stored beliefs in UTC and candidates in local time can meet in the hour that a clock change repeats.
+
+    On 26 October 2025, Amsterdam passes 02:00-03:00 twice.
+    A time in the second pass equals its UTC instant but hashes like the first pass's (PEP 495 leaves fold out of the hash),
+    so a column mixing both time zones could hold the same instant twice as far as hashing goes,
+    which made the comparison's sort fail with "Categorical categories must be unique".
+    Whether the hash table trips on it depends on its size, so the frames are two days of quarter-hours, as in the save that failed.
+    Event starts and belief times are both keys, so the second case also puts belief times in the repeated hour, one per event, as a forecast at a fixed horizon does.
+    """
+    sensor = tb.Sensor("quarter-hourly", event_resolution=timedelta(minutes=15))
+    starts = pd.date_range(
+        "2025-10-25 00:00", "2025-10-27 00:00", freq="15min", tz="UTC", inclusive="left"
+    )
+    changed = pd.Timestamp("2025-10-26 01:15", tz="UTC")  # 02:15 local, second pass
+
+    def beliefs(belief_time: str | timedelta, tz: str, bump: bool) -> BeliefsDataFrame:
+        belief_times = (
+            starts - belief_time
+            if isinstance(belief_time, timedelta)
+            else pd.Timestamp(belief_time, tz="UTC")
+        )
+        return BeliefsDataFrame(
+            pd.DataFrame(
+                {
+                    "event_start": starts.tz_convert(tz),
+                    "belief_time": belief_times.tz_convert(tz),
+                    "source": A,
+                    "cumulative_probability": 0.5,
+                    "event_value": [
+                        2.0 if bump and start == changed else 1.0 for start in starts
+                    ],
+                }
+            ),
+            sensor=sensor,
+        )
+
+    stored = beliefs(stored_belief_time, "UTC", bump=False)
+    candidates = beliefs(candidate_belief_time, "Europe/Amsterdam", bump=True)
+
+    result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
+
+    assert [(r[0], r[4]) for r in _rows(result)] == [(changed, 2.0)]
 
 
 def test_drop_unchanged_compared_to_db_matches_reference():

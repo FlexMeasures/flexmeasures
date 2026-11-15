@@ -1,0 +1,171 @@
+"""Checks for migration 7c4e1a9d2b58, which merges duplicate data sources, such as how it ranks them and what it merges."""
+
+from datetime import datetime, timedelta, timezone
+from importlib import import_module
+
+import pytest
+
+from sqlalchemy import text
+
+from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.data_sources import DATA_SOURCE_UNIQUE_INDEX, DataSource
+from flexmeasures.data.services.data_sources import find_duplicate_sources
+
+
+def test_duplicate_source_ranking(fresh_db, setup_markets_fresh_db):
+    sensor = setup_markets_fresh_db["epex_da"]
+    migration = import_module(
+        "flexmeasures.data.migrations.versions."
+        "7c4e1a9d2b58_refuse_duplicate_data_sources"
+    )
+
+    # The migration runs before this index exists.
+    # Roll back the savepoint to restore the test schema after inserting duplicates that the current schema refuses.
+    savepoint = fresh_db.session.begin_nested()
+    try:
+        fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))
+        sources = [DataSource(name="same", type="scheduler") for _ in range(3)] + [
+            DataSource(name="other", type="scheduler"),
+            DataSource(name="without-beliefs", type="scheduler"),
+            DataSource(name="without-beliefs", type="scheduler"),
+        ]
+        fresh_db.session.add_all(sources)
+        fresh_db.session.flush()
+
+        for source, event_start in (
+            (sources[1], "2026-01-02"),
+            (sources[2], "2026-01-03"),
+            (sources[3], "2026-01-04"),
+        ):
+            fresh_db.session.execute(
+                text("""
+                    INSERT INTO timed_belief
+                        (sensor_id, source_id, event_start, belief_horizon,
+                         cumulative_probability, event_value)
+                    VALUES (:sensor_id, :source_id, :event_start, INTERVAL '1 day',
+                            0.5, 1)
+                """),
+                {
+                    "sensor_id": sensor.id,
+                    "source_id": source.id,
+                    "event_start": event_start,
+                },
+            )
+
+        expected = {
+            sources[0].id: sources[2].id,
+            sources[1].id: sources[2].id,
+            sources[5].id: sources[4].id,
+        }
+        assert find_duplicate_sources() == expected
+        assert (
+            migration.merge_duplicate_sources(fresh_db.session.connection()) == expected
+        )
+    finally:
+        savepoint.rollback()
+
+
+def _duplicate_source_migration():
+    return import_module(
+        "flexmeasures.data.migrations.versions."
+        "7c4e1a9d2b58_refuse_duplicate_data_sources"
+    )
+
+
+def test_a_named_source_keeps_its_id():
+    """Naming a source of a group of duplicates keeps that one, and merges the others into it."""
+    apply_named_keepers = _duplicate_source_migration()._apply_named_keepers
+
+    assert apply_named_keepers({2: 1, 3: 1}, {3: 3}) == {1: 3, 2: 3}
+    assert apply_named_keepers({2: 1, 3: 1}, {1: 1}) == {2: 1, 3: 1}
+    # A named source that has no duplicates changes nothing.
+    assert apply_named_keepers({2: 1, 3: 1}, {9: 9}) == {2: 1, 3: 1}
+
+
+@pytest.mark.parametrize("named", [(2, 3), (1, 3)])
+def test_naming_two_sources_of_one_group_is_refused(named):
+    """A group of duplicates keeps one ID, so naming two of its sources is a contradiction, refused before anything is merged."""
+    apply_named_keepers = _duplicate_source_migration()._apply_named_keepers
+
+    with pytest.raises(RuntimeError, match=" and ".join(str(n) for n in named)):
+        apply_named_keepers({2: 1, 3: 1}, {n: n for n in named})
+
+
+def test_keep_source_naming_an_organisation_also_keeps_that_sources_id():
+    """Upgrading past both source migrations at once hands both the same arguments.
+
+    Migration c5e1a7b94d20 reads `keep-source=<source id>:<organisation id>` as the organisation keeping a shared source's ID.
+    The split can leave that organisation with a second source identical to it, so the named source must win here, too.
+    """
+    keepers_from_x_arguments = _duplicate_source_migration()._keepers_from_x_arguments
+
+    assert keepers_from_x_arguments(
+        ["keep-source=42:3", "keep-source=37", "split-shared-sources=true"]
+    ) == {42: 42, 37: 37}
+    with pytest.raises(RuntimeError, match="keep-source=thirty-seven"):
+        keepers_from_x_arguments(["keep-source=thirty-seven"])
+
+
+def test_annotations_without_belief_time_are_merged(fresh_db, setup_accounts_fresh_db):
+    """Matching annotations with no belief time become one, retaining both account links."""
+    migration = _duplicate_source_migration()
+    savepoint = fresh_db.session.begin_nested()
+    try:
+        fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))
+        kept_source = DataSource(name="same-annotation-source", type="script")
+        duplicate_source = DataSource(name="same-annotation-source", type="script")
+        fresh_db.session.add_all([kept_source, duplicate_source])
+        fresh_db.session.flush()
+
+        start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        annotations = [
+            Annotation(
+                source_id=source.id,
+                start=start,
+                end=start + timedelta(days=1),
+                belief_time=None,
+                type="holiday",
+                content="New Year",
+            )
+            for source in (kept_source, duplicate_source)
+        ]
+        fresh_db.session.add_all(annotations)
+        fresh_db.session.flush()
+        accounts = [
+            setup_accounts_fresh_db["Prosumer"],
+            setup_accounts_fresh_db["Supplier"],
+        ]
+        for annotation, account in zip(annotations, accounts):
+            fresh_db.session.execute(
+                text("""
+                    INSERT INTO annotations_accounts (annotation_id, account_id)
+                    VALUES (:annotation_id, :account_id)
+                """),
+                {"annotation_id": annotation.id, "account_id": account.id},
+            )
+
+        merged = migration.merge_duplicate_sources(fresh_db.session.connection())
+        assert merged == {duplicate_source.id: kept_source.id}
+        surviving_ids = (
+            fresh_db.session.execute(
+                text("SELECT id FROM annotation WHERE source_id = :source_id"),
+                {"source_id": kept_source.id},
+            )
+            .scalars()
+            .all()
+        )
+        assert surviving_ids == [annotations[0].id]
+        account_ids = (
+            fresh_db.session.execute(
+                text("""
+                SELECT account_id FROM annotations_accounts
+                WHERE annotation_id = :annotation_id
+            """),
+                {"annotation_id": surviving_ids[0]},
+            )
+            .scalars()
+            .all()
+        )
+        assert set(account_ids) == {account.id for account in accounts}
+    finally:
+        savepoint.rollback()

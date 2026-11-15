@@ -34,6 +34,7 @@ from flexmeasures.data.schemas import (
     ResolutionField,
     SourceIdField,
 )
+from flexmeasures.data.schemas.times import validate_storable_belief_time
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.recurrence import (
@@ -355,6 +356,11 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     def __init__(self, *args, source_user: User | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.source_user = source_user
+
+    @validates("prior")
+    def validate_prior_is_storable(self, value, **kwargs):
+        """Refuse a prior that cannot be stored as a belief time, which a GET may still filter on."""
+        validate_storable_belief_time(value)
 
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,

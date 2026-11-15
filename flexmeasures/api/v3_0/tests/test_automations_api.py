@@ -79,7 +79,7 @@ def test_get_automations(
     assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["next-run"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["recurrence-description"] == "At 06:00"
-    assert day_ahead["schedule-revision"] == 1
+    assert day_ahead["revision"] == 1
     assert day_ahead["active"] is True
     assert day_ahead["created-at"] is not None
     intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
@@ -155,7 +155,7 @@ def test_get_automation_details(
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
-    assert response.json["schedule-revision"] == 1
+    assert response.json["revision"] == 1
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     run_stats = response.json["run-stats"]
     assert run_stats["total"] == 1
