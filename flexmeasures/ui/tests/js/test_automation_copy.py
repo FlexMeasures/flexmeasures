@@ -3,6 +3,7 @@
 import json
 import re
 
+from jinja2 import Environment, StrictUndefined
 import pytest
 
 # The page's script is rendered by one helper, which asserts that it leaves no Jinja value behind.
@@ -15,18 +16,26 @@ def setup_ui_test_data():
     """The inline-script checks do not need the UI suite's database fixtures."""
 
 
-def copy_script(can_manage: bool = True) -> str:
+def copy_script(can_manage: bool = True, can_change_monitoring: bool = True) -> str:
     """Render the page's inline JavaScript, as someone who may copy an automation sees it."""
-    return automation_script(can_manage=can_manage, can_run=True)
+    return automation_script(
+        can_manage=can_manage,
+        can_run=True,
+        can_change_monitoring=can_change_monitoring,
+    )
 
 
-def creation_form_html() -> str:
+def creation_form_html(can_change_monitoring: bool = True) -> str:
     """The creation form as the page renders it, so the checks run against the real fields."""
     match = re.search(
         r'(<form id="newAutomationForm">.*?</form>)', TEMPLATE.read_text(), re.DOTALL
     )
     assert match is not None
-    return match.group(1).replace("{{ asset.timezone }}", "Europe/Amsterdam")
+    environment = Environment(autoescape=True, undefined=StrictUndefined)
+    return environment.from_string(match.group(1)).render(
+        asset={"timezone": "Europe/Amsterdam"},
+        user_can_change_monitoring=can_change_monitoring,
+    )
 
 
 # A stand-in for the handful of jQuery calls the form helpers make, backed by the real DOM.
@@ -220,4 +229,31 @@ def test_copy_is_offered_to_managers_only(assert_js):
         const viewerRow = viewer.AutomationRow(automation);
         check("someone who may not manage automations is not offered Copy",
               !viewerRow.actions.includes("automation-copy"), viewerRow.actions);
+    """)
+
+
+def test_only_admins_can_switch_monitoring_in_the_form(assert_js):
+    """Someone who may not switch monitoring off finds the checkbox disabled, and a copy of an unmonitored automation monitored."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html(can_change_monitoring=False))};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script(can_change_monitoring=False))}
+            + "\\nreturn {{ prefillNewAutomationForm, automationCopyValues }};")();
+
+        check("the checkbox is disabled", document.getElementById("automationMonitored").disabled, "enabled");
+        check("and says why", holder.textContent.includes("Only admins can switch monitoring off or on."), holder.textContent);
+
+        page.prefillNewAutomationForm(page.automationCopyValues(
+            {{id: 7, name: "Experiment", type: "forecasting", "cron": "0 6 * * *", timezone: "UTC", monitored: false}},
+            {{parameters: {{}}, source: {{id: 6}}}}));
+        eq("a copy of an unmonitored automation is monitored", document.getElementById("automationMonitored").checked, true);
+    """)
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html(can_change_monitoring=True))};
+        document.body.appendChild(holder);
+        check("an admin's checkbox is enabled", !document.getElementById("automationMonitored").disabled, "disabled");
+        check("and needs no explanation", !holder.textContent.includes("Only admins"), holder.textContent);
     """)
