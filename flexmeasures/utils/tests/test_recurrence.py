@@ -478,6 +478,19 @@ def test_until_before_the_first_repeat_writes_nothing():
     assert report.n_occurrences == 0
 
 
+@pytest.mark.parametrize("include_pattern", [False, True])
+def test_until_before_the_pattern_writes_nothing(include_pattern):
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, "2026-06-01", DAY, HOUR)
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 5, 31), tz, HOUR, include_pattern=include_pattern
+    )
+
+    assert expanded.empty
+    assert report.pattern_included is False
+
+
 def test_nan_stays_a_gap_and_is_not_reported():
     """A slot without a value stays empty in every repeat, and a clock change skipping or repeating it does not count it."""
     tz = "Europe/Amsterdam"

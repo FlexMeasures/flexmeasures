@@ -231,7 +231,8 @@ def expand_wall_clock_recurrence(
     )
     n_kept_repeats = int(kept_occurrences[1:].sum())
     pattern_included = bool(kept_occurrences[0])
-    if not kept_occurrences.any():
+    # Nothing to write: no occurrence is kept, or `until` ends before the pattern starts.
+    if not kept_occurrences.any() or end_of_until <= wall_clock[0]:
         empty = pd.Series(
             [], index=pd.DatetimeIndex([], tz=tz), dtype=float, name=pattern.name
         )
