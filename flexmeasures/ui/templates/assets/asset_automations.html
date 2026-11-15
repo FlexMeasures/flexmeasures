@@ -244,11 +244,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <label class="form-check-label" for="automationActive">Active</label>
                 </div>
                 <div class="form-check mb-3">
-                  <input class="form-check-input" type="checkbox" id="automationMonitored" checked>
+                  <input class="form-check-input" type="checkbox" id="automationMonitored" checked{% if not user_can_change_monitoring %} disabled{% endif %}>
                   <label class="form-check-label" for="automationMonitored">Monitored
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
                   </label>
+                  {% if not user_can_change_monitoring %}
+                  <div class="form-text">Only admins can switch monitoring off or on.</div>
+                  {% endif %}
                 </div>
                 <div class="alert alert-danger d-none" id="newAutomationErr"></div>
               </div>
@@ -293,11 +296,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <label class="form-check-label" for="editAutomationActive">Active</label>
                 </div>
                 <div class="form-check mb-3">
-                  <input class="form-check-input" type="checkbox" id="editAutomationMonitored">
+                  <input class="form-check-input" type="checkbox" id="editAutomationMonitored"{% if not user_can_change_monitoring %} disabled{% endif %}>
                   <label class="form-check-label" for="editAutomationMonitored">Monitored
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
                   </label>
+                  {% if not user_can_change_monitoring %}
+                  <div class="form-text">Only admins can switch monitoring off or on.</div>
+                  {% endif %}
                 </div>
                 <div class="alert alert-danger d-none" id="editAutomationErr"></div>
               </div>
@@ -346,6 +352,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanManage = {{ user_can_manage_automations | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
+  // Switching monitoring off silences the digest for whoever receives it, so only admins may, and the forms leave the field out for everyone else.
+  const userCanChangeMonitoring = {{ user_can_change_monitoring | tojson }};
   const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
@@ -524,7 +532,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
     $("#automationActive").prop("checked", values.active);
-    $("#automationMonitored").prop("checked", values.monitored);
+    // Someone who may not switch monitoring off gets a monitored automation, also when copying an unmonitored one.
+    $("#automationMonitored").prop("checked", userCanChangeMonitoring ? values.monitored : true);
   }
 
   // The name column allows 80 characters, and so does the API, so a long name loses its tail rather than the suffix that marks the copy.
@@ -1084,7 +1093,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#editAutomationCron").val(),
           timezone: $("#editAutomationTimezone").val(),
           active: $("#editAutomationActive").is(":checked"),
-          monitored: $("#editAutomationMonitored").is(":checked"),
+          ...(userCanChangeMonitoring ? { monitored: $("#editAutomationMonitored").is(":checked") } : {}),
         }),
         success: () => location.reload(),
         error: function (xhr) {
@@ -1226,7 +1235,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         cron: $("#automationCron").val(),
         timezone: $("#automationTimezone").val(),
         active: $("#automationActive").is(":checked"),
-        monitored: $("#automationMonitored").is(":checked"),
+        ...(userCanChangeMonitoring ? { monitored: $("#automationMonitored").is(":checked") } : {}),
         parameters: parameters,
       };
       if (reusesSource) {

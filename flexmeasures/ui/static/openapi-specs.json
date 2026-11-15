@@ -6852,7 +6852,7 @@
           "monitored": {
             "type": "boolean",
             "default": true,
-            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
             "example": true
           },
           "parameters": {
@@ -6910,7 +6910,7 @@
           },
           "monitored": {
             "type": "boolean",
-            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
             "example": true
           }
         },

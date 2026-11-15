@@ -2238,6 +2238,24 @@ def _create_builtin_automation(
     return automation, warnings
 
 
+def user_may_change_monitoring(user, asset) -> bool:
+    """Tell whether the user may switch the monitoring of the asset's automations on or off.
+
+    Switching it off silences the digest for whoever receives it, so it is up to admins:
+    the host's admins, and the account-admins of the organisation owning the asset.
+    Members and consultants may not, although they may manage the automations otherwise.
+    """
+    from flexmeasures.auth.policy import ACCOUNT_ADMIN_ROLE, user_has_admin_access
+
+    if user_has_admin_access(user, "update"):
+        return True
+    return (
+        asset.account_id is not None
+        and user.account_id == asset.account_id
+        and user.has_role(ACCOUNT_ADMIN_ROLE)
+    )
+
+
 def update_automation(
     automation: Automation,
     name: str | None = None,

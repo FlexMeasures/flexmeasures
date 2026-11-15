@@ -11,6 +11,7 @@ from pytz import all_timezones
 
 from flexmeasures.data import db
 from flexmeasures.data.automations import get_automation_types
+from flexmeasures.data.services.automations import user_may_change_monitoring
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -278,6 +279,7 @@ class AssetCrudUI(FlaskView):
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
+            user_can_change_monitoring=user_may_change_monitoring(current_user, asset),
             current_page="Automations",
         )
 

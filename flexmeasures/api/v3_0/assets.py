@@ -67,6 +67,7 @@ from flexmeasures.data.services.automations import (
     resolve_automation_sensors,
     run_automation,
     update_automation,
+    user_may_change_monitoring,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
@@ -103,6 +104,7 @@ from flexmeasures.api.common.utils.api_utils import (
 )
 from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
+    invalid_sender,
     unprocessable_entity,
     request_accepted_for_processing,
 )
@@ -480,6 +482,12 @@ def _eager_load_asset_relations_dumped_by(
         )
     except sa_exc.ArgumentError:
         return query
+
+
+# Switching monitoring off silences the digest for whoever receives it, so it is not up to everyone who manages automations.
+MONITORING_IS_FOR_ADMINS = (
+    "Only admins may switch the monitoring of an automation on or off."
+)
 
 
 class AssetAPI(FlaskView):
@@ -1844,6 +1852,10 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        if automation_data.get("monitored") is False and not user_may_change_monitoring(
+            current_user, asset
+        ):
+            return invalid_sender(message=MONITORING_IS_FOR_ADMINS)
         try:
             automation, warnings = create_automation(
                 asset, origin="API", check_permissions=True, **automation_data
@@ -1938,6 +1950,13 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        monitored = automation_data.get("monitored")
+        if (
+            monitored is not None
+            and monitored != automation.monitored
+            and not user_may_change_monitoring(current_user, asset)
+        ):
+            return invalid_sender(message=MONITORING_IS_FOR_ADMINS)
         update_automation(automation, origin="API", **automation_data)
         db.session.commit()
         response = automation_schema.dump(automation)
