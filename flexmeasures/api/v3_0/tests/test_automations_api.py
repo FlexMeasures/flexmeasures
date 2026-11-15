@@ -668,6 +668,84 @@ def test_post_automation_with_inaccessible_sensor(
 
 
 @pytest.mark.parametrize(
+    "cron, allowed",
+    [
+        ("* * * * *", False),
+        ("*/5 * * * *", False),
+        ("0,10 * * * *", False),
+        ("0 6-18 * * *", True),
+        ("*/15 * * * *", True),
+        ("0 6 * * *", True),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user, is_admin",
+    [("test_prosumer_user_2@seita.nl", False), ("test_admin_user@seita.nl", True)],
+    indirect=["requesting_user"],
+)
+def test_automation_cron_may_not_run_too_often(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    is_admin,
+    cron,
+    allowed,
+):
+    """Non-admins may not set up an automation that runs more often than every 15 minutes,
+    neither when creating it nor when changing its cron expression."""
+    battery = add_battery_assets["Test battery"]
+    name = f"Forecasts on cron {cron} by {requesting_user.email}"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": cron,
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+        if allowed or is_admin:
+            assert response.status_code == 201, response.json
+        else:
+            assert response.status_code == 422, response.json
+            assert "cron" in str(response.json["message"])
+            assert (
+                db.session.execute(
+                    select(Automation).filter_by(name=name)
+                ).scalar_one_or_none()
+                is None
+            )
+
+        # Changing the cron expression of an existing automation is held to the same rule
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"{name} (daily)",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+        assert response.status_code == 201, response.json
+        automation_id = response.json["id"]
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation_id,
+            ),
+            json={"cron": cron},
+        )
+        if allowed or is_admin:
+            assert response.status_code == 200, response.json
+        else:
+            assert response.status_code == 422, response.json
+            assert db.session.get(Automation, automation_id).cronstr == "0 6 * * *"
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_post_schedule_automation_with_inaccessible_output_sensor(

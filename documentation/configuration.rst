@@ -972,6 +972,17 @@ Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
 
+Creating an automation through the API counts against this budget, too.
+
+FLEXMEASURES_AUTOMATION_MIN_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The shortest time between two runs of an automation, as set up through the API by users other than admins.
+An automation whose cron expression can run more often (e.g. ``"* * * * *"`` or ``"*/5 * * * *"``) is refused when it is created, or when its cron expression is changed.
+Admins, and automations set up through the CLI, are not held to this.
+
+Default: ``timedelta(minutes=15)``
+
 Demonstrations
 --------------
 

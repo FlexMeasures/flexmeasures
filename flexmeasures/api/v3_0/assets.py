@@ -64,6 +64,7 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    refuse_too_frequent_cron,
     resolve_automation_sensors,
     run_automation,
     update_automation,
@@ -503,6 +504,19 @@ def _eager_load_asset_relations_dumped_by(
         )
     except sa_exc.ArgumentError:
         return query
+
+
+def _refuse_too_frequent_automation(automation_data: dict) -> None:
+    """Refuse a cron expression that runs more often than FLEXMEASURES_AUTOMATION_MIN_INTERVAL allows, unless an admin sets it.
+
+    :raises ValidationError: under the "cron" key.
+    """
+    cronstr = automation_data.get("cronstr")
+    if cronstr is None or user_has_admin_access(current_user, "update"):
+        return
+    refuse_too_frequent_cron(
+        cronstr, current_app.config["FLEXMEASURES_AUTOMATION_MIN_INTERVAL"]
+    )
 
 
 class AssetAPI(FlaskView):
@@ -1778,6 +1792,8 @@ class AssetAPI(FlaskView):
         return automation_data, 200
 
     @route("/<id>/automations", methods=["POST"])
+    # An automation sets off computation on its own, again and again, so creating one draws on the trigger budget.
+    @limit_triggers()
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",
@@ -1815,6 +1831,10 @@ class AssetAPI(FlaskView):
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from,
             and permission to record data on the sensors it writes to.
+
+            Unless you are an admin, the cron expression may not run more often than once every 15 minutes
+            (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
+            Creating an automation counts against the trigger rate limit.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1877,6 +1897,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         try:
+            _refuse_too_frequent_automation(automation_data)
             automation, warnings = create_automation(
                 asset, origin="API", check_permissions=True, **automation_data
             )
@@ -1922,6 +1943,8 @@ class AssetAPI(FlaskView):
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
             Other automation fields cannot be updated; instead, create a new automation.
+            Unless you are an admin, a new cron expression may not run more often than once every 15 minutes
+            (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
             Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
@@ -1966,6 +1989,10 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        try:
+            _refuse_too_frequent_automation(automation_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
         update_automation(automation, origin="API", **automation_data)
         db.session.commit()
         response = automation_schema.dump(automation)
