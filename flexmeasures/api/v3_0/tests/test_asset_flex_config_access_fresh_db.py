@@ -70,6 +70,8 @@ def sensors_in_reach(fresh_db, setup_api_fresh_test_data):
         ("flex_context", {"aggregate-consumption": {"sensor": "own power"}}, 200),
         ("flex_context", {"aggregate-consumption": {"sensor": "foreign power"}}, 403),
         ("flex_context", {"aggregate-production": {"sensor": "public power"}}, 403),
+        ("flex_context", {"aggregate-power": {"sensor": "own power"}}, 200),
+        ("flex_context", {"aggregate-power": {"sensor": "public power"}}, 403),
         ("flex_model", {"consumption": {"sensor": "own power"}}, 200),
         ("flex_model", {"consumption": {"sensor": "foreign power"}}, 403),
         ("flex_model", {"production": {"sensor": "public power"}}, 403),
