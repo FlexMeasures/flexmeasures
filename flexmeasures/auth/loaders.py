@@ -25,18 +25,25 @@ def sensor_references_loader(
     return sensor_refs
 
 
-# Flex-config fields whose sensor the scheduler records its results on, rather than reads from.
-FLEX_CONFIG_OUTPUT_FIELDS = frozenset(
+# Fields naming a sensor that a scheduler records its results on, rather than reads from, in both spellings
+# (flex-config keys use hyphens; deserialized data uses underscores).
+# This one list is used wherever output sensors are told apart from inputs: stored flex-contexts and flex-models
+# (FLEX_CONFIG_OUTPUT_FIELDS), schedule triggers (SCHEDULE_OUTPUT_FIELDS) and scheduling automations
+# (flexmeasures.data.services.automations), so that a new output field is guarded the same way everywhere.
+# Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
+OUTPUT_SENSOR_FIELDS = frozenset(
     {
-        "consumption",
-        "production",
-        "aggregate-consumption",
-        "aggregate-production",
-        "aggregate-power",
-        "state-of-charge",
+        *("consumption", "production"),
+        *("aggregate-consumption", "aggregate_consumption"),
+        *("aggregate-production", "aggregate_production"),
+        *("aggregate-power", "aggregate_power"),
+        *("state-of-charge", "state_of_charge"),
         "group",
     }
 )
+
+# Flex-config fields whose sensor the scheduler records its results on (see OUTPUT_SENSOR_FIELDS).
+FLEX_CONFIG_OUTPUT_FIELDS = OUTPUT_SENSOR_FIELDS
 
 
 def flex_config_sensor_references(
@@ -155,18 +162,8 @@ def _nested_label(label_path: tuple[str | int, ...]) -> str:
     return str(label)
 
 
-# Request fields under which the scheduler records its results, rather than reading from them.
-SCHEDULE_OUTPUT_FIELDS = frozenset(
-    {
-        "consumption",
-        "production",
-        "aggregate-consumption",
-        "aggregate-production",
-        "aggregate-power",
-        "state-of-charge",
-        "group",
-    }
-)
+# Request fields under which the scheduler records its results (see OUTPUT_SENSOR_FIELDS).
+SCHEDULE_OUTPUT_FIELDS = OUTPUT_SENSOR_FIELDS
 
 
 def flex_model_output_loader(
