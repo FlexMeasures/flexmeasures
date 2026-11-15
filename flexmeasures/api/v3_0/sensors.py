@@ -140,8 +140,28 @@ def _regressor_sensor(regressor: Sensor | SensorReference) -> Sensor:
     return regressor.sensor if isinstance(regressor, SensorReference) else regressor
 
 
+def _requested_sensor_id(regressor) -> int | None:
+    """Return the sensor id a regressor in the request JSON refers to, as an int.
+
+    The config schema accepts ids as ints or digit strings, alone or as ``{"sensor": <id>}``,
+    so all of these must be matched to the deserialized sensors.
+    """
+    if isinstance(regressor, dict):
+        regressor = regressor.get("sensor")
+    if isinstance(regressor, bool):
+        return None
+    if isinstance(regressor, int):
+        return regressor
+    if isinstance(regressor, str) and regressor.strip().isdigit():
+        return int(regressor.strip())
+    return None
+
+
 def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     """Extract regressor sensors from the forecasting config for permission checking.
+
+    The request JSON is only used to report each sensor under the field it was named in.
+    Every sensor in the deserialized config is returned, also one that cannot be matched to the request.
 
     :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
                     which already contains resolved Sensor objects for regressor fields.
@@ -156,17 +176,22 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
         for regressor_list in [
             config.get("future_regressors", []),
             config.get("past_regressors", []),
+            config.get("regressors", []),
         ]
         for sensor in [_regressor_sensor(regressor) for regressor in regressor_list]
     }
     request_config = (request.get_json(silent=True) or {}).get("config", {})
+    if not isinstance(request_config, dict):
+        request_config = {}
 
     regressors_by_field = {}
     for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
         if request_config:
+            requested = request_config.get(request_field_name, [])
+            if not isinstance(requested, list):
+                requested = [requested]
             field_sensor_ids = [
-                regressor.get("sensor") if isinstance(regressor, dict) else regressor
-                for regressor in request_config.get(request_field_name, [])
+                _requested_sensor_id(regressor) for regressor in requested
             ]
             field_sensors = [
                 sensors_by_id[sensor_id]
@@ -180,6 +205,19 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
             ]
         if field_sensors:
             regressors_by_field[field_info["label"]] = field_sensors
+
+    # Any deserialized regressor that was not matched to the request above is checked, too.
+    matched_ids = {
+        sensor.id for sensors in regressors_by_field.values() for sensor in sensors
+    }
+    unmatched = [
+        sensor
+        for sensor_id, sensor in sensors_by_id.items()
+        if sensor_id not in matched_ids
+    ]
+    if unmatched:
+        label = REGRESSOR_CONFIG_FIELDS["regressors"]["label"]
+        regressors_by_field[label] = regressors_by_field.get(label, []) + unmatched
     return regressors_by_field
 
 

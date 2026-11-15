@@ -14,6 +14,7 @@ from flexmeasures.data.models.time_series import Sensor
     ["future-regressors", "past-regressors", "regressors"],
 )
 @pytest.mark.parametrize("use_sensor_reference", [False, True])
+@pytest.mark.parametrize("id_as_string", [False, True])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -24,13 +25,19 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     requesting_user,
     regressor_field,
     use_sensor_reference,
+    id_as_string,
 ):
-    """Triggering a forecast that uses a regressor the requesting user cannot read must return 403."""
+    """Triggering a forecast that uses a regressor the requesting user cannot read must return 403.
+
+    The config also accepts sensor ids as strings, which must be checked just the same.
+    """
 
     supplier_account = setup_accounts["Supplier"]
     prosumer_account = setup_accounts["Prosumer"]
 
-    reference_suffix = "reference" if use_sensor_reference else "id"
+    reference_suffix = ("reference" if use_sensor_reference else "id") + (
+        "-str" if id_as_string else ""
+    )
     asset_type = GenericAssetType(
         name=f"test-asset-type-regressor-perm-{regressor_field}-{reference_suffix}"
     )
@@ -66,6 +73,7 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     )
     db.session.add(private_regressor)
     db.session.commit()
+    regressor_id = str(private_regressor.id) if id_as_string else private_regressor.id
 
     client = app.test_client()
     token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
@@ -81,11 +89,11 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
             regressor_field: [
                 (
                     {
-                        "sensor": private_regressor.id,
+                        "sensor": regressor_id,
                         "source-types": ["forecaster"],
                     }
                     if use_sensor_reference
-                    else private_regressor.id
+                    else regressor_id
                 )
             ],
         },
