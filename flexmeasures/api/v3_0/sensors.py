@@ -97,6 +97,10 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
+from flexmeasures.data.services.data_generators import (
+    annotation_sources,
+    check_annotation_source_access,
+)
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecastingTriggerSchema,
 )
@@ -2346,6 +2350,9 @@ class SensorAPI(FlaskView):
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
+
+        # Annotations used as regressors must be readable by the caller, too.
+        check_annotation_source_access(annotation_sources(forecaster))
 
         forecaster.set_job_trigger("API")
 
