@@ -29,6 +29,15 @@ from flexmeasures.api.v3_0.users import AuthRequestSchema
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
 
 
+def _requires_second_factor(user: User) -> bool:
+    """Whether logging in as this user requires a second factor (as it does in the UI)."""
+    return bool(
+        current_app.config.get("SECURITY_TWO_FACTOR")
+        and user.tf_primary_method
+        and user.tf_totp_secret
+    )
+
+
 @flexmeasures_api.route("/requestAuthToken", methods=["POST"])
 @use_args(AuthRequestSchema, location="json")
 @as_json
@@ -41,6 +50,11 @@ def request_auth_token(args) -> tuple[dict, int]:
       description: |
           Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting
           SECURITY_TOKEN_MAX_AGE.
+
+          On servers with two-factor authentication (SECURITY_TWO_FACTOR), users who log in with a second factor
+          cannot get a token with their password alone: they log in first (completing the second factor),
+          and then call this endpoint from that session. Hosts can allow password-only tokens again with
+          FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA.
 
       requestBody:
         required: true
@@ -93,6 +107,18 @@ def request_auth_token(args) -> tuple[dict, int]:
                 return {"errors": ["Please provide the 'password' parameter."]}, 400
             if not verify_password(request.json["password"], user.password):
                 return {"errors": ["User password does not match."]}, 401
+            if _requires_second_factor(user) and not current_app.config.get(
+                "FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA", False
+            ):
+                return (
+                    {
+                        "errors": [
+                            "This user logs in with two-factor authentication, so a password alone cannot get a token."
+                            " Log in (with your second factor) and request a token from that session."
+                        ]
+                    },
+                    401,
+                )
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:

@@ -94,6 +94,9 @@ class Config(object):
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
         True  # False if you want to skip validation for testing
     )
+    FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA: bool = (
+        False  # allow /api/requestAuthToken by password alone for users with 2FA
+    )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
