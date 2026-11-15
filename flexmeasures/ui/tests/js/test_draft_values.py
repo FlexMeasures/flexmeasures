@@ -491,6 +491,25 @@ def test_the_scale_to_draw_on(assert_js):
         """)
 
 
+def test_a_typed_scale_applies_before_the_stroke_it_precedes(assert_js):
+    """Pressing on the chart blurs the field, whose change comes after the stroke began, so the press itself applies what was typed."""
+    assert_js(PANEL + """
+        button("draw").click();
+        await Promise.resolve();
+        eq("drawing starts with the proposed scale", chart.scales, [[20, -6]]);
+        button("draw-max").value = "50";
+        eq("a typed value is not applied before anything happens", chart.scales.length, 1);
+        target.dispatchEvent(new Event("pointerdown"));
+        eq("the press that starts a stroke applies it", chart.scales, [[20, -6], [50, -6]]);
+        target.dispatchEvent(new Event("pointerdown"));
+        button("draw-max").dispatchEvent(new Event("change"));
+        eq("and nothing is applied twice", chart.scales.length, 2);
+        button("draw-min").value = "-40";
+        target.dispatchEvent(new Event("pointerdown"));
+        eq("the lowest value likewise", chart.scales[2], [50, -40]);
+        """)
+
+
 def test_drawing_on_the_chart_makes_draft_values(assert_js):
     """Draw turns on the draw tool with a scale above the data, a drawn stroke adds draft values, and other tools end it."""
     assert_js(PANEL + """
