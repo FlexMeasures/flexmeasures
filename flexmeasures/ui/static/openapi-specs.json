@@ -4026,7 +4026,7 @@
     "/api/v3_0/assets/automations": {
       "get": {
         "summary": "List automations across assets.",
-        "description": "List the automations on public assets, or every automation you may read, such as to pick one to wait for.\nJob counts are left out, as those are looked up per asset.\nAt most 500 automations are listed, by ID, and `truncated` says whether there are more.\n",
+        "description": "List the automations on public assets, or every automation you may read, such as to pick one to wait for.\nJob counts are left out, as those are looked up per asset.\nThe automations are listed by ID.\nWithout `page`, all of them are listed.\nPass `page`, and optionally `per-page` (default 10), to list one page of them, along with `num-records`, how many there are in all.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4044,6 +4044,25 @@
                 "public",
                 "all"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "description": "The page to list, starting at 1.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "per-page",
+            "required": false,
+            "description": "How many automations to list per page.",
+            "schema": {
+              "type": "integer",
+              "default": 10
             }
           }
         ],

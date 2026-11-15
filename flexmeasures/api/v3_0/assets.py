@@ -130,7 +130,6 @@ annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
 
 # Listing automations across assets has no asset to bound it, so it is capped.
-MAX_AUTOMATIONS_ACROSS_ASSETS = 500
 
 
 def _user_has_access(asset: GenericAsset, permission: str) -> bool:
@@ -1643,12 +1642,21 @@ class AssetAPI(FlaskView):
                 metadata={
                     "description": "`public` for the automations on public assets, or `all` for every automation you may read."
                 },
-            )
+            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
+            "per_page": fields.Int(
+                data_key="per-page",
+                required=False,
+                validate=validate.Range(min=1),
+                load_default=10,
+            ),
         },
         location="query",
     )
     @as_json
-    def get_automations_across_assets(self, scope: str):
+    def get_automations_across_assets(
+        self, scope: str, page: int | None = None, per_page: int = 10
+    ):
         """
         .. :quickref: Assets; List automations across assets.
 
@@ -1658,7 +1666,9 @@ class AssetAPI(FlaskView):
           description: |
             List the automations on public assets, or every automation you may read, such as to pick one to wait for.
             Job counts are left out, as those are looked up per asset.
-            At most 500 automations are listed, by ID, and `truncated` says whether there are more.
+            The automations are listed by ID.
+            Without `page`, all of them are listed.
+            Pass `page`, and optionally `per-page` (default 10), to list one page of them, along with `num-records`, how many there are in all.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1669,6 +1679,19 @@ class AssetAPI(FlaskView):
               schema:
                 type: string
                 enum: [public, all]
+            - in: query
+              name: page
+              required: false
+              description: The page to list, starting at 1.
+              schema:
+                type: integer
+            - in: query
+              name: per-page
+              required: false
+              description: How many automations to list per page.
+              schema:
+                type: integer
+                default: 10
           responses:
             200:
               description: PROCESSED
@@ -1679,25 +1702,34 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        automations = get_automations_in_scope(
-            scope,
-            [account.id for account in get_accessible_accounts()],
-            limit=MAX_AUTOMATIONS_ACROSS_ASSETS + 1,
+        # Read access is decided per asset, so what may not be read is dropped before paging,
+        # and each page holds as many automations as asked for while there are more.
+        readable_assets: dict[int, bool] = {}
+        readable = []
+        for automation in get_automations_in_scope(
+            scope, [account.id for account in get_accessible_accounts()]
+        ):
+            if automation.asset_id not in readable_assets:
+                readable_assets[automation.asset_id] = _may_read_automation(automation)
+            if readable_assets[automation.asset_id]:
+                readable.append(automation)
+        listed = (
+            readable
+            if page is None
+            else readable[(page - 1) * per_page : page * per_page]  # noqa: E203
         )
-        listed = []
-        for automation in automations[:MAX_AUTOMATIONS_ACROSS_ASSETS]:
-            if not _may_read_automation(automation):
-                continue
+        automations_data = []
+        for automation in listed:
             automation_data = automation_schema.dump(automation)
             automation_data["recurrence-description"] = describe_cronstr(
                 automation.cronstr
             )
             automation_data["asset-name"] = automation.asset.name
-            listed.append(automation_data)
-        return {
-            "automations": listed,
-            "truncated": len(automations) > MAX_AUTOMATIONS_ACROSS_ASSETS,
-        }, 200
+            automations_data.append(automation_data)
+        response: dict = {"automations": automations_data}
+        if page is not None:
+            response["num-records"] = len(readable)
+        return response, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(

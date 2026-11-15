@@ -1603,9 +1603,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         success: function (res) {
           scopedAutomations.set(scope, res.automations);
           applyAutomationScope(scope);
-          if (res.truncated) {
-            showToast(`Only the first ${res.automations.length} automations are listed.`, "info");
-          }
         },
         error: function (xhr) {
           $(".automation-scope").val(automationScope);

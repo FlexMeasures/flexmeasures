@@ -273,12 +273,51 @@ def test_listing_automations_across_assets(
     assert public.status_code == 200, public.json
     assert [a["id"] for a in public.json["automations"]] == [upstream["public"].id]
     assert public.json["automations"][0]["asset-name"] == "troposphere"
-    assert public.json["truncated"] is False
+    assert "num-records" not in public.json
     assert {a["id"] for a in everything.json["automations"]} == {
         upstream["own"].id,
         upstream["public"].id,
     }
     assert unknown.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_listing_automations_across_assets_by_page(
+    app, fresh_db, upstream_automations, requesting_user, monkeypatch
+):
+    """Pages are cut from what the user may read, so an automation they may not read takes no place on a page."""
+    _, _, upstream = upstream_automations
+    extra = Automation(
+        name="Another public one",
+        asset=upstream["public"].asset,
+        type=upstream["public"].type,
+        cronstr="0 * * * *",
+        generator=upstream["public"].generator,
+        parameters=dict(upstream["public"].parameters),
+    )
+    fresh_db.session.add(extra)
+    fresh_db.session.commit()
+    # Keep the user's own automation, which comes first by ID, from them.
+    hidden = upstream["own"].id
+    monkeypatch.setattr(
+        "flexmeasures.api.v3_0.assets._may_read_automation",
+        lambda automation: automation.id != hidden,
+    )
+    url = url_for("AssetAPI:get_automations_across_assets")
+    with app.test_client() as client:
+        pages = [
+            client.get(url, query_string={"scope": "all", "page": page, "per-page": 1})
+            for page in (1, 2, 3)
+        ]
+    assert [page.status_code for page in pages] == [200] * 3
+    assert [[a["id"] for a in page.json["automations"]] for page in pages] == [
+        [upstream["public"].id],
+        [extra.id],
+        [],
+    ]
+    assert {page.json["num-records"] for page in pages} == {2}
 
 
 @pytest.mark.parametrize(
