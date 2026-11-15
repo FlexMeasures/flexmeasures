@@ -67,6 +67,8 @@ class Config(object):
     )
     SECURITY_FORGOT_PASSWORD_TEMPLATE: str = "admin/forgot_password.html"
     SECURITY_RECOVERABLE: bool = True
+    # Answer login and password recovery requests alike, whether or not a user with the given email exists
+    SECURITY_RETURN_GENERIC_RESPONSES: bool = True
     SECURITY_RESET_PASSWORD_TEMPLATE: str = "admin/reset_password.html"
     SECURITY_TOKEN_AUTHENTICATION_HEADER: str = "Authorization"
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
