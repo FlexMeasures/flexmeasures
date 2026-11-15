@@ -624,6 +624,7 @@ export function wireDraftValuesPanel(root, options) {
       const value = parseDraftValue(valueInput.value);
       if (!recording || slots.length === 0 || value === null) return;
       setDrafts(fillSlots(drafts, slots, value));
+      const added = slots.length;
       const end = slots[slots.length - 1].end;
       const duration = parseIsoDuration(durationInput.value);
       clearSelection();
@@ -633,6 +634,14 @@ export function wireDraftValuesPanel(root, options) {
         proposed = slots.length > 0;
       }
       render();
+      // The next range is easy to overlook on the chart, so say what was added and where the selection moved to.
+      if (proposed) {
+        const next = { start: slots[0].start, end: slots[slots.length - 1].end };
+        showToastIfAvailable(
+          "Added " + (added === 1 ? "1 value" : added + " values") + ". Next range selected: " + opts.formatTime(next.start) + " – " + formatGroupEnd(next),
+          "info",
+        );
+      }
     },
     remove(startMs) {
       setDrafts(removeDraft(drafts, startMs));

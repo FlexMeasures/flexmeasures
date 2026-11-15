@@ -388,6 +388,22 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         """)
 
 
+def test_adding_says_where_the_next_range_is(assert_js):
+    assert_js(PANEL + """
+        const toasts = [];
+        window.showToast = (message, type) => toasts.push({ message, type });
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        typeValue("4");
+        panel.add();
+        eq("one toast says how many values were added and which range comes next", toasts.length, 1);
+        eq("with the times the panel shows",
+           toasts[0].message,
+           "Added 4 values. Next range selected: " + new Date(T0 + 3600000).toISOString() + " – " + new Date(T0 + 2 * 3600000).toISOString());
+        eq("as information", toasts[0].type, "info");
+        """)
+
+
 def test_the_range_proposed_after_add_is_not_handed_over_unless_given_a_value(
     assert_js,
 ):
