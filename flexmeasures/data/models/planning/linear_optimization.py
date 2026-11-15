@@ -839,7 +839,9 @@ def device_scheduler(  # noqa C901
     model.commitment_costs = aggregate_subcommitment_costs(
         subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
-    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
+    model.commodity_costs = aggregate_commodity_costs(
+        problem.commitment_headers, subcommitment_costs
+    )
 
     # model.pprint()
     # model.display()

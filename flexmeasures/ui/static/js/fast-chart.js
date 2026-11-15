@@ -1189,6 +1189,22 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
   });
 }
 
+// Whether a point belongs to the subplot the pointer is in.
+// The ruler is linked across subplots, so ECharts also reports the points of the other subplots at the ruler's time,
+// and a tooltip must describe the subplot being hovered, not a neighbour.
+// With no known pointer (or nothing to say which subplot a series is in), the point is kept.
+function paramInPointerSubplot(param, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  const lastOption = (instance && instance.lastOption) || {};
+  const xAxisIndex = ((lastOption.series || [])[param.seriesIndex] || {}).xAxisIndex;
+  const gridIndex = ((lastOption.xAxis || [])[xAxisIndex] || {}).gridIndex;
+  if (!pointer || !chart || gridIndex == null) {
+    return true;
+  }
+  return chart.containPixel({ gridIndex: gridIndex }, pointer);
+}
+
 function seriesTooltipFormatter(seriesMeta, instance) {
   const tooltipOptions = () => ({
     showSensor: !(instance && instance.isSensorPage),
@@ -1199,6 +1215,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     // trigger passes a single point. In both cases we show just the nearest one,
     // as in the Vega-Lite charts (which snap to the nearest data point on hover).
     if (Array.isArray(params)) {
+      params = params.filter((p) => paramInPointerSubplot(p, instance));
       if (params.length === 0) {
         return "";
       }
@@ -1209,6 +1226,9 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
+    }
+    if (!paramInPointerSubplot(params, instance)) {
+      return "";
     }
     const meta = seriesMeta[params.seriesIndex];
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
@@ -2079,7 +2099,11 @@ function computeAssetLabels(sessions) {
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
 // Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
-function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash, fromLabel, toLabel) {
+// Every point carries both ends of its segment as x-dimensions (encode: x [0, 2]),
+// and the zoom's weakFilter drops a point only when all of its x-dimensions are out of the window on the same side,
+// so zooming into the middle of a long segment keeps it, where plain points would both be dropped and the segment vanish.
+// The segments are silent: hover is handled by the session's own hit area (see buildSessionHitSeries).
+function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash) {
   const series = [];
   for (const s of sessions) {
     const from = s[fromKey];
@@ -2087,51 +2111,6 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
     if (typeof from !== "number" || typeof to !== "number") continue;
     const catIdx = categoryIndex.get(s.assetId);
     const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
-    const data = [[from, catIdx], [to, catIdx]];
-    const tooltip = {
-      formatter: () =>
-        tooltipTable([
-          [fromLabel, formatFullDate(from)],
-          [toLabel, formatFullDate(to)],
-          ["Asset", s.assetLabel],
-        ]),
-    };
-    // Regular time-series lines (e.g. the companion subplots) have a data point
-    // every few pixels, so ECharts' "nearest point" hover snap always finds one
-    // close to the cursor anywhere along the line. A session segment only has 2
-    // points — its start and end, often hours apart — so that snap logic finds
-    // nothing nearby over most of a long bar. Densely interpolate the invisible
-    // hit-area line (kept off the visible line) so hovering anywhere along the
-    // bar's length has a point within range, not just right at its endpoints.
-    const hitPointCount = 40;
-    const hitData = [];
-    for (let i = 0; i <= hitPointCount; i++) {
-      hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
-    }
-    // Invisible companion line, much wider than the visible stroke, purely to
-    // widen the hoverable hit area: thin session bars (down to 1.5px) are
-    // otherwise very hard to hover precisely. Shares the visible line's name
-    // so it doesn't add its own legend entry or get toggled independently.
-    // Its OWN tooltip is disabled (tooltip.show: false): ECharts' tooltip box
-    // renders at zero size for a near-transparent series even though hover/hit
-    // -test work fine on it, so hovering it instead redirects (via the
-    // __hitAreaFor marker + the mouseover listener in wireSessionTooltipRedirect)
-    // to dispatch the visible sibling series' tooltip.
-    series.push({
-      name: s.assetLabel,
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      symbol: "none",
-      showSymbol: false,
-      animation: false,
-      legendHoverLink: false,
-      lineStyle: { width: Math.max(lineWidth, 16), opacity: 0.001 },
-      data: hitData,
-      tooltip: { show: false },
-      __hitAreaFor: true,
-      z: 1,
-    });
     series.push({
       name: s.assetLabel,
       type: "line",
@@ -2143,9 +2122,63 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
       color: color,
       lineStyle: { width: lineWidth, type: lineDash || "solid" },
       emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
-      data: data,
-      tooltip: tooltip,
+      encode: { x: [0, 2], y: 1 },
+      data: [[from, catIdx, to], [to, catIdx, from]],
+      silent: true,
       z: 2,
+    });
+  }
+  return series;
+}
+
+// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
+const SESSION_HIT_HEIGHT = 16;
+
+// The timestamps a session tooltip lists, in the order a session runs through them.
+const SESSION_TOOLTIP_ROWS = [
+  ["arrival", "Arrival"], ["plug in", "Plug-in"], ["start charging", "Start charging"],
+  ["stop charging", "Stop charging"], ["plug out", "Plug-out"], ["departure", "Departure"],
+];
+
+// One invisible hit area per session, spanning the whole session (its earliest to its latest timestamp),
+// so hovering anywhere along it, including between its layers, shows one tooltip with all of its timestamps.
+// A custom series draws a rectangle in pixel space, so the area stays hoverable at every zoom level
+// (a line's symbols are spaced in time, and leave gaps once zoomed in), and its items carry the data index the item tooltip needs.
+// It is named after the asset, like the visible lines, so it adds no legend entry and follows the legend's toggling.
+function buildSessionHitSeries(sessions, categoryIndex) {
+  const series = [];
+  for (const s of sessions) {
+    const times = SESSION_TOOLTIP_ROWS.map(([key]) => s[key]).filter((t) => typeof t === "number");
+    if (times.length === 0) continue;
+    const from = Math.min(...times);
+    const to = Math.max(...times);
+    const catIdx = categoryIndex.get(s.assetId);
+    const rows = SESSION_TOOLTIP_ROWS.filter(([key]) => typeof s[key] === "number").map(([key, label]) => [label, formatFullDate(s[key])]);
+    rows.push(["Asset", s.assetLabel]);
+    series.push({
+      name: s.assetLabel,
+      type: "custom",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      color: SENSOR_COLORS[catIdx % SENSOR_COLORS.length],
+      animation: false,
+      legendHoverLink: false,
+      clip: true,
+      emphasis: { disabled: true },
+      encode: { x: [0, 1], y: 2 },
+      data: [[from, to, catIdx]],
+      tooltip: { formatter: () => tooltipTable(rows) },
+      renderItem: (params, api) => {
+        const start = api.coord([api.value(0), api.value(2)]);
+        const end = api.coord([api.value(1), api.value(2)]);
+        const half = SESSION_HIT_HEIGHT / 2;
+        const shape = echarts.graphic.clipRectByRect(
+          { x: start[0], y: start[1] - half, width: Math.max(end[0] - start[0], 1), height: SESSION_HIT_HEIGHT },
+          { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height }
+        );
+        return shape ? { type: "rect", shape: shape, style: { fill: "rgba(0,0,0,0.001)" } } : null;
+      },
+      z: 3,
     });
   }
   return series;
@@ -2199,9 +2232,10 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   }
 
   const sessionSeries = [
-    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed", "Arrival", "Departure"),
-    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid", "Plug-in", "Plug-out"),
-    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid", "Start charging", "Stop charging"),
+    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed"),
+    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid"),
+    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid"),
+    ...buildSessionHitSeries(sessions, categoryIndex),
   ];
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
@@ -2272,7 +2306,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
     type: "time", // nice-aligned clock-time ticks (see line chart); minInterval biases granularity
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true },
+    // The ruler would highlight the session point nearest in time, which is often another charger's session.
+    // Hover over a session is answered by its own hit area instead (see buildSessionHitSeries).
+    axisPointer: { show: true, triggerEmphasis: false },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
@@ -2363,6 +2399,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
+  // A session is one item spanning its start to its end, which the default filter would drop once both ends are out of the window.
+  // weakFilter keeps an item that overlaps the window, and still rescales the companion subplots' y-axes to the visible data.
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "weakFilter";
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2389,6 +2428,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
       {
         type: "inside",
         xAxisIndex: allAxisIndices,
+        filterMode: "weakFilter", // see the toolbox zoom above
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
@@ -2484,7 +2524,6 @@ export function renderFastChart(elementId, data, options) {
   instance.chart.setOption(option, { notMerge: true });
 
   wireAnnotationHover(instance);
-  wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
@@ -2859,31 +2898,6 @@ function wirePointerTracking(instance) {
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
   zr.on("globalout", instance.onPointerOut);
-}
-
-// The wide invisible hit-area series added per session segment (see
-// buildSessionSegmentSeries) has its own tooltip disabled, because ECharts
-// renders a broken zero-size tooltip box for a near-transparent line series
-// even though hover/hit-testing on it work fine. Redirect hover on those
-// series to dispatch the visible sibling series' (real) tooltip instead.
-function wireSessionTooltipRedirect(instance, opts) {
-  const chart = instance.chart;
-  if (instance.onSessionHitHover) {
-    chart.off("mouseover", instance.onSessionHitHover);
-    instance.onSessionHitHover = null;
-  }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
-    return;
-  }
-  instance.onSessionHitHover = (ev) => {
-    if (ev.componentType !== "series") return;
-    const series = chart.getOption().series || [];
-    const hovered = series[ev.seriesIndex];
-    if (!hovered || !hovered.__hitAreaFor) return;
-    // The visible sibling is always pushed immediately after its hit-area series.
-    chart.dispatchAction({ type: "showTip", seriesIndex: ev.seriesIndex + 1, dataIndex: 0 });
-  };
-  chart.on("mouseover", instance.onSessionHitHover);
 }
 
 // Highlight the annotation band/rule under the cursor and show its text below the
