@@ -1435,6 +1435,66 @@ def test_copy_asset_api_refuses_a_target_account_the_user_cannot_edit(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_copy_asset_api_checks_the_source_account_for_a_sibling_copy(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Without account or parent, the copy lands in the source's account, which may differ from its parent's.
+
+    Here a public asset sits under the member's own asset: copying it would create a public asset,
+    which only admins may do, so the parent's permission is not enough.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    own_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_parent = GenericAsset(
+        name="sibling-copy-own-parent",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add(own_parent)
+    db.session.flush()
+    public_child = GenericAsset(
+        name="sibling-copy-public-child",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=None,
+        parent_asset_id=own_parent.id,
+    )
+    own_child = GenericAsset(
+        name="sibling-copy-own-child",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+        parent_asset_id=own_parent.id,
+    )
+    db.session.add_all([public_child, own_child])
+    db.session.flush()
+    public_assets = db.session.scalars(
+        select(GenericAsset.id).filter(GenericAsset.account_id.is_(None))
+    ).all()
+
+    response = client.post(url_for("AssetAPI:copy_assets", id=public_child.id))
+    assert response.status_code == 403, response.json
+    assert (
+        db.session.scalars(
+            select(GenericAsset.id).filter(GenericAsset.account_id.is_(None))
+        ).all()
+        == public_assets
+    )
+
+    # A sibling copy within the parent's own account is still fine.
+    response = client.post(url_for("AssetAPI:copy_assets", id=own_child.id))
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id == own_parent.id
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_copy_asset_api_rejects_copy_to_self(
