@@ -2942,7 +2942,14 @@ class AssetAPI(FlaskView):
                 )
 
         try:
-            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(
+                asset,
+                account=account,
+                parent_asset=parent_asset,
+                # The copied automations run as the user who copied them,
+                # so their access is checked again before each run.
+                execution_user_id=current_user.id,
+            )
         except ValueError as err:
             return unprocessable_entity(str(err))
         new_asset = asset_copy.asset
