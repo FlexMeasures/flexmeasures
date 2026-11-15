@@ -195,6 +195,8 @@ class Config(object):
         "100 per minute"  # per user, for the API calls the UI makes with the user's session
     )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
+    # The shortest time between two runs of an automation that non-admins may set up through the API
+    FLEXMEASURES_AUTOMATION_MIN_INTERVAL: timedelta = timedelta(minutes=15)
     # Deprecated, and ignored: triggers are always counted per account
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
     # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
