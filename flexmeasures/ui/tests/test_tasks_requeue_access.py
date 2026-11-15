@@ -31,9 +31,13 @@ def test_admin_reader_can_still_look(client, as_admin_reader):
     assert response.status_code == 200
 
 
-def test_requeue_all_is_refused_on_get(client, as_admin):
-    """A link (or an image) on another site must not make an admin's browser requeue all failed jobs."""
-    response = client.get("/tasks/requeue/scheduling")
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+def test_requeue_all_is_refused_on_get(client, as_admin, method):
+    """A link (or an image) on another site must not make an admin's browser requeue all failed jobs.
+
+    Flask routes HEAD to the view of a GET route, so HEAD is refused as well.
+    """
+    response = client.open("/tasks/requeue/scheduling", method=method)
     assert response.status_code == 405
 
 
