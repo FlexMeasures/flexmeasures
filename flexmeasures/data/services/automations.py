@@ -2299,6 +2299,8 @@ def update_automation(
             "monitoring switched on" if monitored else "monitoring switched off"
         )
         automation.monitored = monitored
+        if monitored:
+            automation.monitoring_resumed_at = server_now()
     if reset_cursor:
         # A new revision keeps the durable runs of the old and the new schedule apart,
         # even where they fall on the same scheduled UTC time.

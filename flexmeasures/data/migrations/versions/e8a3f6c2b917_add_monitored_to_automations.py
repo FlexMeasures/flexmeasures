@@ -6,6 +6,8 @@ Create Date: 2026-10-12 10:00:00.000000
 
 `flexmeasures monitor automations` skips the runs of an automation whose ``monitored`` is false.
 Every existing automation stays monitored.
+``monitoring_resumed_at`` records when monitoring was last switched back on,
+so that the digest can tell which of the runs it reports failed while the automation was not monitored.
 """
 
 from alembic import op
@@ -25,7 +27,12 @@ def upgrade():
             "monitored", sa.Boolean(), nullable=False, server_default=sa.text("true")
         ),
     )
+    op.add_column(
+        "automation",
+        sa.Column("monitoring_resumed_at", sa.DateTime(timezone=True), nullable=True),
+    )
 
 
 def downgrade():
+    op.drop_column("automation", "monitoring_resumed_at")
     op.drop_column("automation", "monitored")

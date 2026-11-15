@@ -303,13 +303,16 @@ A forecast run therefore counts once its five dispatch attempts are used up, and
 The six hours are set by :ref:`monitor_automations_stuck_after`, and ``--stuck-after-minutes`` overrides that setting.
 
 Each run is reported once, so if one monitoring run is missed, the next one still reports what failed in the meantime.
-Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it last did and with which error.
+Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it first and last did, and with which error.
 No email is sent when nothing failed.
 
 Every automation is monitored, unless it opts out, for instance an experiment whose failures nobody needs to hear about.
 Untick *Monitored* on the Automations page, create it with ``flexmeasures add automation --unmonitored``, switch it with ``flexmeasures edit automation --monitored/--unmonitored``, or send ``"monitored": false`` to the API.
 Its runs are then left out of every digest.
-They are not marked as reported, though, so once the automation is monitored again, the next digest reports the runs that failed in the meantime.
+They are not marked as reported, though, so once the automation is monitored again, the next digest reports the runs that failed in the meantime,
+saying how many of them failed while it was not monitored, and when monitoring was switched back on.
+Only the host's admins and the account-admins of the asset's organisation may switch monitoring off or on, as it decides what the recipients of the digest hear about.
+Switching it off only keeps the automation out of these digests; the automation runs as before.
 
 The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
 The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.

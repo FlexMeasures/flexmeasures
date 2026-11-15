@@ -542,11 +542,23 @@ def describe_automation_failures(failures: AutomationFailures) -> str:
         f"{reason}: {count}" for reason, count in failures.reason_counts.items()
     )
     last_run = failures.last_run
+    # With more than one failure, the first one tells how long the automation has been failing.
+    first_at = (
+        f" first at {_format_utc(failures.first_run.scheduled_at)},"
+        if len(failures.failed_runs) > 1
+        else ""
+    )
     lines = [
         f"Automation {automation.id} '{automation.name}' ({automation.type}) on {where}:",
-        f"  failed {_times(len(failures.failed_runs))} ({reasons}),"
+        f"  failed {_times(len(failures.failed_runs))} ({reasons}),{first_at}"
         f" last at {_format_utc(last_run.scheduled_at)} (run {last_run.id})",
     ]
+    unmonitored_runs = failures.runs_failed_while_unmonitored
+    if unmonitored_runs:
+        lines.append(
+            f"  {len(unmonitored_runs)} of these failed while the automation was not monitored,"
+            f" before monitoring was switched back on at {_format_utc(automation.monitoring_resumed_at)}"
+        )
     last_error = failures.last_error
     if last_error:
         if len(last_error) > MAX_ERROR_LENGTH_IN_DIGEST:

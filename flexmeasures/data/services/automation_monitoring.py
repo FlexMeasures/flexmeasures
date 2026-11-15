@@ -41,6 +41,29 @@ class AutomationFailures:
         return Counter(failed_run.reason for failed_run in self.failed_runs)
 
     @property
+    def first_run(self) -> AutomationRun:
+        """The failed run that was due first."""
+        return min(
+            (failed_run.run for failed_run in self.failed_runs),
+            key=lambda run: (run.scheduled_at, run.id),
+        )
+
+    @property
+    def runs_failed_while_unmonitored(self) -> list[AutomationRun]:
+        """The failed runs that were due before monitoring was last switched back on.
+
+        Had the automation been monitored then, an earlier digest would have reported them.
+        """
+        resumed_at = self.automation.monitoring_resumed_at
+        if resumed_at is None:
+            return []
+        return [
+            failed_run.run
+            for failed_run in self.failed_runs
+            if failed_run.run.scheduled_at < resumed_at
+        ]
+
+    @property
     def last_run(self) -> AutomationRun:
         """The failed run that was due most recently."""
         return max(
