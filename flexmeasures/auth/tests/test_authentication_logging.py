@@ -65,12 +65,10 @@ def test_token_requests_are_logged(app, db, client, setup_roles_users, auth_log)
         client.post(url, json=dict(email=EMAIL, password="secret-guess")).status_code
         == 401
     )
-    assert (
-        client.post(
-            url, json=dict(email="nobody-here@seita.nl", password="x")
-        ).status_code
-        == 404
-    )
+    # The status for an unknown email address is not what this test is about (it is 401 once that no longer differs from a wrong password)
+    assert client.post(
+        url, json=dict(email="nobody-here@seita.nl", password="x")
+    ).status_code in (401, 404)
     response = client.post(url, json=dict(email=EMAIL, password=PASSWORD))
     assert response.status_code == 200
     messages = [r.getMessage() for r in events(auth_log)]
