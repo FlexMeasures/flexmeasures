@@ -38,6 +38,9 @@ from flexmeasures.data.models.automations import (
     get_default_automation_timezone,
     get_initial_cursor,
 )
+from flexmeasures.auth.loaders import (
+    OUTPUT_SENSOR_FIELDS as SHARED_OUTPUT_SENSOR_FIELDS,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import SensorReference
@@ -751,16 +754,8 @@ def _logical_job_key(run_id: int, rq_job_id: str) -> str | None:
 # the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
 # A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
 # so that drift shows up as a refusal rather than a quiet downgrade.
-OUTPUT_SENSOR_FIELDS = (
-    "consumption",
-    "production",
-    "state-of-charge",
-    "state_of_charge",
-    "aggregate-consumption",
-    "aggregate_consumption",
-    "aggregate-production",
-    "aggregate_production",
-)
+# The list is shared with the access checks on stored flex-configs and schedule triggers (see flexmeasures.auth.loaders).
+OUTPUT_SENSOR_FIELDS = SHARED_OUTPUT_SENSOR_FIELDS
 
 
 def shortest_cron_interval(cronstr: str) -> timedelta:
