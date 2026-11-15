@@ -877,6 +877,10 @@ FLEXMEASURES_SENTRY_CONFIG
 A dictionary with values to configure reporting to Sentry. Some options are taken care of by FlexMeasures (e.g. environment and release), but not all.
 See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for a complete list.
 
+By default, FlexMeasures sends no personal data to Sentry: an event about a request names only the id of the logged-in user.
+To also send their email address and username, the client's IP address, cookies and request headers, set ``"send_default_pii": True`` here
+(and make sure your agreement with Sentry covers that).
+
 Default: ``{}``
 
 
