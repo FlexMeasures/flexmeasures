@@ -18,6 +18,21 @@ from pandas.core.groupby.grouper import Grouper
 # We’ll do our own strict payload checks instead.
 DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute"}
 
+# The properties a transformation may read.
+# Pandas data attributes, and (as in PR #1669) the sensor of a BeliefsDataFrame and that sensor's asset,
+# so that a pseudo-method like get_attribute can read their attributes.
+# Which property may be read from which kind of object is checked again when the transformations run.
+PANDAS_TRANSFORMATION_PROPERTIES = frozenset(
+    {
+        *("index", "columns", "T", "values", "empty", "shape", "size", "ndim"),
+        *("dtypes", "dtype", "name", "event_starts", "event_ends"),
+    }
+)
+ALLOWED_TRANSFORMATION_PROPERTIES = PANDAS_TRANSFORMATION_PROPERTIES | {
+    "sensor",
+    "generic_asset",
+}
+
 # The pandas methods a transformation may call, besides the pseudo-methods above.
 # A reporter config comes from users (report triggers and automations),
 # so methods that write files (to_*), evaluate expressions (eval, query),
@@ -75,6 +90,23 @@ def _refuse_unlisted_method(method: str, skip_sig: set[str]):
         )
 
 
+def pseudo_methods() -> set[str]:
+    """The pseudo-methods the host trusts (FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS), such as get_attribute."""
+    skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
+
+    user_defined_methods = app.config.get(
+        "FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS", []
+    )
+    if isinstance(user_defined_methods, str):
+        user_defined_methods = user_defined_methods.split(",")
+        user_defined_methods = [method.strip() for method in user_defined_methods]
+
+    user_defined_methods = set(user_defined_methods)
+    skip_sig.update(user_defined_methods)
+
+    return skip_sig
+
+
 class Transformation(Schema):
 
     df_input = fields.Str()
@@ -87,19 +119,7 @@ class Transformation(Schema):
     skip_if_empty = fields.Bool()
 
     def _update_signature_methods(self):
-        skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
-
-        user_defined_methods = app.config.get(
-            "FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS", []
-        )
-        if isinstance(user_defined_methods, str):
-            user_defined_methods = user_defined_methods.split(",")
-            user_defined_methods = [method.strip() for method in user_defined_methods]
-
-        user_defined_methods = set(user_defined_methods)
-        skip_sig.update(user_defined_methods)
-
-        return skip_sig
+        return pseudo_methods()
 
     @validates_schema
     def validate_method_or_property(self, data, **kwargs):
@@ -132,13 +152,18 @@ class Transformation(Schema):
 
     @validates_schema
     def validate_property(self, data, **kwargs):
-        """Only data attributes may be read: not private ones, and not methods, which would bypass the method allow-list."""
+        """Only listed data attributes may be read: not private ones, not methods, which would bypass the method allow-list,
+        and not attributes leading to other objects, such as a sensor's account."""
         prop = data.get("_property")
         if prop is None:
             return
-        if prop.startswith("_") or any(
-            callable(getattr(base_class, prop, None))
-            for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]
+        if (
+            prop not in ALLOWED_TRANSFORMATION_PROPERTIES
+            or prop.startswith("_")
+            or any(
+                callable(getattr(base_class, prop, None))
+                for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]
+            )
         ):
             raise ValidationError(
                 f"Property '{prop}' cannot be used in a transformation.",
