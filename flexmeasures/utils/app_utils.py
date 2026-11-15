@@ -98,6 +98,17 @@ def _sentry_attach_user_id(event, hint):
     return event
 
 
+def trust_proxies(app: Flask):
+    """Take the client address from X-Forwarded-For, as set by the number of proxies in FLEXMEASURES_TRUSTED_PROXIES."""
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    number_of_proxies = int(app.config.get("FLEXMEASURES_TRUSTED_PROXIES") or 0)
+    if number_of_proxies > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=number_of_proxies, x_proto=0, x_host=0, x_port=0
+        )
+
+
 def init_sentry(app: Flask):
     """
     Configure Sentry.
