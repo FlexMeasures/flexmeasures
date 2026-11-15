@@ -538,6 +538,23 @@ def test_draft_value_tooltip_reads_the_slot_under_the_pointer(assert_js):
         """)
 
 
+def test_the_hover_marker_goes_to_the_draft_point_nearest_the_pointer(assert_js):
+    """The index is that of the point in the draft values series, counting the null that breaks the line at a gap."""
+    assert_js("""
+        import { buildDraftValuesSeries, draftPointIndex } from "/js/fast-chart.js";
+        const HOUR = 3600 * 1000;
+        const draft = (h, value) => ({ start: new Date(h * HOUR), end: new Date((h + 1) * HOUR), value });
+        const drafts = [draft(0, 1), draft(1, 2), draft(3, 4)];
+        const data = buildDraftValuesSeries(drafts, 0).data;
+        const pointAt = (k, time) => data[draftPointIndex(drafts, drafts[k], time)];
+        eq("in the first half of a slot, its start", pointAt(0, HOUR * 0.2), [0, 1]);
+        eq("in the second half, its end", pointAt(0, HOUR * 0.8), [HOUR, 1]);
+        eq("a later slot is counted past the earlier ones", pointAt(1, HOUR * 1.8), [2 * HOUR, 2]);
+        eq("and past the null that breaks the line at a gap", pointAt(2, HOUR * 3.2), [3 * HOUR, 4]);
+        eq("also at its end", pointAt(2, HOUR * 3.9), [4 * HOUR, 4]);
+        """)
+
+
 def test_drawing_room_reaches_an_empty_plot(assert_js):
     """The room to draw in stretches the y-axis, also on a plot without any values yet, where ECharts ignores function-valued bounds."""
     assert_js("""

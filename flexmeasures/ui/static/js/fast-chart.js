@@ -1226,6 +1226,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       const best = dataParams.length > 0 ? pickNearestParam(dataParams, instance) : null;
       const draftHit = draftUnderPointer(instance, seriesMeta);
       if (draftHit && (!best || draftHit.distance <= paramPixelDistance(best, instance))) {
+        syncDraftEmphasis(instance, draftHit);
         return draftTooltip(draftHit.meta, draftHit.draft);
       }
       if (!best) return "";
@@ -1239,6 +1240,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     const meta = seriesMeta[params.seriesIndex];
     if (meta && meta.isDraft) {
       const draftHit = draftUnderPointer(instance, seriesMeta);
+      if (draftHit) syncDraftEmphasis(instance, draftHit);
       return draftHit ? draftTooltip(meta, draftHit.draft) : "";
     }
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
@@ -1283,6 +1285,25 @@ export function draftValueAt(drafts, time) {
     drafts.find((d) => d.end.getTime() === time) || null;
 }
 
+// The index in the draft values series of the end of a slot's line (see buildDraftValuesSeries) that lies closest to the given time.
+export function draftPointIndex(drafts, draft, time) {
+  let index = 0;
+  for (let k = 0; k < drafts.length; k++) {
+    // A gap before a slot adds a null point.
+    if (k > 0 && drafts[k - 1].end.getTime() !== drafts[k].start.getTime()) index++;
+    if (drafts[k] === draft) break;
+    index += 2;
+  }
+  const nearerTheEnd = Math.abs(draft.end.getTime() - time) < Math.abs(time - draft.start.getTime());
+  return nearerTheEnd ? index + 1 : index;
+}
+
+// Put the hover marker on the draft value the tooltip shows, as for a data point (see syncEmphasis).
+function syncDraftEmphasis(instance, draftHit) {
+  if (!instance) return;
+  syncEmphasis(instance, draftHit.seriesIndex, draftPointIndex(draftHit.drafts, draftHit.draft, draftHit.time));
+}
+
 // The draft value in the slot under the pointer, and how far the pointer is from its line, in pixels.
 function draftUnderPointer(instance, seriesMeta) {
   const pointer = instance && instance._pointerPixel;
@@ -1293,7 +1314,14 @@ function draftUnderPointer(instance, seriesMeta) {
   const draft = isFinite(time) ? draftValueAt(seriesMeta[seriesIndex].drafts, time) : null;
   if (!draft) return null;
   const y = chart.convertToPixel({ seriesIndex: seriesIndex }, [time, draft.value])[1];
-  return { meta: seriesMeta[seriesIndex], draft: draft, distance: Math.abs(y - pointer[1]) };
+  return {
+    meta: seriesMeta[seriesIndex],
+    draft: draft,
+    drafts: seriesMeta[seriesIndex].drafts,
+    seriesIndex: seriesIndex,
+    time: time,
+    distance: Math.abs(y - pointer[1]),
+  };
 }
 
 function draftTooltip(meta, draft) {
