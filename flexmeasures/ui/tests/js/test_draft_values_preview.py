@@ -445,7 +445,7 @@ def test_draft_values_too_long_to_repeat_are_refused_in_the_panel(assert_js):
         handOver(42, long);
         choose("daily");
         await settle();
-        check("the panel explains it in its own words", part("error").textContent.startsWith("Your draft values span 24 hours"), part("error").textContent);
+        check("the panel explains it in its own words, to the minute", part("error").textContent.startsWith("Your draft values span 24 hours and 15 minutes"), part("error").textContent);
         eq("without asking the server", calls.preview.length, 0);
         """)
 

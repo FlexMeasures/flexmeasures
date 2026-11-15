@@ -357,8 +357,12 @@ export function patternTooLongProblem(drafts, repeat, timeZone, options) {
   const last = drafts[drafts.length - 1];
   const spanMs = wallClockMs(last.end, timeZone) - wallClockMs(first.start, timeZone);
   if (spanMs <= periodMs) return null;
-  const hours = Math.round(spanMs / 3600000);
-  const span = hours < 48 ? plural(hours, "hour") : plural(Math.floor(hours / 24), "day") + (hours % 24 ? " and " + plural(hours % 24, "hour") : "");
+  const minutes = Math.round(spanMs / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  // Say every unit that counts, so a span just over the limit does not read as the limit itself.
+  const units = hours < 48 ? [[hours, "hour"], [minutes % 60, "minute"]] : [[days, "day"], [hours % 24, "hour"], [minutes % 60, "minute"]];
+  const span = units.filter(([n]) => n > 0).map(([n, unit]) => plural(n, unit)).join(" and ");
   return (
     `Your draft values span ${span}, from ${formatTime(first.start)} until ${formatTime(last.end)}. ` +
     `To repeat them ${REPEAT_PHRASES[repeat]}, they can span at most one ${weekly ? "week" : "day"}. ` +
