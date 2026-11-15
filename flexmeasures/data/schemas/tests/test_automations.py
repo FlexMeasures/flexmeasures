@@ -1,10 +1,10 @@
 import pytest
 from marshmallow import ValidationError
 
+from flexmeasures.data.schemas import automations, times
 from flexmeasures.data.schemas.automations import (
     AutomationCreationSchema,
     CronField,
-    TimezoneField,
 )
 
 
@@ -25,14 +25,9 @@ def test_cron_field_rejects_non_five_field_expression(cronstr):
         CronField().deserialize(cronstr)
 
 
-@pytest.mark.parametrize("timezone", ("UTC", "Europe/Amsterdam", "Etc/GMT+1"))
-def test_timezone_field_accepts_iana_names(timezone):
-    assert TimezoneField().deserialize(timezone) == timezone
-
-
-def test_timezone_field_rejects_unknown_name():
-    with pytest.raises(ValidationError, match="does not exist"):
-        TimezoneField().deserialize("Europe/NotAmsterdam")
+def test_timezone_field_can_still_be_imported_from_the_automations_schemas():
+    """TimezoneField moved to the times schemas, and code importing it from here, such as plugins, keeps working."""
+    assert automations.TimezoneField is times.TimezoneField
 
 
 @pytest.mark.parametrize(

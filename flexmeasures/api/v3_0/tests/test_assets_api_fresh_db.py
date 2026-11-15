@@ -194,6 +194,28 @@ def test_patch_asset_accepts_flex_context_object(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_asset_refuses_sensor_reference_without_sensor(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """Only sensor deletion leaves a reference without a sensor behind, so the API refuses one, and with it any save of the flex-context until a sensor is picked."""
+    with AccountContext("Test Supplier Account") as supplier:
+        existing_asset = supplier.generic_assets[0]
+
+    response = client.patch(
+        url_for("AssetAPI:patch", id=existing_asset.id),
+        json={
+            "flex_context": {
+                "production-price": {"sensor": None, "default": "10 EUR/MWh"},
+            }
+        },
+    )
+
+    assert response.status_code == 422
+    assert "has no sensor" in str(response.json)
+    assert fresh_db.session.get(GenericAsset, existing_asset.id).flex_context == {}
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
     client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):

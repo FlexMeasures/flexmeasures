@@ -18,8 +18,7 @@ class ReporterConfigSchema(Schema):
 
 class ReporterParametersSchema(Schema):
     """
-    This schema is used to validate the parameters to the method `compute` of
-     the Reporter class.
+    This schema is used to validate the parameters to the method `compute` of the Reporter class.
     Inherit from this class to extend this schema with your own parameters.
     """
 

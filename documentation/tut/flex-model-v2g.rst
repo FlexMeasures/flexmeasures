@@ -18,6 +18,7 @@ The following chart visualizes how constraints 1 and 2 can be formulated within 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/v2g_minima_maxima.png
     :align: center
+
 |
 
 

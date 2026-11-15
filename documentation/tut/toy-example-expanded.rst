@@ -73,6 +73,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
+
 |
 
 .. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
@@ -83,6 +84,8 @@ Trigger an updated schedule
 
 Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
 This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
+
+The API and client examples use the IDs that the toy setup gives the battery (8) and solar (9) sensors, which it stored in ``FM_TOY_BATTERY_SENSOR_ID`` and ``FM_TOY_SOLAR_SENSOR_ID``; use those values if yours differ.
 
 .. tabs::
 
@@ -96,8 +99,8 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-context '{"inflexible-production": [{"sensor": 9}]}'
-                --flex-model '{"soc-min": "50 kWh"}' \
+                --flex-context '{"inflexible-production": [{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"'}]}' \
+                --flex-model '{"soc-min": "50 kWh"}'
             New schedule is stored.
         
     .. tab:: API
@@ -115,7 +118,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     "soc-min": "50 kWh"
                 },
                 "flex-context": {
-                    "inflexible-production": [{"sensor": ${FM_TOY_SOLAR_SENSOR_ID}}]
+                    "inflexible-production": [{"sensor": 9}]
                 }
             }
 
@@ -166,12 +169,14 @@ We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
+
 |
 
 The `graphs page for the battery <http://localhost:5000/assets/6/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
+
 |
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
@@ -184,12 +189,14 @@ Moreover, we can use reporters to compute the capacity headroom (see :ref:`tut_t
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-pv.png
     :align: center
+
 |
 
 In the case of the scheduler that we ran in the previous tutorial, which did not yet consider the PV, the discharge power would have exceeded the headroom:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom-nopv.png
     :align: center
+
 |
 
 .. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
@@ -198,6 +205,7 @@ A nice feature is that you can check the data connectivity status of your buildi
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
+
 |
 
 

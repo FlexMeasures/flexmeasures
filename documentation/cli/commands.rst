@@ -22,7 +22,7 @@ of which some are referred to in this documentation.
 
 
 ``add`` - Add data
---------------
+------------------
 
 ================================================= =======================================
 ``flexmeasures add initial-structure``            Initialize structural data like users, roles and asset types. 
@@ -46,7 +46,7 @@ of which some are referred to in this documentation.
 
 
 ``show`` - Show data
---------------
+--------------------
 
 ================================================= =======================================
 ``flexmeasures show accounts``                    List accounts.
@@ -68,11 +68,12 @@ of which some are referred to in this documentation.
 
 
 ``edit`` - Edit data
---------------
+--------------------
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
 ``flexmeasures edit plan``                        Edit a plan's name, rate limits and quotas, or retire it.
+``flexmeasures edit reset-rate-limit``            Reset an account's rate limits, so that its requests are accepted again straight away.
 ``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
@@ -81,7 +82,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 
 ``delete`` - Delete data
---------------
+------------------------
 
 ================================================= =======================================
 ``flexmeasures delete structure``                 Delete all structural (non time-series) data, like assets (types), roles and users.
@@ -101,7 +102,7 @@ of which some are referred to in this documentation.
 
 
 ``monitor`` - Monitoring
---------------
+------------------------
 
 ================================================= =======================================
 ``flexmeasures monitor latest-run``               Check if the given task's last successful execution happened less than the allowed time ago.
@@ -110,7 +111,7 @@ of which some are referred to in this documentation.
 
 
 ``jobs`` - Job queueing
---------------
+-----------------------
 
 ================================================= =======================================
 ``flexmeasures jobs run-worker``                  Start a worker process for forecasting and/or scheduling jobs.
@@ -121,12 +122,13 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
+``flexmeasures jobs check-source-references``     List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
 ``flexmeasures jobs run-automations``             Handle due and missed forecast automation runs (invoke once per minute, e.g. via cron).
 ================================================= =======================================
 
 
 ``db-ops`` - Operations on the whole database
---------------
+---------------------------------------------
 
 ================================================= =======================================
 ``flexmeasures db-ops dump``                      Create a dump of all current data (using ``pg_dump``).
