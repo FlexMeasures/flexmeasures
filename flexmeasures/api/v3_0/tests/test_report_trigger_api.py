@@ -62,7 +62,7 @@ def test_trigger_report_queues_canonical_job_response(
     job = app.queues["reporting"].jobs[0]
     assert response.json["job"] == job.id
     assert response.json["job-url"].endswith(f"/jobs/{job.id}")
-    assert job.meta["trigger"] == {"origin": "API"}
+    assert job.meta["trigger"] == {"origin": "API", "user_id": requesting_user.id}
 
 
 @pytest.mark.parametrize(
