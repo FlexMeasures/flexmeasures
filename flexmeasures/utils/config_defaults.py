@@ -214,6 +214,10 @@ class Config(object):
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     # The shortest time between two runs of an automation that non-admins may set up through the API
     FLEXMEASURES_AUTOMATION_MIN_INTERVAL: timedelta = timedelta(minutes=15)
+    # Failed attempts to authenticate (wrong password or two-factor code) allowed per user (see flexmeasures.auth.login_throttling)
+    FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
+    # Password recovery requests allowed per email address
+    FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "5 per hour"
     # Deprecated, and ignored: triggers are always counted per account
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
     # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
@@ -354,6 +358,8 @@ class TestingConfig(Config):
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
