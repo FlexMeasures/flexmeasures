@@ -112,7 +112,12 @@ from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import set_session_variables
 from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
+from flexmeasures.auth.loaders import (
+    flex_context_loader,
+    flex_context_output_loader,
+    flex_model_loader,
+    flex_model_output_loader,
+)
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -2422,6 +2427,19 @@ class AssetAPI(FlaskView):
         "read",
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
+    # The scheduler records results on output sensors, which takes more than read access.
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_output_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_output_loader,
         pass_ctx_to_loader=True,
     )
     def trigger_schedule(

@@ -51,7 +51,12 @@ from flexmeasures.api.common.utils.deprecation_utils import (
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
+from flexmeasures.auth.loaders import (
+    flex_context_loader,
+    flex_context_output_loader,
+    flex_model_loader,
+    flex_model_output_loader,
+)
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
@@ -890,6 +895,19 @@ class SensorAPI(FlaskView):
         "read",
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
+    # The scheduler records results on output sensors, which takes more than read access.
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_output_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_output_loader,
         pass_ctx_to_loader=True,
     )
     def trigger_schedule(
