@@ -655,6 +655,23 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
         return f"Updated {field_name}: {old_value} → {new_value}"
 
 
+def _validate_updated_parent_account(db_asset: GenericAsset, asset_data: dict):
+    """Keep an asset in the same account as a new parent asset, whichever caller patches it.
+
+    :raises ValidationError: if the new parent does not exist or belongs to another account.
+    """
+    parent_id = asset_data.get("parent_asset_id")
+    if parent_id is None or parent_id == db_asset.parent_asset_id:
+        return
+    parent = db.session.get(GenericAsset, parent_id)
+    account_id = asset_data.get("account_id", db_asset.account_id)
+    if parent is None or parent.account_id != account_id:
+        raise ValidationError(
+            "Parent asset must belong to the same account as the child asset.",
+            "parent_asset_id",
+        )
+
+
 def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     """
     Patch an asset.
@@ -665,6 +682,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     """
     audit_log_data = list()
     _validate_updated_kpi_sensors(db_asset, asset_data)
+    _validate_updated_parent_account(db_asset, asset_data)
 
     # first special content
     schema_map = dict(
