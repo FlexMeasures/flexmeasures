@@ -1937,6 +1937,7 @@ def _prepare_forecast_automation(
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.schemas.forecasting.pipeline import (
         ForecasterParametersSchema,
+        validate_model_params_from_api,
     )
     from flexmeasures.data.services.data_sources import get_data_generator
 
@@ -1954,6 +1955,9 @@ def _prepare_forecast_automation(
         )
     model = generator_class or "TrainPredictPipeline"
     with errors_reported_for("config"):
+        # Model params are passed on to the model library as keyword arguments,
+        # so only bounded tuning knobs are accepted for an automation.
+        validate_model_params_from_api((config or {}).get("model-params"))
         forecaster = get_data_generator(
             source=source,
             model=model,

@@ -50,9 +50,10 @@ def make_openapi_compatible(  # noqa: C901
                 continue
             if isinstance(field, fields.Nested):
                 nested_schema_cls = type(field.schema)
-                if nested_schema_cls is TrainPredictPipelineConfigSchema:
+                if issubclass(nested_schema_cls, TrainPredictPipelineConfigSchema):
+                    # e.g. the API's own variant of it, which only adds validation
                     field_copy = fields.Nested(
-                        make_openapi_compatible(nested_schema_cls),
+                        make_openapi_compatible(TrainPredictPipelineConfigSchema),
                         metadata=field.metadata,
                         data_key=field.data_key,
                         many=field.many,

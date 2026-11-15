@@ -668,6 +668,53 @@ def test_post_automation_with_inaccessible_sensor(
 
 
 @pytest.mark.parametrize(
+    "model_params, status_code",
+    [
+        ({"machines": "127.0.0.1:12400,10.0.0.1:12400", "num_machines": 2}, 422),
+        ({"num_threads": 64}, 422),
+        ({"forcedsplits_filename": "/etc/passwd"}, 422),
+        ({"n_estimators": 1_000_000}, 422),
+        ({"max_depth": 6, "min_child_samples": 10}, 201),
+    ],
+    ids=["machines", "threads", "file", "huge", "tuning"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_accepts_only_bounded_model_params(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    model_params,
+    status_code,
+):
+    """Model params of a forecast automation are limited to bounded tuning knobs."""
+    battery = add_battery_assets["Test battery"]
+    name = f"Forecasts with model params {sorted(model_params)}"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"model-params": model_params},
+            },
+        )
+    assert response.status_code == status_code, response.json
+    if status_code == 422:
+        assert "model-params" in str(response.json)
+        assert (
+            db.session.execute(
+                select(Automation).filter_by(name=name)
+            ).scalar_one_or_none()
+            is None
+        )
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_post_schedule_automation_with_inaccessible_output_sensor(
