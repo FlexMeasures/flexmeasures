@@ -1157,7 +1157,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
               "attempt-count": latestRun["attempt-count"],
               "intended-job-count": latestRun["intended-job-count"],
               "queued-job-count": latestRun["queued-job-count"],
-              "upstream-runs": latestRun["upstream-runs"],
+              // What became of the runs it waits for, in a sentence each.
+              "upstream-runs": (latestRun["upstream-runs"] || []).map((upstream) => upstream.summary || upstream.state),
               "last-error": latestRun["last-error"],
             }
           : null;

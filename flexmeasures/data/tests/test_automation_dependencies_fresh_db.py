@@ -153,6 +153,7 @@ def test_a_dependent_run_waits_and_then_runs_once_its_upstream_run_succeeded(
             "due-at": SCHEDULED_AT.isoformat(),
             "run": snapper_run.id,
             "state": "pending",
+            "summary": f"Snap meter readings (automation {snapper.id}, run {snapper_run.id}) has yet to end.",
         }
     ]
 
@@ -182,7 +183,9 @@ def test_a_dependent_run_is_skipped_when_its_upstream_run_failed(
     assert flows_run.dispatch_completed_at is not None
     assert flows_run.job_intents == []
     assert flows_run.last_error_type == "UpstreamRunFailed"
-    assert f"automation(s) {snapper.id}" in flows_run.last_error_message
+    assert flows_run.last_error_message == (
+        f"Skipped: Snap meter readings (automation {snapper.id}, run {_run_of(fresh_db, snapper).id}) failed."
+    )
     queued_for = {
         Job.fetch(job_id, connection=app.redis_connection).meta["trigger"][
             "automation_id"
@@ -405,6 +408,9 @@ def test_a_run_whose_upstream_automation_passed_over_that_time_is_skipped(
 
     assert returns[flows.id]["dispatch_state"] == "skipped"
     assert _run_of(fresh_db, flows).plan["upstream-runs"][0]["state"] == "passed-over"
+    assert returns[flows.id]["message"] == (
+        f"Skipped: Snap meter readings (automation {snapper.id}) did not run at 2026-08-05 01:00 UTC."
+    )
 
 
 @pytest.mark.parametrize("reset", ["reactivated", "new cron string"])
@@ -429,6 +435,10 @@ def test_a_run_goes_ahead_when_its_upstream_automation_was_reset_after_that_time
     assert returns[flows.id]["dispatch_state"] == "queued"
     upstream = _run_of(fresh_db, flows).plan["upstream-runs"][0]
     assert upstream["state"] == "not-scheduled"
+    due = "00:00" if reset == "reactivated" else "00:01"
+    assert upstream["summary"].endswith(
+        f"was not due at 2026-08-05 {due} UTC, as its recurrence was reset after that."
+    )
 
 
 @pytest.mark.parametrize("upstream_fails", [False, True])
@@ -448,6 +458,12 @@ def test_a_run_waits_for_the_run_its_upstream_automation_caught_up_with(
     assert returns[forecast.id]["dispatch_state"] == "waiting"
     catch_up_run = _run_at(
         fresh_db, puller, datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc)
+    )
+    _tick(datetime(2026, 8, 5, 1, 17, 30, tzinfo=timezone.utc))
+    assert _run_at(fresh_db, forecast, SCHEDULED_AT).plan["upstream-runs"][0][
+        "summary"
+    ] == (
+        f"Pull meter data (automation {puller.id}, run {catch_up_run.id}), which caught up with its run due at 2026-08-05 01:00 UTC, has yet to end."
     )
 
     _work(app, catch_up_run)
@@ -482,6 +498,7 @@ def test_a_run_goes_ahead_without_an_inactive_upstream_automation(
             "due-at": SCHEDULED_AT.isoformat(),
             "run": None,
             "state": "not-scheduled",
+            "summary": f"Snap meter readings (automation {snapper.id}) is inactive, so it was not due at 2026-08-05 01:00 UTC.",
         }
     ]
 

@@ -522,9 +522,82 @@ def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
                 "due-at": due_at.isoformat() if due_at is not None else None,
                 "run": upstream_run.id if upstream_run is not None else None,
                 "state": state,
+                "summary": _summarize_upstream_run(
+                    dependency.upstream, state, due_at, upstream_run
+                ),
             }
         )
     return _upstream_verdict(found), found
+
+
+def _format_due_at(upstream: Automation, due_at: datetime) -> str:
+    """Write a time on an upstream automation's own clock, for a message."""
+    try:
+        return due_at.astimezone(ZoneInfo(upstream.timezone)).strftime(
+            "%Y-%m-%d %H:%M %Z"
+        )
+    except ZoneInfoNotFoundError:
+        return due_at.isoformat()
+
+
+def _summarize_upstream_run(
+    upstream: Automation | None,
+    state: str,
+    due_at: datetime | None,
+    upstream_run: AutomationRun | None,
+) -> str:
+    """Say in a sentence what became of the upstream run that a run waits for, such as "Solar forecast (automation 3, run 4) failed.".
+
+    :param upstream:        the upstream automation, or None if it is gone.
+    :param state:           the state of the upstream run, as the waiting run sees it (see `_upstream_run_state`).
+    :param due_at:          when the upstream run was due, if known.
+    :param upstream_run:    the upstream run, if there is one.
+    """
+    if upstream is None:
+        return "An automation that no longer exists did not run."
+    label = f"{upstream.name} (automation {upstream.id}"
+    label += f", run {upstream_run.id})" if upstream_run is not None else ")"
+    due = f" at {_format_due_at(upstream, due_at)}" if due_at is not None else ""
+    if upstream_run is None:
+        return _summarize_missing_upstream_run(upstream, label, state, due)
+    if due_at is not None and upstream_run.scheduled_at > due_at:
+        label += f", which caught up with its run due{due},"
+    if state == "succeeded":
+        return f"{label} succeeded."
+    if state == "pending":
+        return f"{label} has yet to end."
+    if state == "not-scheduled":
+        return f"{label} was deactivated while its run waited."
+    # The run ended without delivering what the waiting run needs (see `_upstream_run_state`).
+    return f"{label} {_describe_unsuccessful_run(upstream_run)}."
+
+
+def _summarize_missing_upstream_run(
+    upstream: Automation, label: str, state: str, due: str
+) -> str:
+    """Say in a sentence why there is no upstream run for a run to wait for (see `_summarize_upstream_run`)."""
+    if state == "pending":
+        return f"{label} is due{due}, and has yet to run."
+    if state != "not-scheduled":
+        return f"{label} did not run{due}."
+    if not due:
+        return f"{label} has a recurrence that cannot be read, so it is not waited for."
+    if not upstream.active:
+        return f"{label} is inactive, so it was not due{due}."
+    if upstream.schedule_revision == 1:
+        return f"{label} was not due yet{due}, as it was created after that."
+    return f"{label} was not due{due}, as its recurrence was reset after that."
+
+
+def _describe_unsuccessful_run(run: AutomationRun) -> str:
+    """Say how a run ended that did not deliver what the runs waiting for it need."""
+    if run.execution_state == "skipped":
+        return "was skipped"
+    if run.execution_state == "canceled":
+        return "was canceled"
+    if run.execution_completed_at is None:
+        return "failed to queue its jobs"
+    return "failed"
 
 
 def _find_chain_upstream_runs(run: AutomationRun) -> list[dict[str, Any]]:
@@ -536,17 +609,22 @@ def _find_chain_upstream_runs(run: AutomationRun) -> list[dict[str, Any]]:
     found = []
     for upstream in (run.plan or {}).get("chain-upstream-runs", []):
         upstream_run = db.session.get(AutomationRun, upstream["run"])
+        # A run that is gone, along with its automation, will not produce anything.
+        state = (
+            _upstream_run_state(upstream_run) if upstream_run is not None else "failed"
+        )
         found.append(
             {
                 "automation": upstream["automation"],
                 "allow-failure": allow_failure.get(upstream["automation"], False),
                 "due-at": run.scheduled_at.isoformat(),
                 "run": upstream["run"],
-                # A run that is gone, along with its automation, will not produce anything.
-                "state": (
-                    _upstream_run_state(upstream_run)
-                    if upstream_run is not None
-                    else "failed"
+                "state": state,
+                "summary": _summarize_upstream_run(
+                    db.session.get(Automation, upstream["automation"]),
+                    state,
+                    None,
+                    upstream_run,
                 ),
             }
         )
@@ -568,12 +646,9 @@ def _upstream_verdict(found: list[dict[str, Any]]) -> str:
 def _describe_upstream_runs(
     found: list[dict[str, Any]], states: tuple[str, ...]
 ) -> str:
-    """Name the upstream automations whose runs are in one of these states, for a message."""
-    return ", ".join(
-        f"{upstream['automation']}"
-        + (f" (run {upstream['run']})" if upstream["run"] is not None else "")
-        for upstream in found
-        if upstream["state"] in states
+    """Say what became of the upstream runs in one of these states, for a message."""
+    return " ".join(
+        upstream["summary"] for upstream in found if upstream["state"] in states
     )
 
 
@@ -587,7 +662,7 @@ def _hold_automation_run(
     run.claim_expires_at = None
     _finish_attempt(claimed_run.attempt, "waiting", 0)
     db.session.commit()
-    message = f"It waits for the run(s) of automation(s) {_describe_upstream_runs(found, ('pending',))} to end."
+    message = f"Waiting: {_describe_upstream_runs(found, ('pending',))}"
     # An upstream run may have ended between deciding to wait and saying so,
     # in which case nothing else would come back to this run before the next runner tick.
     released = release_waiting_automation_run(run)
@@ -608,7 +683,8 @@ def _skip_automation_run(
     """End a run without queueing any jobs, as an upstream run it waits for did not succeed."""
     run = claimed_run.run
     now = _now_utc()
-    reason = f"Skipped, as the run(s) of automation(s) {_describe_upstream_runs(found, ('failed', 'passed-over'))} that this run waits for did not succeed or did not happen."
+    # Only the upstream runs whose failure is not allowed for are why the run is skipped.
+    reason = f"Skipped: {_describe_upstream_runs([upstream for upstream in found if not upstream['allow-failure']], ('failed', 'passed-over'))}"
     run.dispatch_state = "queued"
     run.dispatch_completed_at = now
     run.execution_state = "skipped"
