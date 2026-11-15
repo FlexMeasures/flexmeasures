@@ -292,7 +292,7 @@ An automation that does not run, because you excluded it, because it is inactive
 It still runs on its own schedule, just not because of this request, and what waits for it goes by the results it already has.
 The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-upstream=true`` (or ``with-downstream=true``) and ``exclude``,
 and ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream`` (or ``include=downstream``) tells what that would come down to.
-On the *Automations* page, *Run with upstream* and *Run with downstream* show this before anything runs.
+On the *Automations* page, *Run up to here* and *Run from here* show this before anything runs.
 
 The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
 what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.

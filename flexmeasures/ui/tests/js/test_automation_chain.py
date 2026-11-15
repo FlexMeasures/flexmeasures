@@ -249,8 +249,8 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
 
         const row8 = page.AutomationRow({{id: 8, name: "Forecast", type: "forecasting", active: true, "depends-on": [{{automation: 4}}]}});
         const row4 = page.AutomationRow({{id: 4, name: "Meters", type: "forecasting", active: true, "depends-on": []}});
-        check("an automation that waits for another offers to run with upstream", row8.actions.includes("Run with upstream"));
-        check("one that waits for nothing does not", !row4.actions.includes("Run with upstream"));
+        check("an automation that waits for another offers to run up to it", row8.actions.includes("Run up to here"));
+        check("one that waits for nothing does not", !row4.actions.includes("Run up to here"));
     """)
 
 

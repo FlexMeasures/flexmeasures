@@ -753,11 +753,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   function actionButtons(automation) {
     const runWithUpstreamItem = (automation["depends-on"] || []).length ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-include="upstream"
-        title="Run the automations this one waits for, directly or through others, and then this one, to bring it up to date. What waits for it does not run. You get to see what runs first.">Run with upstream</button></li>
+        title="Run the automation chain up to this automation: the automations it waits for, directly or through others, and then this one, to bring it up to date. What waits for it does not run. You get to see what runs first.">Run up to here</button></li>
     ` : "";
     const runWithDownstreamItem = hasListedDependents(automation) ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-include="downstream"
-        title="Run this automation once, now, along with the active automations that wait for it, directly or through others. Each of them runs once the runs it waits for ended, and is skipped if one of those failed. Their recurrence is not affected.">Run with downstream</button></li>
+        title="Run the automation chain from this automation: this one, now, and then the active automations that wait for it, directly or through others. Each of them runs once the runs it waits for ended, and is skipped if one of those failed. Their recurrence is not affected. You get to see what runs first.">Run from here</button></li>
     ` : "";
     const runItem = userCanRunAutomations ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}"
@@ -1789,7 +1789,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         return;
       }
       loadRunPlan({ automationId, include, exclude: new Set() }, () => {
-        $("#runPlanTitle").text(`Run with ${include}`);
+        $("#runPlanTitle").text(include === "upstream" ? "Run up to here" : "Run from here");
         bootstrap.Modal.getOrCreateInstance(document.getElementById("runPlanModal")).show();
       });
     });
