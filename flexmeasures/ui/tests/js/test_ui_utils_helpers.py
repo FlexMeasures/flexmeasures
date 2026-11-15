@@ -6,6 +6,22 @@ window.showToast = (message, type) => toasts.push({message, type});
 """
 
 
+def test_retry_after_error_shows_local_retry_time(assert_js):
+    assert_js("""
+        import { errorWithRetryAfter } from "/js/ui-utils.js";
+        const now = Date.now;
+        Date.now = () => Date.UTC(2026, 9, 20, 12, 0);
+        const expected = new Date(Date.UTC(2026, 9, 20, 12, 5)).toLocaleString();
+        eq("delta seconds", errorWithRetryAfter("Rate limited.", "300"),
+           `Rate limited. Try again at ${expected}.`);
+        eq("HTTP date", errorWithRetryAfter("Rate limited.", "Tue, 20 Oct 2026 12:05:00 GMT"),
+           `Rate limited. Try again at ${expected}.`);
+        eq("missing header", errorWithRetryAfter("Rate limited.", null), "Rate limited.");
+        eq("invalid header", errorWithRetryAfter("Rate limited.", "unknown"), "Rate limited.");
+        Date.now = now;
+        """)
+
+
 def test_move_array_item(assert_js):
     assert_js("""
         import { moveArrayItem } from "/js/ui-utils.js";
@@ -313,6 +329,17 @@ def test_a_refused_default_view_is_reported_and_unticked(assert_js):
             toasts[0].message.includes("Must be one of: Context, Graphs."),
             toasts[0].message,
         );
+
+        // This module must report a retry time even when flexmeasures.js was not loaded.
+        toasts.length = 0;
+        stubFetch(new Response(JSON.stringify({message: "Rate limited."}), {
+            status: 429, headers: {"content-type": "application/json", "Retry-After": "300"},
+        }));
+        checkbox.checked = true;
+        await setDefaultAssetView(checkbox, "Context");
+        check("rate-limit reason and retry time reach the user",
+              toasts.length === 1 && toasts[0].message.includes("Rate limited.")
+              && toasts[0].message.includes("Try again at"), toasts);
         """)
 
 

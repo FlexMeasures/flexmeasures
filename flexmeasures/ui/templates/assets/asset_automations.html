@@ -323,7 +323,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { errorWithRetryAfter } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
   const assetId = "{{ asset.id }}";
   // Jobs are counted from Redis, which keeps them for FLEXMEASURES_JOB_TTL and no longer.
   const jobRetention = "{{ config.FLEXMEASURES_JOB_TTL | naturalized_timedelta }}";
@@ -362,13 +363,19 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   function automationAjaxErrorMessage(xhr) {
     const responseMessage = xhr.responseJSON?.message;
+    let message;
     if (typeof responseMessage === "string" && responseMessage) {
-      return responseMessage;
+      message = responseMessage;
+    } else if (responseMessage) {
+      message = JSON.stringify(responseMessage);
+    } else {
+      message = xhr.status ? `HTTP ${xhr.status}` : "unknown error";
     }
-    if (responseMessage) {
-      return JSON.stringify(responseMessage);
+    if (xhr.status === 429) {
+      message = errorWithRetryAfter(message, xhr.getResponseHeader("Retry-After"));
     }
-    return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
+    // Every caller ends its sentence after this message, so a full stop of the message's own would be doubled.
+    return message.replace(/\.+$/, "");
   }
 
   function showAutomationsError(message) {

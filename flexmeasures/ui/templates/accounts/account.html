@@ -213,19 +213,24 @@
                   <div class="form-group">
                     <div class="col-md-3">
                       <label for="plan_id" class="control-label">Plan</label>
-                      <select class="form-select" id="plan_id" name="plan_id">
+                      <select class="form-select" id="plan_id" name="plan_id"
+                        data-users="{{ plan_usage.users }}" data-assets="{{ plan_usage.assets }}" data-clients="{{ plan_usage.clients }}">
                         <option value="" {% if not account.plan_id %}selected{% endif %}>
                           No plan (server defaults apply)
                         </option>
                         {% for plan in plans %}
                         <option
                           value="{{ plan.id }}"
+                          data-max-users="{{ plan.max_users if plan.max_users is not none else '' }}"
+                          data-max-assets="{{ plan.max_assets if plan.max_assets is not none else '' }}"
+                          data-max-clients="{{ plan.max_clients if plan.max_clients is not none else '' }}"
                           {% if plan.id == account.plan_id %}selected{% endif %}
                         >
                           {{ plan.name }}{% if plan.legacy %} (legacy){% endif %}
                         </option>
                         {% endfor %}
                       </select>
+                      <div id="plan-quota-warning" class="alert alert-warning mt-2" role="status" aria-live="polite" style="white-space: pre-line" hidden></div>
                     </div>
                   </div>
                   {% endif %}
@@ -310,7 +315,7 @@
                         data-bs-placement="right"
                         data-bs-html="true"
                         tabindex="0"
-                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}{% if rate_limits_disabled_in_play_mode %}<br>Neither limit is enforced in play mode{% endif %}"
+                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}{% if rate_limits_disabled_in_play_mode %}<br>Neither limit is enforced in play mode{% endif %}<br>Active users: {{ plan_usage.users }} / {{ account.plan.max_users if account.plan and account.plan.max_users is not none else 'unlimited' }}<br>Assets: {{ plan_usage.assets }} / {{ account.plan.max_assets if account.plan and account.plan.max_assets is not none else 'unlimited' }}<br>Client organisations: {{ plan_usage.clients }} / {{ account.plan.max_clients if account.plan and account.plan.max_clients is not none else 'unlimited' }}"
                       >
                         {% if account.plan %}{{ account.plan.name }}{% if
                         account.plan.legacy %} (legacy){% endif %}{% else %}No
@@ -933,6 +938,10 @@ $(document).ready(function () {
         });
     });
   }
+</script>
+<script type="module">
+  import { initPlanQuotaWarning } from "{{ url_for('flexmeasures_ui.static', filename='js/plan-quota-warning.js') }}?v={{ flexmeasures_version }}";
+  initPlanQuotaWarning(document.getElementById("plan_id"), document.getElementById("plan-quota-warning"));
 </script>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 

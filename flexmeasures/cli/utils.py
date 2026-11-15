@@ -18,6 +18,7 @@ from click_default_group import DefaultGroup
 from marshmallow import fields
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+from flexmeasures.data.services.plan_quotas import PlanQuotaExceeded
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import (
     validate_color_hex,
@@ -38,6 +39,26 @@ class MsgStyle(object):
     SUCCESS: dict[str, Any] = {"fg": "green"}
     WARN: dict[str, Any] = {"fg": "yellow"}
     ERROR: dict[str, Any] = {"fg": "red"}
+
+
+def warn_plan_quota_restrictions(*, editing: bool, zero_clients: bool) -> None:
+    """Explain the effect of assigning or tightening a plan's quotas."""
+    prefix = (
+        "Tightening this plan affects organisations already on it immediately."
+        if editing
+        else "Assigning this plan can put an organisation at or above its quotas."
+    )
+    click.secho(
+        f"Warning: {prefix} Existing users, assets (including sub-assets) and client "
+        "organisations remain, but additions or user reactivations are blocked "
+        "if they would exceed a quota.",
+        **MsgStyle.WARN,
+    )
+    if zero_clients:
+        click.secho(
+            "Existing consultancy roles remain, but new consultant roles cannot be granted.",
+            **MsgStyle.WARN,
+        )
 
 
 class LogsClickExceptions:
@@ -79,6 +100,10 @@ class LogsClickExceptions:
     def invoke(self, ctx: click.Context):
         try:
             return super().invoke(ctx)  # type: ignore[misc]
+        except PlanQuotaExceeded as exc:
+            error = click.ClickException(str(exc))
+            self._log_click_exception(ctx, error)
+            raise error from exc
         except click.ClickException as exc:
             self._log_click_exception(ctx, exc)
             raise
