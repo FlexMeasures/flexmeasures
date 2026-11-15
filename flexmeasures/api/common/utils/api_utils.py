@@ -419,17 +419,47 @@ def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
     return data
 
 
+def _as_sensor_id(value) -> int | None:
+    """A sensor id given as an int or as a string of digits (as SensorIdField accepts it), or None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _is_sensor_key(key) -> bool:
+    """``sensor``, and keys like the legacy ``consumption-price-sensor`` (as in flexmeasures.auth.loaders)."""
+    normalized_key = str(key).replace("_", "-")
+    return normalized_key == "sensor" or normalized_key.endswith("-sensor")
+
+
+def _is_sensors_key(key) -> bool:
+    """``sensors``, and keys like ``*-sensors`` (as in flexmeasures.auth.loaders)."""
+    normalized_key = str(key).replace("_", "-")
+    return normalized_key == "sensors" or normalized_key.endswith("-sensors")
+
+
 def _replace_sensor_refs_in_dict(data: dict, sensor_id_map: dict[int, int]):
-    """Handle the dict case for :func:`_replace_sensor_refs`."""
+    """Handle the dict case for :func:`_replace_sensor_refs`.
+
+    Sensor ids under ``sensor`` or ``*-sensor`` keys, and in lists under ``sensors`` or ``*-sensors`` keys,
+    are resolved whether they are given as ints or as strings of digits.
+    """
     result: dict = {}
     for key, value in data.items():
-        if key == "sensor" and isinstance(value, int):
-            resolved = _resolve_sensor_id(value, sensor_id_map)
+        sensor_id = _as_sensor_id(value) if _is_sensor_key(key) else None
+        if sensor_id is not None:
+            resolved = _resolve_sensor_id(sensor_id, sensor_id_map)
             if resolved is _REMOVED:
-                # Private external sensor: signal parent to drop this entry.
-                return _REMOVED
+                if key == "sensor":
+                    # Private external sensor: signal parent to drop this entry.
+                    return _REMOVED
+                continue  # e.g. a legacy "consumption-price-sensor" key: drop just this key
             result[key] = resolved
-        elif key == "sensors" and isinstance(value, list):
+        elif _is_sensors_key(key) and isinstance(value, list):
             result[key] = _replace_sensors_list(value, sensor_id_map)
         else:
             processed = _replace_sensor_refs(value, sensor_id_map)
@@ -443,10 +473,11 @@ def _replace_sensors_list(value: list, sensor_id_map: dict[int, int]) -> list:
     """Replace/filter integer IDs in a ``{"sensors": [...]}`` list."""
     new_list = []
     for v in value:
-        if not isinstance(v, int):
+        sensor_id = _as_sensor_id(v)
+        if sensor_id is None:
             new_list.append(v)
             continue
-        resolved = _resolve_sensor_id(v, sensor_id_map)
+        resolved = _resolve_sensor_id(sensor_id, sensor_id_map)
         if resolved is not _REMOVED:
             new_list.append(resolved)
         # else: private external sensor, skip
@@ -483,6 +514,57 @@ def _update_sensor_refs_in_subtree(
     ).all()
     for child in children:
         _update_sensor_refs_in_subtree(child, sensor_id_map)
+
+
+def _check_copied_flex_config_references(
+    asset: GenericAsset,
+    destination_account_id: int | None,
+    copied_sensor_ids: set[int],
+) -> None:
+    """Check the sensors the copied flex-contexts and flex-models refer to, as storing them through the API would (E2).
+
+    Each reference must be to a copied sensor, a sensor in the destination account, or a public sensor
+    (any other reference is refused with a ValueError, as the destination account cannot read it).
+    The copying user needs create-children access (recording data) on output sensors that were not copied,
+    such as a public sensor.
+    """
+    from flexmeasures.auth.loaders import flex_config_sensor_references
+    from flexmeasures.data.services.data_generators import check_sensor_access
+    from flexmeasures.cli import is_running as running_as_cli
+
+    for field in ("flex_context", "flex_model"):
+        all_sensors, output_sensors = flex_config_sensor_references(
+            getattr(asset, field)
+        )
+        for sensor in all_sensors:
+            if sensor.id in copied_sensor_ids:
+                continue
+            sensor_account_id = sensor.generic_asset.account_id
+            if (
+                sensor_account_id is not None
+                and sensor_account_id != destination_account_id
+            ):
+                raise ValueError(
+                    f"The {field.replace('_', '-')} of asset {asset.id} refers to sensor {sensor.id},"
+                    " which the destination account cannot read."
+                )
+        if not running_as_cli():
+            check_sensor_access(
+                input_sensors=[],
+                output_sensors=[
+                    sensor
+                    for sensor in output_sensors
+                    if sensor.id not in copied_sensor_ids
+                ],
+            )
+
+    children = db.session.scalars(
+        select(GenericAsset).filter(GenericAsset.parent_asset_id == asset.id)
+    ).all()
+    for child in children:
+        _check_copied_flex_config_references(
+            child, destination_account_id, copied_sensor_ids
+        )
 
 
 def _copy_asset_subtree(
@@ -662,8 +744,11 @@ def copy_asset(
             asset_schema=asset_schema,
             add_copy_suffix=True,
         )
-        if sensor_id_map:
-            _update_sensor_refs_in_subtree(copied_root, sensor_id_map)
+        # Always remap: references to private sensors outside the copied subtree are dropped, also without copied sensors
+        _update_sensor_refs_in_subtree(copied_root, sensor_id_map)
+        _check_copied_flex_config_references(
+            copied_root, target_account_id, set(sensor_id_map.values())
+        )
 
         skipped_automations = copy_automations(
             asset_id_map=asset_id_map,

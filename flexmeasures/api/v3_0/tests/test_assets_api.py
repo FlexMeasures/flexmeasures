@@ -1560,6 +1560,112 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     assert battery.flex_model["consumption-capacity"] == {"sensor": sensor_internal.id}
 
 
+def test_copy_asset_drops_private_sensor_refs_in_every_shape(
+    setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
+):
+    """References to private sensors outside the copy are dropped also when given as strings or under legacy keys."""
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+    price_sensor = setup_markets["epex_da"]
+    asset_type = setup_generic_asset_types["battery"]
+    supplier_asset = GenericAsset(
+        name="Supplier asset for sensor ref shapes",
+        generic_asset_type_id=asset_type.id,
+        account_id=supplier_account.id,
+    )
+    battery = GenericAsset(
+        name="Battery for sensor ref shapes",
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add_all([supplier_asset, battery])
+    db.session.flush()
+    private_ext_sensor = Sensor(
+        name="private external sensor",
+        generic_asset=supplier_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    sensor_internal = Sensor(
+        name="internal sensor",
+        generic_asset=battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add_all([private_ext_sensor, sensor_internal])
+    db.session.flush()
+    battery.flex_context = {
+        "site-power-capacity": {"sensor": str(private_ext_sensor.id)},
+        "consumption-price-sensor": private_ext_sensor.id,
+        "production-price-sensor": str(price_sensor.id),
+        "inflexible-device-sensors": [
+            str(private_ext_sensor.id),
+            str(sensor_internal.id),
+        ],
+        "site-consumption-capacity": {"sensor": str(sensor_internal.id)},
+    }
+    db.session.flush()
+
+    battery_copy = copy_asset(battery, account=prosumer_account).asset
+    new_sensor = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == battery_copy.id)
+    ).one()
+
+    assert battery_copy.flex_context == {
+        "production-price-sensor": price_sensor.id,
+        "inflexible-device-sensors": [new_sensor.id],
+        "site-consumption-capacity": {"sensor": new_sensor.id},
+    }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_checks_copied_output_sensors(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user, db
+):
+    """A copied flex-context may only record on a sensor outside the copy if the copying user may record data on it.
+
+    Here an admin let the asset record on a public sensor, which an account-admin may not do (E2).
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    public_sensor = setup_markets["epex_da"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_sensor = Sensor(
+        name="copied output",
+        generic_asset=source_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(own_sensor)
+    db.session.flush()
+    number_of_assets = len(db.session.scalars(select(GenericAsset.id)).all())
+
+    source_asset.flex_context = {"aggregate-power": {"sensor": public_sensor.id}}
+    db.session.flush()
+    response = client.post(url_for("AssetAPI:copy_assets", id=source_asset.id))
+    assert response.status_code == 403, response.json
+    assert len(db.session.scalars(select(GenericAsset.id)).all()) == number_of_assets
+
+    # Recording on a sensor that is copied along is fine.
+    source_asset.flex_context = {"aggregate-power": {"sensor": own_sensor.id}}
+    db.session.flush()
+    response = client.post(url_for("AssetAPI:copy_assets", id=source_asset.id))
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    copied_output = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id, name="copied output")
+    ).one()
+    assert copied_asset.flex_context == {
+        "aggregate-power": {"sensor": copied_output.id}
+    }
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
