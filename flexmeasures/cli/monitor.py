@@ -522,6 +522,14 @@ def _times(count: int) -> str:
     return "once" if count == 1 else f"{count} times"
 
 
+def automation_page_url(automation) -> str | None:
+    """Link to the Automations page of the automation's asset, opening that automation's info, if the server knows its own address."""
+    base_url = app.config.get("FLEXMEASURES_BASE_URL")
+    if not base_url:
+        return None
+    return f"{base_url.rstrip('/')}/assets/{automation.asset_id}/automations?automation={automation.id}"
+
+
 def describe_automation_failures(failures: AutomationFailures) -> str:
     """Describe the failed runs of one automation in a few lines, for the monitoring digest."""
     automation = failures.automation
@@ -544,6 +552,9 @@ def describe_automation_failures(failures: AutomationFailures) -> str:
         if len(last_error) > MAX_ERROR_LENGTH_IN_DIGEST:
             last_error = last_error[:MAX_ERROR_LENGTH_IN_DIGEST] + " ..."
         lines.append(f"  last error: {last_error}")
+    url = automation_page_url(automation)
+    if url:
+        lines.append(f"  runs and jobs: {url}")
     return "\n".join(lines)
 
 
@@ -600,7 +611,11 @@ def monitor_automations(
     body = (
         f"These automations have runs that failed, or that have been executing for longer than {exact_duration_str(stuck_after)}, which were not reported before:\n\n"
         + "\n\n".join(describe_automation_failures(f) for f in failures)
-        + "\n\nEach automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
+        + (
+            "\n\nWe suggest to check the logs."
+            if app.config.get("FLEXMEASURES_BASE_URL")
+            else "\n\nEach automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
+        )
     )
     capture_message_for_sentry(subject)
     email = Message(subject=subject, bcc=email_recipients)
