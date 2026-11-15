@@ -107,9 +107,26 @@ def run_automations():
     This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
-    claimed_runs = get_dispatchable_automation_runs(now)
+    report: list[dict] = []
+    claimed_runs = get_dispatchable_automation_runs(now, report=report)
+    # A killed job's run is failed here, which can skip or set off the runs waiting for it, too.
+    for event in report:
+        run = event["run"]
+        failed = run.execution_state in ("failed", "skipped", "canceled")
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
+            + (
+                ", as its job ended without saying so"
+                if event["event"] == "reconciled"
+                else ", as the runs it waits for ended"
+            )
+            + "."
+            + (f" {event['message']}" if event["message"] else ""),
+            **(MsgStyle.WARN if failed else MsgStyle.SUCCESS),
+        )
     if not claimed_runs:
-        click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        if not report:
+            click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
         return
 
     n_run = 0

@@ -2399,11 +2399,16 @@ def test_run_automations(
     assert "No automations due" in result.output, result.output
     assert len(app.queues["forecasting"].jobs) == n_jobs
 
-    # inactive automations are not due
+    # inactive automations are not due, while the jobs of their runs that left Redis without saying how they ended are noticed, and reported
     for automation in automations:
         automation.active = False
     fresh_db.session.commit()
     app.redis_connection.flushdb()
+    result = runner.invoke(run_automations)
+    assert "queued" not in result.output, result.output
+    assert (
+        result.output.count("is failed, as its job ended without saying so") == 2
+    ), result.output
     result = runner.invoke(run_automations)
     assert "No automations due" in result.output, result.output
 
@@ -3062,6 +3067,53 @@ def test_add_edit_and_show_automation_dependencies(
     assert cleared.exit_code == 0, cleared.output
     fresh_db.session.expire_all()
     assert fresh_db.session.get(Automation, downstream.id).dependencies == []
+
+
+def test_run_automations_reports_what_it_reconciled(
+    app, fresh_db, setup_dummy_data_fresh_db, monkeypatch
+):
+    """A tick that fails a killed job's run and skips what waits for it says so, rather than that no automations were due."""
+    from flexmeasures.cli import jobs
+    from flexmeasures.cli.jobs import run_automations
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=automation.cursor,
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="queued",
+        execution_state="failed",
+        attempt_count=1,
+        parameters={},
+        plan={},
+        last_error_message="The job left the queue without saying how it ended.",
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+
+    def tick(now, report):
+        report.append(
+            {"run": run, "event": "reconciled", "message": run.last_error_message}
+        )
+        return []
+
+    monkeypatch.setattr(jobs, "get_dispatchable_automation_runs", tick)
+    result = runner.invoke(run_automations)
+
+    assert result.exit_code == 0, result.output
+    assert "No automations due" not in result.output
+    assert (
+        f"Automation {automation.id} ('Upstream') run {run.id}" in result.output
+        and "is failed, as its job ended without saying so. The job left the queue without saying how it ended."
+        in result.output
+    )
 
 
 def test_run_automation_with_downstream(

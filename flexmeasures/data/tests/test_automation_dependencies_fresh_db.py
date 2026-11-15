@@ -270,8 +270,19 @@ def test_a_killed_job_ends_its_run_and_what_waits_for_it(
     automation_services.record_automation_job_started(run_id, intent.logical_job_key)
     end_job(app, Job.fetch(intent.rq_job_id, connection=app.redis_connection))
 
-    automation_services.reconcile_unfinished_automation_jobs()
+    # The next tick finds out, before any scheduled run is due again.
+    report = []
+    get_dispatchable_automation_runs(
+        datetime(2026, 8, 5, 0, 30, tzinfo=timezone.utc) if on_demand else TICK,
+        report=report,
+    )
 
+    # Which it reports, so a runner's log does not say that nothing happened.
+    assert [(event["run"].id, event["event"]) for event in report] == [
+        (run_id, "reconciled"),
+        *[(dependent_run_id, "released") for dependent_run_id in dependent_run_ids],
+    ]
+    assert report[1]["message"].startswith("Skipped: Snap meter readings")
     fresh_db.session.expire_all()
     snapper_run = fresh_db.session.get(AutomationRun, run_id)
     assert snapper_run.execution_state == "failed"

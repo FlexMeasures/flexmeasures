@@ -5,6 +5,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 from __future__ import annotations
 
 from collections import defaultdict
+from contextvars import ContextVar
 from contextlib import contextmanager
 import functools
 from copy import copy, deepcopy
@@ -60,6 +61,30 @@ from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, serv
 AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
 # The error type recorded on a waiting run canceled as its automation was deactivated (see `_cancel_waiting_scheduled_runs`).
 AUTOMATION_DEACTIVATED = "AutomationDeactivated"
+# What a runner's tick did beyond claiming runs, while it collects that (see `get_dispatchable_automation_runs`).
+_tick_report: ContextVar[list[dict[str, Any]] | None] = ContextVar(
+    "automation_tick_report", default=None
+)
+
+
+def _tick_report_position() -> int:
+    """Say where to note what becomes of a run in a runner's tick, before what follows from it is noted (see `_report_to_tick`)."""
+    report = _tick_report.get()
+    return len(report) if report is not None else 0
+
+
+def _report_to_tick(
+    run: AutomationRun, event: str, message: str | None, position: int
+) -> None:
+    """Note what became of a run during a runner's tick, if a tick is collecting that.
+
+    Ending a run releases what waits for it, which is noted first, so this goes back to where the run's turn was (see `_tick_report_position`).
+    """
+    report = _tick_report.get()
+    if report is not None:
+        report.insert(position, {"run": run, "event": event, "message": message})
+
+
 # How often a runner may attempt one run's dispatch, and how long it waits between attempts.
 # A dispatch which keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
 # so the attempts are spaced further apart each time, and run out.
@@ -322,6 +347,7 @@ def claim_existing_automation_run(
 def get_dispatchable_automation_runs(
     now: datetime | None = None,
     owner: str | None = None,
+    report: list[dict[str, Any]] | None = None,
 ) -> list[ClaimedAutomationRun]:
     """Claim new due occurrences, resumable durable runs, and waiting runs whose upstream runs ended, for dispatch.
 
@@ -329,11 +355,19 @@ def get_dispatchable_automation_runs(
     Looking at the waiting runs here, too, catches the ones whose release was missed,
     for instance because the worker that ended the upstream run went down before it got to them.
     A run whose job was killed never gets to say so, so that is looked up first (see `reconcile_unfinished_automation_jobs`).
+
+    :param report:  a list to add what else became of runs along the way to,
+                    each as a dict with the 'run', the 'event' ('reconciled' or 'released') and a 'message',
+                    such as a run failed for a killed job, and the run waiting for it, skipped as a result.
     """
     if now is None:
         now = _now_utc()
     now = floor_to_minute(now)
-    reconcile_unfinished_automation_jobs()
+    token = _tick_report.set(report)
+    try:
+        reconcile_unfinished_automation_jobs()
+    finally:
+        _tick_report.reset(token)
     claimed_runs: list[ClaimedAutomationRun] = []
     for due_automation in get_due_automations(now):
         claimed = claim_due_automation_run(due_automation, owner=owner)
@@ -728,7 +762,10 @@ def release_waiting_automation_run(run: AutomationRun) -> dict[str, Any] | None:
     if claimed is None:
         return None
     try:
-        return dispatch_automation_run(claimed)
+        position = _tick_report_position()
+        returns = dispatch_automation_run(claimed)
+        _report_to_tick(run, "released", returns.get("message"), position)
+        return returns
     except Exception as exc:
         # Any error, whatever its kind, was recorded on the run by the dispatch, which is what the run's owner gets to see.
         # The upstream run ended either way, so its job does not fail on account of the run that waited for it.
@@ -1105,7 +1142,13 @@ def reconcile_unfinished_automation_jobs() -> None:
             )
             continue
         for intent, job in zip(intents, jobs):
+            run = intent.run
+            was_completed = run.execution_completed_at is not None
+            position = _tick_report_position()
             _record_outcome_known_to_redis(intent.run_id, intent.logical_job_key, job)
+            db.session.refresh(run)
+            if not was_completed and run.execution_completed_at is not None:
+                _report_to_tick(run, "reconciled", run.last_error_message, position)
 
 
 def _record_outcome_known_to_redis(
