@@ -264,11 +264,12 @@ def test_an_exhausted_account_budget_does_not_lock_out_the_ui(
             assert client.get(url_for("SensorAPI:index")).status_code == 200
 
 
-@pytest.mark.parametrize("token_in", ["header", "query", "json"])
+# A token in the query string is refused before it counts (see test_auth_token_in_url_is_refused).
+@pytest.mark.parametrize("token_in", ["header", "json"])
 def test_a_token_counts_against_the_account_wherever_it_is_sent(
     app, db, setup_roles_users, undo_new_rows, rate_limiting, token_in
 ):
-    """A token sent in the query string or in a JSON body is an integration's, too, so it spends the account's budget, not the UI's."""
+    """A token sent in a JSON body is an integration's, too, so it spends the account's budget, not the UI's."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
