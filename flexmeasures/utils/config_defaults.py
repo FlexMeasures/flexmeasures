@@ -216,8 +216,12 @@ class Config(object):
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     # The shortest time between two runs of an automation that non-admins may set up through the API
     FLEXMEASURES_AUTOMATION_MIN_INTERVAL: timedelta = timedelta(minutes=15)
-    # Failed attempts to authenticate (wrong password or two-factor code) allowed per user (see flexmeasures.auth.login_throttling)
+    # Failed attempts to authenticate (wrong password or two-factor code) allowed per email address and client address (see flexmeasures.auth.login_throttling)
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
+    # ... and per email address from all client addresses together
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "100 per hour"
+    # Number of reverse proxies in front of FlexMeasures whose X-Forwarded-For entries are trusted for the client address
+    FLEXMEASURES_TRUSTED_PROXIES: int = 0
     # Password recovery requests allowed per email address
     FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "5 per hour"
     # Deprecated, and ignored: triggers are always counted per account
@@ -361,6 +365,7 @@ class TestingConfig(Config):
     FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "1000000 per hour"
     FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA

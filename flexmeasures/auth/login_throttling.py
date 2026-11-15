@@ -1,26 +1,44 @@
 """
-Limit how often a user account can be guessed at.
+Limit how often an account can be guessed at.
 
-Each failed attempt to authenticate as a user (a wrong password on the login form or on /api/requestAuthToken,
-or a wrong two-factor code) is counted against that user, in a fixed window (``FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT``).
-Once the user's count is used up, further attempts for that user are refused with 429 until the window ends,
-*before* the credentials are checked, so the answer does not tell whether the password was right.
-A successful login clears the count.
+Every attempt to authenticate (a password on the login form or on /api/requestAuthToken, or a two-factor code)
+is counted *before* the credentials are checked, so concurrent requests cannot slip past the limit,
+and a successful login (or token request) clears the count again. Two counts are kept, both keyed on the
+normalised email address that was submitted, whether or not a user with that address exists
+(so that the 429 answer does not tell which addresses have an account):
+
+- per email address *and* client address (``FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT``).
+  Someone guessing from one address is stopped there, while the account's owner, and scripts fetching tokens
+  from other addresses, can still log in.
+- per email address only, as a much higher ceiling (``FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING``),
+  against guessing from many addresses at once.
+
+Once a count is used up, further attempts are refused with 429 until the window ends, whether the password
+is right or not, so the answer does not tell whether it was right.
+
+The client address is ``request.remote_addr``. Behind a reverse proxy, that is the proxy's address
+unless ``FLEXMEASURES_TRUSTED_PROXIES`` is set; until then, all clients share one count per email address.
 
 Password recovery requests (the "forgot password" form) are counted per email address,
 whether or not a user with that address exists (``FLEXMEASURES_PASSWORD_RECOVERY_LIMIT``),
 so the form cannot be used to flood someone's inbox.
 
-We count per user rather than per IP address: behind a reverse proxy, every client has the proxy's address,
-so a limit per address would let one client lock everyone out of the login form.
 The counts live in the rate limiter's storage (see flexmeasures.api.common.rate_limiting).
 """
 
 from __future__ import annotations
 
-from flask import Flask, current_app, jsonify, make_response, request, session
+from flask import (
+    Flask,
+    current_app,
+    has_request_context,
+    jsonify,
+    make_response,
+    request,
+    session,
+)
 from limits import parse
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from flexmeasures.data import db
 
@@ -33,6 +51,7 @@ CREDENTIAL_ENDPOINTS = (
     "security.two_factor_token_validation",
     "flexmeasures_api.request_auth_token",
 )
+TOKEN_ENDPOINT = "flexmeasures_api.request_auth_token"
 RECOVERY_ENDPOINT = "security.forgot_password"
 
 
@@ -55,12 +74,30 @@ def _identifiers(scope: str, key: str) -> list[str]:
     return [*prefix, scope, key]
 
 
-def _user_key(user_id: int) -> str:
-    return f"user:{user_id}"
+def _normalise_email(email) -> str | None:
+    if not isinstance(email, str) or not email.strip():
+        return None
+    return email.strip().lower()
+
+
+def _client_address() -> str:
+    return request.remote_addr or "unknown"
+
+
+def _client_key(email: str) -> str:
+    return f"email:{email}|client:{_client_address()}"
+
+
+def _email_key(email: str) -> str:
+    return f"email:{email}"
 
 
 def _failure_limit():
     return parse(current_app.config["FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT"])
+
+
+def _failure_ceiling():
+    return parse(current_app.config["FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING"])
 
 
 def _recovery_limit():
@@ -76,28 +113,23 @@ def _submitted_email() -> str | None:
             email = payload.get("email")
     else:
         email = request.form.get("email")
-    if not isinstance(email, str) or not email.strip():
-        return None
-    return email.strip().lower()
+    return _normalise_email(email)
 
 
-def _user_id_of_attempt() -> int | None:
-    """Which user the current request tries to authenticate as, if we can tell."""
+def _email_of_attempt() -> str | None:
+    """Which email address the current request tries to authenticate as, if we can tell."""
     from flexmeasures.data.models.user import User
 
     if request.endpoint == "security.two_factor_token_validation":
         fs_uniquifier = session.get("tf_user_id")
         if not fs_uniquifier:
             return None
-        return db.session.execute(
-            select(User.id).filter_by(fs_uniquifier=fs_uniquifier)
-        ).scalar_one_or_none()
-    email = _submitted_email()
-    if email is None:
-        return None
-    return db.session.execute(
-        select(User.id).where(func.lower(User.email) == email)
-    ).scalar_one_or_none()
+        return _normalise_email(
+            db.session.execute(
+                select(User.email).filter_by(fs_uniquifier=fs_uniquifier)
+            ).scalar_one_or_none()
+        )
+    return _submitted_email()
 
 
 def _too_many_attempts_response(message: str):
@@ -111,7 +143,10 @@ def _too_many_attempts_response(message: str):
 
 
 def refuse_attempts_beyond_limit():
-    """Refuse authentication attempts for a user who used up their failed attempts, and count recovery requests."""
+    """Count each authentication attempt before the credentials are checked, and refuse it once the count is used up.
+
+    Also counts password recovery requests.
+    """
     if request.method != "POST":
         return None
     endpoint = request.endpoint
@@ -135,14 +170,17 @@ def refuse_attempts_beyond_limit():
                     "Too many password recovery requests. Please try again later."
                 )
             return None
-        user_id = _user_id_of_attempt()
-        if user_id is None:
-            return None
-        if not strategy.test(
-            _failure_limit(), *_identifiers(FAILURE_SCOPE, _user_key(user_id))
+        email = _email_of_attempt()
+        if email is None:
+            return None  # the form or endpoint will say what is missing
+        # Count this attempt now; a successful one is cleared again (see clear_failed_authentications)
+        if not strategy.hit(
+            _failure_limit(), *_identifiers(FAILURE_SCOPE, _client_key(email))
+        ) or not strategy.hit(
+            _failure_ceiling(), *_identifiers(FAILURE_SCOPE, _email_key(email))
         ):
             current_app.logger.warning(
-                f"Refused an authentication attempt for user {user_id}: too many failed attempts recently ({request.endpoint})."
+                f"Refused an authentication attempt: too many failed attempts for this email address recently ({request.endpoint})."
             )
             return _too_many_attempts_response(
                 "Too many failed attempts to log in. Please try again later."
@@ -156,38 +194,43 @@ def refuse_attempts_beyond_limit():
     return None
 
 
-def count_failed_authentication(sender, user=None, **kwargs):
-    """Count a failed authentication against the user (connected to Flask-Security's user_failed_authn signal)."""
+def _clear(email: str | None):
     strategy = _strategy()
-    if strategy is None or user is None:
+    if strategy is None or email is None or not has_request_context():
         return
     try:
-        strategy.hit(_failure_limit(), *_identifiers(FAILURE_SCOPE, _user_key(user.id)))
+        strategy.clear(
+            _failure_limit(), *_identifiers(FAILURE_SCOPE, _client_key(email))
+        )
+        strategy.clear(
+            _failure_ceiling(), *_identifiers(FAILURE_SCOPE, _email_key(email))
+        )
     except Exception as exc:
         current_app.logger.warning(
-            f"Could not count a failed authentication attempt: {exc}"
+            f"Could not clear the failed authentication attempts: {exc}"
         )
 
 
 def clear_failed_authentications(sender, user=None, **kwargs):
-    """Start a user's count afresh once they logged in (connected to Flask-Login's user_logged_in signal)."""
-    strategy = _strategy()
-    if strategy is None or user is None:
-        return
-    try:
-        strategy.clear(
-            _failure_limit(), *_identifiers(FAILURE_SCOPE, _user_key(user.id))
-        )
-    except Exception as exc:
-        current_app.logger.warning(
-            f"Could not clear the failed authentication attempts of user {user.id}: {exc}"
-        )
+    """Start the counts for a user's email address afresh once they logged in (connected to Flask-Login's user_logged_in signal)."""
+    if user is not None:
+        _clear(_normalise_email(user.email))
+
+
+def clear_after_issuing_a_token(response):
+    """Start the counts afresh once a token was issued (the token endpoint does not log the user in)."""
+    if (
+        request.method == "POST"
+        and request.endpoint == TOKEN_ENDPOINT
+        and response.status_code == 200
+    ):
+        _clear(_submitted_email())
+    return response
 
 
 def register_at(app: Flask):
     from flask_login import user_logged_in
-    from flask_security.signals import user_failed_authn
 
     app.before_request(refuse_attempts_beyond_limit)
-    user_failed_authn.connect(count_failed_authentication, app)
+    app.after_request(clear_after_issuing_a_token)
     user_logged_in.connect(clear_failed_authentications, app)
