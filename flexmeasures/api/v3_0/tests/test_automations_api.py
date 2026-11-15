@@ -668,6 +668,56 @@ def test_post_automation_with_inaccessible_sensor(
 
 
 @pytest.mark.parametrize(
+    "requesting_user, is_admin",
+    [("test_prosumer_user_2@seita.nl", False), ("test_admin_user@seita.nl", True)],
+    indirect=["requesting_user"],
+)
+def test_activating_a_too_frequent_automation_is_refused(
+    app, db, add_battery_assets, requesting_user, is_admin
+):
+    """An inactive automation that runs too often (e.g. a copy of one an admin set up) may not be activated by a non-admin."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Copied frequent forecasts ({requesting_user.email})",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "active": False,
+            },
+        )
+        assert response.status_code == 201, response.json
+        automation_id = response.json["id"]
+        automation = db.session.get(Automation, automation_id)
+        automation.cronstr = "* * * * *"  # as copied from an automation an admin set up
+        db.session.commit()
+        url = url_for(
+            "AssetAPI:patch_automation", id=battery.id, automation_id=automation_id
+        )
+
+        response = client.patch(url, json={"active": True})
+        if is_admin:
+            assert response.status_code == 200, response.json
+            assert db.session.get(Automation, automation_id).active
+            return
+        assert response.status_code == 422, response.json
+        assert "cron" in str(response.json["message"])
+        assert not db.session.get(Automation, automation_id).active
+
+        # Other changes to the inactive automation are still possible
+        response = client.patch(url, json={"name": "Renamed copy"})
+        assert response.status_code == 200, response.json
+
+        # Activating it with a cron expression that is allowed is fine
+        response = client.patch(url, json={"active": True, "cron": "*/15 * * * *"})
+        assert response.status_code == 200, response.json
+        automation = db.session.get(Automation, automation_id)
+        assert automation.active and automation.cronstr == "*/15 * * * *"
+
+
+@pytest.mark.parametrize(
     "cron, allowed",
     [
         ("* * * * *", False),
