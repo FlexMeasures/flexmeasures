@@ -1099,10 +1099,12 @@ def _record_automation_job_failure(
     ).one_or_none()
     if intent is None:
         return
-    if intent.status == "failed":
+    if intent.status in ("failed", "succeeded"):
         # A job's failure reaches this twice:
         # the job says so itself, and the queue's exception handler (see `handle_forecasting_exception`) says so for a job that could not.
         # The first of them is the one that counts, so that the moment recorded is the moment the job failed.
+        # A job that recorded its success did its work, and can only fail after that while releasing the runs waiting for its run,
+        # such as on its timeout, which is no reason to fail the run (a runner releases what it did not get to, see `get_dispatchable_automation_runs`).
         db.session.rollback()
         return
     intent.status = "failed"

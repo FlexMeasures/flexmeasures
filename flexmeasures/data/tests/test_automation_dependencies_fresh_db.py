@@ -296,6 +296,34 @@ def test_a_killed_job_ends_its_run_and_what_waits_for_it(
         )
 
 
+def test_a_job_that_times_out_after_recording_its_success_still_succeeded(
+    fresh_db, app, make_automation, monkeypatch
+):
+    """Releasing what waits for a run happens in the job that ended it, and failing there, as on a timeout, keeps the run's success."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    _tick()
+    snapper_run = _run_of(fresh_db, snapper)
+    intent = snapper_run.job_intents[0]
+    with monkeypatch.context() as patch:
+        # The job's time runs out while it releases what waits for its run.
+        patch.setattr(
+            automation_services,
+            "release_automation_runs_waiting_for",
+            lambda run: None,
+        )
+        automation_services.record_automation_job_succeeded(
+            snapper_run.id, intent.logical_job_key
+        )
+    automation_services._record_automation_job_failure(
+        snapper_run.id, intent.logical_job_key, "JobTimeoutException", "Timed out."
+    )
+
+    assert _run_of(fresh_db, snapper).execution_state == "succeeded"
+    _tick(datetime(2026, 8, 5, 1, 1, 30, tzinfo=timezone.utc))
+    assert _run_of(fresh_db, flows).dispatch_state == "queued"
+
+
 def test_an_abandoned_run_on_demand_ends_and_so_does_what_waits_for_it(
     fresh_db, app, make_automation
 ):
