@@ -233,6 +233,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-check mt-1">
                     <input class="form-check-input" type="checkbox" id="automationAllowFailure">
                     <label class="form-check-label" for="automationAllowFailure">Run even when a run it waits for failed</label>
+                    <div class="form-text d-none" id="automationAllowFailureMixed"></div>
                   </div>
                 </div>
                 <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
@@ -349,6 +350,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-check mt-1">
                     <input class="form-check-input" type="checkbox" id="editAutomationAllowFailure">
                     <label class="form-check-label" for="editAutomationAllowFailure">Run even when a run it waits for failed</label>
+                    <div class="form-text d-none" id="editAutomationAllowFailureMixed"></div>
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -683,6 +685,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const allowed = dependencies.filter((dependency) => dependency["allow-failure"]).length;
     allowFailureBox.checked = dependencies.length > 0 && allowed === dependencies.length;
     allowFailureBox.indeterminate = allowed > 0 && allowed < dependencies.length;
+    // Its mixed state looks much like an unticked box, so a line under it says what it stands for.
+    const explanation = document.querySelector(`${allowFailureSelector}Mixed`);
+    if (explanation) {
+      explanation.textContent = allowFailureBox.indeterminate ? allowFailureMixedText(dependencies) : "";
+      explanation.classList.toggle("d-none", !allowFailureBox.indeterminate);
+    }
+  }
+
+  function allowFailureMixedText(dependencies) {
+    const each = dependencies.map((dependency) => {
+      const upstream = chainAutomation(dependency.automation);
+      return `${upstream ? upstream.name : `Automation ${dependency.automation}`}: ${dependency["allow-failure"] ? "yes" : "no"}`;
+    });
+    return `Differs per automation it waits for (${each.join("; ")}). Ticking or unticking sets all of them.`;
   }
 
   function resetNewAutomationForm() {
@@ -1758,6 +1774,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           $("#newAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not create the automation."));
         },
       });
+    });
+
+    // Once ticked or unticked, the box sets all of them alike, so the line about them differing goes.
+    $(document).on("change", "#automationAllowFailure, #editAutomationAllowFailure", function () {
+      $(`#${this.id}Mixed`).addClass("d-none");
     });
 
     let runPlan = null;

@@ -351,3 +351,21 @@ def test_the_scopes_to_pick_from_are_named_by_what_they_hold(
         select.innerHTML = page.automationScopeOptions();
         eq("the scopes offered", [...select.options].map((option) => option.textContent), {json.dumps(expected)});
     """)
+
+
+def test_a_mixed_allow_failure_box_says_what_it_stands_for(assert_js):
+    script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(script)} + "\\nreturn {{ showAllowFailure, automationsById }};")();
+        document.body.insertAdjacentHTML("beforeend", '<input type="checkbox" id="box"><div class="d-none" id="boxMixed"></div>');
+        page.automationsById.set(7, {{id: 7, name: "Solar forecast"}});
+        page.showAllowFailure("#box", [{{automation: 7, "allow-failure": true}}, {{automation: 5, "allow-failure": false}}]);
+        eq("where they differ, a line says how",
+           document.querySelector("#boxMixed").textContent,
+           "Differs per automation it waits for (Solar forecast: yes; Automation 5: no). Ticking or unticking sets all of them.");
+        check("and shows", !document.querySelector("#boxMixed").classList.contains("d-none"));
+        page.showAllowFailure("#box", [{{automation: 7, "allow-failure": true}}]);
+        check("where they do not, it goes", document.querySelector("#boxMixed").classList.contains("d-none"));
+    """)
