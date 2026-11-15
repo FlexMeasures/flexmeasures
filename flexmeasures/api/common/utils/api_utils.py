@@ -600,6 +600,7 @@ def copy_asset(
     asset: GenericAsset,
     account=None,
     parent_asset=None,
+    execution_user_id: int | None = None,
 ) -> AssetCopy:
     """
     Copy an asset subtree to a target account and/or under a target parent asset.
@@ -624,6 +625,10 @@ def copy_asset(
 
     An automation that cannot be copied safely does not fail the copy:
     it is skipped, and reported in the returned `AssetCopy`.
+
+    :param execution_user_id:   The user the copied automations run as (the user making the copy, if made through the API),
+                                whose permissions are checked again before each run. None leaves them without one,
+                                as automations created through the CLI are.
     """
     try:
         asset_schema = AssetSchema()
@@ -669,6 +674,7 @@ def copy_asset(
             asset_id_map=asset_id_map,
             sensor_id_map=sensor_id_map,
             destination_account_id=target_account_id,
+            execution_user_id=execution_user_id,
         )
 
         audit_message = (
