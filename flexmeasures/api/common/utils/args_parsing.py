@@ -59,10 +59,23 @@ def _enforce_request_size_limit(request: Request, config_key: str):
     max_size = current_app.config.get(config_key)
     if max_size is None:
         return
-    # Also have Werkzeug enforce the limit while reading the body,
-    # which covers bodies sent without a Content-Length header (chunked transfer encoding).
-    request.max_content_length = int(max_size)
-    if request.content_length is not None and request.content_length > max_size:
+    max_size = int(max_size)
+    if request.content_length is None:
+        # A body without a Content-Length header (chunked transfer encoding) is measured by reading it,
+        # but never more than one byte past the limit.
+        body = getattr(request, "_cached_data", None)
+        if body is None:
+            body = request.stream.read(max_size + 1)
+            # Keep what was read for parsing the body later on (Werkzeug's get_data reads this cache).
+            request._cached_data = body
+        if len(body) > max_size:
+            raise RequestEntityTooLarge(
+                description=(
+                    f"Request body exceeds the configured limit of {max_size} bytes."
+                )
+            )
+        return
+    if request.content_length > max_size:
         raise RequestEntityTooLarge(
             description=(
                 f"Request body exceeds the configured limit of {max_size} bytes."
