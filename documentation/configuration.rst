@@ -376,8 +376,17 @@ FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 
 Maximum request body size for sensor data posted to the sensor data API, both for JSON data and file uploads.
 Set to ``None`` to disable this FlexMeasures-specific limit.
+The limit also applies to bodies sent without a ``Content-Length`` header (chunked transfer encoding).
 
 Default: ``3 * 1024 * 1024``
+
+MAX_CONTENT_LENGTH
+^^^^^^^^^^^^^^^^^^
+
+Flask's maximum request body size, for all other requests. Larger requests are answered with ``413 (Payload Too Large)``.
+Set to ``None`` to disable it (e.g. if your reverse proxy limits request bodies already).
+
+Default: ``16 * 1024 * 1024``
 
 .. _datasource_config:
 
