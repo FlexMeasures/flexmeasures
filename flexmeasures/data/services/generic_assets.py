@@ -66,6 +66,42 @@ def _validate_flex_config_sensors_for_access(flex_config: Any) -> None:
     check_sensor_access(input_sensors=all_sensors, output_sensors=output_sensors)
 
 
+def _stored_flex_config_references(flex_config: Any) -> set[tuple[int, bool]]:
+    """The (sensor id, is output) pairs a stored flex-context or flex-model refers to.
+
+    A stored config that cannot be read (e.g. it refers to a sensor that no longer exists) counts as referring to nothing.
+    """
+    try:
+        all_sensors, output_sensors = flex_config_sensor_references(flex_config)
+    except Exception:
+        return set()
+    output_ids = {sensor.id for sensor in output_sensors}
+    return {
+        (sensor.id, False) for sensor in all_sensors if sensor.id not in output_ids
+    } | {(sensor_id, True) for sensor_id in output_ids}
+
+
+def _validate_updated_flex_config_sensors(stored_config: Any, new_config: Any) -> None:
+    """Check access to the sensors an updated flex-context or flex-model refers to, if they were not referred to that way before.
+
+    A stored reference the editor may not use themselves (e.g. a price sensor set by a host admin) can stay
+    when the editor changes other fields, as the UI's flex-context editor always sends the whole config.
+    A sensor that was stored as an input and now becomes an output is checked as an output.
+    """
+    stored = _stored_flex_config_references(stored_config)
+    all_sensors, output_sensors = flex_config_sensor_references(new_config)
+    output_ids = {sensor.id for sensor in output_sensors}
+    new_references = [
+        sensor
+        for sensor in all_sensors
+        if (sensor.id, sensor.id in output_ids) not in stored
+    ]
+    check_sensor_access(
+        input_sensors=new_references,
+        output_sensors=[sensor for sensor in new_references if sensor.id in output_ids],
+    )
+
+
 def _validate_updated_kpi_sensors(db_asset: GenericAsset, asset_data: dict) -> None:
     """Validate changed KPI references before patching the asset."""
     if (
@@ -705,7 +741,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             # Validate the JSON field against the given schema
             if k != "sensors_to_show":
                 schema_map[k]().load(v)
-                _validate_flex_config_sensors_for_access(v)
+                _validate_updated_flex_config_sensors(getattr(db_asset, k), v)
             else:
                 # we use `deserialize here because the `SensorsToShowSchema` is a "fields.Field" object rather than a "Schema" object
                 schema_map[k]().deserialize(v)
