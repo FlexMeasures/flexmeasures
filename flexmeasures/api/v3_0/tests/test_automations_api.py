@@ -668,6 +668,70 @@ def test_post_automation_with_inaccessible_sensor(
 
 
 @pytest.mark.parametrize(
+    "reference_extras",
+    [
+        {},
+        {"source-types": ["forecaster"]},
+        {"exclude-source-types": ["scheduler"]},
+        {"default": "30 EUR/MWh"},
+        {"lower": 0},
+    ],
+    ids=["plain", "source-types", "exclude-source-types", "default", "lower"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_with_inaccessible_filtered_input_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+    reference_extras,
+):
+    """A sensor the schedule reads is checked, also when its reference carries source filters,
+    a default or bounds (which deserialize to a SensorReference rather than a Sensor).
+    """
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="someone else's prices",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="EUR/MWh",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    name = f"Schedules on another account's prices {sorted(reference_extras)}"
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "parameters": {
+                    "duration": "PT12H",
+                    "flex-context": {
+                        "consumption-price": {
+                            "sensor": someone_elses_sensor.id,
+                            **reference_extras,
+                        }
+                    },
+                },
+            },
+        )
+    assert response.status_code == 403, response.json
+    assert str(someone_elses_sensor.id) in response.json["message"]
+    assert (
+        db.session.execute(select(Automation).filter_by(name=name)).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_post_schedule_automation_with_inaccessible_output_sensor(

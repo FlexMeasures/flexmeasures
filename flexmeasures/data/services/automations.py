@@ -769,8 +769,9 @@ def collect_sensors(
 ) -> list[Sensor]:
     """Collect the sensors referenced anywhere in a (possibly nested) structure.
 
-    Both deserialized sensors and the sensor references that survive deserialization as raw data are picked up,
-    the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
+    Deserialized sensors, deserialized sensor references (``SensorReference``, which wraps a sensor with
+    source filters, a default or bounds) and the sensor references that survive deserialization as raw data
+    are picked up, the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
 
     :param only_under_output_field: only collect the sensors that are referenced under one of the OUTPUT_SENSOR_FIELDS, at any depth.
     """
@@ -783,6 +784,9 @@ def collect_sensors(
 
     if isinstance(value, Sensor):
         collect(value)
+    elif isinstance(value, SensorReference):
+        # a reference with source filters, a default or bounds, which wraps the sensor it reads
+        collect(value.sensor)
     elif isinstance(value, dict):
         for key, item in value.items():
             under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
