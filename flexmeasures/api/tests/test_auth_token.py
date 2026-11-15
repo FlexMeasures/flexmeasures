@@ -1,3 +1,4 @@
+import pytest
 from flask_login import current_user, logout_user
 from flask_security.core import AnonymousUser
 from flask import url_for
@@ -25,3 +26,18 @@ def test_auth_token(app, client, setup_api_test_data):
     assert response.status_code == 200
     logout_user()  # undo the login made by our patch during token auth
     assert response.json == []  # admin has no assets themselves
+
+
+@pytest.mark.parametrize("url", ["/api/v3_0/assets", "/assets"])
+def test_auth_token_in_url_is_refused(app, client, setup_api_test_data, url):
+    """Tokens in the URL query end up in logs, browser history and Referer headers, so they are refused, also on UI pages.
+
+    The same token in the Authorization header works (see test_auth_token).
+    """
+    with UserContext("test_admin_user@seita.nl") as admin:
+        auth_token = admin.get_auth_token()
+
+    response = client.get(url, query_string={"auth_token": auth_token})
+    logout_user()  # undo any login made by our patch during token auth
+    assert response.status_code == 400, response.status_code
+    assert auth_token not in response.get_data(as_text=True)
