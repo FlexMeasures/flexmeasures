@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hmac
 import time
 
 from flask import request, current_app
@@ -23,7 +24,9 @@ def get_task_run():
     """
     task_name: str = request.args.get("name", "")
 
-    def make_response(status: str, reason: str, last_run: datetime) -> dict:
+    def make_response(
+        status: str, reason: str, last_run: datetime, authorized: bool = True
+    ) -> dict:
         return dict(
             status=status,
             reason=reason,
@@ -32,23 +35,37 @@ def get_task_run():
                 "MONITOR_FREQUENCY_%s" % task_name.upper(), 10
             ),
             process="FlexMeasures",
-            server=current_app.config.get("FLEXMEASURES_MODE", ""),
+            # Only tell authorized callers what kind of server this is
+            server=(
+                current_app.config.get("FLEXMEASURES_MODE", "") if authorized else ""
+            ),
         )
 
     # check auth token
     token_name = current_app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
-    token = current_app.config.get("FLEXMEASURES_TASK_CHECK_AUTH_TOKEN", "")
+    token = current_app.config.get("FLEXMEASURES_TASK_CHECK_AUTH_TOKEN")
     if token_name not in request.headers:
         return (
             make_response(
-                "ERROR", "Not authenticated to check task status.", datetime(1970, 1, 1)
+                "ERROR",
+                "Not authenticated to check task status.",
+                datetime(1970, 1, 1),
+                authorized=False,
             ),
             UNAUTH_STATUS_CODE,
         )
-    if request.headers.get(token_name) != token:
+    given_token = request.headers.get(token_name, "")
+    # An unset or empty token means task checks are switched off, not that an empty header gets in.
+    # Compare in constant time, so that response times do not reveal how much of a guess was right.
+    if not token or not hmac.compare_digest(
+        given_token.encode("utf-8"), str(token).encode("utf-8")
+    ):
         return (
             make_response(
-                "ERROR", "Not authorized to check task status.", datetime(1970, 1, 1)
+                "ERROR",
+                "Not authorized to check task status.",
+                datetime(1970, 1, 1),
+                authorized=False,
             ),
             FORBIDDEN_STATUS_CODE,
         )
