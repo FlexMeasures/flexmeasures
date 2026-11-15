@@ -90,3 +90,48 @@ def test_dashboard_keeps_asset_names_out_of_script(
     finally:
         db.session.delete(asset)
         db.session.commit()
+
+
+def test_dashboard_keeps_group_names_out_of_layer_control_script(
+    db, client, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """Group names (account names when grouping by account) reach the map's layer control as JSON strings of HTML-escaped text.
+
+    Leaflet sets layer labels as HTML, and a JS string literal decodes escapes such as \\u003c,
+    so HTML-escaping alone (which leaves backslashes alone) is not enough.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.models.user import Account
+
+    name = "Grp \\u003cimg src=x onerror=alert(3)\\u003e"
+    account = Account(name=name)
+    db.session.add(account)
+    asset = GenericAsset(
+        name="Layer label test site",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=account,
+        latitude=52.2,
+        longitude=5.2,
+    )
+    db.session.add(asset)
+    db.session.commit()
+    try:
+        dashboard = client.get(
+            url_for("flexmeasures_ui.dashboard_view", group_by_accounts=1)
+        )
+        assert dashboard.status_code == 200
+        page = dashboard.data.decode()
+        overlay_lines = [
+            line
+            for line in page.splitlines()
+            if "control.addOverlay(" in line and "u003cimg" in line
+        ]
+        assert overlay_lines, "the account's layer is in the layer control"
+        for line in overlay_lines:
+            # The backslash is JSON-escaped, so the JS string holds the literal text "\\u003c", not "<".
+            assert "\\\\u003cimg" in line, line
+            assert '"Grp \\u003cimg' not in line, line
+    finally:
+        db.session.delete(asset)
+        db.session.delete(account)
+        db.session.commit()

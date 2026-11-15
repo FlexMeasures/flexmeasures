@@ -232,7 +232,7 @@
     {% if asset_groups[asset_group_name].count > 0 %}
     var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
     mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);
-    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, "{{ asset_group_name | capitalize }}")
+    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, {{ asset_group_name | capitalize | e | tojson }})  {# Leaflet sets the label as HTML: escape it, then encode it for JS #}
     {{ asset_groups[asset_group_name].parameterized_name }}_layer.addTo(assetMap);
     {% endif %}
     {% endfor %}
