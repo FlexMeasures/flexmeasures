@@ -253,8 +253,9 @@ A dependency that would have an automation end up waiting for itself is refused.
 
 Some cases where the upstream run does not happen:
 
-- If the upstream automation was due at that time but moved past it without a run, for instance because missed runs were coalesced while the runner was down, the waiting run is skipped (unless failure is allowed for).
-- If the upstream automation was never going to run at that time, because it is inactive or did not exist yet, the waiting run goes ahead without it. Its run record says so.
+- If the upstream automation missed that time while the runner was down, its missed runs were coalesced into the run it caught up with, so the waiting run waits for that one instead.
+- If the upstream automation was never going to run at that time, because it is inactive, did not exist yet, or its recurrence was reset since (by reactivating it, or by giving it another cron string or timezone), the waiting run goes ahead without it. Its run record says so.
+- If the upstream automation moved past that time without any run, the waiting run is skipped (unless failure is allowed for).
 
 The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for.
 By default, you pick among those listed on the page, and you can switch to this asset only, to public assets, or to every automation you can see.

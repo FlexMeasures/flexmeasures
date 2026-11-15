@@ -97,6 +97,7 @@ def make_automation(fresh_db, ingestion_plugin):
             ],
         )
         automation.created_at = CREATED_AT
+        automation.revision_started_at = CREATED_AT
         automation.cursor = CREATED_AT
         fresh_db.session.commit()
         return automation
@@ -404,6 +405,62 @@ def test_a_run_whose_upstream_automation_passed_over_that_time_is_skipped(
 
     assert returns[flows.id]["dispatch_state"] == "skipped"
     assert _run_of(fresh_db, flows).plan["upstream-runs"][0]["state"] == "passed-over"
+
+
+@pytest.mark.parametrize("reset", ["reactivated", "new cron string"])
+def test_a_run_goes_ahead_when_its_upstream_automation_was_reset_after_that_time(
+    fresh_db, make_automation, freeze_server_now, reset
+):
+    """A reset recurrence is not due at the times before the reset, so what waits for it goes ahead, rather than being skipped until its next run."""
+    snapper = make_automation("Snap meter readings", cronstr="0 0 * * *")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    if reset == "reactivated":
+        snapper.active = False
+        fresh_db.session.commit()
+    freeze_server_now(datetime(2026, 8, 5, 0, 30, tzinfo=timezone.utc))
+    if reset == "reactivated":
+        update_automation(snapper, active=True)
+    else:
+        update_automation(snapper, cronstr="1 0 * * *")
+    fresh_db.session.commit()
+
+    returns = _tick()
+
+    assert returns[flows.id]["dispatch_state"] == "queued"
+    upstream = _run_of(fresh_db, flows).plan["upstream-runs"][0]
+    assert upstream["state"] == "not-scheduled"
+
+
+@pytest.mark.parametrize("upstream_fails", [False, True])
+def test_a_run_waits_for_the_run_its_upstream_automation_caught_up_with(
+    fresh_db, app, make_automation, failing_value, upstream_fails
+):
+    """After an outage, missed upstream runs are coalesced into the latest one, which a run waiting for an earlier one waits for instead."""
+    puller = make_automation(
+        "Pull meter data", cronstr="*/15 * * * *", value=-1 if upstream_fails else 1
+    )
+    puller.cursor = datetime(2026, 8, 5, 0, 45, tzinfo=timezone.utc)
+    fresh_db.session.commit()
+    forecast = make_automation("Forecast", depends_on=[puller])
+
+    # The runner comes back at 01:16, so the puller's run at 01:00 is coalesced into the one at 01:15.
+    returns = _tick(datetime(2026, 8, 5, 1, 16, 30, tzinfo=timezone.utc))
+    assert returns[forecast.id]["dispatch_state"] == "waiting"
+    catch_up_run = _run_at(
+        fresh_db, puller, datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc)
+    )
+
+    _work(app, catch_up_run)
+
+    forecast_run = _run_at(fresh_db, forecast, SCHEDULED_AT)
+    if upstream_fails:
+        assert forecast_run.execution_state == "skipped"
+    else:
+        assert forecast_run.dispatch_state == "queued"
+        _work(app, forecast_run)
+        assert _run_at(fresh_db, forecast, SCHEDULED_AT).execution_state == (
+            "succeeded"
+        )
 
 
 def test_a_run_goes_ahead_without_an_inactive_upstream_automation(

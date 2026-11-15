@@ -40,7 +40,7 @@ from flexmeasures.data.models.automations import (
     AutomationRunAttempt,
     AutomationRunJob,
     get_default_automation_timezone,
-    get_initial_cursor,
+    get_revision_start,
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
@@ -418,17 +418,33 @@ def _state_without_upstream_run(upstream: Automation, due_at: datetime) -> str:
     - 'passed-over': the upstream automation was due at that time, but moved past it without a run,
       as missed runs are coalesced or left out (see `get_due_automations`).
     - 'not-scheduled': the upstream automation was never going to run at that time,
-      as it is inactive, or did not exist yet.
+      as it is inactive, or as the time comes before its current recurrence started,
+      which is when it was created, or when its recurrence was last reset (see `update_automation`).
     """
-    if (
-        not upstream.active
-        # An automation's first run can be the one due in the minute it was created (see `get_initial_cursor`).
-        or floor_to_minute(upstream.created_at) > due_at
-    ):
+    if not upstream.active or due_at < upstream.revision_started_at:
         return "not-scheduled"
     if upstream.cursor is None or upstream.cursor < due_at:
         return "pending"
     return "passed-over"
+
+
+def _get_catch_up_run(upstream: Automation, due_at: datetime) -> AutomationRun | None:
+    """Find the scheduled run that an upstream automation caught up with after the time it was due at, if any.
+
+    Runs missed while the runner was down are coalesced into the latest one (see `get_due_automations`),
+    which is the first run of the same revision after the missed time.
+    """
+    return db.session.scalars(
+        select(AutomationRun)
+        .where(
+            AutomationRun.automation_id == upstream.id,
+            AutomationRun.trigger == "schedule",
+            AutomationRun.schedule_revision == upstream.schedule_revision,
+            AutomationRun.scheduled_at > due_at,
+        )
+        .order_by(AutomationRun.scheduled_at)
+        .limit(1)
+    ).first()
 
 
 def get_upstream_due_at(
@@ -483,12 +499,16 @@ def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
             if due_at is not None
             else None
         )
+        state = None
+        if upstream_run is None and due_at is not None:
+            state = _state_without_upstream_run(dependency.upstream, due_at)
+            if state == "passed-over":
+                # After an outage, the run it caught up with does what the missed run would have, so it is waited for instead.
+                upstream_run = _get_catch_up_run(dependency.upstream, due_at)
         if upstream_run is not None:
             state = _upstream_run_state(upstream_run)
         elif due_at is None:
             state = "not-scheduled"
-        else:
-            state = _state_without_upstream_run(dependency.upstream, due_at)
         found.append(
             {
                 "automation": dependency.upstream_id,
@@ -646,10 +666,9 @@ def release_automation_runs_waiting_for(upstream_run: AutomationRun) -> None:
         )
         .where(
             AutomationDependency.upstream_id == upstream_run.automation_id,
-            # A run waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`),
-            # so the runs that wait for this one are scheduled at the same time or later.
-            # Those that wait for a later upstream run are checked, too, and left waiting (see `release_waiting_automation_run`).
-            AutomationRun.scheduled_at >= upstream_run.scheduled_at,
+            # A run usually waits for the latest upstream run due at or before its own scheduled time (see `get_upstream_due_at`),
+            # but after an outage it can wait for a later run, which the upstream automation caught up with (see `_get_catch_up_run`).
+            # So every waiting run of the automations that wait for this one is checked, and those waiting for another run are left waiting.
             AutomationRun.dispatch_state == "waiting",
         )
         .order_by(AutomationRun.id)
@@ -2692,7 +2711,9 @@ def update_automation(
         # A new revision keeps the durable runs of the old and the new schedule apart,
         # even where they fall on the same scheduled UTC time.
         automation.schedule_revision += 1
-        automation.cursor = get_initial_cursor()
+        # Runs from before the reset are not due by the new recurrence, which is also what the runs waiting for this automation go by (see `_state_without_upstream_run`).
+        automation.revision_started_at = get_revision_start()
+        automation.cursor = automation.revision_started_at - timedelta(minutes=1)
     if dependencies is not None:
         # This records its own audit log line, as creating an automation with dependencies does.
         dependency_changes = set_automation_dependencies(

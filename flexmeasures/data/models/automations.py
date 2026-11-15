@@ -39,9 +39,12 @@ def get_default_automation_timezone(asset=None) -> str:
 
 def get_initial_cursor() -> datetime:
     """Return a cursor which keeps the automation's creation minute eligible."""
-    return server_now().astimezone(timezone.utc).replace(
-        second=0, microsecond=0
-    ) - timedelta(minutes=1)
+    return get_revision_start() - timedelta(minutes=1)
+
+
+def get_revision_start() -> datetime:
+    """Return the minute an automation's recurrence starts from, when it is created or reset, which is the current minute."""
+    return server_now().astimezone(timezone.utc).replace(second=0, microsecond=0)
 
 
 class Automation(db.Model, AuthModelMixin):
@@ -94,6 +97,13 @@ class Automation(db.Model, AuthModelMixin):
         default=get_initial_cursor,
     )
     schedule_revision = db.Column(db.Integer, nullable=False, default=1)
+    # The first minute the current revision of the recurrence is due in, set on creation and on each reset (see `update_automation`).
+    # A time before it was not due by this recurrence, so a run waiting for this automation at that time goes ahead without it.
+    revision_started_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=get_revision_start,
+    )
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
