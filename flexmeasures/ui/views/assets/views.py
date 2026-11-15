@@ -56,6 +56,41 @@ Asset crud view.
 asset_schema = AssetSchema()
 
 
+def _account_and_parent_for_new_asset(
+    account_id: str, parent_asset_id: str
+) -> tuple[Account | None, GenericAsset | None, tuple[str, int] | None]:
+    """Look up the account and parent asset given for a new asset, and check that the user may see the parent.
+
+    Returns the account (the parent's owner, if no account is given), the parent asset, and a response if there is a problem.
+    """
+    account = None
+    parent_asset = None
+    if account_id:
+        if not str(account_id).isdigit():
+            return None, None, ("The account_id needs to be a number.", 422)
+        account = db.session.get(Account, int(account_id))
+        if account is None:
+            return None, None, ("Account not found.", 404)
+    if parent_asset_id:
+        if not str(parent_asset_id).isdigit():
+            return None, None, ("The parent_asset_id needs to be a number.", 422)
+        parent_asset = db.session.get(GenericAsset, int(parent_asset_id))
+        if parent_asset is None:
+            return None, None, ("Parent asset not found.", 404)
+        # Do not show anything about a parent asset the user may not see (its name, location or account)
+        check_access(parent_asset, "read")
+        if parent_asset.owner:  # not a public parent asset
+            if account is None:
+                account = parent_asset.owner
+            elif account.id != parent_asset.owner.id:
+                return (
+                    None,
+                    None,
+                    ("The parent asset needs to be under the specified account.", 422),
+                )
+    return account, parent_asset, None
+
+
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -124,22 +159,13 @@ class AssetCrudUI(FlaskView):
                 prompt_user_for_location = True
 
             parent_asset_name = ""
-            account = None
-            if account_id:
-                account = db.session.get(Account, account_id)
-            if parent_asset_id:
-                parent_asset = db.session.get(GenericAsset, parent_asset_id)
-                if parent_asset:
-                    parent_asset_name = parent_asset.name
-                if parent_asset.owner:  # public parent asset
-                    if not account_id:
-                        account = parent_asset.owner
-                    else:
-                        if account_id != parent_asset.owner.id:
-                            return (
-                                f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
-                                422,
-                            )
+            account, parent_asset, problem = _account_and_parent_for_new_asset(
+                account_id, parent_asset_id
+            )
+            if problem:
+                return problem
+            if parent_asset is not None:
+                parent_asset_name = parent_asset.name
                 if parent_asset.latitude and parent_asset.longitude:
                     asset_form.latitude.data = parent_asset.latitude
                     asset_form.longitude.data = parent_asset.longitude
