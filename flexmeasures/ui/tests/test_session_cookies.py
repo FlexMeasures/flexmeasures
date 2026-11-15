@@ -40,9 +40,8 @@ def test_session_cookies_need_no_https_in_development():
 
 
 def test_login_cookies_are_same_site_and_short_lived(client, setup_roles_users, app):
-    with client:
-        cookies = _login_cookies(client)
-        client.post(url_for("security.logout"))
+    cookies = _login_cookies(client)
+    client.post(url_for("security.logout"))
 
     for name in ("session", "remember_token"):
         assert name in cookies, cookies.keys()
@@ -60,9 +59,8 @@ def test_login_cookies_are_secure_with_the_deployed_settings(
 ):
     monkeypatch.setitem(app.config, "SESSION_COOKIE_SECURE", True)
     monkeypatch.setitem(app.config, "REMEMBER_COOKIE_SECURE", True)
-    with client:
-        cookies = _login_cookies(client)
-        client.post(url_for("security.logout"))
+    cookies = _login_cookies(client)
+    client.post(url_for("security.logout"))
 
     for name in ("session", "remember_token"):
         assert "Secure" in cookies[name], cookies[name]
