@@ -224,8 +224,12 @@ class Config(object):
         leafletmarkerclusterlayersupport="2.0.1",
         # todo: expand with other js versions used in FlexMeasures
     )
-    # Failed attempts to authenticate (wrong password or two-factor code) allowed per user (see flexmeasures.auth.login_throttling)
+    # Failed attempts to authenticate (wrong password or two-factor code) allowed per email address and client address (see flexmeasures.auth.login_throttling)
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
+    # ... and per email address from all client addresses together
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "100 per hour"
+    # Number of reverse proxies in front of FlexMeasures whose X-Forwarded-For entries are trusted for the client address
+    FLEXMEASURES_TRUSTED_PROXIES: int = 0
     # Password recovery requests allowed per email address
     FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "5 per hour"
     FLEXMEASURES_JSON_COMPACT = False
@@ -349,6 +353,7 @@ class TestingConfig(Config):
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "1000000 per hour"
     FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
