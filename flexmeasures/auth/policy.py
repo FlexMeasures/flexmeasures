@@ -290,6 +290,29 @@ def can_modify_role(  # noqa: C901
     return True
 
 
+def can_manage_user_with_roles(user, managed_user) -> bool:
+    """Check that a user is at least as privileged as the user they manage.
+
+    Used for changes that could hand over or lock out another user's account,
+    such as their email address, their active status or a password reset.
+    For every role of the managed user, the managing user must either have that role themselves,
+    or be allowed to add and remove it (see can_modify_role).
+    So an account-admin cannot change the email address of an admin in their account,
+    while an admin can manage another admin.
+
+    :param user: The user attempting the change.
+    :param managed_user: The user whose account would be changed.
+    :return: True if the managing user may make such changes, False otherwise.
+    """
+    for role in managed_user.flexmeasures_roles:
+        if user.has_role(role.name):
+            continue
+        if can_modify_role(user, [role], managed_user):
+            continue
+        return False
+    return True
+
+
 def user_can_add_accounts() -> bool:
     """Check if the current user can create new accounts.
 

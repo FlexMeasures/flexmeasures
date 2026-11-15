@@ -9,7 +9,11 @@ from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
-from flexmeasures.auth.policy import can_modify_role, check_access
+from flexmeasures.auth.policy import (
+    can_manage_user_with_roles,
+    can_modify_role,
+    check_access,
+)
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
@@ -21,6 +25,7 @@ from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     reset_password,
     remove_cookie_and_token_access,
+    send_email_change_notice,
     set_random_password,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -400,6 +405,8 @@ class UserAPI(FlaskView):
             Any subset of user fields can be sent.
             If the user is not an (account-)admin, they can only edit a few of their own fields.
             User role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.
+            Changing another user's email address or active status requires having (or being allowed to add and remove) each of their roles,
+            so an account-admin cannot change these fields of an admin. When the email address changes, the previous address is notified.
 
             The following fields are not allowed to be updated at all:
             - id
@@ -459,10 +466,20 @@ class UserAPI(FlaskView):
             "flexmeasures_roles",
         ]
         audit_event = ""  # we audit-log relevant changes
+        old_email = None
         for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
             if current_user.id == user.id and k in ("active", "flexmeasures_roles"):
                 raise Forbidden(
                     "Users who edit themselves cannot edit security-sensitive fields."
+                )
+            if (
+                k in ("email", "active")
+                and getattr(user, k) != v
+                and current_user.id != user.id
+                and not can_manage_user_with_roles(current_user, user)
+            ):
+                raise Forbidden(
+                    f"You are not allowed to change the {k} of a user with roles you do not have."
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
             if k == "flexmeasures_roles" and (v or len(v) == 0):
@@ -487,22 +504,31 @@ class UserAPI(FlaskView):
                 if roles_being_added:
                     audit_event += f"Added role(s): [{','.join([r.name for r in roles_being_added])}]."
 
+            old_value = getattr(user, k)
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
             if k == "active":
                 audit_event += f"Active status set to '{v}'."
+            if k == "email" and old_value != v:
+                old_email = old_value
+                audit_event += f"Email changed from '{old_value}' to '{v}'. "
         if audit_event:
             user_audit_log = create_user_audit_log(audit_event, user)
             db.session.add(user_audit_log)
         db.session.add(user)
         try:
-            db.session.commit()
+            db.session.flush()
         except IntegrityError as ie:
+            db.session.rollback()
             return (
                 dict(message="Duplicate user already exists", detail=ie._message()),
                 400,
             )
+        if old_email is not None:
+            # commit only if the previous address could be told about the change
+            send_email_change_notice(user, old_email)
+        db.session.commit()
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
@@ -522,6 +548,7 @@ class UserAPI(FlaskView):
             and also sends an email for resetting the password to the user.
 
             Users can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.
+            Resetting another user's password requires having (or being allowed to add and remove) each of their roles.
           parameters:
             - in: path
               name: id
@@ -542,6 +569,12 @@ class UserAPI(FlaskView):
           tags:
             - Users
         """
+        if current_user.id != user.id and not can_manage_user_with_roles(
+            current_user, user
+        ):
+            raise Forbidden(
+                "You are not allowed to reset the password of a user with roles you do not have."
+            )
         reset_password(user)
         # commit only if sending instructions worked, as well
         db.session.commit()

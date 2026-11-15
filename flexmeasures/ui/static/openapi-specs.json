@@ -2475,7 +2475,7 @@
       },
       "patch": {
         "summary": "Update a user.",
-        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
+        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.\nChanging another user's email address or active status requires having (or being allowed to add and remove) each of their roles,\nso an account-admin cannot change these fields of an admin. When the email address changes, the previous address is notified.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2792,7 +2792,7 @@
     "/api/v3_0/users/{id}/password-reset": {
       "patch": {
         "summary": "Password reset",
-        "description": "Reset the user's password, and send them instructions on how to reset the password.\nThis endpoint is useful from a security standpoint, in case of worries the password might be compromised.\nIt sets the current password to something random, invalidates cookies and auth tokens,\nand also sends an email for resetting the password to the user.\n\nUsers can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.\n",
+        "description": "Reset the user's password, and send them instructions on how to reset the password.\nThis endpoint is useful from a security standpoint, in case of worries the password might be compromised.\nIt sets the current password to something random, invalidates cookies and auth tokens,\nand also sends an email for resetting the password to the user.\n\nUsers can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.\nResetting another user's password requires having (or being allowed to add and remove) each of their roles.\n",
         "parameters": [
           {
             "in": "path",
