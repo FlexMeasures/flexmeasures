@@ -1942,7 +1942,12 @@ def _prepare_forecast_automation(
 
     warnings = []
     with errors_reported_for("parameters"):
-        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+        # Server paths to write models and outputs to are for the CLI only:
+        # an automation runs unattended on the servers, for whoever defined it.
+        # Excluded fields are refused as unknown, before the schema creates any directory.
+        deserialized_parameters = ForecasterParametersSchema(
+            exclude=["model_save_dir", "output_path"]
+        ).load(parameters)
     sensor = deserialized_parameters.get("sensor")
     with errors_reported_for("parameters"):
         _refuse_target_qualifiers(sensor)

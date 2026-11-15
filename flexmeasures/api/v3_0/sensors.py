@@ -2194,8 +2194,10 @@ class SensorAPI(FlaskView):
             # The API always queues a job, whose results only make sense when they are recorded,
             # so dry runs are supported on the CLI only.
             # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            # Server paths to write models and outputs to are for the CLI only, too:
+            # excluded fields are refused as unknown, before the schema creates any directory.
             exclude=EXCLUDED_FORECASTING_FIELDS
-            + ["dry_run"],
+            + ["dry_run", "model_save_dir", "output_path"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
