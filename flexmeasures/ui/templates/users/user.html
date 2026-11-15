@@ -202,10 +202,10 @@
   const roleRank = new Map({{ role_display_order | tojson }}.map((role, index) => [role, index]));
   let currentRoles = new Set(); // Use a Set to store unique roles easily
   const user = {
-    id: '{{ user.id }}',
-    username: '{{ user.username }}',
-    email: '{{ user.email }}',
-    timezone: '{{ user.timezone }}',
+    id: {{ user.id | string | tojson }},
+    username: {{ user.username | tojson }},
+    email: {{ user.email | tojson }},
+    timezone: {{ user.timezone | tojson }},
     active: '{{ user.active | tojson }}',
     flexmeasures_roles: userRoles.map(role => allRoles[role]),
   };
