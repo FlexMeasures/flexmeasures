@@ -476,6 +476,8 @@ def test_post_sensor_data_rejects_large_json(
         ),
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
+        # Beyond pandas' Timestamp.max, so saving it would crash
+        ("prior", "2999-01-01T00:00:00+00:00", "prior", "can be stored"),
     ],
 )
 @pytest.mark.parametrize(

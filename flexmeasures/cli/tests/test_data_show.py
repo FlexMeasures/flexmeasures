@@ -1,4 +1,7 @@
 import os
+import warnings
+from datetime import timedelta
+
 import pytest
 from sqlalchemy import select
 
@@ -6,6 +9,7 @@ from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
     get_click_commands,
 )
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.tests.utils import get_test_sensor
 
 # Tests here share one database, so the rows each test adds are deleted afterwards.
@@ -255,6 +259,162 @@ def test_plot_beliefs(app, db, setup_beliefs):
     assert "Data spans an hour" in result.output
 
     check_command_ran_without_error(result)
+
+
+@pytest.fixture
+def amsterdam_sensor(db, setup_markets, setup_sources) -> Sensor:
+    """An hourly sensor in Europe/Amsterdam with one belief, for the event starting at 2021-03-28 15:00 UTC.
+
+    Its timezone is neither UTC (the column default, and what a naive export would show) nor any of the export timezones used below.
+    """
+    sensor = Sensor(
+        name="amsterdam_price",
+        generic_asset=setup_markets["epex_da"].generic_asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+        timezone="Europe/Amsterdam",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            source=setup_sources["ENTSO-E"],
+            event_value=42,
+            event_start="2021-03-28 16:00+01",
+            belief_horizon=timedelta(0),
+        )
+    )
+    db.session.commit()
+    return sensor
+
+
+def show_beliefs(app, sensors, *options):
+    """Run `flexmeasures show beliefs` with the given options, for the hour starting at 2021-03-28 15:00 UTC."""
+    from flexmeasures.cli.data_show import plot_beliefs
+
+    sensor_options = [
+        option for sensor in sensors for option in ("--sensor", str(sensor.id))
+    ]
+    return app.test_cli_runner().invoke(
+        plot_beliefs,
+        [
+            *sensor_options,
+            "--start",
+            "2021-03-28T16:00+01",
+            "--duration",
+            "PT1H",
+            *options,
+        ],
+    )
+
+
+def export_beliefs(app, tmp_path, sensors, *options):
+    """Run `flexmeasures show beliefs --to-file` with the given options, for the same hour.
+
+    Returns the result of the command and the path of the CSV file it was told to write.
+    """
+    filepath = tmp_path / "beliefs.csv"
+    result = show_beliefs(app, sensors, "--to-file", str(filepath), *options)
+    return result, filepath
+
+
+def first_exported_timestamp(filepath) -> str:
+    """The event start of the CSV's only data row, as written (the three header lines hold the names, units and index name)."""
+    lines = filepath.read_text().splitlines()
+    assert len(lines) == 4, lines
+    return lines[-1].split(",")[0]
+
+
+@pytest.mark.parametrize(
+    "timezone_options, expected_timestamp",
+    [
+        # Without the option, the file uses the sensor's timezone (this used to be naive UTC).
+        ([], "2021-03-28 17:00:00+02:00"),
+        # An explicit timezone is used (this used to be ignored, giving naive UTC, too).
+        (["--export-timezone", "Asia/Tokyo"], "2021-03-29 00:00:00+09:00"),
+        # The former name of the option keeps working.
+        (["--timezone", "Asia/Tokyo"], "2021-03-29 00:00:00+09:00"),
+    ],
+)
+def test_plot_beliefs_exports_in_the_requested_timezone(
+    app, db, amsterdam_sensor, tmp_path, timezone_options, expected_timestamp
+):
+    result, filepath = export_beliefs(
+        app, tmp_path, [amsterdam_sensor], *timezone_options
+    )
+
+    check_command_ran_without_error(result)
+    assert first_exported_timestamp(filepath) == expected_timestamp
+    assert "only applies to the file" not in result.output
+
+
+def test_plot_beliefs_timezone_alias_is_deprecated(app, db, amsterdam_sensor, tmp_path):
+    result, _ = export_beliefs(
+        app, tmp_path, [amsterdam_sensor], "--timezone", "Asia/Tokyo"
+    )
+    assert (
+        "Option '--timezone' will be replaced by '--export-timezone'." in result.output
+    )
+
+    result, _ = export_beliefs(
+        app, tmp_path, [amsterdam_sensor], "--export-timezone", "Asia/Tokyo"
+    )
+    assert "will be replaced by" not in result.output
+
+
+def test_plot_beliefs_defaults_to_the_timezone_of_the_first_non_empty_sensor(
+    app, db, setup_markets, amsterdam_sensor, tmp_path
+):
+    """The sensor without data in the requested period is dropped, so it does not decide the timezone (UTC)."""
+    empty_sensor = setup_markets["epex_da_production"]
+
+    result, filepath = export_beliefs(app, tmp_path, [empty_sensor, amsterdam_sensor])
+
+    check_command_ran_without_error(result)
+    assert f"No data found for sensor {empty_sensor.id}" in result.output
+    assert first_exported_timestamp(filepath) == "2021-03-28 17:00:00+02:00"
+
+
+def test_plot_beliefs_rejects_an_unknown_export_timezone(
+    app, db, amsterdam_sensor, tmp_path
+):
+    result, filepath = export_beliefs(
+        app, tmp_path, [amsterdam_sensor], "--export-timezone", "Europe/NotAmsterdam"
+    )
+
+    assert result.exit_code == 2
+    assert (
+        "Invalid value for '--export-timezone' / '--timezone': "
+        "Timezone 'Europe/NotAmsterdam' does not exist."
+    ) in result.output
+    assert not filepath.exists()
+
+
+def test_plot_beliefs_warns_that_the_export_timezone_needs_a_file(
+    app, db, amsterdam_sensor
+):
+    result = show_beliefs(app, [amsterdam_sensor], "--export-timezone", "Asia/Tokyo")
+
+    check_command_ran_without_error(result)
+    assert (
+        "--export-timezone only applies to the file written with --to-file"
+        in result.output
+    )
+
+
+def test_plot_beliefs_plots_without_timezone_warnings(app, db, amsterdam_sensor):
+    """uniplot cannot represent timezones, and numpy warns about each timezone-aware timestamp series it is given."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = show_beliefs(app, [amsterdam_sensor])
+
+    check_command_ran_without_error(result)
+    assert not [
+        warning
+        for warning in caught
+        if "no explicit representation of timezones" in str(warning.message)
+    ]
 
 
 def test_cli_help(app):

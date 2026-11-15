@@ -33,6 +33,7 @@ EXEMPT = {
     "test_storage_utils.py": "no scheduling",
     "test_utils.py": "no scheduling",
     "test_utils_fresh_db.py": "no scheduling",
+    "test_validate_constraints.py": "checks constraint validation, not scheduling",
 }
 
 TESTS_DIR = pathlib.Path(__file__).parent

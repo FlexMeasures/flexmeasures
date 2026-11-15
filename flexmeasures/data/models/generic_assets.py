@@ -343,10 +343,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         All logged-in users can read if the asset is public.
         For non-public assets, we allow reading to whoever can read the account.
-        Both creation of children (beliefs, child assets) as well as editing
-        is allowed for every user in the account or consultants.
-        Deletion is only allowed for account admins, as well as for consultants.
-
+        Creating and editing child assets, sensors and data is allowed for every user in the account or consultants.
         Members may delete an asset only if it holds no data;
         deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
@@ -750,17 +747,24 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
+        A sensor reference whose sensor was deleted, and which has no default, does not define its field,
+        so the field is taken from a farther ancestor, if any, until a new sensor is picked for it.
 
         :returns: Dictionary mapping each flex-context field name to a dictionary with
                   the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
         """
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+        from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
         from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
+
+        def defines_field(value) -> bool:
+            return not (is_unset_sensor_reference(value) and "default" not in value)
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
         flex_context = {
             field: dict(value=value, asset=self)
             for field, value in (self.flex_context or {}).items()
+            if defines_field(value)
         }
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
@@ -774,7 +778,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             # An ancestor's flex_context may still be None (e.g. a pending asset
             # created without one, before its column default is applied on flush).
             for field, value in (parent_asset.flex_context or {}).items():
-                if field in flex_context:
+                if field in flex_context or not defines_field(value):
                     continue
                 if field in INFLEXIBLE_DEVICE_KEYS and inflexible_family_defined:
                     continue

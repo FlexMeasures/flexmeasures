@@ -133,6 +133,8 @@ def save_generator_results(results: list[dict]) -> list[dict]:
     a result without one, such as a scheduler's own bookkeeping, holds no beliefs, so the caller leaves it out, as ``make_schedule`` does.
     A belief that repeats the belief right before it is not saved again, as for any other data,
     which also makes saving results a generator already saved itself cost nothing extra.
+    A result may name events whose beliefs are saved even so, under "save_even_if_unchanged" (their event starts),
+    as a report does where its belief has to supersede a belief of another source recorded since (see `AggregatorReporter`).
 
     :returns: per result, the sensor id and the number of beliefs saved ("n_rows"),
         which leaves out NaN values and beliefs that were already on record.
@@ -140,7 +142,17 @@ def save_generator_results(results: list[dict]) -> list[dict]:
     saved = []
     with db.session.begin_nested():
         for result in results:
-            _, n_saved = save_to_db_and_count(result["data"])
+            data = result["data"]
+            forced = result.get("save_even_if_unchanged")
+            if forced is None or len(forced) == 0:
+                _, n_saved = save_to_db_and_count(data)
+            else:
+                is_forced = data.index.get_level_values("event_start").isin(forced)
+                _, n_changed = save_to_db_and_count(data[~is_forced])
+                _, n_forced = save_to_db_and_count(
+                    data[is_forced], save_changed_beliefs_only=False
+                )
+                n_saved = n_changed + n_forced
             saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
     return saved
 

@@ -124,17 +124,11 @@ A source filter keeps the reference pointing at the right data even when multipl
        "site-consumption-capacity": {"sensor": 55, "source-types": ["forecaster"]}
    }
 
-The supported filter keys are:
+The filter keys are ``source-types``, ``exclude-source-types``, ``source-account`` and ``sources``.
+They work the same for every sensor reference, and are described in :ref:`data_source_filters`, which also sets the different spellings of these filters side by side.
 
-- ``source-types`` / ``exclude-source-types``: include or exclude sources by type (e.g. ``"forecaster"``, ``"scheduler"``, ``"user"``). **Recommended** over a specific source ID, because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so filters based on it don't need updating.
-- ``source-account``: a list of organisation IDs, to filter by the organisation(s) linked to data sources. Useful in multi-tenant setups where several organisations run their own forecasters or schedulers.
-- ``sources``: a list of specific data source IDs. Pass a single-element list to filter on one source.
-
-This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
-
-Each of these keys takes a list, also where it names a single source. A data request filters in the singular instead, with ``source`` and ``source-type``, which :ref:`api_notation` sets side by side.
-
-A key a reference does not take is refused, naming the nearest key it does, so that a filter written in the singular here, or misspelled, fails rather than quietly dropping the filtering it was meant to apply. Besides the filter keys above, a reference takes ``sensor``, the ``default`` described next, and the cleaning bounds further below.
+A key a reference does not take is refused, naming the nearest key it does, so that a filter written in the singular here, or misspelled, fails rather than quietly dropping the filtering it was meant to apply.
+Besides the filter keys, a reference takes ``sensor``, the ``default`` described next, and the cleaning bounds further below.
 
 A reference can also name a ``default``: a fallback quantity to use for the moments where the sensor holds no value.
 
@@ -162,12 +156,33 @@ This helps when a sensor records the occasional implausible value, such as a neg
    }
 
 - ``lower`` / ``upper``: readings below or above these values are clipped to them.
-- ``snap``: a mapping from a target value to an interval; readings inside the interval are replaced by the target. The first bound of the interval is inclusive and the second exclusive.
+- ``snap``: a mapping from a target value to an interval; readings inside the interval are replaced by the target.
 
-Snapping runs before clipping. Bounds without a unit are read in the unit of the referenced sensor, and bounds with a unit must be convertible to it, which is checked when the flex-model or flex-context is loaded.
+The rules for snapping, clipping and units are the same for every data generator, and are described in :ref:`data_cleaning_on_input`.
 Values missing from the sensor are left missing, so a ``default`` still fills them.
 
 These are the same three fields a forecaster uses to clean the data it trains on, and to shape the forecasts it writes: see :ref:`cleaning_forecaster_inputs`.
+
+.. _deleted_referenced_sensor:
+
+When a referenced sensor is deleted
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Deleting a sensor keeps the rest of each flex-model and flex-context reference to it, and only unsets its sensor:
+
+.. code-block:: json
+
+   {
+       "site-consumption-capacity": {"sensor": null, "default": "15 kW", "lower": "0 kW"}
+   }
+
+That way, the reference's default, cleaning bounds and source filters are still in place when you pick a new sensor for the field.
+Until then, the scheduler uses the default as a fixed value.
+Without a default, the scheduler ignores the field, so that a value one of the asset's ancestors sets for that flex-context field applies instead.
+A reference with nothing besides its sensor is removed, and so is an entry in a list of references, such as ``inflexible-consumption``.
+
+Only deleting a sensor leaves such a reference behind: one sent to the API is refused.
+So a flex-context or flex-model holding one can only be saved again once a sensor is picked for it, or the reference is replaced by a fixed value.
 
 
 .. _flex_context:

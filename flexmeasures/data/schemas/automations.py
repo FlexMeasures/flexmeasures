@@ -13,12 +13,12 @@ from marshmallow import (
     Schema,
     ValidationError,
 )
-from pytz import all_timezones_set
 
 from flexmeasures.data import ma
 from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.utils import (
     get_by_id,
     FMValidationError,
@@ -47,16 +47,6 @@ class CronField(MarshmallowClickMixin, fields.Str):
             raise FMValidationError(
                 f"'{value}' does not match any possible date."
             ) from exc
-        return value
-
-
-class TimezoneField(MarshmallowClickMixin, fields.Str):
-    """Field that validates an exact IANA timezone name."""
-
-    def _deserialize(self, value, attr, obj, **kwargs) -> str:
-        value = super()._deserialize(value, attr, obj, **kwargs)
-        if value not in all_timezones_set:
-            raise FMValidationError(f"Timezone '{value}' does not exist.")
         return value
 
 

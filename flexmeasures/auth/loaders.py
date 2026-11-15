@@ -53,8 +53,11 @@ def _collect_sensor_references(
 def _add_sensor_reference(
     sensor_refs: dict[str, list[Sensor]],
     label_path: tuple[str | int, ...],
-    sensor: Sensor | int,
+    sensor: Sensor | int | None,
 ) -> None:
+    if sensor is None:
+        # No sensor to check permissions on: a reference without one is refused when the flex-config is validated.
+        return
     label = _nested_label(label_path)
     sensor_refs.setdefault(label, []).append(_load_sensor(sensor))
 

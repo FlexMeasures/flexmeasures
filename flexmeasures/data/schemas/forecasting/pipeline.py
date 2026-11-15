@@ -461,9 +461,9 @@ class ForecasterParametersSchema(Schema):
     model_save_dir = fields.Str(
         data_key="model-save-dir",
         allow_none=True,
-        load_default="flexmeasures/data/models/forecasting/artifacts/models",
+        load_default=None,
         metadata={
-            "description": "Directory to save the trained model.",
+            "description": "Directory to keep each trained model in, as a file. By default, no model is kept: it is handed from training to prediction in memory.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
             "cli": {
                 "cli-exclusive": True,
@@ -753,9 +753,6 @@ class ForecasterParametersSchema(Schema):
             os.makedirs(output_path)
 
         model_save_dir = data.get("model_save_dir")
-        if model_save_dir is None:
-            # Read default from schema
-            model_save_dir = self.fields["model_save_dir"].load_default
 
         m_viewpoints = max(predict_period // forecast_frequency, 1)
 

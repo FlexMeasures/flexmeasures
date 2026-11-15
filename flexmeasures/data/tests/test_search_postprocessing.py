@@ -42,7 +42,7 @@ def naive_select_latest_version_and_belief_per_event(
     """Reference implementation, written per row rather than vectorised.
 
     Per event, keep one belief per family of sources sharing a name, type and model,
-    choosing the latest version, then the most recent belief, then the highest source id.
+    choosing the latest version, then the most recent belief, then a source missing no members, then the highest source id.
     Then, among those, choose the source the caller named first,
     again falling back on the most recent belief and then the highest source id.
     """
@@ -61,7 +61,12 @@ def naive_select_latest_version_and_belief_per_event(
     per_family: dict = {}
     for i, (event_start, belief_time, source, _cp) in enumerate(bdf.index):
         family = (event_start, source.name, source.type, source.model)
-        candidate = (Version(source.version or "0.0.0"), belief_time, source.id or -1)
+        candidate = (
+            Version(source.version or "0.0.0"),
+            belief_time,
+            not source.missing_members,
+            source.id or -1,
+        )
         incumbent = per_family.get(family)
         if incumbent is None or candidate > incumbent[0]:
             per_family[family] = (candidate, i)
@@ -361,3 +366,35 @@ def test_compress_belief_records_equivalence():
     expected = naive_compress_belief_records(df_horizon, sensor_id=42)
     assert json.dumps(result[0]) == json.dumps(expected[0])
     assert json.dumps(result[1]) == json.dumps(expected[1])
+
+
+def test_a_complete_aggregate_beats_a_partial_one_of_the_same_belief_time():
+    """A report recorded once every member reported replaces the partial one, even where both carry the same belief time.
+
+    Both sources belong to one family, and differ only in the members the partial one says it was missing.
+    The complete one has the lower id here, so the last resort alone would pick the partial one.
+    """
+    complete = DataSource(id=1, name="rep", model="AggregatorReporter", type="reporter")
+    partial = DataSource(
+        id=2,
+        name="rep",
+        model="AggregatorReporter",
+        type="reporter",
+        attributes={"data_generator": {"config": {"missing-members": [7]}}},
+    )
+    beliefs = [
+        (complete, "2024-12-31T00:00+00:00", 1.0),
+        (partial, "2024-12-31T00:00+00:00", 0.6),
+    ]
+    assert _chosen_value(beliefs) == 1.0
+    assert _chosen_value(list(reversed(beliefs))) == 1.0
+    # A more recent partial aggregate still wins, as the most recent belief comes first.
+    assert (
+        _chosen_value(
+            [
+                (complete, "2024-12-31T00:00+00:00", 1.0),
+                (partial, "2024-12-31T06:00+00:00", 0.6),
+            ]
+        )
+        == 0.6
+    )

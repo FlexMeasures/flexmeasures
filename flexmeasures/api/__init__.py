@@ -14,7 +14,11 @@ from sqlalchemy import select
 from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.api.common import rate_limiting
-from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replacements
+from flexmeasures.api.common.utils.api_utils import (
+    catch_timed_belief_replacements,
+    handle_belief_replacement_not_allowed,
+)
+from flexmeasures.data.services.data_ingestion import BeliefReplacementNotAllowed
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
     validation_error_handler,
@@ -155,6 +159,9 @@ def register_at(app: Flask):
     app.register_error_handler(FMValidationError, validation_error_handler)
     app.register_error_handler(RequestEntityTooLarge, request_entity_too_large_handler)
     app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
+    app.register_error_handler(
+        BeliefReplacementNotAllowed, handle_belief_replacement_not_allowed
+    )
     app.unauthorized_handler_api = invalid_sender
 
     rate_limiting.register_at(app)

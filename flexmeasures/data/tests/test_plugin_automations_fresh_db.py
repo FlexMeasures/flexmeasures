@@ -586,3 +586,47 @@ def test_a_job_that_ended_before_its_run_recorded_it_is_caught_up_on(
     fresh_db.session.expire_all()
     run = fresh_db.session.get(AutomationRun, run_id)
     assert run.execution_state == "succeeded"
+
+
+def test_a_job_that_failed_before_its_run_recorded_it_is_caught_up_on_with_its_error(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
+):
+    """A worker may fail a job before the run that queued it has recorded it, so the run takes the error from Redis.
+
+    That is the summary the queue's exception handler stored, so the run names the error's own type, rather than a stand-in.
+    """
+    from flexmeasures.cli.jobs import handle_worker_exception
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.services import automations as automation_services
+
+    def fail(self, value):
+        raise ValueError("no readings to ingest")
+
+    monkeypatch.setattr(MockIngestionGenerator, "_compute", fail)
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+    record_automation_run_jobs = automation_services.record_automation_run_jobs
+    held_back = []
+    monkeypatch.setattr(
+        automation_services,
+        "record_automation_run_jobs",
+        lambda *args: held_back.append(args),
+    )
+    result = run_automation(automation, automation_run=run)
+    work_on_rq(
+        app.queues["ingestion"],
+        exc_handler=handle_worker_exception,
+        job=Job.fetch(result["job_id"], connection=app.redis_connection),
+    )
+
+    record_automation_run_jobs(*held_back[0])
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "failed"
+    assert (run.last_error_type, run.last_error_message) == (
+        "ValueError",
+        "no readings to ingest",
+    )

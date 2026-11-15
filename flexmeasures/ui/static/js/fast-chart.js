@@ -1561,7 +1561,7 @@ function buildLineBarOption(elementId, groups, opts) {
     // The marks are silent and drawn behind the data, so the data tooltip keeps
     // working inside annotation bands; wireAnnotationHover darkens the hovered/
     // pinned annotation and reveals its text below the hovered subplot only.
-    if (annotations.length > 0) {
+    if (annotations.length > 0 || instance.replayTime != null) {
       // Hover tolerance for instant annotations: one resolution bin of this
       // subplot's finest sensor, as in the Vega-Lite annotation layers.
       const groupResolutionsMs = group.series
@@ -1582,6 +1582,9 @@ function buildLineBarOption(elementId, groups, opts) {
         silent: true,
         animation: false,
         legendHoverLink: false, // not in any legend (legends list explicit entries only)
+        // An explicit color keeps this empty carrier from consuming a data palette slot.
+        // Annotation marks and the replay ruler specify their own colors.
+        itemStyle: { color: "transparent" },
         markArea: buildAnnotationMarkArea(annotations, -1, -1),
       };
       const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
@@ -1589,7 +1592,7 @@ function buildLineBarOption(elementId, groups, opts) {
       series.push(carrier);
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
     }
-    group.series.forEach((s, j) => {
+    group.series.forEach((s) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
         name: s.name,
@@ -1658,12 +1661,6 @@ function buildLineBarOption(elementId, groups, opts) {
             lineStyle: lineStyle,
           });
         }
-      }
-      // Without annotations there is no carrier series, so the replay ruler
-      // rides on the subplot's first data series (as before).
-      if (j === 0 && annotations.length === 0) {
-        const markLine = buildAnnotationMarkLine([], -1, -1, instance.replayTime);
-        if (markLine) entry.markLine = markLine;
       }
       series.push(entry);
       seriesMeta.push(s);

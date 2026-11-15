@@ -936,7 +936,11 @@ def _select_latest_version_and_belief_per_event(
     Sources are therefore grouped into families sharing a name, type and model,
     and versions are only ever compared inside a family.
 
-    Within a family, the latest version wins, then the most recent belief, then the highest source id.
+    Within a family, the latest version wins, then the most recent belief,
+    then a source that left nothing out over one that names the members it was missing (see `DataSource.missing_members`),
+    then the highest source id.
+    Two sources of one family differ that way when an `AggregatorReporter` recorded a partial aggregate before the complete one,
+    and a complete aggregate recorded with the same belief time as the partial one should replace it.
 
     Between families, the order the caller named its sources in wins, for a caller that named any,
     then the most recent belief, then the highest source id.
@@ -970,6 +974,9 @@ def _select_latest_version_and_belief_per_event(
     id_per_source = np.array(
         [source.id if source.id is not None else -1 for source in unique_sources]
     )
+    incomplete_per_source = np.array(
+        [bool(getattr(source, "missing_members", None)) for source in unique_sources]
+    )
     # Sources the caller did not name rank behind the ones it did, in the order it gave them.
     # An entry that named nothing this database knows still holds its place,
     # so the rank for the unnamed has to clear every entry, not merely the ones that matched.
@@ -991,11 +998,12 @@ def _select_latest_version_and_belief_per_event(
     family = family_per_source[source_codes]
     version = version_per_source[source_codes]
     source_id = id_per_source[source_codes]
+    incomplete = incomplete_per_source[source_codes]
     position = position_per_source[source_codes]
 
     # np.lexsort takes its keys least significant first.
     within_family = _first_of_each_group(
-        np.lexsort((-source_id, -recency, -version, family, events)),
+        np.lexsort((-source_id, incomplete, -recency, -version, family, events)),
         (events, family),
     )
     between_families = _first_of_each_group(

@@ -378,3 +378,31 @@ def test_an_unmonitored_automation_is_reported_once_it_is_monitored_again(
     assert f"Automation {forecast_automation.id} " in outbox[0].body
     fresh_db.session.refresh(run)
     assert run.alerted_at == DUE_AT
+
+
+def test_the_digest_links_to_the_automation_once_the_base_url_is_set(
+    app, fresh_db, forecast_automation, monkeypatch
+):
+    """With the server's own address configured, each automation in the digest links to its info on the Automations page."""
+    add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+    link = f"/assets/{forecast_automation.asset_id}/automations?automation={forecast_automation.id}"
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert link not in outbox[0].body
+
+    add_run(
+        fresh_db,
+        forecast_automation,
+        DUE_AT - timedelta(hours=1),
+        execution_state="failed",
+    )
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_BASE_URL", "https://ems.example.test/"
+    )
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert f"  runs and jobs: https://ems.example.test{link}" in outbox[0].body
