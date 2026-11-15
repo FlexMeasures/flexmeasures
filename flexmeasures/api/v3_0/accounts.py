@@ -5,6 +5,7 @@ from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_json import as_json
+from werkzeug.exceptions import Forbidden
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 
@@ -311,6 +312,7 @@ class AccountAPI(FlaskView):
               own account, and only if their account has the {{CONSULTANCY_ACCOUNT_ROLE}} account role and they have
               the consultant or account-admin user role.
             - The **plan_id** field can only be edited by admins, and cannot be set to a legacy plan.
+            - The **account_roles** field can only be changed by admins.
 
           security:
             - ApiKeyAuth: []
@@ -391,6 +393,19 @@ class AccountAPI(FlaskView):
             for field in fields_to_check
             if account_data.get(field) != getattr(account, field)
         }
+
+        # Account roles decide what an organisation may do (e.g. the Consultancy role lets
+        # its users create client accounts), so only admins may change them.
+        # Resending the current roles (in any order) is fine.
+        if "account_roles" in account_data and not user_has_admin_access(
+            current_user, "update"
+        ):
+            old_roles = sorted(role.name for role in account.account_roles)
+            new_roles = sorted(role.name for role in account_data["account_roles"])
+            if old_roles != new_roles:
+                raise Forbidden(
+                    "Only platform administrators may change the roles of an organisation."
+                )
 
         # Compile modified fields string
         modified_fields_str = ", ".join(modified_fields.keys())
