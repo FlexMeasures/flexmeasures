@@ -78,6 +78,8 @@ Service usage is only possible with a user access token specified in the request
         "Authorization": "<token>"
     }
 
+Tokens sent in the URL (e.g. as ``?auth_token=<token>``) are refused with ``400 (Bad Request)``, as URLs end up in logs and browser histories.
+
 A fresh "<token>" can be generated on the user's profile after logging in:
 
 .. code-block:: html

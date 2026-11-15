@@ -25,3 +25,24 @@ def test_auth_token(app, client, setup_api_test_data):
     assert response.status_code == 200
     logout_user()  # undo the login made by our patch during token auth
     assert response.json == []  # admin has no assets themselves
+
+
+def test_auth_token_in_url_is_refused(app, client, setup_api_test_data):
+    """Tokens in the URL query end up in logs, browser history and Referer headers, so they are refused, also on UI pages.
+
+    The same token in the Authorization header still works.
+    """
+    with UserContext("test_admin_user@seita.nl") as admin:
+        auth_token = admin.get_auth_token()
+
+    for url in (url_for("AssetAPI:index"), "/assets"):
+        response = client.get(url, query_string={"auth_token": auth_token})
+        logout_user()  # undo any login made by our patch during token auth
+        assert response.status_code == 400, (url, response.status_code)
+        assert auth_token not in response.get_data(as_text=True)
+
+    response = client.get(
+        url_for("AssetAPI:index"), headers={"Authorization": auth_token}
+    )
+    logout_user()
+    assert response.status_code == 200

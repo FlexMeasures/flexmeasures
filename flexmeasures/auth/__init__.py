@@ -2,7 +2,7 @@
 Authentication and authorization policies and helpers.
 """
 
-from flask import Flask
+from flask import Flask, request
 from flask_security import (
     Security,
     SQLAlchemySessionUserDatastore,
@@ -11,7 +11,7 @@ from flask_security import (
     reset_password_instructions_sent,
 )
 from flask_login import user_logged_in, current_user
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import BadRequest, Forbidden, Unauthorized
 
 from flexmeasures.data import db
 
@@ -56,6 +56,17 @@ def register_at(app: Flask):
     password_reset.connect(log_password_reset)
     password_changed.connect(log_password_changed)
     reset_password_instructions_sent.connect(log_reset_password_instructions_sent)
+
+    # Flask-Security also accepts an auth token in the URL query (?auth_token=...),
+    # from where it ends up in server and proxy logs, browser history and Referer headers.
+    # Refuse such requests, before anything loads the user from that token.
+    @app.before_request
+    def refuse_auth_token_in_url():
+        token_key = app.config.get("SECURITY_TOKEN_AUTHENTICATION_KEY", "auth_token")
+        if token_key in request.args:
+            raise BadRequest(
+                f"Do not send auth tokens in the URL (as '{token_key}'). Use the {app.config.get('SECURITY_TOKEN_AUTHENTICATION_HEADER', 'Authorization')} header."
+            )
 
     # also store when the last contact was
     @app.before_request
