@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 
 
 v1.1.1 | November 11, 2026
