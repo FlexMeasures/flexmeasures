@@ -58,6 +58,8 @@ from flexmeasures.data.services.data_generators import (
 from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
 
 AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
+# The error type recorded on a waiting run canceled as its automation was deactivated (see `_cancel_waiting_scheduled_runs`).
+AUTOMATION_DEACTIVATED = "AutomationDeactivated"
 # How often a runner may attempt one run's dispatch, and how long it waits between attempts.
 # A dispatch which keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
 # so the attempts are spaced further apart each time, and run out.
@@ -366,7 +368,8 @@ def get_dispatchable_automation_runs(
         select(AutomationRun)
         .join(Automation)
         .where(
-            Automation.active.is_(True),
+            # A run on demand is asked for, so it goes ahead for an inactive automation, too.
+            or_(Automation.active.is_(True), AutomationRun.trigger == "on-demand"),
             AutomationRun.dispatch_state == "waiting",
             _claim_is_available(now),
         )
@@ -403,7 +406,10 @@ def _upstream_run_state(run: AutomationRun) -> str:
 
     A run that was skipped, or canceled, did not deliver what the runs waiting for it need, so it counts as failed.
     So does a run whose dispatch was given up, as it will never end otherwise.
+    A run canceled as its automation was deactivated counts as 'not-scheduled', as if the automation had been inactive at that time.
     """
+    if run.last_error_type == AUTOMATION_DEACTIVATED:
+        return "not-scheduled"
     if run.execution_completed_at is not None:
         return "succeeded" if run.execution_state == "succeeded" else "failed"
     if _dispatch_was_given_up(run):
@@ -634,7 +640,11 @@ def release_waiting_automation_run(run: AutomationRun) -> dict[str, Any] | None:
     :returns: what the dispatch returned, or None if the run was left waiting.
     """
     db.session.refresh(run)
-    if run.dispatch_state != "waiting" or not run.automation.active:
+    if run.dispatch_state != "waiting" or (
+        # A run on demand is asked for, so it goes ahead for an inactive automation, too.
+        not run.automation.active
+        and run.trigger == "schedule"
+    ):
         return None
     if check_upstream_runs(run)[0] == "wait":
         return None
@@ -2706,6 +2716,8 @@ def update_automation(
         changes.append("activated" if active else "deactivated")
         if active:
             reset_cursor = True
+        else:
+            _cancel_waiting_scheduled_runs(automation)
         automation.active = active
     if reset_cursor:
         # A new revision keeps the durable runs of the old and the new schedule apart,
@@ -2727,6 +2739,30 @@ def update_automation(
             f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via {origin}.",
         )
     return changes + dependency_changes
+
+
+def _cancel_waiting_scheduled_runs(automation: Automation) -> None:
+    """End the scheduled runs of an automation that wait for others, as it is deactivated (not committed yet).
+
+    Such a run would otherwise go ahead, late, once the automation is reactivated.
+    What waits for one of these runs goes ahead without it, as for an inactive automation (see `_upstream_run_state`),
+    once a runner looks at it again (see `get_dispatchable_automation_runs`).
+    Runs on demand are left alone, as they were asked for.
+    """
+    now = _now_utc()
+    for run in db.session.scalars(
+        select(AutomationRun).where(
+            AutomationRun.automation_id == automation.id,
+            AutomationRun.trigger == "schedule",
+            AutomationRun.dispatch_state == "waiting",
+        )
+    ):
+        run.dispatch_state = "queued"
+        run.dispatch_completed_at = now
+        run.execution_state = "canceled"
+        run.execution_completed_at = now
+        run.last_error_type = AUTOMATION_DEACTIVATED
+        run.last_error_message = "Canceled, as its automation was deactivated while this run waited for the runs of other automations."
 
 
 def _describe_dependency(upstream: Automation, allow_failure: bool) -> str:

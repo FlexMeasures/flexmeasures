@@ -257,6 +257,8 @@ Some cases where the upstream run does not happen:
 - If the upstream automation was never going to run at that time, because it is inactive, did not exist yet, or its recurrence was reset since (by reactivating it, or by giving it another cron string or timezone), the waiting run goes ahead without it. Its run record says so.
 - If the upstream automation moved past that time without any run, the waiting run is skipped (unless failure is allowed for).
 
+Deactivating an automation cancels its scheduled runs that are still waiting, rather than having them go ahead late once it is reactivated, and what waits for them goes ahead without them.
+
 The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for.
 By default, you pick among those listed on the page, and you can switch to this asset only, to public assets, or to every automation you can see.
 The chain in an automation's details follows the same choice, and can show all of these automations rather than only those linked to this one.

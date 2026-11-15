@@ -732,6 +732,58 @@ def test_what_may_not_run_is_reported_and_takes_along_what_is_above_it(
     }
 
 
+@pytest.mark.parametrize("released_by", ["upstream job", "runner tick"])
+def test_an_inactive_automation_run_with_upstream_runs_once_they_ended(
+    fresh_db, app, make_automation, monkeypatch, released_by
+):
+    """Inactive automations can be run on demand, which goes for one run with what is upstream of it, too."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    flows.active = False
+    fresh_db.session.commit()
+
+    runs, _, _ = run_automation_chain(flows, "upstream", now=TICK)
+    with monkeypatch.context() as patch:
+        if released_by == "runner tick":
+            patch.setattr(
+                automation_services,
+                "release_automation_runs_waiting_for",
+                lambda run: None,
+            )
+        _work(app, runs[0])
+    if released_by == "runner tick":
+        assert _states(fresh_db, runs)[flows.id][0] == "waiting"
+        _tick(datetime(2026, 8, 5, 1, 1, 30, tzinfo=timezone.utc))
+
+    assert _states(fresh_db, runs)[flows.id] == ("queued", "pending")
+
+
+def test_deactivating_an_automation_cancels_its_waiting_runs(
+    fresh_db, app, make_automation
+):
+    """A waiting run of a deactivated automation would go ahead late once it is reactivated, so it is canceled, and what waits for it goes ahead."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    totals = make_automation("Sum flows", depends_on=[flows])
+    _tick()
+    assert _run_of(fresh_db, flows).dispatch_state == "waiting"
+
+    update_automation(flows, active=False)
+    fresh_db.session.commit()
+    _work(app, _run_of(fresh_db, snapper))
+
+    flows_run = _run_of(fresh_db, flows)
+    assert (flows_run.dispatch_state, flows_run.execution_state) == (
+        "queued",
+        "canceled",
+    )
+    assert "deactivated" in flows_run.last_error_message
+    _tick(datetime(2026, 8, 5, 1, 1, 30, tzinfo=timezone.utc))
+    totals_run = _run_of(fresh_db, totals)
+    assert totals_run.dispatch_state == "queued"
+    assert totals_run.plan["upstream-runs"][0]["state"] == "not-scheduled"
+
+
 def test_an_automation_without_upstream_automations_just_runs(
     fresh_db, app, make_automation
 ):
