@@ -37,8 +37,10 @@ def register_at(app: Flask):
     )  # noqa: F401
 
     # Setup Flask-Security-Too for user authentication & authorization
+    from flexmeasures.auth.forms import FlexMeasuresLoginForm
+
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    app.security = Security(app, user_datastore)
+    app.security = Security(app, user_datastore, login_form=FlexMeasuresLoginForm)
 
     # Register custom auth problem handlers.
     # Note how we are switching authorization and authentication - read more about this in error_handling.py!
@@ -57,6 +59,11 @@ def register_at(app: Flask):
     from flexmeasures.auth.login_throttling import register_at as register_throttling_at
 
     register_throttling_at(app)
+
+    # log authentication events (logins, failures, logouts)
+    from flexmeasures.auth.event_logging import register_at as register_event_logging_at
+
+    register_event_logging_at(app)
 
     password_reset.connect(log_password_reset)
     password_changed.connect(log_password_changed)
