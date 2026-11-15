@@ -572,23 +572,20 @@ def compose_automation_digest(
         if for_host
         else "These automations on assets you look after"
     )
-    closing = [
-        # With the server's address configured, each automation links to its page instead.
-        (
-            None
-            if app.config.get("FLEXMEASURES_BASE_URL")
-            else "Each automation's runs are listed on the Automations page of its asset."
-        ),
-        "We suggest to check the logs." if for_host else None,
-    ]
+    closing_lines = []
+    # With the server's address configured, each automation links to its page instead.
+    if not app.config.get("FLEXMEASURES_BASE_URL"):
+        closing_lines.append(
+            "Each automation's runs are listed on the Automations page of its asset."
+        )
+    if for_host:
+        closing_lines.append("We suggest to check the logs.")
     body = (
         f"{automations} have runs that failed, or that have been executing for longer than {exact_duration_str(stuck_after)}, which were not reported before:\n\n"
         + "\n\n".join(describe_automation_failures(f) for f in failures)
-        + "".join(
-            f"\n\n{line}" if i == 0 else f"\n{line}"
-            for i, line in enumerate(l for l in closing if l)
-        )
     )
+    if closing_lines:
+        body += "\n\n" + "\n".join(closing_lines)
     return subject, body
 
 
