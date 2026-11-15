@@ -3538,7 +3538,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n\nPass `include=waited-for-by` to also list the automations that wait for this one, such as before deleting it.\nThey are looked up across all automations, and one you may not read is listed as a bare ID.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3561,6 +3561,21 @@
             "description": "ID of the automation.",
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "description": "Extra fields to include, namely `waited-for-by`.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "waited-for-by"
+                ]
+              }
             }
           }
         ],

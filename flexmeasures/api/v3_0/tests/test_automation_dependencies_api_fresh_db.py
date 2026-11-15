@@ -326,7 +326,7 @@ def test_listing_automations_across_assets_by_page(
 def test_automation_details_say_what_waits_for_it(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """Before deleting an automation, one can see what waits for it, also on another asset, without learning about what one may not read."""
+    """Before deleting an automation, one can ask what waits for it, also on another asset, without learning about what one may not read."""
     battery, sensor, upstream = upstream_automations
     downstream = _downstream_of(fresh_db, upstream, sensor, upstream["own"])
     fresh_db.session.add(
@@ -343,8 +343,17 @@ def test_automation_details_say_what_waits_for_it(
                 "AssetAPI:get_automation",
                 id=battery.id,
                 automation_id=upstream["own"].id,
+            ),
+            query_string={"include": "waited-for-by"},
+        )
+        plain = client.get(
+            url_for(
+                "AssetAPI:get_automation",
+                id=battery.id,
+                automation_id=upstream["own"].id,
             )
         )
+    assert "waited-for-by" not in plain.json
     assert response.status_code == 200, response.json
     waiting = {item["automation"]: item for item in response.json["waited-for-by"]}
     assert waiting[downstream.id] == {

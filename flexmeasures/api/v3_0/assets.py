@@ -1739,9 +1739,27 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(
+        {
+            "include": fields.List(
+                fields.Str(validate=validate.OneOf(["waited-for-by"])),
+                load_default=list,
+                metadata={
+                    "description": "Extra fields to include: `waited-for-by`, the automations that wait for this one."
+                },
+            )
+        },
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def get_automation(
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        include: list[str] | None = None,
+    ):
         """
         .. :quickref: Assets; Get details of one automation defined on an asset.
 
@@ -1757,6 +1775,9 @@ class AssetAPI(FlaskView):
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
+
+            Pass `include=waited-for-by` to also list the automations that wait for this one, such as before deleting it.
+            They are looked up across all automations, and one you may not read is listed as a bare ID.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1772,6 +1793,15 @@ class AssetAPI(FlaskView):
               description: ID of the automation.
               schema:
                 type: integer
+            - in: query
+              name: include
+              required: false
+              description: Extra fields to include, namely `waited-for-by`.
+              schema:
+                type: array
+                items:
+                  type: string
+                  enum: [waited-for-by]
           responses:
             200:
               description: PROCESSED
@@ -1881,17 +1911,18 @@ class AssetAPI(FlaskView):
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
-        automation_data["waited-for-by"] = [
-            {
-                "automation": waiting.id,
-                **(
-                    {"name": waiting.name, "asset": waiting.asset_id}
-                    if _may_read_automation(waiting)
-                    else {}
-                ),
-            }
-            for waiting in get_automations_waiting_for(automation)
-        ]
+        if "waited-for-by" in (include or []):
+            automation_data["waited-for-by"] = [
+                {
+                    "automation": waiting.id,
+                    **(
+                        {"name": waiting.name, "asset": waiting.asset_id}
+                        if _may_read_automation(waiting)
+                        else {}
+                    ),
+                }
+                for waiting in get_automations_waiting_for(automation)
+            ]
         redis_connection_err = None
         try:
             automation_data["job-stats"] = get_automation_job_stats(automation)

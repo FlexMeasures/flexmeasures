@@ -1556,7 +1556,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       // What waits for it can be on other assets, so the server says.
       // The details can be out of reach, such as for a sensor one may not read, which is no reason not to be able to delete it.
       $.ajax({
-        url: automationUrl(automationId),
+        url: automationUrl(automationId, "?include=waited-for-by"),
         method: "GET",
         success: (res) => askAndDelete(res["waited-for-by"]),
         error: () => askAndDelete(null),
