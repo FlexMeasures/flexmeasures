@@ -56,6 +56,8 @@ def request_auth_token(args) -> tuple[dict, int]:
           and then call this endpoint from that session. Hosts can allow password-only tokens again with
           FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA.
 
+          The password is required also when the request comes from a logged-in session. Deactivated users get no token.
+
       requestBody:
         required: true
         content:
@@ -90,6 +92,12 @@ def request_auth_token(args) -> tuple[dict, int]:
         if current_user.is_authenticated and current_user.email == email:
             user = current_user
             issued_by = "session"
+            # A session alone does not get a token: that would turn a copied session cookie into a portable credential
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
+            if not verify_password(request.json["password"], user.password):
+                user.track_failed_authn("password")
+                return {"errors": ["User password does not match."]}, 401
         else:
             issued_by = "password"
             if "password" not in request.json:
@@ -122,6 +130,9 @@ def request_auth_token(args) -> tuple[dict, int]:
                     },
                     401,
                 )
+        if not user.active:
+            # Flask-Security would refuse the token anyway; do not issue it
+            return {"errors": ["This user is deactivated."]}, 401
         token = user.get_auth_token()
         log_authentication_event(
             f"auth token issued to user {user.id} (by {issued_by})"
