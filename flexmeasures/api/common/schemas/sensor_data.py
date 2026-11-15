@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from flask import current_app
 from flask_login import current_user
 from isodate import datetime_isoformat
 from marshmallow import (
@@ -35,6 +36,11 @@ from flexmeasures.data.schemas import (
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
+from flexmeasures.utils.recurrence import (
+    RecurrenceError,
+    RecurrenceReport,
+    expand_wall_clock_recurrence,
+)
 from flexmeasures.utils.time_utils import (
     decide_resolution,
     duration_isoformat,
@@ -376,6 +382,66 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
         ),
     )
+    repeat = fields.Str(
+        required=False,
+        validate=OneOf(["daily", "same-weekday", "workdays", "weekends"]),
+        metadata=dict(
+            description=(
+                "Repeat the values every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), "
+                "or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone, until the date given by `until`. "
+                "The values are then a pattern of at most one day (or one week, for `same-weekday`)."
+            ),
+            example="daily",
+        ),
+    )
+    until = fields.Date(
+        required=False,
+        metadata=dict(
+            description="With `repeat`: the last date to repeat the values on, inclusive, in the sensor's timezone. At most one year after the values start.",
+            example="2026-11-30",
+        ),
+    )
+
+    @validates_schema
+    def check_repeat_and_until_go_together(self, data, **kwargs):
+        if ("repeat" in data) != ("until" in data):
+            raise ValidationError(
+                "Give both `repeat` and `until` to repeat the values, or neither."
+            )
+
+    @validates("duration")
+    def check_duration_is_exact(self, duration, **kwargs):
+        """Refuse a calendar duration (such as P1M), whose length depends on when it starts, before the resolution checks divide it."""
+        if not isinstance(duration, timedelta):
+            raise ValidationError(
+                "Give the duration in weeks, days, hours or minutes (such as P1D), rather than in months or years."
+            )
+
+    @validates_schema
+    def check_pattern_can_be_repeated(self, data, **kwargs):
+        """Check a pattern to repeat: a sensor with a resolution, no finer values than the sensor's, and at most a year of repeats."""
+        if "repeat" not in data or "until" not in data:
+            return
+        sensor = data["sensor"]
+        if sensor.event_resolution == timedelta(0):
+            raise ValidationError(
+                "Repeating values is not supported for a sensor that records instantaneous values."
+            )
+        inferred_resolution = data["duration"] / len(data["values"])
+        if inferred_resolution < sensor.event_resolution:
+            raise ValidationError(
+                f"Send the values to repeat at the sensor's resolution of {duration_isoformat(sensor.event_resolution)} or coarser, "
+                f"rather than at {duration_isoformat(inferred_resolution)}."
+            )
+        local_start = pd.Timestamp(data["start"]).tz_convert(sensor.timezone)
+        last_date = (
+            local_start.tz_localize(None).normalize() + pd.DateOffset(years=1)
+        ).date()
+        if data["until"] > last_date:
+            raise ValidationError(
+                f"Repeat until {last_date.isoformat()} at the latest, which is one year after the values start; send longer ranges in parts.",
+                field_name="until",
+            )
 
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):
@@ -457,8 +523,14 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
-        bdf = self.load_bdf(data)
-        bdf = self.possibly_downsample_bdf(bdf, data["sensor"].event_resolution)
+        if "repeat" in data:
+            values, _ = self.expand_repeat(data)
+            bdf = self.make_bdf(
+                values.dropna(), data, event_resolution=data["sensor"].event_resolution
+            )
+        else:
+            bdf = self.load_bdf(data)
+            bdf = self.possibly_downsample_bdf(bdf, data["sensor"].event_resolution)
 
         # Post-load validation against message type
         _type = data.get("type", None)
@@ -525,6 +597,53 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         return bdf
 
     @staticmethod
+    def expand_repeat(data: dict) -> tuple[pd.Series, RecurrenceReport]:
+        """Repeat the (upsampled) values as asked by `repeat` and `until`, starting with the values themselves.
+
+        The values themselves are left out only if the repeat days leave out the day they start on, such as a Saturday repeated on workdays.
+        Returns the values with NaN where there is no value, indexed by event start in the sensor's timezone, and a report of what clock changes did to them.
+
+        :raises ValidationError: if the values cannot be repeated as asked, or would repeat to more values than allowed.
+        """
+        sensor = data["sensor"]
+        start = PostSensorDataSchema.align_start_to_sensor(data["start"], sensor)
+        pattern = pd.Series(
+            data["values"],
+            index=pd.date_range(
+                start, periods=len(data["values"]), freq=sensor.event_resolution
+            ),
+            dtype=float,
+        )
+        on_days = {
+            "workdays": lambda day: day.weekday() < 5,
+            "weekends": lambda day: day.weekday() >= 5,
+        }.get(data["repeat"])
+        try:
+            values, report = expand_wall_clock_recurrence(
+                pattern,
+                until=data["until"],
+                tz=sensor.timezone,
+                resolution=sensor.event_resolution,
+                same_weekday_only=data["repeat"] == "same-weekday",
+                on_days=on_days,
+                include_pattern=True,
+            )
+        except RecurrenceError as exc:
+            raise ValidationError(str(exc)) from exc
+        n_values = int(values.notna().sum())
+        if n_values == 0:
+            raise ValidationError(
+                f"The values are not repeated on any day until {data['until'].isoformat()}; repeat them until a later date, or on other days."
+            )
+        max_values = current_app.config.get("FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES")
+        if max_values is not None and n_values > max_values:
+            raise ValidationError(
+                f"Repeating gives {n_values} values, more than the maximum of {max_values}; repeat until an earlier date, and send the rest in another request.",
+                field_name="until",
+            )
+        return values, report
+
+    @staticmethod
     def align_start_to_sensor(start: datetime, sensor: Sensor) -> datetime:
         """Align the start of posted data to the sensor's grid of events, as configured on the sensor.
 
@@ -543,7 +662,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """
-        source = get_or_create_source(self.source_user or current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
         start = self.align_start_to_sensor(sensor_data["start"], sensor_data["sensor"])
@@ -560,6 +678,13 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 freq=event_resolution,
             )
         s = pd.Series(sensor_data["values"], index=dt_index)
+        return self.make_bdf(s, sensor_data, event_resolution=event_resolution)
+
+    def make_bdf(
+        self, s: pd.Series, sensor_data: dict, event_resolution: timedelta
+    ) -> BeliefsDataFrame:
+        """Turn values indexed by event start into beliefs of the posting user, timed as the sensor data says."""
+        source = get_or_create_source(self.source_user or current_user)
 
         # Work out what the recording time should be
         belief_timing = {}
@@ -579,10 +704,37 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
 
 class PostSensorDataRequestSchema(PostSensorDataSchema):
-    """Validate posted sensor data without building a BeliefsDataFrame."""
+    """Validate posted sensor data without building a BeliefsDataFrame.
+
+    Values to repeat are expanded here too, for the report in the response, and for a dry run;
+    the values are saved from the serialized sensor data, which expands them again in the same way.
+    """
+
+    dry_run = fields.Boolean(
+        data_key="dry-run",
+        required=False,
+        load_default=False,
+        metadata=dict(
+            description=(
+                "Only check the data and say what would be saved, without saving anything. "
+                "A dry run is answered directly, rather than as a job."
+            ),
+            example=True,
+        ),
+    )
 
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
+        dry_run = data.pop("dry_run", False)
+        recurrence = None
+        if "repeat" in data or dry_run:
+            # The values in the posted unit, as they would be saved (before unit conversion).
+            expansion_data = self.possibly_upsample_values(dict(data))
+            if "repeat" in expansion_data:
+                values, report = self.expand_repeat(expansion_data)
+            else:
+                values, report = self.lay_out_values(expansion_data), None
+            recurrence = dict(values=values, report=report)
         sensor_data = {
             "values": data["values"],
             "start": datetime_isoformat(data["start"]),
@@ -598,119 +750,28 @@ class PostSensorDataRequestSchema(PostSensorDataSchema):
             sensor_data["prior"] = datetime_isoformat(server_now())
         if "type" in data:
             sensor_data["type"] = data["type"]
-        return dict(sensor=data["sensor"], sensor_data=sensor_data)
-
-
-class RecurrencePreviewSchema(PostSensorDataSchema):
-    """Describe a pattern of sensor values, and how to repeat it, to preview its repeats.
-
-    The pattern takes the shape of posted sensor data, with the same unit and resolution checks.
-    Loading it writes nothing: unlike posted data, it is not attributed to a data source, nor turned into beliefs.
-    """
-
-    class Meta:
-        # An obsolete field of posted data, which a new endpoint need not accept.
-        exclude = ("type",)
-
-    values = PolyField(
-        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        many=False,
-        metadata=dict(
-            description="The values of the pattern, at most one recurrence period long; null means no value.",
-            example=[80, 80, None, 90],
-        ),
-    )
-    repeat = fields.Str(
-        required=True,
-        validate=OneOf(["daily", "same-weekday", "workdays", "weekends"]),
-        metadata=dict(
-            description=(
-                "Repeat the pattern every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), "
-                "or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone."
-            ),
-            example="daily",
-        ),
-    )
-    until = fields.Date(
-        required=True,
-        metadata=dict(
-            description="The last date to repeat the pattern on, inclusive, in the sensor's timezone. At most one year after the pattern starts.",
-            example="2026-11-30",
-        ),
-    )
-
-    @validates("duration")
-    def check_duration_is_exact(self, duration, **kwargs):
-        """Refuse a calendar duration (such as P1M), whose length depends on when it starts."""
-        if not isinstance(duration, timedelta):
-            raise ValidationError(
-                "Give the duration of the pattern in weeks, days, hours or minutes (such as P1D), rather than in months or years."
-            )
-
-    @validates_schema
-    def check_sensor_has_a_resolution(self, data, **kwargs):
-        """Refuse instantaneous sensors, whose repeated instants cannot form one regular series of values."""
-        if data["sensor"].event_resolution == timedelta(0):
-            raise ValidationError(
-                "Repeating a pattern is not supported for a sensor that records instantaneous values."
-            )
-
-    @validates_schema
-    def check_pattern_is_not_finer_than_the_sensor(self, data, **kwargs):
-        """Refuse a pattern finer than the sensor resolution, as it is repeated without averaging its values."""
-        required_resolution = data["sensor"].event_resolution
-        inferred_resolution = data["duration"] / len(data["values"])
-        if inferred_resolution < required_resolution:
-            raise ValidationError(
-                f"Send the pattern at the sensor's resolution of {duration_isoformat(required_resolution)} or coarser, "
-                f"rather than at {duration_isoformat(inferred_resolution)}."
-            )
-
-    @validates_schema
-    def check_until_is_within_a_year(self, data, **kwargs):
-        """Cap the range to repeat over at one year after the pattern starts, in the sensor's timezone."""
-        local_start = pd.Timestamp(data["start"]).tz_convert(data["sensor"].timezone)
-        last_date = (
-            local_start.tz_localize(None).normalize() + pd.DateOffset(years=1)
-        ).date()
-        if data["until"] > last_date:
-            raise ValidationError(
-                f"Repeat until {last_date.isoformat()} at the latest, which is one year after the pattern starts; preview longer ranges in parts.",
-                field_name="until",
-            )
-
-    @post_load()
-    def post_load_sequence(self, data: dict, **kwargs) -> dict:
-        """Index the pattern on the sensor's grid of events, at the sensor resolution.
-
-        Values stay in the unit they were sent in, so their repeats can be posted as they are;
-        saving them converts their unit, as for any posted data.
-        Belief timing is passed on, serialized, for the same reason.
-        """
-        data = self.possibly_upsample_values(data)
-        sensor = data["sensor"]
-        start = self.align_start_to_sensor(data["start"], sensor)
-        pattern = pd.Series(
-            data["values"],
-            index=pd.date_range(
-                start, periods=len(data["values"]), freq=sensor.event_resolution
-            ),
-            dtype=float,
-        )
-        belief_timing = {}
-        if "prior" in data:
-            belief_timing["prior"] = datetime_isoformat(data["prior"])
-        if "horizon" in data:
-            belief_timing["horizon"] = duration_isoformat(data["horizon"])
+        if "repeat" in data:
+            sensor_data["repeat"] = data["repeat"]
+            sensor_data["until"] = data["until"].isoformat()
         return dict(
-            sensor=sensor,
-            pattern=pattern,
-            unit=data["unit"],
-            repeat=data["repeat"],
-            until=data["until"],
-            belief_timing=belief_timing,
+            sensor=data["sensor"],
+            sensor_data=sensor_data,
+            dry_run=dry_run,
+            expanded=recurrence,
         )
+
+    @staticmethod
+    def lay_out_values(data: dict) -> pd.Series:
+        """Index the (upsampled) values by event start, as they would be saved without repeating them."""
+        sensor = data["sensor"]
+        start = PostSensorDataSchema.align_start_to_sensor(data["start"], sensor)
+        resolution = data["duration"] / len(data["values"])
+        index = (
+            pd.date_range(start, periods=len(data["values"]), freq=resolution)
+            if resolution > timedelta(0)
+            else pd.DatetimeIndex([start] * len(data["values"]))
+        )
+        return pd.Series(data["values"], index=index, dtype=float)
 
 
 class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):

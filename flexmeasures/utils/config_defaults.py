@@ -181,6 +181,9 @@ class Config(object):
     FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = (
         3.1 * 1024 * 1024
     )  # up to 3MB are allowed per request
+    FLEXMEASURES_MAX_REPEATED_SENSOR_VALUES: int | None = (
+        100_000  # values that one request to repeat sensor data may expand to, such as a year of 15-minute values (about 35,000)
+    )
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
