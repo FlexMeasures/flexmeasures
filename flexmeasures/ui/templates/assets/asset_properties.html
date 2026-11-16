@@ -72,6 +72,10 @@
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
                                             <option value="" {% if asset.parent_asset_id is none %} selected {%
                                                 endif %}>No Parent</option>
+                                            {% if other_organisation_parent %}
+                                            <option value="{{ other_organisation_parent.id }}" selected>
+                                                {{ other_organisation_parent.label }}</option>
+                                            {% endif %}
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if

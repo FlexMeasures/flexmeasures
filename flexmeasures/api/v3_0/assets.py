@@ -926,6 +926,7 @@ class AssetAPI(FlaskView):
             This endpoint creates a new asset.
 
             To establish a hierarchical relationship, you can optionally include the **parent_asset_id** in the request body to make the new asset a child of an existing asset.
+            The parent asset may belong to another organisation than the new asset, if you may add assets under the parent asset and create assets in the new asset's organisation.
 
           security:
             - ApiKeyAuth: []
@@ -1195,7 +1196,9 @@ class AssetAPI(FlaskView):
         ---
         delete:
           summary: Delete an asset.
-          description: This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.
+          description: |
+            This endpoint deletes an existing asset, as well as its child assets, and all sensors and measurements recorded for them.
+            A child asset may belong to another organisation: deleting it then needs permission to delete assets there, too.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1218,6 +1221,8 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # Deleting an asset deletes its offspring, too, which may belong to other organisations:
+        # the user needs to be allowed to delete each of them (and any data in the subtree, checked on the asset itself).
         for descendant in asset.offspring:
             check_access(descendant, "edit-assets")
         if asset_contains_data(asset):
