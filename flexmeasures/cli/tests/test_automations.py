@@ -135,9 +135,12 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data_fresh_db):
     assert automation.parameters == {"sensor": str(sensor_id)}
     assert automation.generator is not None
     assert automation.generator.model == "TrainPredictPipeline"
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Created automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
     # edit
     result = runner.invoke(
@@ -156,17 +159,23 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data_fresh_db):
     assert automation.name == "Renamed"
     assert automation.timezone == "UTC"
     assert automation.active is False
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Updated automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("Via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
     # delete
     result = runner.invoke(delete_automation, ["--id", automation.id, "--force"])
     assert "Successfully deleted" in result.output, result.output
     assert fresh_db.session.execute(select(Automation)).scalar_one_or_none() is None
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Deleted automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
 
 def test_add_automation_default_cron(
