@@ -204,6 +204,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     normalize_trusted_hosts(app)
     pin_database_driver(app)
     normalize_security_durations(app)
+    resolve_cookie_security(app)
     check_rate_limit_settings(app)
 
     # Check for missing values.
@@ -425,6 +426,20 @@ def normalize_security_durations(app: Flask) -> None:
         app.config[setting] = (
             duration if reads_timedelta else f"{int(duration.total_seconds())} seconds"
         )
+
+
+COOKIE_SECURITY_SETTINGS = ("SESSION_COOKIE_SECURE", "REMEMBER_COOKIE_SECURE")
+
+
+def resolve_cookie_security(app: Flask) -> None:
+    """Mark the login cookies Secure (sent over HTTPS only) when FLEXMEASURES_FORCE_HTTPS is on.
+
+    A value the host set explicitly (True or False) is kept.
+    """
+    force_https = bool(app.config.get("FLEXMEASURES_FORCE_HTTPS", False))
+    for setting in COOKIE_SECURITY_SETTINGS:
+        if app.config.get(setting) is None:
+            app.config[setting] = force_https
 
 
 def check_rate_limit_settings(app: Flask) -> None:

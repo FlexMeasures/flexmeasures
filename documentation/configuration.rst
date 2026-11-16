@@ -690,10 +690,10 @@ SESSION_COOKIE_SECURE, SESSION_COOKIE_SAMESITE, REMEMBER_COOKIE_SECURE, REMEMBER
 
 Attributes of the cookies that keep users logged in to the UI (the `Flask <https://flask.palletsprojects.com/en/stable/config/#SESSION_COOKIE_SECURE>`_ session cookie and the `Flask-Login <https://flask-login.readthedocs.io/en/latest/#cookie-settings>`_ "remember me" cookie).
 FlexMeasures sets both cookies with ``SameSite=Lax`` and ``HttpOnly``, and keeps the "remember me" cookie for two weeks.
-In the production and staging environments, both cookies are also ``Secure``, so browsers only send them over HTTPS.
-If you serve FlexMeasures over plain HTTP on another host than ``localhost``, set ``SESSION_COOKIE_SECURE`` and ``REMEMBER_COOKIE_SECURE`` to ``False``, or logging in will not work.
+With :ref:`FLEXMEASURES_FORCE_HTTPS <force_https>` on, both cookies are also ``Secure``, so browsers only send them over HTTPS.
+Setting ``SESSION_COOKIE_SECURE`` or ``REMEMBER_COOKIE_SECURE`` yourself (to ``True`` or ``False``) overrides this.
 
-Defaults: ``SameSite`` ``"Lax"``, ``Secure`` ``True`` in production and staging (``False`` otherwise), ``REMEMBER_COOKIE_DURATION`` ``timedelta(days=14)``.
+Defaults: ``SameSite`` ``"Lax"``, ``Secure`` as ``FLEXMEASURES_FORCE_HTTPS``, ``REMEMBER_COOKIE_DURATION`` ``timedelta(days=14)``.
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
@@ -731,6 +731,7 @@ FLEXMEASURES_FORCE_HTTPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Set to ``True`` if all requests should be forced to be HTTPS.
+This setting also covers cookies: the login cookies are then marked ``Secure``, unless you set ``SESSION_COOKIE_SECURE`` or ``REMEMBER_COOKIE_SECURE`` yourself.
 
 Default: ``False``
 

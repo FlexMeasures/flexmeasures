@@ -6,11 +6,14 @@ from email.utils import parsedate_to_datetime
 import pytest
 from flask import url_for
 
+from flask import Flask
+
 from flexmeasures.utils.config_defaults import (
     DevelopmentConfig,
     ProductionConfig,
     StagingConfig,
 )
+from flexmeasures.utils.config_utils import resolve_cookie_security
 
 
 def _login_cookies(client) -> dict[str, str]:
@@ -28,15 +31,45 @@ def _login_cookies(client) -> dict[str, str]:
     }
 
 
-@pytest.mark.parametrize("config", [ProductionConfig, StagingConfig])
-def test_session_cookies_are_secure_in_deployed_environments(config):
-    assert config.SESSION_COOKIE_SECURE is True
-    assert config.REMEMBER_COOKIE_SECURE is True
+def _resolved_cookie_settings(config, **host_settings) -> tuple:
+    app = Flask(__name__)
+    app.config.from_object(config)
+    app.config.update(host_settings)
+    resolve_cookie_security(app)
+    return app.config["SESSION_COOKIE_SECURE"], app.config["REMEMBER_COOKIE_SECURE"]
 
 
-def test_session_cookies_need_no_https_in_development():
-    assert DevelopmentConfig.SESSION_COOKIE_SECURE is False
-    assert DevelopmentConfig.REMEMBER_COOKIE_SECURE is False
+@pytest.mark.parametrize("config", [ProductionConfig, StagingConfig, DevelopmentConfig])
+def test_session_cookies_are_secure_when_https_is_forced(config):
+    """Secure cookies follow FLEXMEASURES_FORCE_HTTPS, in every environment."""
+    assert _resolved_cookie_settings(config, FLEXMEASURES_FORCE_HTTPS=True) == (
+        True,
+        True,
+    )
+    assert _resolved_cookie_settings(config, FLEXMEASURES_FORCE_HTTPS=False) == (
+        False,
+        False,
+    )
+    assert _resolved_cookie_settings(config) == (False, False)
+
+
+def test_session_cookie_settings_of_the_host_are_kept():
+    assert _resolved_cookie_settings(
+        ProductionConfig,
+        FLEXMEASURES_FORCE_HTTPS=True,
+        SESSION_COOKIE_SECURE=False,
+    ) == (False, True)
+    assert _resolved_cookie_settings(
+        ProductionConfig,
+        FLEXMEASURES_FORCE_HTTPS=False,
+        REMEMBER_COOKIE_SECURE=True,
+    ) == (False, True)
+
+
+def test_session_cookie_security_is_resolved_at_startup(app):
+    """The app gets a definite value (the test app does not force HTTPS)."""
+    assert app.config["SESSION_COOKIE_SECURE"] is False
+    assert app.config["REMEMBER_COOKIE_SECURE"] is False
 
 
 def test_login_cookies_are_same_site_and_short_lived(client, setup_roles_users, app):
