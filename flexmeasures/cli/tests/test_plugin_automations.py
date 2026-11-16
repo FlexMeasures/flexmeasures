@@ -139,9 +139,12 @@ def test_ui_inspects_custom_and_unavailable_type(
         assert "Measurements &lt;script&gt;" in response
         assert '<script>alert("label")</script>' not in response
         assert r"\u003cscript\u003e" in response
+        # The creation form offers the installed type, under the escaped name its tab uses.
+        assert '<option value="mock-ingestion">Measurements &lt;script&gt;' in response
     else:
         assert "mock-ingestion (plugin unavailable)" in response
-    assert "Create plugin-defined automation types with the CLI" in response
+        # A type whose plugin is gone keeps its tab, but cannot be created.
+        assert '<optgroup label="Plugin types">' not in response
 
 
 def test_the_page_has_a_tab_for_a_type_it_can_come_to_list(
