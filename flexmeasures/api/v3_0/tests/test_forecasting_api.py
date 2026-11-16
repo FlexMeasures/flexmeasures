@@ -118,8 +118,31 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
         ({"n_estimators": 1_000_000}, (422,)),
         ({"max_depth": "6"}, (422,)),
         ({"max_depth": 6, "min_child_samples": 10}, (200, 202)),
+        # each bound
+        ({"max_depth": 9}, (422,)),
+        ({"num_leaves": 65}, (422,)),
+        ({"n_estimators": 301}, (422,)),
+        # the combined limit: n_estimators × min(num_leaves, 2 ** max_depth) <= 8000
+        ({"n_estimators": 300, "num_leaves": 64, "max_depth": 8}, (422,)),
+        ({"n_estimators": 300, "max_depth": 8}, (422,)),  # 31 leaves by default
+        ({"n_estimators": 250, "num_leaves": 32, "max_depth": 5}, (200, 202)),
+        ({"n_estimators": 300, "num_leaves": 64}, (200, 202)),  # depth 3 by default
     ],
-    ids=["machines", "threads", "file", "huge", "string", "tuning"],
+    ids=[
+        "machines",
+        "threads",
+        "file",
+        "huge",
+        "string",
+        "tuning",
+        "deep",
+        "leafy",
+        "many-trees",
+        "combined",
+        "default-leaves",
+        "at-the-limit",
+        "default-depth",
+    ],
 )
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True

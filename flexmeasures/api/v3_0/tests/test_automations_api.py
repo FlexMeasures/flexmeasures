@@ -675,8 +675,10 @@ def test_post_automation_with_inaccessible_sensor(
         ({"forcedsplits_filename": "/etc/passwd"}, 422),
         ({"n_estimators": 1_000_000}, 422),
         ({"max_depth": 6, "min_child_samples": 10}, 201),
+        ({"n_estimators": 300, "num_leaves": 64, "max_depth": 8}, 422),
+        ({"n_estimators": 250, "num_leaves": 32, "max_depth": 5}, 201),
     ],
-    ids=["machines", "threads", "file", "huge", "tuning"],
+    ids=["machines", "threads", "file", "huge", "tuning", "combined", "at-the-limit"],
 )
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
