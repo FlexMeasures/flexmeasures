@@ -3305,7 +3305,7 @@
     "/api/v3_0/assets/{id}": {
       "delete": {
         "summary": "Delete an asset.",
-        "description": "This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.",
+        "description": "This endpoint deletes an existing asset, as well as its child assets, and all sensors and measurements recorded for them.\nA child asset may belong to another organisation: deleting it then needs permission to delete assets there, too.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4723,7 +4723,7 @@
       },
       "post": {
         "summary": "Creates a new asset.",
-        "description": "This endpoint creates a new asset.\n\nTo establish a hierarchical relationship, you can optionally include the <strong>parent_asset_id</strong> in the request body to make the new asset a child of an existing asset.\n",
+        "description": "This endpoint creates a new asset.\n\nTo establish a hierarchical relationship, you can optionally include the <strong>parent_asset_id</strong> in the request body to make the new asset a child of an existing asset.\nThe parent asset may belong to another organisation than the new asset, if you may add assets under the parent asset and create assets in the new asset's organisation.\n",
         "security": [
           {
             "ApiKeyAuth": []

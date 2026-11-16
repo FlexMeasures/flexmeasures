@@ -709,21 +709,78 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
         return f"Updated {field_name}: {old_value} → {new_value}"
 
 
-def _validate_updated_parent_account(db_asset: GenericAsset, asset_data: dict):
-    """Keep an asset in the same account as a new parent asset, whichever caller patches it.
+def check_parent_asset_access(parent: GenericAsset, account_id: int | None) -> None:
+    """Check that the current user may put an asset of the given account under this parent asset.
 
-    :raises ValidationError: if the new parent does not exist or belongs to another account.
+    A parent in the same account needs nothing more than the caller already checks.
+    A parent in another account (asset trees may span organisations) needs permission to add children
+    under the parent, and to create assets in the child's account (only admins may for public assets).
+    The CLI may do anything.
+
+    :raises Forbidden or Unauthorized: if the user may not.
     """
-    parent_id = asset_data.get("parent_asset_id")
-    if parent_id is None or parent_id == db_asset.parent_asset_id:
+    from flask_security import current_user
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.auth.policy import user_has_admin_access
+    from flexmeasures.cli import is_running as running_as_cli
+    from flexmeasures.data.models.user import Account
+
+    if parent.account_id == account_id or running_as_cli():
+        return
+    check_access(parent, "create-children")
+    if account_id is not None:
+        check_access(db.session.get(Account, account_id), "edit-assets")
+    elif not user_has_admin_access(current_user, "update"):
+        raise Forbidden("Only site admins may create public assets (account_id=None).")
+
+
+def validate_parent_asset_access(
+    parent: GenericAsset, account_id: int | None, field_name: str = "parent_asset_id"
+) -> None:
+    """As check_parent_asset_access, for validators: refusal is a validation error.
+
+    :raises ValidationError: if the user may not put an asset of this account under the parent.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    try:
+        check_parent_asset_access(parent, account_id)
+    except (Forbidden, Unauthorized):
+        raise ValidationError(
+            f"Asset {parent.id} belongs to another organisation. Placing an asset under it needs permission"
+            " to add assets under it, and to create assets in the organisation of the asset placed under it.",
+            field_name,
+        )
+
+
+def _validate_updated_parent_account(db_asset: GenericAsset, asset_data: dict):
+    """Check a new parent asset (or a new account under the same parent), whichever caller patches the asset.
+
+    :raises ValidationError: if the new parent does not exist, or belongs to another account
+                             and the user may not place the asset under it (see check_parent_asset_access).
+    """
+    parent_changed = (
+        "parent_asset_id" in asset_data
+        and asset_data["parent_asset_id"] != db_asset.parent_asset_id
+    )
+    account_changed = (
+        "account_id" in asset_data and asset_data["account_id"] != db_asset.account_id
+    )
+    if not (parent_changed or account_changed):
+        return
+    parent_id = asset_data.get("parent_asset_id", db_asset.parent_asset_id)
+    if parent_id is None:
         return
     parent = db.session.get(GenericAsset, parent_id)
-    account_id = asset_data.get("account_id", db_asset.account_id)
-    if parent is None or parent.account_id != account_id:
+    if parent is None:
         raise ValidationError(
-            "Parent asset must belong to the same account as the child asset.",
+            f"Parent GenericAsset with id {parent_id} doesn't exist.",
             "parent_asset_id",
         )
+    validate_parent_asset_access(
+        parent, asset_data.get("account_id", db_asset.account_id)
+    )
 
 
 def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
