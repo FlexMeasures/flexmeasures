@@ -116,11 +116,11 @@ class AnnotationRegressorSchema(Schema):
 # which also take resource settings (e.g. threads), network settings for distributed training and file paths,
 # so only these bounded tuning knobs are passed on from the API. The CLI may still set any parameter.
 API_MODEL_PARAM_BOUNDS: dict[str, tuple[type, float, float]] = {
-    "max_depth": (int, 1, 16),
+    "max_depth": (int, 1, 8),
     "min_child_samples": (int, 1, 10_000),
     "min_data_per_group": (int, 1, 10_000),
-    "num_leaves": (int, 2, 256),
-    "n_estimators": (int, 1, 500),
+    "num_leaves": (int, 2, 64),
+    "n_estimators": (int, 1, 300),
     "learning_rate": (float, 0.001, 1),
     "min_split_gain": (float, 0, 1_000),
     "reg_alpha": (float, 0, 1_000),
@@ -128,6 +128,31 @@ API_MODEL_PARAM_BOUNDS: dict[str, tuple[type, float, float]] = {
     "subsample": (float, 0.01, 1),
     "colsample_bytree": (float, 0.01, 1),
 }
+
+
+# How many tree leaves the model params from the API may add up to, at most:
+# n_estimators × min(num_leaves, 2 ** max_depth), which bounds the training work per model.
+# That is ten times what the forecaster's defaults give (100 trees × min(31 leaves, 2 ** 3) = 800).
+API_MODEL_PARAM_MAX_LEAVES = 8_000
+# The values the forecaster (CustomLGBM) uses for the keys above when they are not set:
+# its own max_depth, and LightGBM's n_estimators and num_leaves.
+MODEL_PARAM_DEFAULTS = {"n_estimators": 100, "num_leaves": 31, "max_depth": 3}
+
+
+def _refuse_too_many_leaves(model_params: dict) -> list[str]:
+    """Bound n_estimators × min(num_leaves, 2 ** max_depth), with unset values at their defaults."""
+    values = {**MODEL_PARAM_DEFAULTS, **model_params}
+    leaves = values["n_estimators"] * min(
+        values["num_leaves"], 2 ** values["max_depth"]
+    )
+    if leaves <= API_MODEL_PARAM_MAX_LEAVES:
+        return []
+    return [
+        f"n_estimators × min(num_leaves, 2 ** max_depth) must be at most {API_MODEL_PARAM_MAX_LEAVES},"
+        f" but is {values['n_estimators']} × min({values['num_leaves']}, 2 ** {values['max_depth']}) = {leaves}"
+        f" (unset values count at their defaults:"
+        f" {', '.join(f'{key} {value}' for key, value in MODEL_PARAM_DEFAULTS.items())})."
+    ]
 
 
 def validate_model_params_from_api(model_params) -> None:
@@ -155,6 +180,8 @@ def validate_model_params_from_api(model_params) -> None:
         ):
             kind = "an integer" if value_type is int else "a number"
             errors.append(f"'{key}' must be {kind} from {lower} to {upper}.")
+    if not errors:
+        errors = _refuse_too_many_leaves(model_params)
     if errors:
         raise ValidationError({"model-params": errors})
 

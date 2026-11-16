@@ -929,3 +929,42 @@ def test_forecaster_config_schema_rejects_unparseable_snap_value():
         )
 
     assert "snap" in exc.value.messages
+
+
+@pytest.mark.parametrize(
+    "model_params, product",
+    [
+        (
+            {"n_estimators": 300, "num_leaves": 64, "max_depth": 8},
+            "300 × min(64, 2 ** 8) = 19200",
+        ),
+        ({"n_estimators": 300, "max_depth": 8}, "300 × min(31, 2 ** 8) = 9300"),
+    ],
+)
+def test_model_params_from_api_have_a_combined_limit(model_params, product):
+    """The error names the product, its limit and the defaults used for unset values."""
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        validate_model_params_from_api,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        validate_model_params_from_api(model_params)
+    (message,) = exc_info.value.messages["model-params"]
+    assert (
+        "n_estimators × min(num_leaves, 2 ** max_depth) must be at most 8000" in message
+    )
+    assert product in message
+    assert "n_estimators 100, num_leaves 31, max_depth 3" in message
+
+
+def test_model_params_defaults_match_the_forecaster():
+    """The defaults counted for unset values are those the forecaster trains with."""
+    from lightgbm import LGBMRegressor
+
+    from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
+    from flexmeasures.data.schemas.forecasting.pipeline import MODEL_PARAM_DEFAULTS
+
+    model = CustomLGBM(max_forecast_horizon=1, probabilistic=False, n_jobs=1)
+    lgbm_defaults = LGBMRegressor().get_params()
+    for key, default in MODEL_PARAM_DEFAULTS.items():
+        assert model.models_params.get(key, lgbm_defaults[key]) == default, key
