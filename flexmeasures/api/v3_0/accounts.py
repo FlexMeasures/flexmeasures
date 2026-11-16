@@ -303,6 +303,7 @@ class AccountAPI(FlaskView):
           summary: Update an existing account.
           description: |
             This endpoint updates the details for an existing account.
+            The account's account-admins, its consultants and admins may update it; its other users may only read it.
 
             In the JSON body, sent in only the fields you want to update.
 

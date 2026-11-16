@@ -383,3 +383,25 @@ def test_account_page_forbidden_for_different_account_user(
         follow_redirects=True,
     )
     assert account_page.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_edit_panel",
+    [
+        ("as_prosumer_user1", False),
+        ("as_prosumer_account_admin", True),
+        ("as_admin", True),
+    ],
+)
+def test_account_page_offers_editing_to_account_admins(
+    db, client, request, login_fixture, expect_edit_panel
+):
+    """Only those who may edit the organisation get the edit panel and the attributes editor."""
+    request.getfixturevalue(login_fixture)
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=account.id), follow_redirects=True
+    )
+    assert account_page.status_code == 200
+    assert (b"Edit account" in account_page.data) == expect_edit_panel
+    assert (b'id="editaccount"' in account_page.data) == expect_edit_panel

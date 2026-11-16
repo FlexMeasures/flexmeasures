@@ -101,7 +101,7 @@ These roles are natively supported and give users more rights:
 
 - ``admin``: A super-user who can do anything.
 - ``admin-reader``: A user who can read anything, but not do modifications.
-- ``account-admin``: Can update and delete data in their account (e.g. assets, sensors, users, beliefs).
+- ``account-admin``: Can update and delete data in their account (e.g. assets, sensors, users, beliefs), and edit the organisation itself (such as its name, colors, logo and attributes).
 - ``consultant``: Can view data in other (client) accounts. More on this concept below.
 
 
