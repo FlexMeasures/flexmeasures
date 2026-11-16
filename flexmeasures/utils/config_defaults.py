@@ -198,8 +198,8 @@ class Config(object):
     FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = (
         3.1 * 1024 * 1024
     )  # up to 3MB are allowed per request
-    # Flask's limit on the body of any request (sensor data ingestion has its own limit, see above)
-    MAX_CONTENT_LENGTH: int | None = 16 * 1024 * 1024
+    # Flask's limit on the body of any request (MAX_CONTENT_LENGTH) is not set here:
+    # unless the host sets it, it is FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES (see resolve_max_content_length).
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
