@@ -1042,11 +1042,24 @@ Creating an automation through the API counts against this budget, too.
 FLEXMEASURES_AUTOMATION_MIN_INTERVAL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The shortest time between two runs of an automation, as set up through the API by users other than admins.
+The shortest time between two runs of an automation, as set up through the API by users other than admins, per automation type.
 An automation whose cron expression can run more often (e.g. ``"* * * * *"`` or ``"*/5 * * * *"``) is refused when it is created, or when its cron expression is changed.
 Admins, and automations set up through the CLI, are not held to this.
 
-Default: ``timedelta(minutes=15)``
+The setting maps automation types to their minimum interval. Types it does not name (such as automation types added by plugins) get the ``"default"`` interval.
+A single ``timedelta`` is also accepted, and then holds for all types.
+
+Default:
+
+.. code-block:: python
+
+    {
+        "default": timedelta(minutes=15),
+        "scheduling": timedelta(minutes=15),
+        "forecasting": timedelta(hours=1),
+        "reporting": timedelta(minutes=15),
+        "ingestion": timedelta(minutes=1),
+    }
 
 FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
