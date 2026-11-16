@@ -1232,6 +1232,10 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
+.. note::  Names in this list also bypass the list of Pandas methods a transformation may use, along with any check of their arguments.
+           For instance, adding ``pipe`` here lets reporter configs (which users can send through the API) call it with any function name.
+           Methods that call other methods by name (``apply``, ``agg``, ``aggregate`` and ``transform``) are allowed without being listed here, as long as every name in their first argument is a method a transformation may use.
+
 Default: ``["get_attribute"]``
 
 
