@@ -22,8 +22,9 @@ if [[ -z "${FM_TOY_BATTERY_SENSOR_ID:-}" ]]; then
     if [[ -n "${FLEXMEASURES_CLIENT_VERSION:-}" ]]; then
         TOY_ACCOUNT_ARGS+=(--client-version "${FLEXMEASURES_CLIENT_VERSION}")
     fi
-    eval "$(docker exec -i "${CONTAINER_NAME}" flexmeasures add toy-account \
-        "${TOY_ACCOUNT_ARGS[@]}" | grep '^FM_TOY_')"
+    TOY_VARS=$(docker exec -i "${CONTAINER_NAME}" flexmeasures add toy-account \
+        "${TOY_ACCOUNT_ARGS[@]}" | grep '^FM_TOY_')
+    eval "$TOY_VARS"
 fi
 
 if [[ -n "${FLEXMEASURES_CLIENT_VERSION:-}" ]]; then

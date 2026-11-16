@@ -159,7 +159,7 @@ escalate to the Tooling & CI Specialist.
 
 ### CI
 
-`.github/workflows/lint-and-test.yml` runs on Python 3.10-3.12 against a postgres:17.4 service container on Ubuntu runners: pre-commit checks,
+`.github/workflows/lint-and-test.yml` runs on Python 3.11-3.12 against a postgres:17.4 service container on Ubuntu runners: pre-commit checks,
 test execution with coverage (incl. doctests), Coveralls reporting.
 
 ## Interaction Rules

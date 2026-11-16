@@ -419,6 +419,23 @@ def is_unset_sensor_reference(value: Any) -> bool:
     )
 
 
+def unset_sensor_reference_paths(value: Any, path: tuple[str, ...] = ()) -> list[str]:
+    """Where a flex-config holds references whose sensor was deleted, so that the UI can point the user at them.
+
+    Such a reference can sit at any depth, such as in a commodity's flex-context or inside a commitment,
+    so each one is named by its path, e.g. "commodities > 2 > consumption-price", counting list positions from 1.
+    """
+    if is_unset_sensor_reference(value):
+        return [" > ".join(path)]
+    if isinstance(value, dict):
+        children = [(str(k), v) for k, v in value.items()]
+    elif isinstance(value, list):
+        children = [(str(i), v) for i, v in enumerate(value, start=1)]
+    else:
+        return []
+    return [p for k, v in children for p in unset_sensor_reference_paths(v, (*path, k))]
+
+
 def refuse_unknown_sensor_reference_keys(
     value: dict[str, Any], known: frozenset[str] | set[str] | None = None
 ) -> None:

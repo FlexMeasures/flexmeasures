@@ -249,12 +249,12 @@ class Scheduler(DataGenerator):
         Initialize a new Scheduler.
 
         TODO: We might adapt the class design, so that a Scheduler object is initialized with configuration parameters,
-              and can then be used multiple times (via compute()) to compute schedules of different kinds, e.g.
-                If we started later (put in a later start), what would the schedule be?
-                If we could change set points less often (put in a coarser resolution), what would the schedule be?
-                If we knew what was going to happen (put in a later belief_time), what would the schedule have been?
-              For now, we don't see the best separation between config and state parameters (esp. within flex models)
-              E.g. start and flex_model[soc_at_start] are intertwined.
+        and can then be used multiple times (via compute()) to compute schedules of different kinds, e.g.
+        - If we started later (put in a later start), what would the schedule be?
+        - If we could change set points less often (put in a coarser resolution), what would the schedule be?
+        - If we knew what was going to happen (put in a later belief_time), what would the schedule have been?
+        For now, we don't see the best separation between config and state parameters (esp. within flex models).
+        E.g. start and flex_model[soc_at_start] are intertwined.
         """
 
         if sensor is not None:
@@ -562,21 +562,21 @@ class Commitment:
     """Contractual commitment specifying prices for deviating from a given position.
 
     Attributes:
-        name:       Name of the commitment.
-        device:     Device to which the commitment pertains. If None, the commitment pertains to the EMS.
-        index:      Pandas DatetimeIndex defining the time slots to which the commitment applies.
-                    The index is shared by the group, quantity, upwards_deviation_price and downwards_deviation_price Pandas Series.
-        _type:      'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
-        group:      Each time slot is assigned to a group. Deviations are determined for each group.
-                    The deviation of a group is determined by the time slot with the maximum deviation within that group.
-        quantity:   The deviation for each group is determined with respect to this quantity.
-                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
-        upwards_deviation_price:
-                    The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
-                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
-        downwards_deviation_price:
-                    The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
-                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+    :name:      Name of the commitment.
+    :device:    Device to which the commitment pertains. If None, the commitment pertains to the EMS.
+    :index:     Pandas DatetimeIndex defining the time slots to which the commitment applies.
+                The index is shared by the group, quantity, upwards_deviation_price and downwards_deviation_price Pandas Series.
+    :_type:     'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+    :group:     Each time slot is assigned to a group. Deviations are determined for each group.
+                The deviation of a group is determined by the time slot with the maximum deviation within that group.
+    :quantity:  The deviation for each group is determined with respect to this quantity.
+                Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+    :upwards_deviation_price:
+                The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
+                Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+    :downwards_deviation_price:
+                The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
+                Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
     """
 
     name: str

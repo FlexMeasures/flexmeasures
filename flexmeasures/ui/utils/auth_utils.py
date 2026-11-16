@@ -34,6 +34,11 @@ def user_can_create_children(context: AuthModelMixin) -> bool:
 
 
 def user_can_delete(context: AuthModelMixin) -> bool:
+    """Return whether the current user may delete this resource.
+
+    Deleting an asset or sensor that holds data also takes the delete-data permission.
+    Only for users without it do we query whether there is data, which takes a few database queries.
+    """
     try:
         from flexmeasures.data.models.generic_assets import GenericAsset
         from flexmeasures.data.models.time_series import Sensor
@@ -42,12 +47,12 @@ def user_can_delete(context: AuthModelMixin) -> bool:
 
         if isinstance(context, GenericAsset):
             check_access(context, "edit-assets")
-            if asset_contains_data(context, lock=False):
-                check_access(context, "delete-data")
+            if not user_can_access(context, "delete-data"):
+                return not asset_contains_data(context, lock=False)
         elif isinstance(context, Sensor):
             check_access(context.generic_asset, "edit-sensors")
-            if sensor_contains_data(context, lock=False):
-                check_access(context, "delete-data")
+            if not user_can_access(context, "delete-data"):
+                return not sensor_contains_data(context, lock=False)
         else:
             check_access(context, "delete")
     except Exception:
