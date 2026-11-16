@@ -153,6 +153,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
     normalize_trusted_hosts(app)
+    resolve_cookie_security(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -302,6 +303,20 @@ def normalize_trusted_hosts(app: Flask) -> None:
         app.config["TRUSTED_HOSTS"] = trusted_hosts
     if trusted_hosts is not None and len(trusted_hosts) == 0:
         app.config["TRUSTED_HOSTS"] = None
+
+
+COOKIE_SECURITY_SETTINGS = ("SESSION_COOKIE_SECURE", "REMEMBER_COOKIE_SECURE")
+
+
+def resolve_cookie_security(app: Flask) -> None:
+    """Mark the login cookies Secure (sent over HTTPS only) when FLEXMEASURES_FORCE_HTTPS is on.
+
+    A value the host set explicitly (True or False) is kept.
+    """
+    force_https = bool(app.config.get("FLEXMEASURES_FORCE_HTTPS", False))
+    for setting in COOKIE_SECURITY_SETTINGS:
+        if app.config.get(setting) is None:
+            app.config[setting] = force_https
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:
