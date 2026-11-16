@@ -188,6 +188,26 @@ def test_post_asset_flex_context_needs_access_to_its_sensors(
             },
             403,
         ),
+        # A stored sensor moved to another field counts as a new reference.
+        (
+            "flex_context",
+            {"consumption-price": {"sensor": "foreign price"}},
+            {"production-price": {"sensor": "foreign price"}},
+            403,
+        ),
+        (
+            "flex_context",
+            {"site-power-capacity": {"sensor": "public power"}},
+            {"aggregate-power": {"sensor": "public power"}},
+            403,
+        ),
+        # A readable sensor may be moved.
+        (
+            "flex_context",
+            {"consumption-price": {"sensor": "public price"}},
+            {"production-price": {"sensor": "public price"}},
+            200,
+        ),
     ],
 )
 def test_patch_asset_flex_config_keeps_stored_references(
