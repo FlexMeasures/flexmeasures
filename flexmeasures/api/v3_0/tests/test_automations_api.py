@@ -673,8 +673,10 @@ def test_post_automation_with_inaccessible_sensor(
         ("* * * * *", False),
         ("*/5 * * * *", False),
         ("0,10 * * * *", False),
+        ("*/15 * * * *", False),  # forecasting automations may run once an hour
+        ("0,30 * * * *", False),
         ("0 6-18 * * *", True),
-        ("*/15 * * * *", True),
+        ("0 * * * *", True),
         ("0 6 * * *", True),
     ],
 )
@@ -692,7 +694,7 @@ def test_automation_cron_may_not_run_too_often(
     cron,
     allowed,
 ):
-    """Non-admins may not set up an automation that runs more often than every 15 minutes,
+    """Non-admins may not set up a forecasting automation that runs more often than once an hour,
     neither when creating it nor when changing its cron expression."""
     battery = add_battery_assets["Test battery"]
     name = f"Forecasts on cron {cron} by {requesting_user.email}"
@@ -743,6 +745,58 @@ def test_automation_cron_may_not_run_too_often(
         else:
             assert response.status_code == 422, response.json
             assert db.session.get(Automation, automation_id).cronstr == "0 6 * * *"
+
+
+@pytest.mark.parametrize(
+    "setting, cron, allowed",
+    [
+        # One interval for all types is still accepted
+        (timedelta(minutes=5), "*/5 * * * *", True),
+        (timedelta(minutes=5), "* * * * *", False),
+        # A type that is not named gets the default
+        ({"default": timedelta(minutes=10)}, "*/10 * * * *", True),
+        ({"default": timedelta(minutes=10)}, "*/5 * * * *", False),
+        ({"forecasting": timedelta(minutes=30)}, "*/30 * * * *", True),
+        ({"forecasting": timedelta(minutes=30)}, "*/15 * * * *", False),
+        ({"scheduling": timedelta(minutes=1)}, "*/5 * * * *", False),  # default 15 min
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_automation_min_interval_per_type(
+    app, db, add_battery_assets, requesting_user, monkeypatch, setting, cron, allowed
+):
+    """The minimum interval is set per automation type, with a default for types not named."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_AUTOMATION_MIN_INTERVAL", setting)
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Forecasts on cron {cron} ({len(str(setting))})",
+                "cron": cron,
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+    assert response.status_code == (201 if allowed else 422), response.json
+    if not allowed:
+        assert "forecasting automations may run at most once every" in str(
+            response.json["message"]
+        )
+
+
+def test_automation_min_interval_defaults():
+    from flexmeasures.data.services.automations import automation_min_interval
+    from flexmeasures.utils.config_defaults import Config
+
+    setting = Config.FLEXMEASURES_AUTOMATION_MIN_INTERVAL
+    assert automation_min_interval("scheduling", setting) == timedelta(minutes=15)
+    assert automation_min_interval("forecasting", setting) == timedelta(hours=1)
+    assert automation_min_interval("reporting", setting) == timedelta(minutes=15)
+    assert automation_min_interval("ingestion", setting) == timedelta(minutes=1)
+    assert automation_min_interval("a-plugin-type", setting) == timedelta(minutes=15)
 
 
 @pytest.mark.parametrize(
