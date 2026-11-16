@@ -311,7 +311,7 @@ def test_consultant_can_set_own_account_as_consultancy_account(
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_patch_account_attributes(client, setup_api_test_data, requesting_user, db):
     """Check whether updating an account's attributes with valid JSON succeeds."""
@@ -349,7 +349,7 @@ def test_patch_account_attributes_bad_json(
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_patch_account_attributes_empty_dict(
     client, setup_api_test_data, requesting_user, db
@@ -570,14 +570,15 @@ def test_patch_account_roles(client, setup_api_test_data, requesting_user, db):
 
 @pytest.mark.parametrize(
     "requesting_user",
-    ["test_prosumer_user@seita.nl", "test_prosumer_user_2@seita.nl"],
+    ["test_prosumer_user_2@seita.nl"],
     indirect=True,
 )
 def test_patch_own_account_roles_is_refused_for_non_admins(
     client, setup_api_test_data, requesting_user, db
 ):
-    """A member or account-admin may not give their own account another role
-    (such as Consultancy), but may resend the roles it already has."""
+    """An account-admin may not give their own account another role
+    (such as Consultancy), but may resend the roles it already has.
+    (Members may not edit their account at all.)"""
     account = requesting_user.account
     original_role_ids = sorted(role.id for role in account.account_roles)
     consultancy_role = db.session.execute(
@@ -693,3 +694,41 @@ def test_post_account_with_consultancy_account_id(
                 select(Account).filter_by(name="Test Prosumer Account")
             ).scalar_one()
             assert created.consultancy_account_id == other_account.id
+
+
+@pytest.mark.parametrize(
+    "requesting_user, account_of, expected_status_code",
+    [
+        # Plain members may read their organisation, but not edit it.
+        ("test_prosumer_user@seita.nl", "test_prosumer_user@seita.nl", 403),
+        # Account-admins may edit their own organisation, but no other.
+        ("test_prosumer_user_2@seita.nl", "test_prosumer_user@seita.nl", 200),
+        ("test_dummy_account_admin@seita.nl", "test_prosumer_user@seita.nl", 403),
+        # Consultants may edit their client organisations, as before.
+        ("test_consultant@seita.nl", "test_consultant_client@seita.nl", 200),
+        ("test_admin_user@seita.nl", "test_prosumer_user@seita.nl", 200),
+    ],
+    indirect=["requesting_user"],
+)
+def test_patch_account_needs_account_admin(
+    client, setup_api_test_data, requesting_user, account_of, expected_status_code, db
+):
+    """Editing an organisation (name, colors, logo, attributes) is for its account-admins, consultants and admins."""
+    account = find_user_by_email(account_of).account
+    original_name, original_attributes = account.name, dict(account.attributes or {})
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"name": "Renamed", "attributes": json.dumps({"key": "value"})},
+    )
+
+    assert response.status_code == expected_status_code, response.json
+    db.session.expire_all()
+    if expected_status_code == 200:
+        assert account.name == "Renamed"
+        # the test data is shared with other tests
+        account.name, account.attributes = original_name, original_attributes
+        db.session.commit()
+    else:
+        assert account.name == original_name
+        assert account.attributes == original_attributes

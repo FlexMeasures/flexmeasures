@@ -65,7 +65,8 @@ ROLE_DISPLAY_ORDER = (
 ROLE_PERMISSION_GRANTS = {
     ACCOUNT_READER_ROLE: frozenset({"read"}),
     ACCOUNT_DATA_INTEGRATOR_ROLE: frozenset({"read", "post-data", "reset-password"}),
-    ACCOUNT_MEMBER_ROLE: PERMISSIONS - {"delete-data", "manage-users", "delete"},
+    ACCOUNT_MEMBER_ROLE: PERMISSIONS
+    - {"delete-data", "manage-users", "delete", "edit-account"},
     ACCOUNT_ADMIN_ROLE: PERMISSIONS,
     CONSULTANT_ROLE: PERMISSIONS,
     ADMIN_READER_ROLE: frozenset({"read"}),
