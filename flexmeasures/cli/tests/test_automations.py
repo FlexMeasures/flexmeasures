@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.services.generator_results import (
@@ -2399,11 +2399,16 @@ def test_run_automations(
     assert "No automations due" in result.output, result.output
     assert len(app.queues["forecasting"].jobs) == n_jobs
 
-    # inactive automations are not due
+    # inactive automations are not due, while the jobs of their runs that left Redis without saying how they ended are noticed, and reported
     for automation in automations:
         automation.active = False
     fresh_db.session.commit()
     app.redis_connection.flushdb()
+    result = runner.invoke(run_automations)
+    assert "queued" not in result.output, result.output
+    assert (
+        result.output.count("is failed, as its job ended without saying so") == 2
+    ), result.output
     result = runner.invoke(run_automations)
     assert "No automations due" in result.output, result.output
 
@@ -2777,9 +2782,11 @@ def test_show_automations_lists_all_and_shows_one(
         f"{automation.generator.name} (ID: {automation.generator.id}, model: {automation.generator.model})"
         in result.output
     )
-    assert "Reads from" in result.output
-    assert "Writes to" in result.output
-    reads_from, writes_to = result.output.split("Reads from:")[1].split("Writes to:")
+    assert "Sensors it reads" in result.output
+    assert "Sensors it writes" in result.output
+    reads_from, writes_to = result.output.split("Sensors it reads:")[1].split(
+        "Sensors it writes:"
+    )
     assert "sensor 1" in writes_to
     assert "sensor 1" in reads_from and "sensor 2" in reads_from
 
@@ -2914,7 +2921,7 @@ def test_show_automations_handles_unresolved_sensors(
         f"Could not determine the sensors of automation {automation.id}"
         in result.output
     )
-    assert "Reads from" not in result.output
+    assert "Sensors it reads" not in result.output
 
 
 def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown(
@@ -2953,7 +2960,7 @@ def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown
     assert result.exit_code == 0, result.output
     assert f"Automation {automation.id} ('Broken schedules')" in result.output
     assert "Could not determine the sensors of schedule automation" in result.output
-    assert "Reads from" not in result.output
+    assert "Sensors it reads" not in result.output
 
 
 def test_show_automations_shows_a_schedule_automation(
@@ -2991,3 +2998,268 @@ def test_show_automations_shows_a_schedule_automation(
     assert result.exit_code == 0, result.output
     assert re.search(r"^Type\s+scheduling$", result.output, re.MULTILINE)
     assert automation.parameters["duration"] in result.output
+
+
+def _add_hourly_automation(runner, sensor_id: int, name: str, *extra_args):
+    from flexmeasures.cli.data_add import add_automation
+
+    return runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            name,
+            "--cron",
+            "0 * * * *",
+            "--timezone",
+            "UTC",
+            "--sensor",
+            str(sensor_id),
+            *extra_args,
+        ],
+    )
+
+
+def test_add_edit_and_show_automation_dependencies(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """An automation can be told to wait for another with --depends-on, which edit replaces or clears, and show lists."""
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+
+    result = _add_hourly_automation(
+        runner,
+        sensor_id,
+        "Downstream",
+        "--depends-on",
+        str(upstream.id),
+        "--allow-failure-of",
+        str(upstream.id),
+    )
+    assert result.exit_code == 0, result.output
+    downstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Downstream")
+    ).one()
+    assert [
+        (dependency.upstream_id, dependency.allow_failure)
+        for dependency in downstream.dependencies
+    ] == [(upstream.id, True)]
+
+    shown = runner.invoke(list_automations, ["--id", downstream.id])
+    assert shown.exit_code == 0, shown.output
+    assert (
+        f"Upstream (ID: {upstream.id}, {upstream.cronstr} in {upstream.timezone}), also when it fails"
+        in shown.output
+    )
+    shown_upstream = runner.invoke(list_automations, ["--id", upstream.id])
+    assert shown_upstream.exit_code == 0, shown_upstream.output
+    assert "Waited for by" in shown_upstream.output
+    assert f"Downstream (ID: {downstream.id})" in shown_upstream.output
+
+    # The upstream automation can move to another schedule while another one waits for it.
+    moved = runner.invoke(
+        edit_automation, ["--id", str(upstream.id), "--cron", "*/15 * * * *"]
+    )
+    assert moved.exit_code == 0, moved.output
+
+    cleared = runner.invoke(
+        edit_automation, ["--id", str(downstream.id), "--no-dependencies"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    fresh_db.session.expire_all()
+    assert fresh_db.session.get(Automation, downstream.id).dependencies == []
+
+
+def test_run_automations_reports_what_it_reconciled(
+    app, fresh_db, setup_dummy_data_fresh_db, monkeypatch
+):
+    """A tick that fails a killed job's run and skips what waits for it says so, rather than that no automations were due."""
+    from flexmeasures.cli import jobs
+    from flexmeasures.cli.jobs import run_automations
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=automation.cursor,
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="queued",
+        execution_state="failed",
+        attempt_count=1,
+        parameters={},
+        plan={},
+        last_error_message="The job left the queue without saying how it ended.",
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+
+    def tick(now, report):
+        report.append(
+            {"run": run, "event": "reconciled", "message": run.last_error_message}
+        )
+        return []
+
+    monkeypatch.setattr(jobs, "get_dispatchable_automation_runs", tick)
+    result = runner.invoke(run_automations)
+
+    assert result.exit_code == 0, result.output
+    assert "No automations due" not in result.output
+    assert (
+        f"Automation {automation.id} ('Upstream') run {run.id}" in result.output
+        and "is failed, as its job ended without saying so. The job left the queue without saying how it ended."
+        in result.output
+    )
+
+
+def test_run_automation_with_downstream(
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis
+):
+    """--with-downstream runs the automations waiting for this one, too, each holding back until the run it waits for ended."""
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+
+    result = runner.invoke(
+        run_one_automation, ["--automation", str(upstream.id), "--with-downstream"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "('Downstream') run" in result.output and "is waiting" in result.output
+    fresh_db.session.expire_all()
+    runs = fresh_db.session.scalars(
+        select(AutomationRun).order_by(AutomationRun.id)
+    ).all()
+    assert [(run.automation.name, run.trigger, run.dispatch_state) for run in runs] == [
+        ("Upstream", "on-demand", "queued"),
+        ("Downstream", "on-demand", "waiting"),
+    ]
+
+
+def test_deleting_an_automation_warns_about_what_waits_for_it(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """Without --force, the prompt names the automations that lose what they wait for."""
+    from flexmeasures.cli.data_delete import delete_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+
+    result = runner.invoke(delete_automation, ["--id", str(upstream.id)], input="n\n")
+
+    assert "'Downstream'" in result.output
+    assert "will run without it" in result.output
+    assert fresh_db.session.get(Automation, upstream.id) is not None
+
+
+def test_run_automation_with_upstream(
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis
+):
+    """--with-upstream runs what this automation waits for first, and --exclude keeps one of those from running."""
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+    added = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--depends-on", str(upstream.id)
+    )
+    assert added.exit_code == 0, added.output
+    downstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Downstream")
+    ).one()
+
+    result = runner.invoke(
+        run_one_automation,
+        ["--automation", str(downstream.id), "--with-upstream"],
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Automation {upstream.id} ('Upstream')" in result.output
+    assert f"Automation {downstream.id} ('Downstream')" in result.output
+    assert "is waiting" in result.output
+
+    excluded = runner.invoke(
+        run_one_automation,
+        [
+            "--automation",
+            str(downstream.id),
+            "--with-upstream",
+            "--exclude",
+            str(upstream.id),
+        ],
+    )
+    assert excluded.exit_code == 0, excluded.output
+    assert (
+        f"Automation {upstream.id} ('Upstream') does not run. You left it out."
+        in excluded.output
+    )
+    assert f"Automation {upstream.id} ('Upstream') run" not in excluded.output
+
+    both = runner.invoke(
+        run_one_automation,
+        ["--automation", str(upstream.id), "--with-upstream", "--with-downstream"],
+    )
+    assert both.exit_code != 0
+    assert "either" in both.output
+
+    alone = runner.invoke(
+        run_one_automation, ["--automation", str(upstream.id), "--exclude", "1"]
+    )
+    assert alone.exit_code != 0
+
+
+def test_add_automation_allow_failure_of_needs_depends_on(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+
+    result = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--allow-failure-of", str(upstream.id)
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "which --depends-on does not" in result.output
+    assert (
+        fresh_db.session.scalars(
+            select(Automation).filter_by(name="Downstream")
+        ).one_or_none()
+        is None
+    )

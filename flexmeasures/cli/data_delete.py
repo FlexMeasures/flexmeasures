@@ -22,6 +22,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.services.automations import (
     delete_automation as remove_automation,
+    get_automations_waiting_for,
     get_automations_involving_sensor,
 )
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -298,6 +299,10 @@ def delete_automation(automation: Automation, force: bool):
     """
     if not force:
         prompt = f"Delete automation '{automation.name}' (ID: {automation.id}) of asset '{automation.asset.name}'?"
+        waiting = get_automations_waiting_for(automation)
+        if waiting:
+            names = ", ".join(f"'{other.name}' (ID: {other.id})" for other in waiting)
+            prompt = f"{names} wait(s) for this automation, and will run without it from now on. {prompt}"
         click.confirm(prompt, abort=True)
     remove_automation(automation, origin="CLI")
     db.session.commit()

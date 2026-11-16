@@ -4,6 +4,15 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.2.0 | December XX, 2026
+=================================
+
+**Automations**
+
+* Add ``--depends-on`` and ``--allow-failure-of`` to ``flexmeasures add automation`` and ``flexmeasures edit automation`` (plus ``--no-dependencies`` on edit), to have an automation's runs wait for the latest runs of other automations due at or before their own scheduled time.
+* Add ``--with-downstream`` to ``flexmeasures jobs run-automation``, to also run the automations that wait for it, each once the runs it waits for ended, for instance to re-run a chain after a backfill.
+* Add ``--with-upstream`` to ``flexmeasures jobs run-automation``, to first run the automations it waits for, and ``--exclude`` to exclude one of them, along with what can only be reached through it.
+
 since v1.1.0 | November 05, 2026
 =================================
 

@@ -64,8 +64,13 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    get_automations_in_scope,
+    get_automations_waiting_for,
+    CHAIN_INCLUDES,
+    plan_automation_chain,
     resolve_automation_sensors,
     run_automation,
+    run_automation_chain,
     update_automation,
 )
 from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
@@ -123,6 +128,26 @@ asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
 automation_schema = AutomationSchema()
+
+# Listing automations across assets has no asset to bound it, so it is capped.
+
+
+def _user_has_access(asset: GenericAsset, permission: str) -> bool:
+    try:
+        check_access(asset, permission)
+    except (Forbidden, Unauthorized):
+        return False
+    return True
+
+
+def _may_read_automation(automation: Automation) -> bool:
+    return _user_has_access(automation.asset, "read")
+
+
+def _may_manage_automation(automation: Automation) -> bool:
+    return _user_has_access(automation.asset, "manage-automations")
+
+
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 sensor_schema = SensorSchema()
@@ -1608,6 +1633,104 @@ class AssetAPI(FlaskView):
             "redis-connection-err": redis_connection_err,
         }, 200
 
+    @route("/automations", methods=["GET"])
+    @use_kwargs(
+        {
+            "scope": fields.Str(
+                required=True,
+                validate=validate.OneOf(["public", "all"]),
+                metadata={
+                    "description": "`public` for the automations on public assets, or `all` for every automation you may read."
+                },
+            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
+            "per_page": fields.Int(
+                data_key="per-page",
+                required=False,
+                validate=validate.Range(min=1),
+                load_default=10,
+            ),
+        },
+        location="query",
+    )
+    @as_json
+    def get_automations_across_assets(
+        self, scope: str, page: int | None = None, per_page: int = 10
+    ):
+        """
+        .. :quickref: Assets; List automations across assets.
+
+        ---
+        get:
+          summary: List automations across assets.
+          description: |
+            List the automations on public assets, or every automation you may read, such as to pick one to wait for.
+            Job counts are left out, as those are looked up per asset.
+            The automations are listed by ID.
+            Without `page`, all of them are listed.
+            Pass `page`, and optionally `per-page` (default 10), to list one page of them, along with `num-records`, how many there are in all.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: query
+              name: scope
+              required: true
+              description: "`public` for the automations on public assets, or `all` for every automation you may read."
+              schema:
+                type: string
+                enum: [public, all]
+            - in: query
+              name: page
+              required: false
+              description: The page to list, starting at 1.
+              schema:
+                type: integer
+            - in: query
+              name: per-page
+              required: false
+              description: How many automations to list per page.
+              schema:
+                type: integer
+                default: 10
+          responses:
+            200:
+              description: PROCESSED
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Read access is decided per asset, so what may not be read is dropped before paging,
+        # and each page holds as many automations as asked for while there are more.
+        readable_assets: dict[int, bool] = {}
+        readable = []
+        for automation in get_automations_in_scope(
+            scope, [account.id for account in get_accessible_accounts()]
+        ):
+            if automation.asset_id not in readable_assets:
+                readable_assets[automation.asset_id] = _may_read_automation(automation)
+            if readable_assets[automation.asset_id]:
+                readable.append(automation)
+        listed = (
+            readable
+            if page is None
+            else readable[(page - 1) * per_page : page * per_page]  # noqa: E203
+        )
+        automations_data = []
+        for automation in listed:
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence-description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automation_data["asset-name"] = automation.asset.name
+            automations_data.append(automation_data)
+        response: dict = {"automations": automations_data}
+        if page is not None:
+            response["num-records"] = len(readable)
+        return response, 200
+
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(
         {
@@ -1616,9 +1739,27 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(
+        {
+            "include": fields.List(
+                fields.Str(validate=validate.OneOf(["waited-for-by"])),
+                load_default=list,
+                metadata={
+                    "description": "Extra fields to include: `waited-for-by`, the automations that wait for this one."
+                },
+            )
+        },
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def get_automation(
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        include: list[str] | None = None,
+    ):
         """
         .. :quickref: Assets; Get details of one automation defined on an asset.
 
@@ -1634,6 +1775,9 @@ class AssetAPI(FlaskView):
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
+
+            Pass `include=waited-for-by` to also list the automations that wait for this one, such as before deleting it.
+            They are looked up across all automations, and one you may not read is listed as a bare ID.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1649,6 +1793,15 @@ class AssetAPI(FlaskView):
               description: ID of the automation.
               schema:
                 type: integer
+            - in: query
+              name: include
+              required: false
+              description: Extra fields to include, namely `waited-for-by`.
+              schema:
+                type: array
+                items:
+                  type: string
+                  enum: [waited-for-by]
           responses:
             200:
               description: PROCESSED
@@ -1758,6 +1911,18 @@ class AssetAPI(FlaskView):
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
+        if "waited-for-by" in (include or []):
+            automation_data["waited-for-by"] = [
+                {
+                    "automation": waiting.id,
+                    **(
+                        {"name": waiting.name, "asset": waiting.asset_id}
+                        if _may_read_automation(waiting)
+                        else {}
+                    ),
+                }
+                for waiting in get_automations_waiting_for(automation)
+            ]
         redis_connection_err = None
         try:
             automation_data["job-stats"] = get_automation_job_stats(automation)
@@ -1815,6 +1980,11 @@ class AssetAPI(FlaskView):
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from,
             and permission to record data on the sensors it writes to.
+
+            An automation can wait for other automations that it consumes the results of, listed in `depends-on`.
+            Each of its runs then waits for their latest runs due at or before its own scheduled time, and queues its jobs once those ended,
+            or is skipped if one of them failed, unless that dependency has `allow-failure` set.
+            The automations it waits for can be on any asset you can read, and may recur on another schedule.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1912,15 +2082,17 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status or dependencies.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone or activation status.
+          summary: Update an automation's name, cron string, timezone, activation status or dependencies.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Any subset of the fields `name`, `cron`, `timezone`, `active` and `depends-on` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
+            An automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,
+            so either side of a dependency can change its recurrence or timezone.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:
@@ -1947,6 +2119,13 @@ class AssetAPI(FlaskView):
                     summary: Deactivate the automation
                     value:
                       active: false
+                  wait_for_another_automation:
+                    summary: Wait for the runs of automation 4
+                    description: >-
+                      Each run waits for the latest run of automation 4 due at or before its own time, and is skipped if that one failed.
+                    value:
+                      depends-on:
+                        - automation: 4
           responses:
             200:
               description: PROCESSED
@@ -1966,7 +2145,13 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        update_automation(automation, origin="API", **automation_data)
+        try:
+            update_automation(
+                automation, origin="API", check_permissions=True, **automation_data
+            )
+        except ValidationError as e:
+            db.session.rollback()
+            return unprocessable_entity(e.messages)
         db.session.commit()
         response = automation_schema.dump(automation)
         response["recurrence-description"] = describe_cronstr(automation.cronstr)
@@ -2040,12 +2225,46 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(
+        {
+            "with_downstream": fields.Bool(
+                data_key="with-downstream",
+                load_default=False,
+                metadata={
+                    "description": "Also run the active automations downstream of this one, which wait for it, directly or through others, each once the runs it waits for ended."
+                },
+            ),
+            "with_upstream": fields.Bool(
+                data_key="with-upstream",
+                load_default=False,
+                metadata={
+                    "description": "First run the active automations upstream of this one, which it waits for, directly or through others, as far as you may run them."
+                },
+            ),
+            "exclude": fields.List(
+                fields.Int(),
+                load_default=list,
+                metadata={
+                    "description": "With `with-upstream` or `with-downstream`, IDs of automations not to run, along with what can only be reached through them."
+                },
+            ),
+        },
+        location="query",
+    )
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
     # and its output scope is checked again on each run (see validate_automation_output_scope).
     @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
-    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def trigger_automation(
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        with_downstream: bool = False,
+        with_upstream: bool = False,
+        exclude: list[int] | None = None,
+    ):
         """
         .. :quickref: Assets; Trigger a single run of an automation.
 
@@ -2063,6 +2282,18 @@ class AssetAPI(FlaskView):
             An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
             so the next recurring run still happens as scheduled, and a missed run is still caught up.
             Inactive automations can be triggered, too, which is how you can try one out before activating it.
+
+            Pass `with-upstream=true` to first run the active automations upstream of this one, which it waits for, directly or through others, and then this one,
+            for instance to bring it up to date with what its results are based on.
+            Pass `with-downstream=true` to also run the active automations downstream of this one, which wait for it, directly or through others,
+            for instance to re-run a chain of automations once the data at its start was backfilled.
+            The included automations run in chain order: each waits for the runs triggered along with it,
+            and is skipped if one of those failed, unless its dependency allows for failure.
+            An automation that is inactive, or that you may not run, is excluded, along with what can only be reached through it.
+            Pass `exclude` to exclude automations yourself, such as one of several branches.
+            See the `run-plan` endpoint for what this would come down to.
+            The response lists the runs under `runs`, in chain order, and the excluded automations under `excluded`, each with the reason;
+            its `job` is that of this automation's own run, if that started right away.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2078,6 +2309,28 @@ class AssetAPI(FlaskView):
               description: ID of the automation to run.
               schema:
                 type: integer
+            - in: query
+              name: with-upstream
+              required: false
+              description: First run the active automations upstream of this one, which it waits for, directly or through others. Cannot be combined with `with-downstream`.
+              schema:
+                type: boolean
+                default: false
+            - in: query
+              name: with-downstream
+              required: false
+              description: Also run the active automations downstream of this one, which wait for it, directly or through others.
+              schema:
+                type: boolean
+                default: false
+            - in: query
+              name: exclude
+              required: false
+              description: With `with-upstream` or `with-downstream`, IDs of automations not to run.
+              schema:
+                type: array
+                items:
+                  type: integer
           responses:
             202:
               description: PROCESSING
@@ -2096,6 +2349,39 @@ class AssetAPI(FlaskView):
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         n-jobs: 2
                         message: "Request has been accepted for processing."
+                    triggered-with-downstream:
+                      summary: Automation run accepted, along with the automations downstream of it
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n-jobs: 1
+                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        runs:
+                          - automation: 7
+                            run: 411
+                            dispatch-state: queued
+                          - automation: 8
+                            run: 412
+                            dispatch-state: waiting
+                        excluded: []
+                    triggered-with-upstream:
+                      summary: Automation run accepted, after the automations upstream of it
+                      value:
+                        status: ACCEPTED
+                        job: null
+                        n-jobs: 1
+                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        runs:
+                          - automation: 7
+                            run: 411
+                            dispatch-state: queued
+                          - automation: 8
+                            run: 412
+                            dispatch-state: waiting
+                        excluded:
+                          - automation: 5
+                            reason: You may not run this automation.
             401:
               description: UNAUTHORIZED
             403:
@@ -2112,6 +2398,21 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        if with_downstream and with_upstream:
+            return unprocessable_entity(
+                "Use either with-upstream or with-downstream, not both."
+            )
+        if with_upstream or with_downstream:
+            return self._trigger_automation_chain(
+                asset,
+                automation,
+                "upstream" if with_upstream else "downstream",
+                exclude or [],
+            )
+        if exclude:
+            return unprocessable_entity(
+                "Use exclude along with with-upstream or with-downstream."
+            )
         try:
             returns = run_automation(automation)
         except (
@@ -2145,6 +2446,198 @@ class AssetAPI(FlaskView):
         db.session.commit()
         response, status_code = request_accepted_for_processing(job_id)
         response["n-jobs"] = returns.get("n_jobs")
+        return response, status_code
+
+    @route("/<id>/automations/<int:automation_id>/run-plan", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "include": fields.Str(
+                required=True,
+                validate=validate.OneOf(CHAIN_INCLUDES),
+                metadata={
+                    "description": "Which part of the chain to include: the automations upstream of this one, which it waits for, or those downstream of it, which wait for it."
+                },
+            ),
+            "exclude": fields.List(
+                fields.Int(),
+                load_default=list,
+                metadata={"description": "IDs of automations not to run."},
+            ),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automation_run_plan(
+        self,
+        id: int,
+        automation_id: int,
+        asset: GenericAsset,
+        include: str,
+        exclude: list[int] | None = None,
+    ):
+        """
+        .. :quickref: Assets; See what running an automation along with what is upstream or downstream of it comes down to.
+
+        ---
+        get:
+          summary: See what running an automation along with what is upstream or downstream of it comes down to.
+          description: |
+            Nothing is run.
+            Runs always flow downstream; `include` says which part of the chain is included.
+            The automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.
+            The automations that will not run are listed under `excluded`, each with the reason,
+            which of the steps wait for it, and, if you may read it, when it last succeeded (null if it never did).
+            They still run on their own schedule, just not because of this request,
+            and the steps that wait for them go by the results they last produced.
+            An automation you may not read stays a bare ID.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation-id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+            - in: query
+              name: include
+              required: true
+              description: Which part of the chain to include, upstream or downstream of this automation.
+              schema:
+                type: string
+                enum: [upstream, downstream]
+            - in: query
+              name: exclude
+              required: false
+              description: IDs of automations not to run.
+              schema:
+                type: array
+                items:
+                  type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    run-plan:
+                      summary: One automation does not run
+                      value:
+                        steps:
+                          - automation: 7
+                            waits-for: []
+                            name: Forecast
+                            asset: 3
+                            asset-name: Site
+                        excluded:
+                          - automation: 5
+                            reason: You may not run this automation.
+                            waited-for-by: [7]
+                            name: Day-ahead prices
+                            asset: 2
+                            asset-name: Market
+                            last-succeeded-at: null
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        return (
+            plan_automation_chain(
+                automation,
+                include,
+                exclude or [],
+                may_read=_may_read_automation,
+                may_run=_may_manage_automation,
+            ),
+            200,
+        )
+
+    def _trigger_automation_chain(
+        self,
+        asset: GenericAsset,
+        automation: Automation,
+        include: str,
+        exclude: list[int],
+    ) -> tuple[dict, int]:
+        """Run an automation along with what is upstream or downstream of it (see `run_automation_chain`)."""
+        try:
+            # The automations in a chain may be on other assets, where their runs write data, too.
+            # One the user may not run is excluded, rather than refusing the whole chain,
+            # as another organisation may wait for this automation, which reading it is enough for.
+            runs, returns, excluded = run_automation_chain(
+                automation, include, exclude, may_run=_may_manage_automation
+            )
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        for run in runs:
+            AssetAuditLog.add_record(
+                run.automation.asset,
+                (
+                    f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}) and of the automations {include} of it."
+                    if run.automation_id == automation.id
+                    else f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), {'upstream' if include == 'upstream' else 'downstream'} of automation {automation.id}."
+                ),
+            )
+        db.session.commit()
+        for run in runs:
+            db.session.refresh(run)
+        job_id = (returns or {}).get("job_id")
+        if job_id is not None:
+            response, status_code = request_accepted_for_processing(job_id)
+        else:
+            response, status_code = {"status": "ACCEPTED", "job": None}, 202
+        n_waiting = sum(run.dispatch_state == "waiting" for run in runs)
+        response["message"] = (
+            f"Started {len(runs) - n_waiting} run(s), and {n_waiting} run(s) wait for them."
+        )
+        if returns is not None and job_id is None and returns.get("message"):
+            response["message"] = f"{returns['message']} {response['message']}"
+        response["n-jobs"] = sum(len(run.job_intents) for run in runs)
+        response["runs"] = [
+            {
+                "automation": run.automation_id,
+                "run": run.id,
+                "dispatch-state": run.dispatch_state,
+            }
+            for run in runs
+        ]
+        response["excluded"] = [
+            {"automation": step.id, "reason": reason} for step, reason in excluded
+        ]
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])

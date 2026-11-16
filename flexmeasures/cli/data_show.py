@@ -41,6 +41,7 @@ from flexmeasures.data.schemas.times import (
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     describe_cronstr,
+    get_automations_waiting_for,
     resolve_automation_sensors,
 )
 from flexmeasures.data.services.time_series import simplify_index
@@ -554,7 +555,7 @@ def list_automations(
 
 
 def _show_automation(automation: Automation):
-    """Show one automation in detail, including the sensors it reads from and writes to."""
+    """Show one automation in detail, including the automations it waits for and that wait for it, and the sensors it reads and writes."""
     title = f"Automation {automation.id}: {automation.name}"
     click.echo("=" * len(title))
     click.echo(title)
@@ -583,6 +584,24 @@ def _show_automation(automation: Automation):
                     ),
                 ),
                 ("Parameters", json.dumps(automation.parameters, indent=4)),
+                (
+                    "Waits for",
+                    # Their recurrence says which of their runs this automation's runs wait for.
+                    "\n".join(
+                        f"{dependency.upstream.name} (ID: {dependency.upstream_id}, {dependency.upstream.cronstr} in {dependency.upstream.timezone})"
+                        + (", also when it fails" if dependency.allow_failure else "")
+                        for dependency in automation.dependencies
+                    )
+                    or "none",
+                ),
+                (
+                    "Waited for by",
+                    "\n".join(
+                        f"{waiting.name} (ID: {waiting.id})"
+                        for waiting in get_automations_waiting_for(automation)
+                    )
+                    or "none",
+                ),
             ],
             headers=["Field", "Value"],
         )
@@ -606,8 +625,8 @@ def _show_automation(automation: Automation):
         )
         return
     for role, header in (
-        ("input_sensors", "Reads from"),
-        ("output_sensors", "Writes to"),
+        ("input_sensors", "Sensors it reads"),
+        ("output_sensors", "Sensors it writes"),
     ):
         click.echo(f"\n{header}:\n")
         if not sensors[role]:
