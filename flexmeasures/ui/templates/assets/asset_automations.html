@@ -301,11 +301,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     Runs already planned still compute what they were planned with.
                   </div>
                 </div>
-                <div class="form-check mb-3">
+                <div class="form-text mb-2" id="editAutomationRunsAs"></div>
+                <div class="form-check mb-3" id="editAutomationRunAsMeGroup">
                   <input class="form-check-input" type="checkbox" id="editAutomationRunAsMe" disabled>
                   <label class="form-check-label" for="editAutomationRunAsMe">Run as me
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="From now on, every run of this automation checks your access, instead of that of the user it runs as now. Use this to take over an automation, for instance when that user has left." style="font-size: 16px"></i>
+                     title="From now on, every run of this automation checks your access, instead of that of the user it runs as now. Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors." style="font-size: 16px"></i>
                   </label>
                 </div>
                 <div class="form-check mb-3">
@@ -357,6 +358,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // Phrased to read for either form the value takes, "a day" as much as "7 days".
   const jobsAreKeptFor = `Jobs are only kept for ${jobRetention}, so an automation older than that has run more often than this shows.`;
   const userCanManage = {{ user_can_manage_automations | tojson }};
+  // Whether you already are the user an automation runs as decides whether the edit form offers to take it over.
+  const currentUserId = {{ current_user.id | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
   const automationTypes = {{ automation_types | tojson }};
@@ -387,10 +390,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return type === "display" ? data.display : data.order;
   }
 
+  // Callers end the message with their own period, so the one a message may already end in is dropped.
   function automationAjaxErrorMessage(xhr) {
     const responseMessage = xhr.responseJSON?.message;
     if (typeof responseMessage === "string" && responseMessage) {
-      return responseMessage;
+      return responseMessage.replace(/\.+$/, "");
     }
     if (responseMessage) {
       return JSON.stringify(responseMessage);
@@ -588,12 +592,24 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       parameters: details?.parameters ?? {},
       config: source ? source.config ?? {} : null,
       source: source ?? null,
+      runsAs: details?.["runs-as"] ?? null,
     };
+  }
+
+  // Whom the automation runs as, as the edit form says it; an automation set up through the CLI runs as nobody.
+  function runsAsText(runsAs) {
+    if (runsAs === null) {
+      return "Runs as nobody: it was set up through the CLI, so its runs check no one's access.";
+    }
+    const name = runsAs.name ?? `user ${runsAs.id}, who no longer exists`;
+    return runsAs.id === currentUserId ? `Runs as you (${name}).` : `Runs as ${name}.`;
   }
 
   function resetEditAutomationDefinition() {
     $("#editAutomationParameters, #editAutomationConfig").val("").prop("disabled", true);
     $("#editAutomationRunAsMe").prop("checked", false).prop("disabled", true);
+    $("#editAutomationRunAsMeGroup").removeClass("d-none");
+    $("#editAutomationRunsAs").text("");
     $("#editAutomationGenerator").text("");
     $("#editAutomationConfigGroup").addClass("d-none");
   }
@@ -601,6 +617,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   function fillEditAutomationDefinition(loaded) {
     $("#editAutomationParameters").val(JSON.stringify(loaded.parameters, null, 4)).prop("disabled", false);
     $("#editAutomationRunAsMe").prop("disabled", false);
+    $("#editAutomationRunsAs").text(runsAsText(loaded.runsAs));
+    // There is nothing to take over from yourself.
+    $("#editAutomationRunAsMeGroup").toggleClass("d-none", loaded.runsAs?.id === currentUserId);
     if (loaded.config !== null) {
       $("#editAutomationConfig").val(JSON.stringify(loaded.config, null, 4)).prop("disabled", false);
       $("#editAutomationGenerator").text(`Currently computed under data source ${loaded.source.id}: ${loaded.source.description}.`);
@@ -766,7 +785,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
     const sourceParam = generator ? `?source=${encodeURIComponent(generator.id)}` : "";
     return sensors.map(sensor =>
-      `<a href="/sensors/${encodeURIComponent(sensor.id)}${sourceParam}">${esc(sensor.name)} (${esc(sensor.id)})</a>`
+      sensor.readable === false
+        ? `sensor ${esc(sensor.id)}: not readable for you`
+        : `<a href="/sensors/${encodeURIComponent(sensor.id)}${sourceParam}">${esc(sensor.name)} (${esc(sensor.id)})</a>`
     ).join(", ");
   }
 
@@ -996,6 +1017,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
   }
 
+  /* Why an edit was refused, as the edit form says it.
+     A refusal for the user the automation runs as tells API clients to send run-as-me, while the form has a checkbox for that. */
+  function editRefusalText(xhr) {
+    const response = xhr.responseJSON;
+    if (xhr.status === 403 && response?.reason === "run-user-lacks-access") {
+      return `${response.refusal} Tick Run as me and save again to take over.`;
+    }
+    return apiError(xhr, "Could not update the automation.");
+  }
+
   function apiError(xhr, fallbackMessage) {
     try {
       const response = JSON.parse(xhr.responseText);
@@ -1170,7 +1201,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         data: JSON.stringify(automationData),
         success: () => location.reload(),
         error: function (xhr) {
-          $("#editAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not update the automation."));
+          $("#editAutomationErr").removeClass("d-none").text(editRefusalText(xhr));
         },
       });
     });
