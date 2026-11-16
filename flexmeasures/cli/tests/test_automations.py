@@ -471,6 +471,72 @@ def test_add_automation_defaults_to_the_assets_timezone(
     assert "in timezone 'Europe/Amsterdam'" in result.output
 
 
+def test_edit_automation_warns_about_and_sets_the_run_user(
+    app, fresh_db, setup_dummy_data_fresh_db, setup_roles_users_fresh_db
+):
+    """The CLI is trusted, so an edit is not refused on the run user's access, but it warns when their runs would be refused.
+
+    `--run-as` picks the user to run as instead, which the audit log names, and refuses a user who is missing or inactive.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.data.models.user import User
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Forecasts run as someone",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data_fresh_db[0],
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    # A user without access to record data under the asset.
+    supplier_id = setup_roles_users_fresh_db["Test Supplier User"]
+    admin_id = setup_roles_users_fresh_db["Test Admin User"]
+    automation.execution_user_id = supplier_id
+    fresh_db.session.commit()
+
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--name", "Renamed"]
+    )
+    assert "Successfully updated" in result.output, result.output
+    assert (
+        f"Warning: the runs of this automation will be refused: Automation {automation.id}"
+        f" runs as Test Supplier User (user {supplier_id}), who no longer has 'create-children' permission on sensor {setup_dummy_data_fresh_db[0]}."
+    ) in " ".join(result.output.split())
+    assert "pass --run-as" in result.output
+
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--run-as", str(admin_id)]
+    )
+    assert "Successfully updated" in result.output, result.output
+    assert "Warning" not in result.output
+    assert automation.execution_user_id == admin_id
+    assert fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like(
+                f"%runs as: Test Supplier User (user {supplier_id}) → Test Admin User (user {admin_id})%"
+            )
+        )
+    ).scalar_one_or_none()
+
+    inactive_id = setup_roles_users_fresh_db["Test Dummy User"]
+    fresh_db.session.get(User, inactive_id).active = False
+    fresh_db.session.commit()
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--run-as", str(inactive_id)]
+    )
+    assert result.exit_code != 0
+    assert f"User {inactive_id} is missing or inactive" in result.output
+    assert automation.execution_user_id == admin_id
+
+
 def test_add_and_edit_automation_reject_invalid_timezone(
     app, fresh_db, setup_dummy_data_fresh_db
 ):
@@ -2876,7 +2942,7 @@ def automation_row_cell(output: str, name: str, header: str) -> str:
 
     Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
     """
-    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"]
+    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone", "Runs as"]
     lines = output.splitlines()
     header_line = next(line for line in lines if all(h in line for h in headers))
     starts = [header_line.index(h) for h in headers]
@@ -2922,6 +2988,8 @@ def test_show_automations_lists_all_and_shows_one(
     assert automation_row_cell(result.output, name, "Type") == "forecasting"
     assert automation_row_cell(result.output, name, "Cron") == "0 6 * * *"
     assert automation_row_cell(result.output, name, "Timezone") == "Europe/Amsterdam"
+    # Set up through the CLI, which is trusted, so its runs check nobody's access.
+    assert automation_row_cell(result.output, name, "Runs as") == "nobody (CLI)"
     assert (
         automation_row_cell(result.output, name, "Asset") == "DummyGenericAsset (ID: 1)"
     )
