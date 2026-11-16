@@ -525,7 +525,7 @@ def test_asset_contains_data_names_the_sensors_it_probes(
 def test_patch_asset_refuses_a_parent_in_another_account(
     fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
 ):
-    """patch_asset itself keeps a new parent in the asset's account, so no caller can move an asset under another account's asset."""
+    """patch_asset itself checks a new parent in another account, so no caller can move an asset under another account's asset without permission."""
     db = fresh_db
     asset_type = setup_generic_asset_types_fresh_db["battery"]
     own_site, own_asset, foreign_site = (
@@ -539,7 +539,7 @@ def test_patch_asset_refuses_a_parent_in_another_account(
     db.session.add_all([own_site, own_asset, foreign_site])
     db.session.flush()
 
-    with pytest.raises(ValidationError, match="same account"):
+    with pytest.raises(ValidationError, match="belongs to another organisation"):
         patch_asset(own_asset, {"parent_asset_id": foreign_site.id})
     assert own_asset.parent_asset_id is None
 

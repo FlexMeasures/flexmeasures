@@ -1826,7 +1826,8 @@ def test_regular_user_cannot_create_child_of_public_asset(
     client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
 ):
     """A plain account member must not be able to create a child asset under a public
-    (account-less) parent because the parent and child have different owners.
+    (account-less) parent: the parent and child have different owners,
+    and only admins may add assets under a public asset.
     """
     epex_asset = setup_markets["epex_da"].generic_asset
     assert epex_asset.account_id is None, "epex must be a public asset"
@@ -1844,7 +1845,7 @@ def test_regular_user_cannot_create_child_of_public_asset(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
     assert (
-        "must match the account of the parent asset"
+        "belongs to another organisation"
         in response.json["message"]["json"]["parent_asset_id"][0]
     )
 
@@ -1915,7 +1916,8 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
-    The parent and child must belong to the same account, so the request is rejected.
+    A parent may be in another account only if the user may add assets under it,
+    which the account-admin of another account may not, so the request is rejected.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")
@@ -1939,7 +1941,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
     assert (
-        "must match the account of the parent asset"
+        "belongs to another organisation"
         in response.json["message"]["json"]["parent_asset_id"][0]
     )
 

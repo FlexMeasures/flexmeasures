@@ -610,17 +610,9 @@ def test_breadcrumb_cross_account_parent(
 ):
     """
     When a Prosumer user views a child asset whose parent belongs to the Supplier
-    account, the breadcrumb should show both the parent asset's name and the
-    parent asset's owning account name.
-
-    The breadcrumb logic in ``breadcrumb_utils.get_ancestry`` traverses up the
-    parent-asset chain regardless of account boundaries.  For a child asset with
-    a cross-account parent the ancestry is:
-
-        <Supplier account> → <Supplier parent asset> → <Prosumer child asset>
-
-    This is intentional and expected behaviour. The test acts as a regression
-    guard to ensure cross-account ancestry is rendered correctly in the UI.
+    account (asset trees may span organisations), the breadcrumb shows the parent
+    as "(another organisation)", without its name, its account or a link to it,
+    as the Prosumer user may not read it.
     """
     supplier_account = setup_accounts["Supplier"]
     prosumer_account = setup_accounts["Prosumer"]
@@ -657,13 +649,10 @@ def test_breadcrumb_cross_account_parent(
     )
     assert page.status_code == 200
 
-    # The breadcrumb must surface the parent's account name and the parent's
-    # own name (note: clicking these links may not load if the user is not
-    # authorized to view the parent's account page).
-    assert supplier_account.name.encode() in page.data  # e.g. "Test Supplier Account"
-    assert (
-        supplier_parent.name.encode() in page.data
-    )  # "breadcrumb-cross-account-parent"
+    assert b"(another organisation)" in page.data
+    assert supplier_account.name.encode() not in page.data
+    assert supplier_parent.name.encode() not in page.data
+    assert f"/assets/{supplier_parent.id}".encode() not in page.data
 
 
 # ---------------------------------------------------------------------------
@@ -1180,7 +1169,7 @@ def test_status_page_include_child_assets_toggle(
 def test_edit_asset_refuses_a_parent_in_another_account(
     db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
 ):
-    """The UI edit form may not hang an asset under an asset of another account, which would show that account's data on the asset's pages."""
+    """The UI edit form may not hang an asset under an asset of another account without permission to add assets under it."""
     own_asset = GenericAsset(
         name="own asset",
         generic_asset_type=setup_generic_asset_types["battery"],
@@ -1215,7 +1204,7 @@ def test_edit_asset_refuses_a_parent_in_another_account(
         )
         assert response.status_code == 200
         assert b"Editing was successful" not in response.data
-        assert b"same account" in response.data
+        assert b"belongs to another organisation" in response.data
         db.session.expire_all()
         assert db.session.get(GenericAsset, own_asset.id).parent_asset_id is None
     finally:
