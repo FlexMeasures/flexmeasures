@@ -56,40 +56,50 @@ def flex_config_sensor_references(
 
     A sensor referenced anywhere under one of the FLEX_CONFIG_OUTPUT_FIELDS counts as an output.
     """
-    all_sensors: list[Sensor] = []
-    output_sensors: list[Sensor] = []
-    _collect_flex_config_sensors(flex_config, False, all_sensors, output_sensors)
+    references = flex_config_sensor_reference_paths(flex_config)
+    all_sensors = [sensor for _, sensor, _ in references]
+    output_sensors = [sensor for _, sensor, is_output in references if is_output]
     return all_sensors, output_sensors
+
+
+def flex_config_sensor_reference_paths(
+    flex_config: dict | list | None,
+) -> list[tuple[tuple[str, ...], Sensor, bool]]:
+    """Return each sensor reference in a flex-context or flex-model, with its field path and whether it is an output.
+
+    The field path holds the field names leading to the reference (list positions are left out,
+    and underscores are written as hyphens), such as ``("consumption-price", "sensor")``.
+    """
+    references: list[tuple[tuple[str, ...], Sensor, bool]] = []
+    _collect_flex_config_sensors(flex_config, (), False, references)
+    return references
 
 
 def _collect_flex_config_sensors(
     data: Any,
+    path: tuple[str, ...],
     is_output: bool,
-    all_sensors: list[Sensor],
-    output_sensors: list[Sensor],
+    references: list[tuple[tuple[str, ...], Sensor, bool]],
 ) -> None:
     if isinstance(data, list):
         for value in data:
-            _collect_flex_config_sensors(value, is_output, all_sensors, output_sensors)
+            _collect_flex_config_sensors(value, path, is_output, references)
         return
     if not isinstance(data, dict):
         return
     for field, value in data.items():
-        field_is_output = (
-            is_output or str(field).replace("_", "-") in FLEX_CONFIG_OUTPUT_FIELDS
-        )
+        normalized_field = str(field).replace("_", "-")
+        field_path = (*path, normalized_field)
+        field_is_output = is_output or normalized_field in FLEX_CONFIG_OUTPUT_FIELDS
         if _is_sensor_reference_field(field) or _is_sensor_reference_list_field(field):
             for reference in _listify(value):
                 if reference is None:
                     continue
-                sensor = _load_sensor(reference)
-                all_sensors.append(sensor)
-                if field_is_output:
-                    output_sensors.append(sensor)
+                references.append(
+                    (field_path, _load_sensor(reference), field_is_output)
+                )
         else:
-            _collect_flex_config_sensors(
-                value, field_is_output, all_sensors, output_sensors
-            )
+            _collect_flex_config_sensors(value, field_path, field_is_output, references)
 
 
 def _collect_sensor_references(

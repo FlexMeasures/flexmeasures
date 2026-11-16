@@ -20,7 +20,10 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.services.group_membership_audit import (
     note_deletion as note_group_membership_deletion,
 )
-from flexmeasures.auth.loaders import flex_config_sensor_references
+from flexmeasures.auth.loaders import (
+    flex_config_sensor_reference_paths,
+    flex_config_sensor_references,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.services.data_generators import check_sensor_access
 
@@ -66,39 +69,37 @@ def _validate_flex_config_sensors_for_access(flex_config: Any) -> None:
     check_sensor_access(input_sensors=all_sensors, output_sensors=output_sensors)
 
 
-def _stored_flex_config_references(flex_config: Any) -> set[tuple[int, bool]]:
-    """The (sensor id, is output) pairs a stored flex-context or flex-model refers to.
+def _stored_flex_config_references(
+    flex_config: Any,
+) -> set[tuple[tuple[str, ...], int]]:
+    """The (field path, sensor id) pairs a stored flex-context or flex-model refers to.
 
     A stored config that cannot be read (e.g. it refers to a sensor that no longer exists) counts as referring to nothing.
     """
     try:
-        all_sensors, output_sensors = flex_config_sensor_references(flex_config)
+        references = flex_config_sensor_reference_paths(flex_config)
     except Exception:
         return set()
-    output_ids = {sensor.id for sensor in output_sensors}
-    return {
-        (sensor.id, False) for sensor in all_sensors if sensor.id not in output_ids
-    } | {(sensor_id, True) for sensor_id in output_ids}
+    return {(path, sensor.id) for path, sensor, _ in references}
 
 
 def _validate_updated_flex_config_sensors(stored_config: Any, new_config: Any) -> None:
-    """Check access to the sensors an updated flex-context or flex-model refers to, if they were not referred to that way before.
+    """Check access to the sensors an updated flex-context or flex-model refers to, where they were not referred to before.
 
-    A stored reference the editor may not use themselves (e.g. a price sensor set by a host admin) can stay
-    when the editor changes other fields, as the UI's flex-context editor always sends the whole config.
-    A sensor that was stored as an input and now becomes an output is checked as an output.
+    A reference counts as new unless the stored config has the same sensor under the same field path.
+    So a stored reference the editor may not use themselves (e.g. a price sensor set by a host admin) can stay
+    when the editor changes other fields, as the UI's flex-context editor always sends the whole config,
+    while a stored sensor moved to another field, such as from an input to an output field, is checked again.
     """
     stored = _stored_flex_config_references(stored_config)
-    all_sensors, output_sensors = flex_config_sensor_references(new_config)
-    output_ids = {sensor.id for sensor in output_sensors}
     new_references = [
-        sensor
-        for sensor in all_sensors
-        if (sensor.id, sensor.id in output_ids) not in stored
+        (sensor, is_output)
+        for path, sensor, is_output in flex_config_sensor_reference_paths(new_config)
+        if (path, sensor.id) not in stored
     ]
     check_sensor_access(
-        input_sensors=new_references,
-        output_sensors=[sensor for sensor in new_references if sensor.id in output_ids],
+        input_sensors=[sensor for sensor, _ in new_references],
+        output_sensors=[sensor for sensor, is_output in new_references if is_output],
     )
 
 
