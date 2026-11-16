@@ -82,12 +82,21 @@ Leaving out ``--data-generator`` or ``--config`` keeps the current one,
 and ``--source`` moves the automation to an existing data source instead, under the same rules as on creation.
 A schedule automation accepts new parameters only, as its data source follows from the asset (see `Automating schedules`_).
 
+A new configuration replaces the current one as a whole, so it has to repeat any setting to keep.
+
 Every run of an automation checks the access of the user it runs as, who is its creator at first.
+The *Edit* form says who that is (*Runs as*), and so do the API (``runs-as``) and ``flexmeasures show automations``.
 An edit through the API or the UI leaves that user as it is, so the sensors it names have to pass the access checks of both the editor and that user:
 this way, nobody can point the automation at sensors that only they may use, while its runs are checked against someone else.
 To have the automation run as you from then on, tick *Run as me* in the *Edit* form, or send ``run-as-me`` with the PATCH request;
 the sensors are then checked against your access only, and the switch is written to the asset's audit log.
-This is also how to keep an automation going whose user can no longer act, for instance because they left.
+Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.
+
+An automation set up through the CLI runs as nobody, as the CLI is trusted, so its runs check nobody's access.
+An edit of it through the API or the UI is checked against the editor's access only, and its runs stay unchecked, unless the editor takes it over.
+An edit through the CLI is not checked against anyone's access either,
+but it warns when the user the automation runs as could not run what it now computes, as every run would then be refused;
+``flexmeasures edit automation --run-as <user ID>`` then picks another user to run it as.
 
 Runs before and after such a change are kept apart by a new revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
 A run planned before the change, including one being retried and the jobs it already queued, still computes with the parameters and the data source it was planned with.

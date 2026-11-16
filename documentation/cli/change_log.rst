@@ -4,6 +4,12 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.2.0 | December xx, 2026
+=================================
+
+* ``flexmeasures edit automation`` gets ``--parameters``, ``--data-generator``, ``--config`` and ``--source``, to change what an automation computes, and ``--run-as`` to change the user it runs as; it warns when that user could not run what the automation now computes [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
+* ``flexmeasures show automations`` says which user each automation runs as [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
+
 since v1.1.0 | November 05, 2026
 =================================
 

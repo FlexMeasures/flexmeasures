@@ -11,7 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
-* An automation's parameters and data generator config can be edited after creation, from the CLI, the API and the UI; a new config moves the automation to the data source storing it [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
+* An automation's parameters and data generator config can be edited after creation, from the CLI, the API and the UI; a new config moves the automation to the data source storing it, and the user the automation runs as is shown and can be taken over [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
 
 Infrastructure / Support
 -------------------------
