@@ -96,14 +96,26 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtual environment from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
+# Give the virtual environment a pip of its own, so that `pip install`, as our docs and docker-compose.yml use for plugins and requirements, installs where FlexMeasures can import it.
+RUN python -m ensurepip --default-pip
+
+# Installed as a regular package, FlexMeasures looks for its instance folder at ${VIRTUAL_ENV}/var/flexmeasures-instance, which is where Flask places it for installed packages.
+# Hosts mount their config and secrets at /app/instance, as the Docker docs say, so point the one at the other.
+RUN mkdir -p ${VIRTUAL_ENV}/var && \
+    rm -rf ${VIRTUAL_ENV}/var/flexmeasures-instance && \
+    ln -s /app/instance ${VIRTUAL_ENV}/var/flexmeasures-instance
+
 # Copy the application's entry point and its configuration.
 # FlexMeasures itself is already installed, non-editable, inside ${VIRTUAL_ENV}, so its source files need no separate copy.
 COPY --from=builder /app/.flaskenv /app/wsgi.py ./
 COPY gunicorn.conf.py ./
 
-# Set environment variables to optimize Python
+# Set environment variables to optimize Python.
+# PYTHONPATH lets a source tree mounted at /app/flexmeasures take precedence over the installed package, in every process,
+# so that the CLI, the job workers and the server all run the same code.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 EXPOSE 5000
 

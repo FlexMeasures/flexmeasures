@@ -321,7 +321,7 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 .. _commodity_context_defaults:
 
 Smart defaults for commodity-context grid connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For multi-commodity scheduling problems, each entry of the top-level ``commodities`` list is itself a flex-context (a "commodity context") describing the grid connection for that commodity.
 A commodity context that leaves out some or all of its grid-connection fields (``consumption-price``, ``production-price``, ``site-consumption-capacity``, ``site-production-capacity`` and ``site-power-capacity``) gets sensible defaults for the missing fields, rather than failing or silently leaving the grid unconstrained.
@@ -368,7 +368,7 @@ These fields can be configured in the UI editor on the asset properties page or 
 
 
 Storage
-^^^^^^^^
+~~~~~~~~
 
 For *storage* devices, the FlexMeasures scheduler deals with the state of charge (SoC) for an optimal outcome.
 You can do a lot with this ― examples for storage devices are:
@@ -495,7 +495,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 
 Intermediate power constraints
-"""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In a multi-device flex-model list, a device entry may declare a ``group`` field referencing a group of devices, for example a hybrid inverter shared by a battery and PV installation, or a feeder shared by several devices. This lets you model an intermediate power constraint that sits between the individual devices and the site as a whole.
 
@@ -536,7 +536,7 @@ Here, the battery and PV installation may each individually schedule up to 2 kW,
 .. _inflexible_devices_in_flex_model:
 
 Inflexible devices in the flex-model
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Inflexible (measured) devices can be modelled in the flex-model too — for example, an unschedulable base load. To do so, model the inflexible device as its own asset and give its flex-model entry a single ``inflexible-consumption`` or ``inflexible-production`` reference to the sensor recording its power (the field name sets the sign convention, and source filters may be added). Such an entry carries no schedulable-device fields; it simply declares a fixed device whose power is accounted for. Like any device entry, it may set a ``commodity`` (defaulting to electricity), and its fixed power is then netted into that commodity's grid connection.
 
@@ -577,7 +577,7 @@ You can also review the current flex-model for storage in the code, at ``flexmea
 
 
 Shiftable loads (processes)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ProcessScheduler``.
 Some examples from practice (usually industry) could be:

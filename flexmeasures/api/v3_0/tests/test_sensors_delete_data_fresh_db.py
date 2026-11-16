@@ -1,4 +1,4 @@
-"""Tests for DELETE /api/v3_0/sensors/<id>/data with source, start and until filters.
+"""Tests for DELETE /api/v3_0/sensors/<id>/data with source, start and end filters.
 
 These tests use fresh_db (function-scoped) to ensure data isolation between tests,
 since each test mutates the sensor data.
@@ -111,10 +111,17 @@ def test_delete_sensor_data_by_start(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_sensor_data_by_until(
-    client, setup_api_fresh_test_data, requesting_user, fresh_db
+@pytest.mark.parametrize(
+    "end_field",
+    [
+        "end",
+        "until",  # the name until v1.1.0, still accepted
+    ],
+)
+def test_delete_sensor_data_by_end(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db, end_field
 ):
-    """Deleting sensor data with an until filter only removes beliefs before that time."""
+    """Deleting sensor data with an end filter only removes beliefs before that time."""
     existing_sensor = setup_api_fresh_test_data["some gas sensor"]
     existing_sensor_id = existing_sensor.id
 
@@ -123,14 +130,14 @@ def test_delete_sensor_data_by_until(
     ).all()
     assert len(all_beliefs) >= 2
 
-    # Use the last distinct event_start as the until cutoff:
+    # Use the last distinct event_start as the end cutoff:
     # beliefs strictly before it should be deleted
     event_starts = sorted({b.event_start for b in all_beliefs})
     cutoff = event_starts[-1]
 
     delete_data_response = client.delete(
         url_for("SensorAPI:delete_data", id=existing_sensor_id),
-        json={"until": cutoff.isoformat()},
+        json={end_field: cutoff.isoformat()},
     )
     assert delete_data_response.status_code == 204
 
@@ -154,37 +161,37 @@ def test_delete_sensor_data_by_until(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_sensor_data_until_before_start_rejected(
+def test_delete_sensor_data_end_before_start_rejected(
     client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
-    """Passing until < start must be rejected with 422."""
+    """Passing end < start must be rejected with 422."""
     existing_sensor = setup_api_fresh_test_data["some gas sensor"]
 
     response = client.delete(
         url_for("SensorAPI:delete_data", id=existing_sensor.id),
         json={
             "start": "2021-05-02T00:10:00+02:00",
-            "until": "2021-05-02T00:00:00+02:00",  # before start
+            "end": "2021-05-02T00:00:00+02:00",  # before start
         },
     )
     assert response.status_code == 422
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_sensor_data_until_too_close_to_start_rejected(
+def test_delete_sensor_data_end_too_close_to_start_rejected(
     client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
-    """For a non-instantaneous sensor (10-min resolution), until must be at least one
-    resolution step after start.  Providing until == start must be rejected with 422."""
+    """For a non-instantaneous sensor (10-min resolution), end must be at least one
+    resolution step after start.  Providing end == start must be rejected with 422."""
     existing_sensor = setup_api_fresh_test_data["some gas sensor"]
-    # sensor has 10-minute resolution; start == until is less than one resolution step
+    # sensor has 10-minute resolution; start == end is less than one resolution step
     assert existing_sensor.event_resolution.total_seconds() == 600
 
     response = client.delete(
         url_for("SensorAPI:delete_data", id=existing_sensor.id),
         json={
             "start": "2021-05-02T00:00:00+02:00",
-            "until": "2021-05-02T00:00:00+02:00",  # same as start — too close
+            "end": "2021-05-02T00:00:00+02:00",  # same as start — too close
         },
     )
     assert response.status_code == 422
@@ -194,7 +201,7 @@ def test_delete_sensor_data_until_too_close_to_start_rejected(
 def test_delete_sensor_data_instantaneous_sensor_same_datetime(
     client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
-    """For an instantaneous sensor (zero resolution), start == until is valid and
+    """For an instantaneous sensor (zero resolution), start == end is valid and
     deletes the single data point recorded at that moment."""
     temperature_sensor = setup_api_fresh_test_data["some temperature sensor"]
     sensor_id = temperature_sensor.id
@@ -210,7 +217,7 @@ def test_delete_sensor_data_instantaneous_sensor_same_datetime(
 
     response = client.delete(
         url_for("SensorAPI:delete_data", id=sensor_id),
-        json={"start": target_dt, "until": target_dt},
+        json={"start": target_dt, "end": target_dt},
     )
     assert response.status_code == 204
 

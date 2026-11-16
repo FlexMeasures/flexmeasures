@@ -146,7 +146,7 @@
                 <div>
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
-                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}. Ctrl-click to open the copy in a new tab.">
                         Copy this asset
                     </button>
                 </div>
@@ -156,7 +156,7 @@
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
                         data-target-account-id="{{ copy_target_account_id }}"
-                        title="Copy asset and all its children to {{ own_organisation_name }}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        title="Copy asset and all its children to {{ own_organisation_name }}. Ctrl-click to open the copy in a new tab.">
                         Copy to {{ own_organisation_name }}
                     </button>
                 </div>
@@ -164,7 +164,7 @@
                 {% if user_can_delete_asset %}
                 <div>
                     <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
-                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
+                        type="button" data-asset-id="{{ asset.id }}" data-parent-asset-id="{{ asset.parent_asset_id or '' }}">Delete this asset
                     </button>
                 </div>
                 {% endif %}
@@ -438,9 +438,11 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
             getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
-            escapeHtml, countSensorsGone, unavailableReferencesWarning
+            escapeHtml, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
-        import { flexConfigSensorIds } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
+        import {
+            flexConfigSensorIds, isUnsetSensorReference, unsetSensorReferencePaths, referenceWithSensor, unsetSensorReferenceNote
+        } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -519,11 +521,16 @@
                 const flexCheckBox = document.getElementById('flexCheckBox');
                 const sensorSearchBar = document.getElementById('sensorSearchBar');
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+                const searchNow = document.getElementById('flexModelSearchNow');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
-                    { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
+                    { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors },
+                    { element: searchNow, id: 'flexModelSearchNow', eventType: 'click', handler: (event) => {
+                        event.preventDefault();
+                        searchSensors();
+                    } }
                 ];
 
                 elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
@@ -605,7 +612,8 @@
                 const card = activeCard();
                 const name = card.id.replace('-control', '');
                 const flexModel = getFlexModel()
-                const sensorReference = { "sensor": sensorId };
+                const currentValue = FlexModelFieldValidTypes[name].includes(Array) ? flexModel[name][selectedIndex()] : flexModel[name];
+                const sensorReference = referenceWithSensor(currentValue, sensorId);
                 const defaultInput = document.getElementById('flexSensorDefaultInput');
                 if (defaultInput && defaultInput.value.trim()) {
                     sensorReference.default = defaultInput.value.trim();
@@ -645,10 +653,11 @@
             }
 
             async function searchSensors() {
-                const searchValue = sensorSearchBar.value.toLowerCase();
+                document.getElementById('flexModelSensorSearchPrompt').classList.add('d-none');
+                const searchValue = document.getElementById('sensorSearchBar').value.toLowerCase();
                 spinnerElement.style.display = 'flex';
                 senSearchResEle.style.display = 'none';
-                const flexUnitsSelectValue = flexUnitsSelect.value;
+                const flexUnitsSelectValue = document.getElementById('flexUnitsSelect').value;
 
                 const params = new URLSearchParams();
 
@@ -656,9 +665,7 @@
                     params.append('filter', searchValue);
                 }
 
-                if (flexCheckBox.checked) {
-                    params.append('include_public_assets', true);
-                }
+                params.set('include_public_assets', document.getElementById('flexCheckBox').checked);
 
                 if (flexUnitsSelectValue !== "null") {
                     params.append('unit', flexUnitsSelectValue);
@@ -849,7 +856,9 @@
 
                     const component = document.createElement('div');
 
-                    if (isKeyValueObject) {
+                    if (isUnsetSensorReference(value)) {
+                        component.innerHTML = `<div class="text-warning-emphasis">${escapeHtml(unsetSensorReferenceNote(value))}</div>`;
+                    } else if (isKeyValueObject) {
                         const sensor = await renderSensor(value.sensor);
                         component.innerHTML = sensor;
                     } else if (isFixed) {
@@ -887,6 +896,9 @@
                 const isExtraField = name in extraFields;
                 const card = document.createElement('div');
                 card.className = 'card m-1 mt-0';
+                if (isUnsetSensorReference(value)) {
+                    card.classList.add('border-warning');
+                }
                 card.id = `${name}-control`;
 
                 // set card element to disabled if its an extrafield
@@ -1024,7 +1036,8 @@
 
                 const contentContainer = document.createElement('div');
                 contentContainer.innerHTML = `
-                    ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
+                    ${isUnsetSensorReference(value) ? `<div class="text-warning-emphasis">${escapeHtml(unsetSensorReferenceNote(value))}</div>`
+                        : isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
                     ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
                 `;
@@ -1157,6 +1170,10 @@
                                     </select>
                                 </div>
                             </div>
+                            <p id="flexModelSensorSearchPrompt" class="text-muted mt-2 mb-0">
+                                Start searching by keyword or unit. Or
+                                <a href="#" id="flexModelSearchNow">search right now</a>.
+                            </p>
                             ${supportsSensorDefault ? `
                                 <label for="flexSensorDefaultInput" class="form-label mt-2">
                                     Default fallback (optional)
@@ -1355,6 +1372,10 @@
                 );
                 if (warning !== null) {
                     flexmodelContainer.prepend(warning);
+                }
+                const deletedWarning = deletedSensorReferencesWarning(unsetSensorReferencePaths(assetFlexModel).length);
+                if (deletedWarning !== null) {
+                    flexmodelContainer.prepend(deletedWarning);
                 }
             };
 

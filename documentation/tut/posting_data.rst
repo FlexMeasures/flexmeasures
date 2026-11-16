@@ -41,7 +41,7 @@ You need:
 - the hostname and login details of a user allowed to record data;
 - the ID of an existing sensor;
 - the sensor's unit, event resolution and timezone; and
-- Python 3.10 or newer.
+- Python 3.10 or newer (for running client commands).
 
 A sensor is the contract for a time series: it tells FlexMeasures what the values mean,
 which unit they use, how long each event lasts and which timezone applies.
@@ -284,7 +284,7 @@ For example, upload a file with an access token:
 
 Or post values as JSON:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ curl --fail-with-body \
         -H "Authorization: ${FLEXMEASURES_ACCESS_TOKEN}" \
