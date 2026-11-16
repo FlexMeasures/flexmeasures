@@ -710,11 +710,19 @@ def test_activating_a_too_frequent_automation_is_refused(
         response = client.patch(url, json={"name": "Renamed copy"})
         assert response.status_code == 200, response.json
 
+        # The interval is the one for the automation's type (an hour for forecasting)
+        db.session.get(Automation, automation_id).cronstr = "*/15 * * * *"
+        db.session.commit()
+        response = client.patch(url, json={"active": True})
+        assert response.status_code == 422, response.json
+        assert "forecasting automations" in str(response.json["message"])
+        assert not db.session.get(Automation, automation_id).active
+
         # Activating it with a cron expression that is allowed is fine
-        response = client.patch(url, json={"active": True, "cron": "*/15 * * * *"})
+        response = client.patch(url, json={"active": True, "cron": "0 * * * *"})
         assert response.status_code == 200, response.json
         automation = db.session.get(Automation, automation_id)
-        assert automation.active and automation.cronstr == "*/15 * * * *"
+        assert automation.active and automation.cronstr == "0 * * * *"
 
 
 @pytest.mark.parametrize(
