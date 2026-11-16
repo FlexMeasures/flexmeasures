@@ -18,7 +18,7 @@ from flexmeasures.data.services.data_sources import get_data_generator
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_details_reject_inaccessible_sensor_metadata(
+def test_details_mask_inaccessible_sensor_metadata(
     client,
     fresh_db,
     setup_roles_users_fresh_db,
@@ -69,8 +69,19 @@ def test_details_reject_inaccessible_sensor_metadata(
         )
     )
 
-    assert response.status_code == 403
+    # Whoever may read the asset sees the automation, with a sensor they may not read named by its ID only.
+    assert response.status_code == 200, response.json
     assert hidden_sensor.name not in response.text
+    assert {
+        "id": hidden_sensor.id,
+        "name": None,
+        "readable": False,
+    } in response.json["input-sensors"]
+    assert {
+        "id": output_sensor.id,
+        "name": output_sensor.name,
+        "readable": True,
+    } in response.json["output-sensors"]
 
 
 @pytest.mark.parametrize(
@@ -131,10 +142,10 @@ def test_schedule_details_include_stored_flex_sensors(
 
     assert response.status_code == 200
     assert response.json["input-sensors"] == [
-        {"id": price_sensor.id, "name": price_sensor.name}
+        {"id": price_sensor.id, "name": price_sensor.name, "readable": True}
     ]
     assert response.json["output-sensors"] == [
-        {"id": power_sensor.id, "name": power_sensor.name}
+        {"id": power_sensor.id, "name": power_sensor.name, "readable": True}
     ]
 
 

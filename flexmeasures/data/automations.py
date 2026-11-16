@@ -98,7 +98,7 @@ class AutomationHandler:
         source=None,
         check_permissions: bool = False,
         source_is_kept: bool = False,
-        editing: bool = False,
+        kept_sensor_ids: dict[str, set[int]] | None = None,
     ):
         """Validate an automation's definition, and look up or create the data source storing its generator config.
 
@@ -111,9 +111,9 @@ class AutomationHandler:
             get_default_automation_timezone,
         )
         from flexmeasures.data.services.automations import (
-            EDIT_REFUSED,
             PreparedAutomation,
             _prepare_builtin_automation,
+            check_edited_sensor_access,
         )
         from flexmeasures.data.services.data_generators import (
             check_sensor_access,
@@ -134,7 +134,7 @@ class AutomationHandler:
                 source=source,
                 check_permissions=check_permissions,
                 source_is_kept=source_is_kept,
-                editing=editing,
+                kept_sensor_ids=kept_sensor_ids,
             )
         if generator_class not in (None, self.generator_class.__name__):
             raise ValidationError("This automation type determines its data generator.")
@@ -159,8 +159,8 @@ class AutomationHandler:
         )
         sensors = resolve_data_generator_sensors(generator, loaded)
         if check_permissions:
-            if editing:
-                check_sensor_access(**sensors, refused=EDIT_REFUSED)
+            if kept_sensor_ids is not None:
+                check_edited_sensor_access(**sensors, kept_sensor_ids=kept_sensor_ids)
             else:
                 check_sensor_access(**sensors)
         validate_output_scope(asset.id, sensors["output_sensors"])
@@ -447,7 +447,7 @@ def user_has_permission(user, entity, permission: str) -> bool:
 
 
 def check_execution_access(automation, sensors):
-    """Recheck the API creator's current permissions for unattended execution.
+    """Recheck the current permissions of the user whom the automation runs as (its creator, unless taken over), for unattended execution.
 
     A null identity denotes trusted CLI creation or a legacy automation. A deleted
     identity remains stored and fails closed, rather than reverting to CLI trust.
@@ -456,10 +456,14 @@ def check_execution_access(automation, sensors):
 
     if automation.execution_user_id is None:
         return
+    from flexmeasures.data.services.automations import describe_run_user
+
     user = db.session.get(User, automation.execution_user_id, populate_existing=True)
+    run_user = describe_run_user(automation.execution_user_id)
+    takeover = "Someone who may run it can take it over with Run as me in its edit form (run-as-me in the API)."
     if user is None or not user.active:
         raise Forbidden(
-            "The automation's creating user is missing or inactive. Recreate it with an active user."
+            f"Automation {automation.id} runs as {run_user}, who is missing or inactive. {takeover}"
         )
     for entities, permission in (
         ([automation.asset], "read"),
@@ -468,8 +472,9 @@ def check_execution_access(automation, sensors):
     ):
         for entity in entities:
             if not user_has_permission(user, entity, permission):
+                kind = "asset" if entity is automation.asset else "sensor"
                 raise Forbidden(
-                    f"Automation {automation.id} creator no longer has '{permission}' permission on {entity}."
+                    f"Automation {automation.id} runs as {run_user}, who no longer has '{permission}' permission on {kind} {entity.id}. {takeover}"
                 )
 
 

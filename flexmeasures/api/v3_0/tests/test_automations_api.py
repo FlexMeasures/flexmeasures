@@ -174,9 +174,15 @@ def test_get_automation_details(
     ]
     assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
-    sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
+    sensor = {
+        "id": battery.sensors[0].id,
+        "name": battery.sensors[0].name,
+        "readable": True,
+    }
     assert response.json["input-sensors"] == [sensor]
     assert response.json["output-sensors"] == [sensor]
+    # Set up without a user making the request, as through the CLI, so its runs check nobody's access.
+    assert response.json["runs-as"] is None
 
 
 @pytest.mark.parametrize(
@@ -1475,6 +1481,11 @@ def test_patch_automation_onto_inaccessible_sensor(
             {"parameters": {"sensor": someone_elses_sensor.id}},
         )
     assert response.status_code == 403, response.json
+    # The edit adds the sensor, which the refusal says.
+    assert response.json["message"] == (
+        f"You cannot change this automation, because it would then read data from sensor {someone_elses_sensor.id},"
+        " which you cannot read data from yourself."
+    )
     db.session.expire_all()
     automation = db.session.get(Automation, created["id"])
     assert automation.parameters == {"sensor": battery.sensors[0].id}
@@ -1542,6 +1553,10 @@ def test_patch_automation_keeps_the_run_user(
             response = _patch_automation(client, battery, automation.id, payload)
         assert response.status_code == 200, response.json
         assert automation.execution_user_id == creator_id
+        assert response.json["runs-as"] == {
+            "id": creator_id,
+            "name": "Test Prosumer User",
+        }
 
 
 @pytest.mark.parametrize(
@@ -1581,11 +1596,18 @@ def test_patch_automation_refused_for_the_run_user_unless_taken_over(
         )
     assert response.status_code == 403, response.json
     message = response.json["message"]
-    assert f"Test Prosumer User 2 (user {requesting_user.id})" in message
-    assert "tick Run as me in the edit form, or send run-as-me" in message
+    assert message.endswith(
+        f" Send run-as-me to have it run as you, Test Prosumer User 2 (user {requesting_user.id}), instead."
+    )
+    # A client with its own way to take over recognises the refusal, and can say it without the API's hint.
+    assert response.json["reason"] == "run-user-lacks-access"
+    assert message.startswith(response.json["refusal"])
+    assert "run-as-me" not in response.json["refusal"]
     if run_user:
-        assert f"sensor {battery.sensors[1].id}" in message
-        assert f"{run_user} (user {run_user_id})" in message
+        assert response.json["refusal"] == (
+            f"You cannot change this automation, because it would then read data from sensor {battery.sensors[1].id},"
+            f" which {run_user} (user {run_user_id}), whom it runs as, cannot read data from."
+        )
     else:
         assert f"user {run_user_id}, who is missing or inactive" in message
     db.session.expire_all()
@@ -1603,8 +1625,12 @@ def test_patch_automation_refused_for_the_run_user_unless_taken_over(
     audit_events = db.session.scalars(
         select(AssetAuditLog.event).filter_by(affected_asset_id=battery.id)
     ).all()
+    previous_run_user = (
+        f"{run_user} (user {run_user_id})" if run_user else f"user {run_user_id}"
+    )
     assert any(
-        f"runs as: user {run_user_id} → user {requesting_user.id}" in event
+        f"runs as: {previous_run_user} → Test Prosumer User 2 (user {requesting_user.id})"
+        in event
         for event in audit_events
     )
 
@@ -1669,8 +1695,9 @@ def test_patch_automation_keeping_an_inaccessible_sensor(
             {"parameters": {"sensor": battery.sensors[1].id}},
         )
     assert response.status_code == 403, response.json
+    # The sensor is in the stored config already, so the refusal does not say the edit adds it.
     assert response.json["message"] == (
-        f"You cannot change this automation, because it would then read data from sensor {someone_elses_sensor.id},"
+        f"You cannot change this automation, because it reads data from sensor {someone_elses_sensor.id} (already in its definition),"
         " which you cannot read data from yourself."
     )
     db.session.expire_all()

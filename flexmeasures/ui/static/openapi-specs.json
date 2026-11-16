@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -3538,7 +3538,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nAnyone who may read the asset sees its automations, also where they involve sensors that this user may not read:\nsuch a sensor is listed with its ID only, its name null and `readable` false.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3599,17 +3599,20 @@
                       "input-sensors": [
                         {
                           "id": 2092,
-                          "name": "power"
+                          "name": "power",
+                          "readable": true
                         },
                         {
                           "id": 2093,
-                          "name": "irradiance"
+                          "name": null,
+                          "readable": false
                         }
                       ],
                       "output-sensors": [
                         {
                           "id": 2092,
-                          "name": "power"
+                          "name": "power",
+                          "readable": true
                         }
                       ],
                       "job-stats": {
@@ -3666,7 +3669,7 @@
       },
       "patch": {
         "summary": "Update an automation.",
-        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nEvery run of the automation checks the access of the user it runs as (its creator, at first), who stays the same,\nso the sensors involved are checked against the access of both the user making the change and that user.\nSet `run-as-me` to have the automation run as the user making the change from then on, instead;\nthe sensors are then checked against that user's access only, and the switch is written to the asset's audit log.\nA new `config` moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
+        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nEvery run of the automation checks the access of the user it runs as (`runs-as`: its creator, at first), who stays the same,\nso the sensors involved are checked against the access of both the user making the change and that user.\nWhen that user's access falls short, the 403 response carries `reason: run-user-lacks-access`.\nSet `run-as-me` to have the automation run as the user making the change from then on, instead;\nthe sensors are then checked against that user's access only, and the switch is written to the asset's audit log.\nUse this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.\nAn automation set up through the CLI runs as nobody, as the CLI is trusted:\nan edit of it is checked against the access of the user making the change only, and its runs stay unchecked.\nA new `config` replaces the current one as a whole, so it has to repeat any setting to keep.\nIt moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3724,7 +3727,7 @@
                 },
                 "run_as_me": {
                   "summary": "Take over the automation's runs",
-                  "description": "Every run checks your access from now on, for example because the user it ran as has left.",
+                  "description": "Every run checks your access from now on, for example because the runs of the user it ran as are refused.",
                   "value": {
                     "run-as-me": true
                   }
@@ -6948,7 +6951,7 @@
           },
           "run-as-me": {
             "type": "boolean",
-            "description": "Have the automation run as you from now on, so that every run checks your access, rather than that of the user it runs as now (its creator, at first). Without it, a change of what the automation computes has to pass the access checks of both you and that user.",
+            "description": "Have the automation run as you from now on, so that every run checks your access, rather than that of the user it runs as now (its creator, at first). Without it, a change of what the automation computes has to pass the access checks of both you and that user. Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.",
             "example": true
           }
         },

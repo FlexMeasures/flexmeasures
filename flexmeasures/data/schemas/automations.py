@@ -14,7 +14,7 @@ from marshmallow import (
     ValidationError,
 )
 
-from flexmeasures.data import ma
+from flexmeasures.data import db, ma
 from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -197,7 +197,8 @@ class AutomationUpdateSchema(Schema):
         metadata={
             "description": "Have the automation run as you from now on, so that every run checks your access,"
             " rather than that of the user it runs as now (its creator, at first)."
-            " Without it, a change of what the automation computes has to pass the access checks of both you and that user.",
+            " Without it, a change of what the automation computes has to pass the access checks of both you and that user."
+            " Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.",
             "example": True,
         },
     )
@@ -266,6 +267,17 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     active = ma.auto_field()
+    runs_as = fields.Method(
+        serialize="dump_runs_as",
+        data_key="runs-as",
+        dump_only=True,
+        metadata={
+            "description": "The user whose access every run of the automation checks: its creator, unless someone took it over with `run-as-me`."
+            " Null for an automation set up through the CLI, which is trusted, so that its runs check nobody's access."
+            " The name is null if that user no longer exists.",
+            "example": {"id": 2, "name": "toy-user"},
+        },
+    )
 
     @staticmethod
     def _in_automation_timezone(
@@ -291,6 +303,18 @@ class AutomationSchema(ma.SQLAlchemySchema):
     def dump_cursor(self, automation: Automation) -> str | None:
         """Render the cursor in the automation's own timezone."""
         return self._in_automation_timezone(automation, automation.cursor)
+
+    def dump_runs_as(self, automation: Automation) -> dict | None:
+        """Name the user whom the automation runs as, as nothing else shows it."""
+        from flexmeasures.data.models.user import User
+
+        if automation.execution_user_id is None:
+            return None
+        user = db.session.get(User, automation.execution_user_id)
+        return {
+            "id": automation.execution_user_id,
+            "name": user.username if user is not None else None,
+        }
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):
