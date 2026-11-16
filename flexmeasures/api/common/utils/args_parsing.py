@@ -65,9 +65,20 @@ def _enforce_request_size_limit(request: Request, config_key: str):
         # but never more than one byte past the limit.
         body = getattr(request, "_cached_data", None)
         if body is None:
-            body = request.stream.read(max_size + 1)
+            # A read may return less than asked for, so read until the stream ends or the limit is passed.
+            # (If MAX_CONTENT_LENGTH is the same limit, the stream itself raises RequestEntityTooLarge once it is passed.)
+            body = b""
+            while len(body) <= max_size:
+                chunk = request.stream.read(max_size + 1 - len(body))
+                if not chunk:
+                    break
+                body += chunk
             # Keep what was read for parsing the body later on (Werkzeug's get_data reads this cache).
             request._cached_data = body
+        elif len(body) >= max_size:
+            # Read before, possibly cut off at MAX_CONTENT_LENGTH: anything left on the stream means it was too large.
+            # (A stream limited by MAX_CONTENT_LENGTH raises RequestEntityTooLarge itself here.)
+            body += request.stream.read(1)
         if len(body) > max_size:
             raise RequestEntityTooLarge(
                 description=(

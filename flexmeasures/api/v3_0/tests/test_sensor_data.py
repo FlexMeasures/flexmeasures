@@ -522,6 +522,69 @@ def test_any_request_body_has_a_size_limit(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_request_bodies_are_limited_by_the_ingestion_limit(
+    client, setup_api_test_data, requesting_user
+):
+    """By default, one setting limits every request body: a body just above the ingestion limit gets 413 anywhere."""
+    ingestion_limit = int(
+        current_app.config["FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"]
+    )
+    assert current_app.config["MAX_CONTENT_LENGTH"] == ingestion_limit
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        data=b"{}",
+        content_type="application/json",
+        environ_overrides={"CONTENT_LENGTH": str(ingestion_limit + 1)},
+    )
+    assert response.status_code == 413
+
+    # Sensor data sent without a Content-Length (chunked) just above the limit is refused, too,
+    # now that the stream itself is limited to the same size.
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        input_stream=io.BytesIO(b" " * (ingestion_limit + 1)),
+        content_type="application/json",
+        headers={"Transfer-Encoding": "chunked"},
+        environ_overrides={"wsgi.input_terminated": True},
+    )
+    assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    "host_settings, expected_limit",
+    [
+        # Raising the ingestion limit raises the limit on every request body.
+        (
+            {"FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES": 10 * 1024 * 1024},
+            10 * 1024 * 1024,
+        ),
+        ({"FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES": None}, None),
+        # A host may still set its own general limit, or none at all.
+        ({"MAX_CONTENT_LENGTH": 1024}, 1024),
+        ({"MAX_CONTENT_LENGTH": None}, None),
+    ],
+)
+def test_max_content_length_follows_the_ingestion_limit(host_settings, expected_limit):
+    from flask import Flask
+
+    from flexmeasures.utils.config_defaults import ProductionConfig
+    from flexmeasures.utils.config_utils import resolve_max_content_length
+
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    app.config.pop(
+        "MAX_CONTENT_LENGTH"
+    )  # as read_config does, before reading the host's settings
+    app.config.update(host_settings)
+    resolve_max_content_length(app)
+    assert app.config["MAX_CONTENT_LENGTH"] == expected_limit
+
+
+@pytest.mark.parametrize(
     "request_field, new_value, error_field, error_text",
     [
         ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),

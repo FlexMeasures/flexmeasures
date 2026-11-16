@@ -127,6 +127,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(flexmeasures_env)
     )
+    # Flask's own default (no limit) is replaced below, unless the host sets a limit (see resolve_max_content_length)
+    app.config.pop("MAX_CONTENT_LENGTH", None)
 
     # Now, potentially overwrite those from config file or environment variables
 
@@ -154,6 +156,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
     normalize_trusted_hosts(app)
     resolve_cookie_security(app)
+    resolve_max_content_length(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -317,6 +320,20 @@ def resolve_cookie_security(app: Flask) -> None:
     for setting in COOKIE_SECURITY_SETTINGS:
         if app.config.get(setting) is None:
             app.config[setting] = force_https
+
+
+def resolve_max_content_length(app: Flask) -> None:
+    """Limit every request body to the sensor data ingestion limit, unless the host set MAX_CONTENT_LENGTH.
+
+    So one setting (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES) limits all request bodies by default.
+    A host may still set MAX_CONTENT_LENGTH itself, also to None (no limit).
+    """
+    if "MAX_CONTENT_LENGTH" in app.config:
+        return
+    ingestion_limit = app.config.get("FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES")
+    app.config["MAX_CONTENT_LENGTH"] = (
+        int(ingestion_limit) if ingestion_limit is not None else None
+    )
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:
