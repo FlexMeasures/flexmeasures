@@ -35,8 +35,9 @@ ALLOWED_TRANSFORMATION_PROPERTIES = PANDAS_TRANSFORMATION_PROPERTIES | {
 
 # The pandas methods a transformation may call, besides the pseudo-methods above.
 # A reporter config comes from users (report triggers and automations),
-# so methods that write files (to_*), evaluate expressions (eval, query),
-# or call another method or function named by a string (apply, agg, aggregate, transform, pipe) are left out.
+# so methods that write files (to_*) or evaluate expressions (eval, query) are left out,
+# as is pipe, which calls any function. Methods that call other methods named by strings
+# (see FUNCTION_NAME_METHODS) are allowed only with names from this list.
 ALLOWED_TRANSFORMATION_METHODS = frozenset(
     {
         # arithmetic and rounding
@@ -60,8 +61,16 @@ ALLOWED_TRANSFORMATION_METHODS = frozenset(
         *("set_index", "sort_index", "sort_values", "rename", "rename_axis"),
         *("astype", "tz_convert", "tz_localize", "stack", "unstack", "squeeze"),
         *("to_frame", "convert_index_from"),
+        # calling the methods above by name, such as agg(["min", "max"]) (see FUNCTION_NAME_METHODS)
+        *("apply", "aggregate", "agg", "transform"),
     }
 )
+
+# Methods that call the functions named in their first argument (func, or arg for Resampler.transform).
+# They may only name methods from ALLOWED_TRANSFORMATION_METHODS, other than these methods themselves:
+# a name, a list of names, or a dict of column to a name or a list of names.
+FUNCTION_NAME_METHODS = frozenset({"apply", "aggregate", "agg", "transform"})
+FUNCTION_NAME_ARGUMENTS = ("func", "arg")
 
 
 # Helper: ensure args/kwargs are "primitive-only" (no callables/objects)
@@ -88,6 +97,67 @@ def _refuse_unlisted_method(method: str, skip_sig: set[str]):
             f"Method '{method}' cannot be used in a transformation.",
             field_name="method",
         )
+
+
+def _refuse_unlisted_function_names(method: str, args: list, kwargs: dict):
+    """Refuse a method that calls functions by name, unless it names only allowed methods.
+
+    For example, {"method": "agg", "args": [["min", "max"]]} or {"method": "agg", "args": [{"a": "sum"}]} is fine,
+    while {"method": "apply", "args": ["to_csv"]} is not.
+    """
+    named = [kwargs[key] for key in FUNCTION_NAME_ARGUMENTS if key in kwargs]
+    if args:
+        named.insert(0, args[0])
+    if len(named) != 1:
+        raise ValidationError(
+            f"Method '{method}' needs exactly one function name, list of function names or dict of column to function names, as its first argument.",
+            field_name="args",
+        )
+    functions = named[0]
+    if isinstance(functions, dict):
+        names = []
+        for column_functions in functions.values():
+            if isinstance(column_functions, list):
+                names.extend(column_functions)
+            else:
+                names.append(column_functions)
+    elif isinstance(functions, list):
+        names = functions
+    else:
+        names = [functions]
+    for name in names:
+        if (
+            not isinstance(name, str)
+            or name not in ALLOWED_TRANSFORMATION_METHODS
+            or name in FUNCTION_NAME_METHODS
+        ):
+            raise ValidationError(
+                f"Method '{method}' cannot call {name!r}: only names of methods that can be used in a transformation are allowed.",
+                field_name="args",
+            )
+
+
+def _validate_pseudo_method_payload(method: str, args: list, kwargs: dict):
+    """Custom validation for pseudo-methods, which skip Python signature binding."""
+    # Example: strict, explicit schema for get_attribute
+    # - args: exactly 1 string attribute name
+    # - kwargs: only {"default": <primitive>} allowed
+    if method == "get_attribute":
+        if len(args) != 1 or not isinstance(args[0], str) or not args[0]:
+            raise ValidationError(
+                "get_attribute requires a single non-empty string argument."
+            )
+        disallowed_keys = set(kwargs) - {
+            "default",
+            "level",
+            "axis",
+            "on",
+            "suffixes",
+        }
+        if disallowed_keys:
+            raise ValidationError(
+                f"get_attribute does not accept kwargs: {sorted(disallowed_keys)}"
+            )
 
 
 def pseudo_methods() -> set[str]:
@@ -199,26 +269,11 @@ class Transformation(Schema):
 
         # If this method is in the "skip-signature" list, do custom validation and stop
         if method in skip_sig:
-            # Example: strict, explicit schema for get_attribute
-            # - args: exactly 1 string attribute name
-            # - kwargs: only {"default": <primitive>} allowed
-            if method == "get_attribute":
-                if len(args) != 1 or not isinstance(args[0], str) or not args[0]:
-                    raise ValidationError(
-                        "get_attribute requires a single non-empty string argument."
-                    )
-                disallowed_keys = set(kwargs) - {
-                    "default",
-                    "level",
-                    "axis",
-                    "on",
-                    "suffixes",
-                }
-                if disallowed_keys:
-                    raise ValidationError(
-                        f"get_attribute does not accept kwargs: {sorted(disallowed_keys)}"
-                    )
+            _validate_pseudo_method_payload(method, args, kwargs)
             return  # skip Python signature binding entirely
+
+        if method in FUNCTION_NAME_METHODS:
+            _refuse_unlisted_function_names(method, args, kwargs)
 
         # For all other methods, verify existence and argument binding
         is_callable_somewhere = False
