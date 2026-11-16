@@ -505,6 +505,44 @@ def _eager_load_asset_relations_dumped_by(
         return query
 
 
+def _check_copy_target_access(
+    asset: GenericAsset,
+    account: Account | None,
+    parent_asset: GenericAsset | None,
+) -> None:
+    """Check that the current user may create the copy of an asset where copy_asset will put it.
+
+    The target account and parent are resolved as in copy_asset:
+    if neither is given, the copy goes into the source's account, under the source's parent.
+    """
+    resolved_parent = (
+        parent_asset if account is not None else (parent_asset or asset.parent_asset)
+    )
+    if account is not None:
+        target_account = account
+    elif parent_asset is not None:
+        target_account = parent_asset.owner
+    else:
+        target_account = asset.owner
+
+    # When placing the copy under a parent asset, the parent's edit-assets
+    # permission is sufficient (any account member may add children to an asset),
+    # as long as the copy lands in the parent's account.
+    # Otherwise (a top-level copy, or a copy in another account than its parent's), we check the
+    # target account, which requires account-admin or consultant.
+    # Special case: public copies (no account) require site admin.
+    if resolved_parent is not None:
+        check_access(resolved_parent, "edit-assets")
+        if resolved_parent.account_id == (
+            target_account.id if target_account is not None else None
+        ):
+            return
+    if target_account is not None:
+        check_access(target_account, "edit-assets")
+    elif not running_as_cli() and not user_has_admin_access(current_user, "update"):
+        raise Forbidden("Only site admins may create public assets (account_id=None).")
+
+
 class AssetAPI(FlaskView):
     """
     This API view exposes generic assets.
@@ -2908,33 +2946,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        # Resolve effective targets for permission checks and fallback behavior.
-        # If neither target is given, use the source asset's account/parent.
-        resolved_account = account or asset.owner
-        resolved_parent = (
-            parent_asset
-            if account is not None
-            else (parent_asset or asset.parent_asset)
-        )
-
-        # When placing the copy under a parent asset, the parent's create-children
-        # permission is sufficient (any account member may add children to an asset).
-        # When creating a top-level asset (no parent), we fall back to the account-level
-        # create-children check, which requires account-admin or consultant.
-        # Special case: public-to-public copies (both None) require site admin.
-        if resolved_parent is not None:
-            check_access(resolved_parent, "edit-assets")
-        elif resolved_account is not None:
-            check_access(resolved_account, "edit-assets")
-        else:
-            # Public asset copy (account_id=None, parent_asset_id=None).
-            # Only site admins may create public assets.
-            if not running_as_cli() and not user_has_admin_access(
-                current_user, "update"
-            ):
-                raise Forbidden(
-                    "Only site admins may create public assets (account_id=None)."
-                )
+        _check_copy_target_access(asset, account, parent_asset)
 
         try:
             asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
