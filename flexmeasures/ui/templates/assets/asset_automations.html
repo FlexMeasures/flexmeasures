@@ -170,12 +170,19 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="mb-3">
                   <label for="automationType" class="form-label">Type
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="Create plugin-defined automation types with the CLI. They can be viewed and managed here." style="font-size: 16px"></i>
+                     title="What the automation computes. Besides forecasts, schedules and reports, installed plugins can add types of their own, listed under Plugin types." style="font-size: 16px"></i>
                   </label>
                   <select class="form-select" id="automationType">
                     <option value="forecasting" selected>forecasting</option>
                     <option value="scheduling">scheduling</option>
                     <option value="reporting">reporting</option>
+                    {% if plugin_automation_types %}
+                    <optgroup label="Plugin types">
+                      {% for plugin_type in plugin_automation_types %}
+                      <option value="{{ plugin_type.type_id }}">{{ plugin_type.display_name }}</option>
+                      {% endfor %}
+                    </optgroup>
+                    {% endif %}
                   </select>
                 </div>
                 <div class="mb-3">
@@ -213,7 +220,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     </div>
                   </div>
                 </div>
-                <div class="mb-3 chooses-generator">
+                <!-- A plugin type declares its own data generator, so only a forecast or report automation names one. -->
+                <div class="mb-3 chooses-generator names-generator-class">
                   <label for="automationGenerator" class="form-label">Data generator
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter)." style="font-size: 16px"></i>
@@ -231,10 +239,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="mb-3">
                   <label for="automationParameters" class="form-label">Parameters (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
-                     title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting). A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
+                     title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), report parameters (for type reporting), or the parameters a plugin type defines. A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
                   </label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
-                  <div class="form-text">
+                  <!-- The run period options belong to the built-in types; a plugin type's parameters follow its own schema. -->
+                  <div class="form-text builtin-type-only">
                     Say the period each run covers with two of "start-offset", "end-offset" and "duration",
                     such as <code>{"start-offset": "1D,DB", "duration": "P1D"}</code> for the whole of the next day.
                   </div>
@@ -391,11 +400,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   // A data source stores a data generator and the configuration it runs under, and the results computed under it are recorded on it,
   // so picking one here is an alternative to setting the two fields below by hand.
-  // Only forecast and report automations can name one: a schedule automation works its source out from the asset and the flex config on every run.
+  // Forecast, report and plugin automations can name one: a schedule automation works its source out from the asset and the flex config on every run.
   const SOURCE_TYPE_PER_AUTOMATION_TYPE = {
     forecasting: "forecaster",
     reporting: "reporter",
   };
+  for (const pluginType of {{ plugin_automation_types | tojson }}) {
+    SOURCE_TYPE_PER_AUTOMATION_TYPE[pluginType.type_id] = pluginType.source_type;
+  }
+
+  // The types FlexMeasures itself defines; any other type comes from a plugin, which declares its own data generator.
+  const BUILTIN_AUTOMATION_TYPES = ["forecasting", "scheduling", "reporting"];
 
   // How many search results the list shows at once, so that a broad search stays readable.
   const MAX_SOURCE_RESULTS = 25;
@@ -485,8 +500,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return $("#automationType").val() !== "scheduling";
   }
 
+  // A plugin type declares its data generator, so only a forecast or a report automation names the generator class.
+  function typeNamesGeneratorClass() {
+    return typeChoosesGenerator() && BUILTIN_AUTOMATION_TYPES.includes($("#automationType").val());
+  }
+
   function showGeneratorFields() {
     $(".chooses-generator").toggle(typeChoosesGenerator());
+    $(".names-generator-class").toggle(typeNamesGeneratorClass());
+    $(".builtin-type-only").toggle(BUILTIN_AUTOMATION_TYPES.includes($("#automationType").val()));
   }
 
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
@@ -797,9 +819,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
         emptyTable: `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
-          + (userCanManage ? (["forecasting", "scheduling", "reporting"].includes(automationType)
-            ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
-            : " Create one with the CLI command `flexmeasures add automation`.") : ""),
+          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
       },
       columns: columns,
       data: automations.map(AutomationRow),
@@ -1178,7 +1198,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         $("#newAutomationErr").removeClass("d-none").text(error.message);
         return;
       }
-      const generator = choosesGenerator && !reusesSource ? $("#automationGenerator").val().trim() : "";
+      const generator = typeNamesGeneratorClass() && !reusesSource ? $("#automationGenerator").val().trim() : "";
       const automationData = {
         name: $("#automationName").val(),
         type: $("#automationType").val(),

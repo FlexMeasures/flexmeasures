@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Create automations of the types that installed plugins add from the *New automation* form on an asset's Automations page, not only from the CLI or the API [see `PR #2871 <https://www.github.com/FlexMeasures/flexmeasures/pull/2871>`_]
 
 Infrastructure / Support
 -------------------------
