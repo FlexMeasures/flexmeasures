@@ -482,3 +482,41 @@ def test_pandas_reporter_refuses_steps_on_other_objects(
 
     with pytest.raises(ValueError, match="A transformation cannot"):
         _compute_with_steps(s1, report_sensor, steps)
+
+
+@pytest.mark.parametrize(
+    "method, function_names",
+    [
+        ("transform", "abs"),
+        ("transform", ["abs"]),
+        ("apply", "abs"),
+        ("transform", {"event_value": "abs"}),
+    ],
+)
+def test_pandas_reporter_calls_listed_methods_by_name(
+    app, db, setup_dummy_data, method, function_names
+):
+    """apply, agg, aggregate and transform run when they name allowed methods."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+
+    report = _compute_with_steps(
+        s1,
+        report_sensor,
+        [
+            dict(
+                df_input="sensor_1",
+                df_output="negated",
+                method="mul",
+                args=[-1],
+            ),
+            dict(
+                df_input="negated",
+                df_output="sensor_1",
+                method=method,
+                args=[function_names],
+            ),
+        ],
+    )
+    values = report[0]["data"].to_numpy()
+    assert values.size > 0
+    assert (values >= 0).all()
