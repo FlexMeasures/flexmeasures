@@ -64,6 +64,7 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    automation_min_interval,
     refuse_too_frequent_cron,
     resolve_automation_sensors,
     run_automation,
@@ -506,8 +507,11 @@ def _eager_load_asset_relations_dumped_by(
         return query
 
 
-def _refuse_too_frequent_automation(automation_data: dict) -> None:
-    """Refuse a cron expression that runs more often than FLEXMEASURES_AUTOMATION_MIN_INTERVAL allows, unless an admin sets it.
+def _refuse_too_frequent_automation(
+    automation_data: dict, automation_type: str
+) -> None:
+    """Refuse a cron expression that runs more often than FLEXMEASURES_AUTOMATION_MIN_INTERVAL allows for this type of automation,
+    unless an admin sets it.
 
     :raises ValidationError: under the "cron" key.
     """
@@ -515,7 +519,7 @@ def _refuse_too_frequent_automation(automation_data: dict) -> None:
     if cronstr is None or user_has_admin_access(current_user, "update"):
         return
     refuse_too_frequent_cron(
-        cronstr, current_app.config["FLEXMEASURES_AUTOMATION_MIN_INTERVAL"]
+        cronstr, automation_min_interval(automation_type), automation_type
     )
 
 
@@ -1832,7 +1836,8 @@ class AssetAPI(FlaskView):
             read access to the sensors it reads data from,
             and permission to record data on the sensors it writes to.
 
-            Unless you are an admin, the cron expression may not run more often than once every 15 minutes
+            Unless you are an admin, the cron expression may not run more often than the minimum interval for the automation's type:
+            by default once every 15 minutes, and once an hour for forecasting automations
             (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
             Creating an automation counts against the trigger rate limit.
           security:
@@ -1897,7 +1902,10 @@ class AssetAPI(FlaskView):
             - Assets
         """
         try:
-            _refuse_too_frequent_automation(automation_data)
+            _refuse_too_frequent_automation(
+                automation_data,
+                automation_data.get("automation_type", "forecasting"),
+            )
             automation, warnings = create_automation(
                 asset, origin="API", check_permissions=True, **automation_data
             )
@@ -1943,7 +1951,8 @@ class AssetAPI(FlaskView):
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
             Other automation fields cannot be updated; instead, create a new automation.
-            Unless you are an admin, a new cron expression may not run more often than once every 15 minutes
+            Unless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:
+            by default once every 15 minutes, and once an hour for forecasting automations
             (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
             Requires permission to add data under the asset.
           security:
@@ -1990,11 +1999,12 @@ class AssetAPI(FlaskView):
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
         try:
-            _refuse_too_frequent_automation(automation_data)
+            _refuse_too_frequent_automation(automation_data, automation.type)
             if automation_data.get("active") and not automation.active:
                 # Activating an automation (e.g. a copy, which starts inactive) holds its cron expression to the same rule
                 _refuse_too_frequent_automation(
-                    {"cronstr": automation_data.get("cronstr", automation.cronstr)}
+                    {"cronstr": automation_data.get("cronstr", automation.cronstr)},
+                    automation.type,
                 )
         except ValidationError as e:
             return unprocessable_entity(e.messages)

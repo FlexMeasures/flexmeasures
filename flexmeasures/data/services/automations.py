@@ -778,18 +778,43 @@ def shortest_cron_interval(cronstr: str) -> timedelta:
     return timedelta(minutes=min(gaps))
 
 
-def refuse_too_frequent_cron(cronstr: str, min_interval: timedelta) -> None:
+DEFAULT_AUTOMATION_MIN_INTERVAL = timedelta(minutes=15)
+
+
+def automation_min_interval(
+    automation_type: str, setting: dict[str, timedelta] | timedelta | None = None
+) -> timedelta:
+    """The shortest time between two runs that non-admins may set up for automations of this type.
+
+    :param setting: FLEXMEASURES_AUTOMATION_MIN_INTERVAL (read from the app config if not given):
+                    a timedelta for all types, or a timedelta per type, with "default" for types not named.
+    """
+    if setting is None:
+        setting = current_app.config.get(
+            "FLEXMEASURES_AUTOMATION_MIN_INTERVAL", DEFAULT_AUTOMATION_MIN_INTERVAL
+        )
+    if isinstance(setting, dict):
+        return setting.get(
+            automation_type, setting.get("default", DEFAULT_AUTOMATION_MIN_INTERVAL)
+        )
+    return setting
+
+
+def refuse_too_frequent_cron(
+    cronstr: str, min_interval: timedelta, automation_type: str | None = None
+) -> None:
     """Refuse a cron expression whose runs can come closer together than the given interval.
 
     :raises ValidationError: under the "cron" key.
     """
     interval = shortest_cron_interval(cronstr)
     if interval < min_interval:
+        kind = f"{automation_type} automations" if automation_type else "automations"
         raise ValidationError(
             {
                 "cron": [
                     f"'{cronstr}' can run every {int(interval.total_seconds() // 60)} minute(s),"
-                    f" but automations may run at most once every {int(min_interval.total_seconds() // 60)} minutes."
+                    f" but {kind} may run at most once every {int(min_interval.total_seconds() // 60)} minute(s)."
                 ]
             }
         )
