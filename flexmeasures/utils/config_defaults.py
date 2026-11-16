@@ -214,8 +214,15 @@ class Config(object):
         "100 per minute"  # per user, for the API calls the UI makes with the user's session
     )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
-    # The shortest time between two runs of an automation that non-admins may set up through the API
-    FLEXMEASURES_AUTOMATION_MIN_INTERVAL: timedelta = timedelta(minutes=15)
+    # The shortest time between two runs of an automation that non-admins may set up through the API,
+    # per automation type ("default" for types not named), or one timedelta for all types
+    FLEXMEASURES_AUTOMATION_MIN_INTERVAL: dict[str, timedelta] | timedelta = {
+        "default": timedelta(minutes=15),
+        "scheduling": timedelta(minutes=15),
+        "forecasting": timedelta(hours=1),
+        "reporting": timedelta(minutes=15),
+        "ingestion": timedelta(minutes=1),
+    }
     # Failed attempts to authenticate (wrong password or two-factor code) allowed per email address and client address (see flexmeasures.auth.login_throttling)
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
     # ... and per email address from all client addresses together
