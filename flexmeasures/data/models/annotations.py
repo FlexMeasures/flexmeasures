@@ -201,7 +201,8 @@ def get_or_create_annotation(
     """Add annotation to db session if it doesn't exist in the session already.
 
     Return tuple of (annotation object, is_new boolean).
-    If annotation exists, return (existing_annotation, False).
+    Match the database identity (content, start, belief time, source, type).
+    If annotation exists, update its end and return (existing_annotation, False).
     If annotation is new, return (new_annotation, True).
     """
     with db.session.no_autoflush:
@@ -209,7 +210,7 @@ def get_or_create_annotation(
             select(Annotation).filter(
                 Annotation.content == annotation.content,
                 Annotation.start == annotation.start,
-                Annotation.end == annotation.end,
+                Annotation.belief_time == annotation.belief_time,
                 Annotation.source == annotation.source,
                 Annotation.type == annotation.type,
             )
@@ -219,6 +220,7 @@ def get_or_create_annotation(
         return annotation, True
     if annotation in db.session:
         db.session.expunge(annotation)
+    existing_annotation.end = annotation.end
     return existing_annotation, False
 
 
