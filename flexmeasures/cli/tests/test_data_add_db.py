@@ -324,3 +324,72 @@ def test_add_user_roles(
 
     user = db.session.execute(select(User).filter_by(username=username)).scalar_one()
     assert {role.name for role in user.roles} == expected_roles | {"account-member"}
+
+
+@pytest.mark.parametrize(
+    "child_account, parent_account, warning",
+    [
+        (
+            "Supplier",
+            "Prosumer",
+            "Warning: asset 'CLI child' (id {child}) of organisation 'Test Supplier Account' (id {child_account})"
+            " gets parent 'CLI parent' (id {parent}) from another organisation, 'Test Prosumer Account' (id {parent_account}).",
+        ),
+        (
+            None,
+            "Prosumer",
+            "Warning: public asset 'CLI child' (id {child}) gets parent 'CLI parent' (id {parent})"
+            " from organisation 'Test Prosumer Account' (id {parent_account}).",
+        ),
+        ("Prosumer", "Prosumer", None),
+    ],
+    ids=["foreign-parent", "public-child-private-parent", "same-account-parent"],
+)
+def test_add_asset_warns_about_a_parent_in_another_organisation(
+    app,
+    db,
+    setup_accounts,
+    setup_generic_asset_types,
+    run_as_cli,
+    child_account,
+    parent_account,
+    warning,
+):
+    """The CLI may put an asset under a parent of another organisation, but says so."""
+    from flexmeasures.cli.data_add import add_asset
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    asset_type = setup_generic_asset_types["battery"]
+    parent = GenericAsset(
+        name="CLI parent",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts[parent_account].id,
+    )
+    db.session.add(parent)
+    db.session.commit()
+
+    cli_input = {
+        "name": "CLI child",
+        "asset-type": asset_type.id,
+        "parent-asset": parent.id,
+    }
+    if child_account is not None:
+        cli_input["account"] = setup_accounts[child_account].id
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_asset, to_flags(cli_input))
+    check_command_ran_without_error(result)
+
+    child = db.session.execute(
+        select(GenericAsset).filter_by(name="CLI child", parent_asset_id=parent.id)
+    ).scalar_one()  # the asset is created anyway
+    if warning is None:
+        assert "another organisation" not in result.output
+        assert "from organisation" not in result.output
+    else:
+        expected = warning.format(
+            child=child.id,
+            child_account=child.account_id,
+            parent=parent.id,
+            parent_account=parent.account_id,
+        )
+        assert expected in " ".join(result.output.split())
