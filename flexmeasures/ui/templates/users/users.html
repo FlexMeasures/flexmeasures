@@ -47,17 +47,17 @@
       active
    ) {
       this.id = id;
-      this.username = `<span>${username}</span>`;
-      this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
-      this.roles = roles.map((role) => role).join(", ");
+      this.username = `<span>${escapeHtml(username)}</span>`;
+      this.email = `<a href="mailto:${escapeHtml(email)}" title="Mail this user">${escapeHtml(email)}</a>`;
+      this.roles = escapeHtml(roles.join(", "));
       this.url = `/users/${id}`;
 
       if (account == null) this.account = "PUBLIC";
       else
          this.account = `
-                <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+                <a href="/accounts/${account["id"]}" title="View this account">${escapeHtml(account["name"])}</a>
               `;
-      this.timezone = timezone;
+      this.timezone = escapeHtml(timezone);
       this.lastLogin = lastLogin
         ? getHumanFriendlyDeltaOrTimeStr(lastLogin, { dateOnlyForOlder: true })
         : "";
