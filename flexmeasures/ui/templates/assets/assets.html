@@ -14,9 +14,11 @@
       let icon = asset_icon_map[asset_type.toLowerCase()];
       if (icon === undefined)
         icon = `icon-${asset_type}`
+      // Asset types and names are user-defined, and DataTables inserts these cells as HTML.
+      icon = escapeHtml(icon);
 
       this.name = `
-        <i class="${ icon } left-icon">${ name }</i>
+        <i class="${ icon } left-icon">${ escapeHtml(name) }</i>
       `;
 
       this.id = id;
@@ -31,7 +33,7 @@
       if (account == null) this.owner = "PUBLIC";
       else
         this.owner = `
-          <a href="/accounts/${ account['id'] }" title="View this account">${ account["name"] }</a>
+          <a href="/accounts/${ account['id'] }" title="View this account">${ escapeHtml(account["name"]) }</a>
         `
 
       this.num_sensors = sensors.length;
