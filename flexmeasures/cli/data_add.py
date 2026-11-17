@@ -74,6 +74,7 @@ from flexmeasures.data.services.reporting import (
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.services.generic_assets import cross_account_parent_warning
 from flexmeasures.data.models.user import (
     Account,
     AccountRole,
@@ -605,6 +606,11 @@ def add_asset(**args):
         )
     db.session.add(generic_asset)
     db.session.flush()
+    warning = cross_account_parent_warning(
+        generic_asset, generic_asset.parent_asset, generic_asset.account_id
+    )
+    if warning:
+        click.secho(warning, **MsgStyle.WARN)
     AssetAuditLog.add_record(
         generic_asset,
         f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",

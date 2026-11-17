@@ -681,6 +681,41 @@ def check_parent_asset_access(parent: GenericAsset, account_id: int | None) -> N
         raise Forbidden("Only site admins may create public assets (account_id=None).")
 
 
+def cross_account_parent_warning(
+    asset: GenericAsset, parent: GenericAsset | None, account_id: int | None
+) -> str | None:
+    """Describe placing an asset of the given account under a parent asset of another organisation.
+
+    The CLI may do this without the checks of check_parent_asset_access, so it warns instead.
+    A parent in the same account, no parent and a public parent need no warning;
+    a public asset under a parent of an account does (it shows up in that account's tree).
+
+    :param asset:       the asset placed under the parent (its name and id are used)
+    :param parent:      its (new) parent asset, if any
+    :param account_id:  the (new) account of the asset (None for a public asset)
+    :returns:           the warning text, or None if nothing crosses organisations
+    """
+    from flexmeasures.data.models.user import Account
+
+    if parent is None or parent.account_id is None or parent.account_id == account_id:
+        return None
+    parent_account = db.session.get(Account, parent.account_id)
+    parent_text = f"parent '{parent.name}' (id {parent.id})"
+    parent_account_text = f"'{parent_account.name}' (id {parent_account.id})"
+    tree_text = f"Users of '{parent_account.name}' will see it in their asset tree"
+    if account_id is None:
+        return (
+            f"Warning: public asset '{asset.name}' (id {asset.id}) gets {parent_text}"
+            f" from organisation {parent_account_text}. {tree_text}."
+        )
+    account = db.session.get(Account, account_id)
+    return (
+        f"Warning: asset '{asset.name}' (id {asset.id}) of organisation '{account.name}' (id {account.id})"
+        f" gets {parent_text} from another organisation, {parent_account_text}."
+        f' {tree_text} (as "(another organisation)" where they may not read it).'
+    )
+
+
 def validate_parent_asset_access(
     parent: GenericAsset, account_id: int | None, field_name: str = "parent_asset_id"
 ) -> None:
