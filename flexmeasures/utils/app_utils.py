@@ -86,13 +86,35 @@ def flexmeasures_cli():
 
 
 def _sentry_attach_user_id(event, hint):
-    """Identify the user of a request by id only (no email address, username or IP address)."""
+    """Identify the user of a request by id only (no email address, username or IP address).
+
+    Also tag the event with the user's account id, and add links to the user's and the account's pages
+    on this platform. Following these links requires logging in to FlexMeasures,
+    so Sentry still holds no names or email addresses.
+    """
     try:
-        from flask import has_request_context
+        from flask import has_request_context, url_for
         from flask_login import current_user
 
-        if has_request_context() and current_user.is_authenticated:
-            event["user"] = {"id": str(current_user.id)}
+        if not (has_request_context() and current_user.is_authenticated):
+            return event
+        event["user"] = {"id": str(current_user.id)}
+        account_id = getattr(current_user, "account_id", None)
+        if account_id is not None:
+            event.setdefault("tags", {})["account_id"] = str(account_id)
+        links = {}
+        try:
+            links["user_page"] = url_for(
+                "UserCrudUI:get", id=current_user.id, _external=True
+            )
+            if account_id is not None:
+                links["account_page"] = url_for(
+                    "AccountCrudUI:get", account_id=account_id, _external=True
+                )
+        except Exception:  # noqa: B902 - e.g. no UI registered; the ids suffice
+            pass
+        if links:
+            event.setdefault("contexts", {})["flexmeasures"] = links
     except Exception:  # noqa: B902 - never lose an error report over this
         pass
     return event
@@ -150,7 +172,7 @@ def init_sentry(app: Flask):
             )
 
     # Personal data (email addresses, usernames, IP addresses, cookies and headers) only goes to Sentry if the host opts in.
-    # Without it, we attach only the id of the user, which is enough to look them up.
+    # Without it, we attach only the ids of the user and their account, and links to their pages on this platform.
     sentry_config = dict(app.config["FLEXMEASURES_SENTRY_CONFIG"])
     send_default_pii = bool(sentry_config.pop("send_default_pii", False))
     if not send_default_pii:
