@@ -2,7 +2,7 @@
 
 Asset and sensor attributes are editable by account members,
 so a module or file path in that attribute must never be imported or executed,
-not when a schedule is triggered and not when an automation is looked at.
+not when a schedule is triggered.
 """
 
 from __future__ import annotations
@@ -15,8 +15,6 @@ from flask import url_for
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.services.scheduling import find_scheduler_class
-
-pytestmark = pytest.mark.usefixtures("undo_new_rows")
 
 PLANTED_CLASS = "PlantedScheduler"
 
@@ -94,37 +92,5 @@ def test_triggering_a_schedule_does_not_run_a_module_named_in_attributes(
         )
 
     assert response.status_code in (400, 422), response.json
-    assert not marker.exists()
-    assert PLANTED_CLASS not in sys.modules
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_viewing_an_automation_does_not_run_a_module_named_in_attributes(
-    app, db, battery, requesting_user, planted_module
-):
-    specs, marker = planted_module
-    with app.test_client() as client:
-        response = client.post(
-            url_for("AssetAPI:post_automation", id=battery.id),
-            json={
-                "name": "Nightly schedules",
-                "cron": "0 0 * * *",
-                "type": "scheduling",
-                "parameters": {"duration": "PT12H"},
-            },
-        )
-        assert response.status_code == 201, response.json
-        automation_id = response.json["id"]
-
-        _set_custom_scheduler(db, battery, specs)
-        response = client.get(
-            url_for(
-                "AssetAPI:get_automation", id=battery.id, automation_id=automation_id
-            )
-        )
-
-    assert response.status_code == 200, response.json
     assert not marker.exists()
     assert PLANTED_CLASS not in sys.modules

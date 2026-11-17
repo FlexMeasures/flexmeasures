@@ -110,8 +110,8 @@ def test_email_change_notifies_the_previous_address(
         select(AuditLog).filter_by(
             affected_user_id=user_id,
             active_user_id=requesting_user.id,
-            event=f"Updated user {user.username!r} (ID: {user_id}): "
-            f"Email changed from '{target}' to 'new-address@seita.nl'.",
+            # 1.0.x records the change itself, without naming the user (that is the affected_user_id)
+            event=f"Email changed from '{target}' to 'new-address@seita.nl'. ",
         )
     ).scalar_one_or_none()
 

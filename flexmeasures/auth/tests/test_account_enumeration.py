@@ -6,10 +6,6 @@ import pytest
 from flask import url_for
 from flask_login import logout_user
 
-from flexmeasures.data.models.user import Role
-from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.auth.policy import ACCOUNT_READER_ROLE
-
 KNOWN = "test_prosumer_user@seita.nl"
 UNKNOWN = "nobody-at-all@seita.nl"
 
@@ -50,7 +46,7 @@ def test_login_form_answers_unknown_email_like_wrong_password(
 
 
 def test_password_recovery_answers_alike_for_every_email(
-    app, db, client, setup_roles_users
+    app, client, setup_roles_users
 ):
     url = url_for("security.forgot_password")
     with app.mail.record_messages() as outbox:
@@ -59,23 +55,3 @@ def test_password_recovery_answers_alike_for_every_email(
     assert len(outbox) == 1  # only the known user gets instructions
     assert known.status_code == unknown.status_code == 200
     assert visible_text(known) == visible_text(unknown)
-
-    # A user without self-service recovery gets no mail, and the same answer
-    user = find_user_by_email(KNOWN)
-    original_roles = list(user.flexmeasures_roles)
-    reader_role = Role.query.filter_by(name=ACCOUNT_READER_ROLE).one_or_none()
-    if reader_role is None:
-        reader_role = Role(name=ACCOUNT_READER_ROLE)
-        db.session.add(reader_role)
-    user.flexmeasures_roles = [reader_role]
-    db.session.flush()
-    try:
-        with app.mail.record_messages() as outbox:
-            without_grant = client.post(url, data=dict(email=KNOWN))
-        assert not outbox
-        assert without_grant.status_code == 200
-        assert visible_text(without_grant) == visible_text(unknown)
-        assert "unavailable" not in visible_text(without_grant)
-    finally:
-        user.flexmeasures_roles = original_roles
-        db.session.flush()

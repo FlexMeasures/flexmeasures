@@ -1370,7 +1370,7 @@ def test_copy_asset_drops_private_sensor_refs_in_every_shape(
     }
     db.session.flush()
 
-    battery_copy = copy_asset(battery, account=prosumer_account).asset
+    battery_copy = copy_asset(battery, account=prosumer_account)
     new_sensor = db.session.scalars(
         select(Sensor).filter(Sensor.generic_asset_id == battery_copy.id)
     ).one()
