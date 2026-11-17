@@ -515,7 +515,7 @@
           $("#usersTable").DataTable().ajax.reload();
 
           showToast(
-            `User <i class='fw-bold'>${username}</i> created successfully!`,
+            `User <i class='fw-bold'>${escapeHtml(username)}</i> created successfully!`,
             'success'
           );
         },
@@ -543,17 +543,17 @@
     active
  ) {
     this.id = id;
-    this.username = `<span>${username}</span>`;
-    this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
-    this.roles = roles.map((role) => role).join(", ");
+    this.username = `<span>${escapeHtml(username)}</span>`;
+    this.email = `<a href="mailto:${escapeHtml(email)}" title="Mail this user">${escapeHtml(email)}</a>`;
+    this.roles = escapeHtml(roles.join(", "));
     this.url = `/users/${id}`;
 
     if (account == null) this.account = "PUBLIC";
     else
        this.account = `
-              <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+              <a href="/accounts/${account["id"]}" title="View this account">${escapeHtml(account["name"])}</a>
             `;
-    this.timezone = timezone;
+    this.timezone = escapeHtml(timezone);
     this.lastLogin = lastLogin
       ? getHumanFriendlyDeltaOrTimeStr(lastLogin, { dateOnlyForOlder: true })
       : "";
@@ -690,9 +690,11 @@ $(document).ready(function () {
   function Asset(id, name, account, latitude, longitude, sensors, asset_type) {
     let icon = asset_icon_map[asset_type.toLowerCase()];
     if (icon === undefined) icon = `icon-${asset_type}`;
+    // Asset types and names are user-defined, and DataTables inserts these cells as HTML.
+    icon = escapeHtml(icon);
 
     this.name = `
-    <i class="${icon} left-icon">${name}</i>
+    <i class="${icon} left-icon">${escapeHtml(name)}</i>
   `;
 
     this.id = id;
@@ -707,7 +709,7 @@ $(document).ready(function () {
     if (account == null) this.owner = "PUBLIC";
     else
       this.owner = `
-          <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+          <a href="/accounts/${account["id"]}" title="View this account">${escapeHtml(account["name"])}</a>
         `;
 
     this.num_sensors = sensors.length;

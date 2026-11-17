@@ -69,9 +69,10 @@ def test_user_audit_log_is_for_whoever_may_read_it(client, as_prosumer_user1):
     own = find_user_by_email("test_prosumer_user@seita.nl", keep_in_session=False)
     other = find_user_by_email("test_dummy_user_3@seita.nl", keep_in_session=False)
 
-    assert (
-        client.get(url_for("UserCrudUI:auditlog", id=own.id)).status_code == 200
-    ), "A user should see their own audit log page."
+    response = client.get(url_for("UserCrudUI:auditlog", id=own.id))
+    assert response.status_code == 200, "A user should see their own audit log page."
+    # The table comes from audit-log.js, which shows event texts as text
+    assert b"js/audit-log.js" in response.data
     response = client.get(url_for("UserCrudUI:auditlog", id=other.id))
     assert (
         response.status_code == 403

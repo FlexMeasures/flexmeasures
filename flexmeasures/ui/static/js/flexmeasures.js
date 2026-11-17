@@ -19,6 +19,22 @@ var offshoreOrdered = false;
 var batteryOrdered = false;
 
 
+/**
+ * Escape text for use in HTML, as element content or as a quoted attribute value.
+ *
+ * For the inline scripts of pages that build table cells as HTML (DataTables inserts cell data as HTML):
+ * names, emails and other strings users typed must go through this.
+ * Modules can import the same function from ui-utils.js.
+ */
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+}
+
 function showMsg(msg) {
     $("#msgModal .modal-content").html(msg);
     $("#msgModal").modal("show");
