@@ -13,6 +13,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.generic_assets import (
+    check_parent_asset_access,
     create_asset,
     patch_asset,
 )
@@ -43,6 +44,11 @@ from flexmeasures.ui.views.assets.utils import (
     get_inherited_flex_context,
     get_list_assets_chart,
     add_child_asset,
+    readable_site_asset,
+)
+from flexmeasures.ui.utils.breadcrumb_utils import (
+    ANOTHER_ORGANISATION,
+    viewer_may_read,
 )
 from flexmeasures.data.services.sensors import (
     get_asset_sensors_metadata,
@@ -79,15 +85,11 @@ def _account_and_parent_for_new_asset(
             return None, None, ("Parent asset not found.", 404)
         # Do not show anything about a parent asset the user may not see (its name, location or account)
         check_access(parent_asset, "read")
-        if parent_asset.owner:  # not a public parent asset
-            if account is None:
-                account = parent_asset.owner
-            elif account.id != parent_asset.owner.id:
-                return (
-                    None,
-                    None,
-                    ("The parent asset needs to be under the specified account.", 422),
-                )
+        if account is None:
+            account = parent_asset.owner  # None for a public parent asset
+        else:
+            # A parent in another account than the given one is fine, if the user may place assets there
+            check_parent_asset_access(parent_asset, account.id)
     return account, parent_asset, None
 
 
@@ -221,9 +223,7 @@ class AssetCrudUI(FlaskView):
             for sensor in asset.sensors
         ]
 
-        site_asset = asset
-        while site_asset.parent_asset_id:
-            site_asset = site_asset.parent_asset
+        site_asset = readable_site_asset(asset)
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
 
@@ -386,7 +386,7 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
-        site_asset = asset.find_site_asset()
+        site_asset = readable_site_asset(asset)
 
         return render_flexmeasures_template(
             "assets/asset_graph.html",
@@ -421,24 +421,28 @@ class AssetCrudUI(FlaskView):
             asset.sensors_to_show_as_kpis
         )
 
+        # The parent may be in an organisation the viewer may not read (asset trees may span organisations)
+        parent_is_readable = asset.parent_asset is not None and viewer_may_read(
+            asset.parent_asset
+        )
+        if asset.parent_asset is None:
+            parent_summary = "No Parent"
+        elif parent_is_readable:
+            parent_summary = f"{asset.parent_asset.name} ({asset.parent_asset.generic_asset_type.name})"
+        else:
+            parent_summary = ANOTHER_ORGANISATION
         asset_summary = {
             "Name": asset.name,
             "Type": asset.generic_asset_type.name,
             "Description": asset.description or "",
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
-            "Parent Asset": (
-                f"{asset.parent_asset.name} ({asset.parent_asset.generic_asset_type.name})"
-                if asset.parent_asset
-                else "No Parent"
-            ),
+            "Parent Asset": parent_summary,
         }
         if asset.external_id:
             asset_summary["External ID"] = asset.external_id
 
-        site_asset = asset
-        while site_asset.parent_asset_id:
-            site_asset = site_asset.parent_asset
+        site_asset = readable_site_asset(asset)
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
@@ -449,6 +453,20 @@ class AssetCrudUI(FlaskView):
             .order_by(GenericAsset.id.asc())
             .all()
         )
+        # A parent in another organisation is no suggestion, but stays the selected option, so saving the form keeps it
+        other_organisation_parent = None
+        if (
+            asset.parent_asset is not None
+            and asset.parent_asset.account_id != asset.account_id
+        ):
+            other_organisation_parent = {
+                "id": asset.parent_asset.id,
+                "label": (
+                    f"{asset.parent_asset.name} (ID: {asset.parent_asset.id})"
+                    if parent_is_readable
+                    else ANOTHER_ORGANISATION
+                ),
+            }
 
         # Info to help the user set the `group` field of the flex-model:
         # - if this asset has a parent, suggest referencing the parent as the group
@@ -456,10 +474,10 @@ class AssetCrudUI(FlaskView):
         #   should join that group to count toward the parent's limit
         # - if this asset itself defines a power-capacity and has children, hint
         #   that those children can reference this asset as their group
-        parent_asset_id = asset.parent_asset.id if asset.parent_asset else None
-        parent_asset_name = asset.parent_asset.name if asset.parent_asset else None
+        parent_asset_id = asset.parent_asset.id if parent_is_readable else None
+        parent_asset_name = asset.parent_asset.name if parent_is_readable else None
         parent_has_power_capacity = bool(
-            asset.parent_asset
+            parent_is_readable
             and "power-capacity" in (asset.parent_asset.flex_model or {})
         )
         own_has_power_capacity = "power-capacity" in (asset.flex_model or {})
@@ -493,6 +511,7 @@ class AssetCrudUI(FlaskView):
             "assets/asset_properties.html",
             asset=asset,
             account_assets=account_assets,
+            other_organisation_parent=other_organisation_parent,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),

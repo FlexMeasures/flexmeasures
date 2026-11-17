@@ -7,6 +7,22 @@ from flexmeasures.utils.flexmeasures_inflection import human_sorted
 from flask import url_for, current_app
 from flask_security.core import current_user
 
+from flexmeasures.ui.utils.auth_utils import user_can_access
+
+# How an asset the viewer may not read is shown, e.g. a parent asset in another organisation (asset trees may span organisations).
+ANOTHER_ORGANISATION = "(another organisation)"
+
+
+def viewer_may_read(entity) -> bool:
+    """Whether the logged-in user may read this asset (or other entity).
+
+    Without a logged-in user (e.g. in a CLI command or a test), nothing is hidden;
+    the UI's pages all need a login.
+    """
+    if current_user is None or current_user.is_anonymous:
+        return True
+    return user_can_access(entity, "read")
+
 
 def get_breadcrumb_info(
     entity: Sensor | Asset | Account | User | None, current_page: str = None
@@ -125,8 +141,13 @@ def get_ancestry(entity: Sensor | Asset | Account | User | None) -> list[dict]:
         # asset without parent
         if entity.parent_asset is None:
             return get_ancestry(entity.owner) + current_entity_info
-        else:  # asset with parent
-            return get_ancestry(entity.parent_asset) + current_entity_info
+        # asset with a parent the viewer may not read (in another organisation): show nothing about it, or above it
+        if not viewer_may_read(entity.parent_asset):
+            return [
+                {"url": None, "name": ANOTHER_ORGANISATION, "type": "Asset"}
+            ] + current_entity_info
+        # asset with parent
+        return get_ancestry(entity.parent_asset) + current_entity_info
 
     return []
 
@@ -203,6 +224,7 @@ def get_siblings(entity: Sensor | Asset | Account | User | None) -> list[dict]:
                 )
             ).all()
 
+        # Leave out siblings the viewer may not read (children of the same parent may be in other organisations)
         siblings = [
             {
                 "url": url_for("AssetCrudUI:get", id=asset.id),
@@ -210,6 +232,7 @@ def get_siblings(entity: Sensor | Asset | Account | User | None) -> list[dict]:
                 "type": "Asset",
             }
             for asset in sibling_assets
+            if asset.id == entity.id or viewer_may_read(asset)
         ]
     siblings = human_sorted(siblings, attr="name")
     return siblings

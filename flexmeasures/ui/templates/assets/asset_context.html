@@ -888,6 +888,19 @@
         // The inherited value, read-only
         const valueContainer = document.createElement('div');
         valueContainer.className = 'pb-2';
+        if (info.hidden) {
+            // Set on an ancestor in another organisation, which this user may not see; scheduling still uses it.
+            const note = document.createElement('span');
+            note.className = 'fw-light text-muted';
+            note.textContent = 'Inherited, not visible to you';
+            valueContainer.appendChild(note);
+            card.appendChild(valueContainer);
+            const source = document.createElement('small');
+            source.className = 'text-muted';
+            source.textContent = `from ${info.asset_name}`;
+            card.appendChild(source);
+            return card;
+        }
         if (Array.isArray(fieldValue)) {
             for (const entry of fieldValue) {
                 const item = convertHtmlToElement(await renderSensor(entrySensorId(entry)));

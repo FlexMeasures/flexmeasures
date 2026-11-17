@@ -6,6 +6,15 @@ from flexmeasures import Account
 from flexmeasures.auth.policy import check_access, AuthModelMixin
 
 
+def user_can_access(context: AuthModelMixin, permission: str) -> bool:
+    """Return whether the current user has a named permission on a resource."""
+    try:
+        check_access(context, permission)
+    except Exception:
+        return False
+    return True
+
+
 def user_can_create_assets(account: Account | None = None) -> bool:
     if account is None:
         account = current_user.account

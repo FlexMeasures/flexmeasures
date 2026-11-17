@@ -6,6 +6,10 @@ from werkzeug.exceptions import NotFound
 from flexmeasures import Asset
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.ui.utils.breadcrumb_utils import (
+    ANOTHER_ORGANISATION,
+    viewer_may_read,
+)
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -28,17 +32,63 @@ def get_inherited_flex_context(asset: GenericAsset) -> dict[str, dict]:
 
     :returns: Dictionary mapping each ancestor-defined field name to a dictionary with
               the field's ``value`` and the ``asset_id`` and ``asset_name`` of the defining ancestor.
+
+    Values set on an ancestor the viewer may not read (in another organisation) are left out,
+    with ``hidden`` set, so the page can say a value is inherited without showing it.
+    Scheduling still uses them.
     """
     if asset.parent_asset is None:
         return {}
-    return {
-        field: {
-            "value": entry["value"],
-            "asset_id": entry["asset"].id,
-            "asset_name": entry["asset"].name,
-        }
-        for field, entry in asset.parent_asset.get_flex_context_with_provenance().items()
+    inherited = {}
+    readable: dict[int, bool] = {}
+    for field, entry in asset.parent_asset.get_flex_context_with_provenance().items():
+        ancestor = entry["asset"]
+        if ancestor.id not in readable:
+            readable[ancestor.id] = viewer_may_read(ancestor)
+        if readable[ancestor.id]:
+            inherited[field] = {
+                "value": entry["value"],
+                "asset_id": ancestor.id,
+                "asset_name": ancestor.name,
+            }
+        else:
+            inherited[field] = {
+                "value": None,
+                "hidden": True,
+                "asset_id": None,
+                "asset_name": ANOTHER_ORGANISATION,
+            }
+    return inherited
+
+
+def readable_site_asset(asset: GenericAsset) -> GenericAsset:
+    """The highest ancestor of the asset (or the asset itself) that the viewer may read.
+
+    Usually the site asset, unless the asset tree goes up into an organisation the viewer may not see.
+    """
+    site_asset = asset
+    while site_asset.parent_asset is not None and viewer_may_read(
+        site_asset.parent_asset
+    ):
+        site_asset = site_asset.parent_asset
+    return site_asset
+
+
+def serialize_hidden_asset(node_id: str, parent_id: int | str | None = None) -> dict:
+    """A node in the asset tree for assets the viewer may not read: no name, link, type or sensors."""
+    serialized_asset = {
+        "name": ANOTHER_ORGANISATION,
+        "id": node_id,
+        "asset_type": "",
+        "link": None,
+        "icon": svg_asset_icon_name(""),
+        "tooltip": "An asset of another organisation",
+        "sensors": [],
+        "other_organisation": True,
     }
+    if parent_id is not None:
+        serialized_asset["parent"] = parent_id
+    return serialized_asset
 
 
 def serialize_asset(asset: Asset, is_head=False) -> dict:
@@ -65,6 +115,12 @@ def serialize_asset(asset: Asset, is_head=False) -> dict:
 
     if asset.parent_asset and not is_head:
         serialized_asset["parent"] = asset.parent_asset.id
+        if asset.parent_asset.account_id != asset.account_id:
+            # Asset trees may span organisations: mark the child of another organisation than its parent's
+            serialized_asset["other_organisation"] = True
+            serialized_asset["tooltip"]["Organisation"] = (
+                asset.owner.name if asset.owner is not None else "Public"
+            )
 
     return serialized_asset
 
@@ -95,7 +151,16 @@ def get_list_assets_chart(
     asset_def = serialize_asset(asset, is_head=is_head)
 
     # Fetch parents if there is parent asset and parent_depth is less than 2
-    if asset.parent_asset and parent_depth < 2 and not look_for_child:
+    # A parent the viewer may not read (in another organisation) is shown without anything about it, nor what is above it.
+    parent_is_hidden = asset.parent_asset is not None and not viewer_may_read(
+        asset.parent_asset
+    )
+    if (
+        asset.parent_asset
+        and parent_depth < 2
+        and not look_for_child
+        and not parent_is_hidden
+    ):
         parent_depth += 1
         assets += get_list_assets_chart(
             asset=asset.parent_asset,
@@ -104,6 +169,10 @@ def get_list_assets_chart(
             is_head=False if parent_depth < 2 else True,
         )
     else:
+        if parent_is_hidden and parent_depth < 2 and not look_for_child:
+            hidden_parent = serialize_hidden_asset(f"hidden-parent-of-{asset.id}")
+            asset_def["parent"] = hidden_parent["id"]
+            assets.append(hidden_parent)
         look_for_child = True
         parent_depth = (
             2  # Auto increase depth in the parents hierarchy is less than two
@@ -113,12 +182,23 @@ def get_list_assets_chart(
 
     if look_for_child and child_depth < 2:
         child_depth += 1
+        hidden_children = False
         for child in base_asset.child_assets:
+            if not viewer_may_read(child):
+                hidden_children = True
+                continue
             assets += get_list_assets_chart(
                 child,
                 parent_depth=parent_depth,
                 child_depth=child_depth,
                 base_asset=child,
+            )
+        if hidden_children:
+            # One node for the children in organisations the viewer may not read
+            assets.append(
+                serialize_hidden_asset(
+                    f"hidden-children-of-{base_asset.id}", parent_id=base_asset.id
+                )
             )
 
     return assets

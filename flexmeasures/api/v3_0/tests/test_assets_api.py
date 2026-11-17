@@ -1696,7 +1696,8 @@ def test_regular_user_cannot_create_child_of_public_asset(
     client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
 ):
     """A plain account member must not be able to create a child asset under a public
-    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    (account-less) parent: the parent and child have different owners,
+    and only admins may add assets under a public asset.
     """
     epex_asset = setup_markets["epex_da"].generic_asset
     assert epex_asset.account_id is None, "epex must be a public asset"
@@ -1712,7 +1713,11 @@ def test_regular_user_cannot_create_child_of_public_asset(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "belongs to another organisation"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.mark.parametrize(
@@ -1758,9 +1763,10 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
-    ``GenericAsset.create-children`` only allows members of the account that
-    owns the parent asset. A Prosumer account-admin is not a Supplier account
-    member, so the request must be rejected.
+    A parent may be in another account only if the user may add assets under it
+    (``GenericAsset.create-children``, which only allows members of the account that
+    owns the parent asset), which the account-admin of another account may not,
+    so the request is rejected.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")
@@ -1782,7 +1788,11 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "belongs to another organisation"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.fixture

@@ -21,7 +21,8 @@
 <script type="text/javascript">
   window.onload = function(){
 
-  let assets = {{ assets | safe }};
+  // JSON, so that null and true (e.g. for assets of other organisations) are valid script, and names cannot end the script
+  let assets = {{ assets | tojson }};
   let currentAssetName = {{ current_asset_name | tojson }};
 
       // 1. Build hierarchy from flat list
@@ -212,6 +213,8 @@
         function nodeStyles(node) {
           var isCurrent = node.name === currentAssetName;
           var isAdd = isAddAsset(node);
+          // Asset trees may span organisations: a child of another organisation than its parent's gets a dashed border.
+          var isOtherOrganisation = node.other_organisation === true;
 
           var displayName = wrapName(node.name);
           var rich = {
@@ -256,8 +259,9 @@
             },
             itemStyle: {
               color:       isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
-              borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
-              borderWidth: isCurrent ? 3 : 1,
+              borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : (isOtherOrganisation ? '#64748b' : '#cbd5e1')),
+              borderWidth: isCurrent ? 3 : (isOtherOrganisation ? 2 : 1),
+              borderType:  isOtherOrganisation && !isCurrent ? 'dashed' : 'solid',
               borderRadius: 8,
               shadowColor:   'rgba(0, 0, 0, 0.2)',
               shadowBlur:    10,
