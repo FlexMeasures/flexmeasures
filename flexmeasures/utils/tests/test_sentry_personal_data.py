@@ -47,3 +47,41 @@ def test_host_can_opt_in_to_personal_data(app, monkeypatch, sentry_options):
     init_sentry(app)
     assert sentry_options["send_default_pii"] is True
     assert sentry_options["traces_sample_rate"] == 0.1
+
+
+def test_sentry_gets_account_tag_and_links_to_user_and_account_pages(
+    app, db, setup_roles_users, monkeypatch, sentry_options
+):
+    """Events link to the platform's user and account pages (which need a login), and carry no names or emails."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_CONFIG", {})
+    init_sentry(app)
+
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    with app.test_request_context("/", base_url="https://fm.example.com"):
+        login_user(user)
+        event = sentry_options["before_send"]({"message": "error"}, {})
+        logout_user()
+    assert event["user"] == {"id": str(user.id)}
+    assert event["tags"]["account_id"] == str(user.account_id)
+    assert event["contexts"]["flexmeasures"] == {
+        "user_page": f"https://fm.example.com/users/{user.id}",
+        "account_page": f"https://fm.example.com/accounts/{user.account_id}",
+    }
+    assert user.email not in str(event)
+    assert user.username not in str(event)
+
+
+def test_sentry_event_untouched_without_logged_in_user(
+    app, db, setup_roles_users, monkeypatch, sentry_options
+):
+    monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_CONFIG", {})
+    init_sentry(app)
+
+    # No request at all (e.g. in a worker)
+    event = sentry_options["before_send"]({"message": "error"}, {})
+    assert event == {"message": "error"}
+
+    # A request, but nobody logged in
+    with app.test_request_context("/"):
+        event = sentry_options["before_send"]({"message": "error"}, {})
+    assert event == {"message": "error"}
