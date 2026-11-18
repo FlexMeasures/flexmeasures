@@ -40,7 +40,10 @@ from flexmeasures.data.models.planning.exceptions import (
 )
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
-from flexmeasures.data.services.automations import record_outcome_on_automation_run
+from flexmeasures.data.services.automations import (
+    record_automation_job_failed_without_running,
+    record_outcome_on_automation_run,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -342,6 +345,9 @@ def _fail_deferred_job(job: Job, reason: str) -> None:
     job.set_status(JobStatus.FAILED)
     queue.deferred_job_registry.remove(job)
     queue.failed_job_registry.add(job, ttl=job.failure_ttl, exc_string=reason)
+    record_automation_job_failed_without_running(
+        job, UpstreamSchedulingFailure.__name__, reason
+    )
 
 
 @job_cache("scheduling")

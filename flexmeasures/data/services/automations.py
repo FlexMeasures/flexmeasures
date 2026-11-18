@@ -564,7 +564,33 @@ def record_automation_job_failed(
 ) -> None:
     """Record that a worker failed an automation-created job, with the error it failed on."""
     _record_automation_job_failure(
-        run_id, logical_job_key, error.__class__.__name__, str(error)
+        run_id,
+        logical_job_key,
+        error.__class__.__name__,
+        str(error),
+        keeps_run_error=getattr(error, "reports_an_earlier_failure", False),
+    )
+
+
+def record_automation_job_failed_without_running(
+    rq_job: Job, error_type: str, error_message: str
+) -> None:
+    """Record the failure of an automation-created job that was failed without running, on the run that queued it, if one did.
+
+    A job records its own outcome when it runs (see `record_outcome_on_automation_run`).
+    A job that a failure earlier in its chain moved straight to a failed state never runs,
+    so it is recorded here, or its run would show it as queued for good.
+    Its failure only follows from that earlier one, so it does not replace the run's error.
+    """
+    run_id = (rq_job.meta.get("trigger") or {}).get("automation_run_id")
+    if run_id is None:
+        return
+    _record_automation_job_failure(
+        run_id,
+        _logical_job_key(run_id, rq_job.id),
+        error_type,
+        error_message,
+        keeps_run_error=True,
     )
 
 
@@ -573,8 +599,12 @@ def _record_automation_job_failure(
     logical_job_key: str | None,
     error_type: str | None,
     error_message: str,
+    keeps_run_error: bool = False,
 ) -> None:
     """Record that a worker failed an automation-created job, by the type and message of the error it failed on.
+
+    With `keeps_run_error`, the failure follows from one recorded before, such as a job earlier in the same chain,
+    so a run that already holds an error keeps it, and the job's own error is only recorded on the job.
 
     The job may well have failed on the database itself,
     which leaves the session in an aborted transaction where every further statement is refused.
@@ -604,8 +634,9 @@ def _record_automation_job_failure(
     intent.last_error_message = error_message
     run = intent.run
     _refresh_run_execution_state(run, now)
-    run.last_error_type = error_type
-    run.last_error_message = error_message
+    if not (keeps_run_error and run.last_error_type is not None):
+        run.last_error_type = error_type
+        run.last_error_message = error_message
     db.session.commit()
 
 
