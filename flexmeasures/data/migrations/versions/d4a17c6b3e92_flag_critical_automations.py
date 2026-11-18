@@ -1,14 +1,14 @@
 """Flag automations as critical, and record when their failure was handed to the hooks.
 
 Revision ID: d4a17c6b3e92
-Revises: bf22b21d0990
+Revises: d4b7e9a1c362
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "d4a17c6b3e92"
-down_revision = "bf22b21d0990"
+down_revision = "d4b7e9a1c362"
 branch_labels = None
 depends_on = None
 

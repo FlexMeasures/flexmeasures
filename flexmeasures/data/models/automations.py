@@ -253,6 +253,8 @@ class AutomationRun(db.Model):
     # When the critical-failure hooks were told about this run, so that one run pages once,
     # however many of its jobs fail and however often its dispatch is retried.
     critical_failure_notified_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # When `flexmeasures monitor automations` reported this run as failed or stuck, so that it is reported once.
+    alerted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
     plan = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
 
@@ -283,6 +285,7 @@ class AutomationRun(db.Model):
         "execution_started_at",
         "execution_completed_at",
         "critical_failure_notified_at",
+        "alerted_at",
     )
     def validate_datetime_is_aware(
         self, key: str, value: datetime | None

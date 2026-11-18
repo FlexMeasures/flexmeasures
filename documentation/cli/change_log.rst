@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.2.0 | December xx, 2026
+=================================
+
+* Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation.
+
 since v1.1.0 | November 05, 2026
 =================================
 
