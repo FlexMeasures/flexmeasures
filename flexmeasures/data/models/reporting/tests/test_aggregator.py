@@ -1938,89 +1938,141 @@ def test_an_invalid_flex_model_names_only_the_faulty_asset(
     assert f"{house.id} ({house.name})" not in message
 
 
-def test_a_config_without_an_output_source_type_leaves_the_source_as_it_was(
-    setup_dummy_data, db
-):
-    """Leaving `output-source-type` out is not the same as defaulting it: the config dumps without it, so the source (and its hash) stays what it was."""
-    reporter = AggregatorReporter(config={"method": "sum"})
-    source = reporter.data_source
+def test_each_event_is_saved_under_the_type_of_its_inputs(setup_dummy_data, db):
+    """An event with a forecast among its inputs is a forecast, otherwise one with a schedule among them is a schedule, and otherwise it is a report.
 
-    assert source.type == "reporter"
-    assert source.label.startswith("report by")
-    dumped_config = source.attributes["data_generator"]["config"]
-    assert "output-source-type" not in dumped_config
-    assert source.attributes_hash == DataSource.hash_attributes(
-        {"data_generator": {"config": dumped_config}}
-    )
-    assert reporter.source_type == "reporter"
-
-    # naming the default type says nothing new, so it keeps the same source
-    named = AggregatorReporter(
-        config={"method": "sum", "output-source-type": "reporter"}
-    )
-    assert named.data_source.type == "reporter"
-    assert named.data_source == source
-
-
-def test_a_report_is_saved_under_the_source_type_its_config_names(setup_dummy_data, db):
-    """An aggregate of forecasts that says so is saved under a forecaster source, which the label shows."""
+    A sum that includes a forecast makes the claim a forecast makes, so it must not be taken for what actually happened.
+    A sensor that did not report an event has no say in its type.
+    """
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+    start = datetime(2023, 7, 1, tzinfo=utc)
     forecaster = DataSource(
-        "aggregated forecasts input", type="forecaster", model="TrainPredictPipeline"
+        "per-event type forecaster", type="forecaster", model="TrainPredictPipeline"
     )
-    db.session.add(forecaster)
+    scheduler = DataSource(
+        "per-event type scheduler", type="scheduler", model="StorageScheduler"
+    )
+    meter = DataSource("per-event type meter", type="script")
+    db.session.add_all([forecaster, scheduler, meter])
     db.session.flush()
-    db.session.add_all(
-        TimedBelief(
-            sensor,
-            forecaster,
-            event_start=datetime(2023, 6, 1, tzinfo=utc) + timedelta(hours=hour),
-            belief_horizon=timedelta(hours=12),
-            event_value=2.0,
+    # the forecast covers the first 8 hours, the schedule the first 16, and the meter all 24
+    for sensor, source, hours in (
+        (s1, forecaster, 8),
+        (s2, scheduler, 16),
+        (s3, meter, 24),
+    ):
+        db.session.add_all(
+            TimedBelief(
+                sensor,
+                source,
+                event_start=start + timedelta(hours=hour),
+                belief_horizon=timedelta(hours=12),
+                event_value=1.0,
+            )
+            for hour in range(hours)
         )
-        for sensor in (s1, s2)
-        for hour in range(24)
-    )
     db.session.flush()
 
-    reporter = AggregatorReporter(
-        config={"method": "sum", "output-source-type": "forecaster"}
-    )
+    reporter = AggregatorReporter(config={"method": "sum"})
     result = reporter.compute(
-        input=[dict(sensor=s1, source=forecaster), dict(sensor=s2, source=forecaster)],
+        input=[
+            dict(sensor=s1, source=forecaster),
+            dict(sensor=s2, source=scheduler),
+            dict(sensor=s3, source=meter),
+        ],
         output=[dict(sensor=report_sensor)],
-        start=datetime(2023, 6, 1, tzinfo=utc),
-        end=datetime(2023, 6, 2, tzinfo=utc),
+        start=start,
+        end=start + timedelta(hours=24),
         belief_horizon=timedelta(hours=12),
     )[0]["data"]
 
-    assert (result["event_value"] == 4).all()
-    sources = set(result.index.get_level_values("source"))
-    assert sources == {reporter.data_source}
-    assert {source.type for source in sources} == {"forecaster"}
-    assert all(source.label.startswith("forecast by") for source in sources)
-    stored_config = reporter.data_source.attributes["data_generator"]["config"]
-    assert stored_config["output-source-type"] == "forecaster"
-
-    # a report of the same data under the default type is a source of its own
-    assert AggregatorReporter(config={"method": "sum"}).data_source.type == "reporter"
-    assert (
-        AggregatorReporter(config={"method": "sum"}).data_source != reporter.data_source
+    types = pd.Series(
+        [source.type for source in result.index.get_level_values("source")],
+        index=result.index.get_level_values("event_start"),
     )
+    assert (types.iloc[:8] == "forecaster").all()
+    assert (types.iloc[8:16] == "scheduler").all()
+    assert (types.iloc[16:] == "reporter").all()
+    assert list(result["event_value"].iloc[[0, 8, 16]]) == [3, 2, 1]
+
+    sources = {source.type: source for source in result.lineage.sources}
+    assert sources["forecaster"].label.startswith("forecast by")
+    assert sources["reporter"].label.startswith("report by")
+    # one report, one config: the sources differ in their type only
+    assert {source.model for source in sources.values()} == {"AggregatorReporter"}
+    assert len({source.attributes_hash for source in sources.values()}) == 1
+    # the reporter's own source is still the report's, once the report is done
+    assert reporter.data_source.type == "reporter"
 
 
-def test_an_unknown_output_source_type_is_refused(app, db):
-    """The type has to be one that data generators are registered for, so a typo does not create sources of a type nothing filters on."""
-    with pytest.raises(ValidationError, match="nonsense"):
-        AggregatorReporter(config={"method": "sum", "output-source-type": "nonsense"})
-
-
-def test_a_complete_aggregate_of_forecaster_type_supersedes_a_partial_one_recorded_since(
-    setup_nested_groups, db, restore_beliefs
+def test_a_reporter_set_up_from_a_forecaster_source_saves_measurements_as_a_report(
+    setup_dummy_data, db
 ):
-    """The partial aggregates of a report saved under a forecaster source are told apart from the complete one among the forecaster sources, too.
+    """A reporter set up again from the forecaster-type source of an earlier run saves under the types its inputs give, not under that source's type."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+    start = datetime(2023, 7, 2, tzinfo=utc)
+    meter = DataSource("rebuilt reporter meter", type="script")
+    db.session.add(meter)
+    db.session.flush()
+    db.session.add_all(
+        TimedBelief(
+            s1,
+            meter,
+            event_start=start + timedelta(hours=hour),
+            belief_horizon=timedelta(0),
+            event_value=1.0,
+        )
+        for hour in range(4)
+    )
+    with_forecasts = DataSource(
+        "FlexMeasures",
+        type="forecaster",
+        model="AggregatorReporter",
+        attributes={"data_generator": {"config": {"method": "sum"}}},
+    )
+    db.session.add(with_forecasts)
+    db.session.flush()
 
-    So the complete aggregate computed again is saved where a partial one was recorded since, as for a report of the default type.
+    reporter = with_forecasts.data_generator
+    assert reporter.data_source is with_forecasts
+    result = reporter.compute(
+        input=[dict(sensor=s1, source=meter)],
+        output=[dict(sensor=report_sensor)],
+        start=start,
+        end=start + timedelta(hours=4),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    assert {source.type for source in result.lineage.sources} == {"reporter"}
+    assert reporter.data_source is with_forecasts
+
+
+def _record_under(db, sensor: Sensor, source: DataSource) -> DataSource:
+    """Move every belief of the sensor to the given source, and return the source they were under (all of them have to share one)."""
+    previous = db.session.execute(
+        db.select(DataSource)
+        .join(TimedBelief, TimedBelief.source_id == DataSource.id)
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .distinct()
+    ).scalar_one()
+    db.session.execute(
+        db.update(TimedBelief)
+        .where(TimedBelief.sensor_id == sensor.id)
+        .values(source_id=source.id)
+    )
+    db.session.commit()
+    db.session.expire_all()
+    return previous
+
+
+def test_a_complete_forecast_supersedes_a_partial_report_recorded_since(
+    setup_nested_groups, db
+):
+    """A partial aggregate is saved under the type of the inputs that reported, so a complete aggregate of another type has to supersede it.
+
+    The heat pump forecasts, so the street's aggregate is a forecast, until the heat pump's forecast of one event goes missing:
+    the partial aggregate of that event is then made of measurements only, so it is a report.
+    Once the forecast is back, the complete aggregate is the forecast saved before, which is saved again all the same.
     """
     from flexmeasures.data.services.generator_results import save_generator_results
 
@@ -2028,23 +2080,25 @@ def test_a_complete_aggregate_of_forecaster_type_supersedes_a_partial_one_record
         setup_nested_groups
     )
     aggregate = Sensor(
-        "street forecaster supersede test",
+        "street cross-type supersede test",
         generic_asset=street,
         event_resolution=timedelta(minutes=15),
         unit="MW",
         timezone="UTC",
     )
-    db.session.add(aggregate)
+    forecaster = DataSource(
+        "heat pump forecaster", type="forecaster", model="TrainPredictPipeline"
+    )
+    db.session.add_all([aggregate, forecaster])
     db.session.commit()
     gap = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
 
     def report(belief_time) -> int:
-        results = AggregatorReporter(
-            config={"group": {"asset": street.id}, "output-source-type": "forecaster"}
-        ).compute(
+        # only the event with the gap, so the run saves under no other type than that event's
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
             output=[dict(sensor=aggregate)],
-            start=datetime(2026, 7, 1, tzinfo=utc),
-            end=datetime(2026, 7, 2, tzinfo=utc),
+            start=gap,
+            end=gap + timedelta(minutes=15),
             belief_time=belief_time,
         )
         saved = save_generator_results(results)
@@ -2060,59 +2114,78 @@ def test_a_complete_aggregate_of_forecaster_type_supersedes_a_partial_one_record
         )
         return bdf["event_value"].iloc[0], bdf.sources[0]
 
-    back = None
+    def heat_pump_forecast_at_gap():
+        return db.session.execute(
+            db.select(TimedBelief).filter_by(sensor_id=hp_power.id, event_start=gap)
+        ).scalar_one()
+
+    meter = _record_under(db, hp_power, forecaster)
+    removed = None
     try:
-        assert report(datetime(2026, 7, 2, 0, tzinfo=utc)) == 96
-        restore_beliefs(hp_power, gap)
+        assert report(datetime(2026, 7, 2, 0, tzinfo=utc)) == 1
+        value, source = read_at_gap()
+        assert value == pytest.approx(0.12)
+        assert source.type == "forecaster"
+
+        # the heat pump's forecast of the event is gone, so the next run records a partial aggregate of measurements
+        removed = heat_pump_forecast_at_gap()
+        removed_spec = dict(
+            sensor=hp_power,
+            source=forecaster,
+            event_start=gap,
+            belief_horizon=removed.belief_horizon,
+            event_value=removed.event_value,
+        )
+        db.session.delete(removed)
+        db.session.commit()
         assert report(datetime(2026, 7, 2, 1, tzinfo=utc)) == 1
         value, source = read_at_gap()
         assert value == pytest.approx(0.16)
-        assert source.type == "forecaster"
+        assert source.type == "reporter"
         assert source.missing_members == [hp_power.id]
 
-        meter = db.session.execute(
-            db.select(DataSource).filter_by(name="nested meter")
-        ).scalar_one()
-        back = TimedBelief(
-            event_start=gap,
-            belief_time=datetime(2026, 7, 2, 1, 30, tzinfo=utc),
-            event_value=40,
-            sensor=hp_power,
-            source=meter,
-        )
-        db.session.add(back)
+        # the forecast is back, so the complete forecast saved before is saved again, superseding the partial report
+        db.session.add(TimedBelief(**removed_spec))
         db.session.commit()
+        removed = None
         assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 1
         value, source = read_at_gap()
         assert value == pytest.approx(0.12)
         assert source.type == "forecaster"
         assert source.missing_members == []
-        assert report(datetime(2026, 7, 2, 2, tzinfo=utc)) == 0
     finally:
-        if back is not None:
-            db.session.delete(back)
+        if removed is not None:
+            db.session.add(TimedBelief(**removed_spec))
+            db.session.commit()
+        _record_under(db, hp_power, meter)
         db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
         db.session.delete(aggregate)
         db.session.commit()
 
 
-def test_the_status_of_a_partial_aggregate_of_forecaster_type_names_the_missing_members(
+def test_the_status_of_a_partial_forecast_names_the_missing_members(
     setup_nested_groups, db, restore_beliefs
 ):
-    """The members a partial aggregate leaves out are named in the status of the source type it is saved under, whatever type that is."""
+    """The members a partial aggregate leaves out are named in the status of the source type it is saved under, whatever type that is.
+
+    The PV forecasts, so the street's aggregate is a forecast, also where the heat pump's measurement is missing.
+    """
     from flexmeasures.data.services.sensors import get_statuses
 
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
     )
     aggregate = Sensor(
-        "street forecaster status test",
+        "street forecast status test",
         generic_asset=street,
         event_resolution=timedelta(minutes=15),
         unit="MW",
         timezone="UTC",
     )
-    db.session.add(aggregate)
+    forecaster = DataSource(
+        "pv forecaster", type="forecaster", model="TrainPredictPipeline"
+    )
+    db.session.add_all([aggregate, forecaster])
     db.session.commit()
     status_specs = {
         "staleness_search": {},
@@ -2122,11 +2195,10 @@ def test_the_status_of_a_partial_aggregate_of_forecaster_type_names_the_missing_
     now = datetime(2026, 7, 2, 2, tzinfo=utc)
     partial_event = datetime(2026, 7, 1, 23, 30, tzinfo=utc)
 
+    meter = _record_under(db, pv_power, forecaster)
     try:
         restore_beliefs(hp_power, partial_event)
-        results = AggregatorReporter(
-            config={"group": {"asset": street.id}, "output-source-type": "forecaster"}
-        ).compute(
+        results = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
             output=[dict(sensor=aggregate)],
             start=datetime(2026, 7, 1, tzinfo=utc),
             end=datetime(2026, 7, 2, tzinfo=utc),
@@ -2146,6 +2218,7 @@ def test_the_status_of_a_partial_aggregate_of_forecaster_type_names_the_missing_
         ]
         assert f"leaves out 'House heat' / hp power ({hp_power.id})" in status["reason"]
     finally:
+        _record_under(db, pv_power, meter)
         db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
         db.session.delete(aggregate)
         db.session.commit()

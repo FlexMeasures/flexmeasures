@@ -131,7 +131,7 @@ def test_the_sources_are_looked_up_once_for_the_missing_members_of_every_source_
 ):
     """Judging the missing members of each source type must not look the sensor's sources up again per type.
 
-    Any source type can hold a partial aggregate (see `Reporter.source_type`), so each is judged,
+    Any source type can hold a partial aggregate (see `AggregatorReporter.source_type`), so each is judged,
     but the sources they are judged from are the same for every type.
     """
     from flexmeasures.data.services import sensors as sensor_services

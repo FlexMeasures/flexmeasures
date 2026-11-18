@@ -266,8 +266,8 @@ class DataGenerator:
     def source_type(self) -> str | None:
         """The type of data source this data generator saves its data under.
 
-        It is the kind of data generator it is, unless its configuration says otherwise (see `Reporter.source_type`).
-        `get_data_source_info` answers for the class, so a source created for a configured data generator takes its type from here.
+        It is the kind of data generator it is, unless the data it computes says otherwise (see `AggregatorReporter.source_type`).
+        `get_data_source_info` answers for the class, so the source of a data generator at work takes its type from here.
         """
         return self.__data_generator_base__
 
@@ -572,7 +572,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             )
         generator_class = current_app.data_generators[self.type].get(self.model)
         if generator_class is None:
-            # A data generator can be configured to save under a source of another type (see `Reporter.source_type`),
+            # A data generator can save under a source of another type than its own kind (see `AggregatorReporter.source_type`),
             # so it is looked for among the other kinds of data generator, too.
             generator_types = [
                 generator_type
@@ -600,12 +600,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         # create DataGenerator class and add the parameters
         data_generator = generator_class(config=config)
-        if data_generator.source_type != self.type:
-            # Only a data generator configured to save under this source's type can have made its data.
-            raise NotImplementedError(
-                f"Data generator '{self.type}/{self.model}' is unavailable."
-                f" A '{self.model}' is installed, but as configured on data source {self.id}, it saves under a source of type '{data_generator.source_type}'."
-            )
         data_generator._parameters = parameters
 
         # assign the current DataSource (self) as its source

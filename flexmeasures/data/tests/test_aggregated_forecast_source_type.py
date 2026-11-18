@@ -1,4 +1,4 @@
-"""A sum of forecasts is a forecast, so a forecast of the sum must not be trained on it (see `Reporter.source_type`)."""
+"""A sum of forecasts is a forecast, so a forecast of the sum must not be trained on it (see `AggregatorReporter.source_type`)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ END = START + timedelta(hours=48)
 
 @pytest.fixture(scope="module")
 def community(db, setup_accounts, setup_generic_asset_types):
-    """Two houses with forecasts, and two sensors for their net to be reported on (one per source type under test)."""
+    """Two houses with measurements and forecasts, and two sensors for their net to be reported on (one per source type under test)."""
     asset = GenericAsset(
         name="forecast training community",
         generic_asset_type=setup_generic_asset_types["battery"],
@@ -37,29 +37,34 @@ def community(db, setup_accounts, setup_generic_asset_types):
     forecaster = DataSource(
         "training test forecaster", type="forecaster", model="TrainPredictPipeline"
     )
-    db.session.add(forecaster)
+    meter = DataSource("training test meter", type="script")
+    db.session.add_all([forecaster, meter])
     db.session.flush()
     db.session.add_all(
         TimedBelief(
             sensors[name],
-            forecaster,
+            source,
             event_start=START + timedelta(hours=hour),
-            belief_horizon=timedelta(hours=24),
+            belief_horizon=horizon,
             event_value=5.0,
         )
         for hour in range(48)
         for name in ("house 1", "house 2")
+        for source, horizon in (
+            (forecaster, timedelta(hours=24)),
+            (meter, timedelta(0)),
+        )
     )
     db.session.commit()
-    return sensors, forecaster
+    return sensors, {"forecaster": forecaster, "meter": meter}
 
 
-def _aggregate_forecasts(db, sensors, forecaster, output_sensor, config: dict):
-    """Report the sum of both houses' forecasts on the output sensor, and save it."""
-    result = AggregatorReporter(config=dict(method="sum", **config)).compute(
+def _aggregate(db, sensors, source, output_sensor):
+    """Report the sum of both houses' data from the given source on the output sensor, and save it."""
+    result = AggregatorReporter(config=dict(method="sum")).compute(
         input=[
-            dict(sensor=sensors["house 1"], source=forecaster),
-            dict(sensor=sensors["house 2"], source=forecaster),
+            dict(sensor=sensors["house 1"], source=source),
+            dict(sensor=sensors["house 2"], source=source),
         ],
         output=[dict(sensor=output_sensor)],
         start=START,
@@ -89,28 +94,23 @@ def _source_types_in_target_training_data(target: Sensor) -> set[str]:
 
 
 @pytest.mark.parametrize(
-    "config, output_sensor, source_type, in_training_data",
+    "input_source, output_sensor, source_type, in_training_data",
     [
-        ({}, "net as reporter", "reporter", True),
-        (
-            {"output-source-type": "forecaster"},
-            "net as forecaster",
-            "forecaster",
-            False,
-        ),
+        ("meter", "net as reporter", "reporter", True),
+        ("forecaster", "net as forecaster", "forecaster", False),
     ],
 )
-def test_only_an_aggregated_forecast_of_forecaster_type_is_kept_out_of_training_data(
-    db, community, config, output_sensor, source_type, in_training_data
+def test_only_an_aggregate_of_forecasts_is_kept_out_of_training_data(
+    db, community, input_source, output_sensor, source_type, in_training_data
 ):
-    """An aggregated forecast is trained on, unless its source says that it is a forecast.
+    """An aggregate of measurements is trained on, while an aggregate of forecasts is a forecast, which is not.
 
-    The aggregate is a sum of forecasts, which a forecaster must not learn from as if it were what actually happened.
-    A bare-sensor target excludes the forecaster sources, so only a report saved under a forecaster source is left out.
+    A forecaster must not learn from a sum of forecasts as if it were what actually happened.
+    A bare-sensor target excludes the forecaster sources, and the aggregate takes its type from its inputs, so a sum of forecasts is left out.
     """
-    sensors, forecaster = community
+    sensors, sources = community
     target = sensors[output_sensor]
-    result = _aggregate_forecasts(db, sensors, forecaster, target, config)
+    result = _aggregate(db, sensors, sources[input_source], target)
 
     assert {source.type for source in result.lineage.sources} == {source_type}
     assert (source_type in _source_types_in_target_training_data(target)) is (

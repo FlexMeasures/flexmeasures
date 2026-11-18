@@ -694,7 +694,7 @@ def get_missing_members(
     so judging the newest event would flag such a group all the time.
     A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
     Only the sources of the given type are judged, as the status is reported per source type,
-    and a report may be saved under a source of another type than 'reporter' (see `Reporter.source_type`).
+    and a report may be saved under a source of another type than 'reporter' (see `AggregatorReporter.source_type`).
     A caller judging several source types can pass the sensor's `sources_by_type`, so they are looked up once rather than once per type.
     """
     if sources_by_type is None:

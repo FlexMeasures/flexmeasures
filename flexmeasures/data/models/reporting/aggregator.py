@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -88,6 +89,9 @@ class AggregatorReporter(Reporter):
 
     Values are converted to the unit of the output sensor at each sensor's own resolution, before being resampled to the output's resolution,
     because converting between a stock and a flow (kWh to MW, say) depends on the resolution of the data being converted.
+
+    Each event is saved under a source of the type its inputs give it (see `_event_source_types`):
+    a sum that includes a forecast is a forecast, so it must not be taken for what actually happened, for instance by a forecaster training on it.
     """
 
     __version__ = "2"
@@ -104,6 +108,13 @@ class AggregatorReporter(Reporter):
     #: The report's window, used only so the inventory is built the way a scheduler of this site would build it.
     _window_start: datetime | None = None
     _window_end: datetime | None = None
+    #: The source type the events being labelled are saved under, if not the reporter's own (see `_saving_as`).
+    _event_source_type: str | None = None
+
+    #: The source types an aggregate takes over from its inputs, ranked from the claim that weighs most to the one that weighs least.
+    #: A forecaster predicts and a scheduler prescribes, while a reporter only derives, so an aggregate makes the claim of its inputs.
+    #: Any other type, such as a user's or a script's, counts as a measurement, which the reporter's own type stands for.
+    INHERITED_SOURCE_TYPES = ("forecaster", "scheduler")
 
     # ------------------------------------------------------------------ groups
 
@@ -463,12 +474,75 @@ class AggregatorReporter(Reporter):
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
 
+    @property
+    def source_type(self) -> str | None:
+        """The type of source the events being labelled are saved under, which their inputs decide (see `_event_source_types`), and otherwise 'reporter'."""
+        return self._event_source_type or super().source_type
+
+    @contextmanager
+    def _saving_as(self, source_type: str):
+        """Let `data_source` be this report's source of the given type, and give back the source it was before afterwards.
+
+        A reporter set up again from a source of another type keeps that source as its own, so a cached source of another type is set aside, too.
+        """
+        previous = (self._event_source_type, self._data_source)
+        self._event_source_type = source_type
+        if self._data_source is not None and self._data_source.type != source_type:
+            self._data_source = None
+        try:
+            yield
+        finally:
+            self._event_source_type, self._data_source = previous
+
+    @classmethod
+    def _source_type_ranks(cls, df: tb.BeliefsDataFrame) -> pd.Series:
+        """Rank the source of each belief by the claim its type makes, the highest for the first of `INHERITED_SOURCE_TYPES`, and 0 for a measurement."""
+        ranks = {
+            source_type: len(cls.INHERITED_SOURCE_TYPES) - i
+            for i, source_type in enumerate(cls.INHERITED_SOURCE_TYPES)
+        }
+        return pd.Series(
+            [
+                ranks.get(source.type, 0)
+                for source in df.index.get_level_values("source")
+            ],
+            index=df.index.get_level_values("event_start"),
+            dtype=float,
+        )
+
+    @classmethod
+    def _resample_source_type_ranks(
+        cls, ranks: pd.Series, resolution: timedelta, sensor_resolution: timedelta
+    ) -> pd.Series:
+        """Resample the ranks of one sensor's sources as its values are, so that an event takes the highest rank of the beliefs that went into it."""
+        if not ranks.empty and resolution > sensor_resolution:
+            return ranks.resample(resolution).max()
+        # a finer resolution carries each event's rank across it, as it carries a power
+        return cls._resample(ranks, resolution, sensor_resolution, unit="")
+
+    def _event_source_types(self, ranks: pd.DataFrame) -> pd.Series:
+        """Tell the type of source each event is saved under, from the source types of the beliefs that went into it, one column per input.
+
+        Any belief from a forecaster makes the event a forecast, otherwise any belief from a scheduler makes it a schedule,
+        and otherwise it is a report, which is the reporter's own type.
+        A sensor that did not report an event has no say in it, as its missing value did not go into the aggregate.
+        """
+        highest = ranks.max(axis=1).fillna(0).astype(int)
+        source_types = {
+            len(self.INHERITED_SOURCE_TYPES) - i: source_type
+            for i, source_type in enumerate(self.INHERITED_SOURCE_TYPES)
+        }
+        return highest.map(
+            lambda rank: source_types.get(rank, self.__data_generator_base__)
+        )
+
     def _label_incomplete_events(
         self,
         frame: pd.DataFrame,
         incomplete: pd.Series,
         column_sensor_ids: dict[str, int],
         sources: pd.Series,
+        event_types: pd.Series,
     ) -> pd.Series:
         """Record each event that some members did not report under a source that names them, in its `missing-members`.
 
@@ -477,6 +551,7 @@ class AggregatorReporter(Reporter):
         Only members count: a gap in a sensor named in `input` besides the group is aggregated over, as reports over named sensors always have.
         Which members are missing can differ per event, so one report may record under several sources.
         A sensor that fails again later is recorded under the source it was recorded under before, as sources with the same attributes are shared.
+        A partial aggregate is saved under the type its event's inputs give it, as a complete one is (see `_event_source_types`).
         """
         # a sensor named in `input` besides the group is not one of its members, so a gap in it leaves the group's aggregate complete
         members = set(self._config.get("resolved_members") or [])
@@ -485,7 +560,7 @@ class AggregatorReporter(Reporter):
         ]
         sensor_ids = [column_sensor_ids[column] for column in columns]
         missing = frame.loc[incomplete, columns].isna()
-        events_by_missing_set: dict[tuple[int, ...], list] = {}
+        events_by_partial_source: dict[tuple[str, tuple[int, ...]], list] = {}
         for event_start, *gone in missing.itertuples(name=None):
             missing_ids = tuple(
                 sorted(
@@ -497,18 +572,22 @@ class AggregatorReporter(Reporter):
                 )
             )
             if missing_ids:
-                events_by_missing_set.setdefault(missing_ids, []).append(event_start)
+                events_by_partial_source.setdefault(
+                    (event_types.loc[event_start], missing_ids), []
+                ).append(event_start)
 
-        complete_source = self.data_source
         sources = sources.copy()
         try:
-            for missing_ids, event_starts in events_by_missing_set.items():
+            for (
+                source_type,
+                missing_ids,
+            ), event_starts in events_by_partial_source.items():
                 self._config["missing_members"] = list(missing_ids)
-                self._data_source = None
-                sources.loc[event_starts] = self.data_source
+                with self._saving_as(source_type):
+                    self._data_source = None
+                    sources.loc[event_starts] = self.data_source
         finally:
             self._config.pop("missing_members", None)
-            self._data_source = complete_source
         return sources
 
     def get_data_source_attributes(self) -> dict:
@@ -653,6 +732,7 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         columns = []
+        rank_columns = []
         column_sensor_ids: dict[str, int] = {}
 
         for index, input_description in enumerate(input_descriptions):
@@ -684,6 +764,11 @@ class AggregatorReporter(Reporter):
             values = self._resample(
                 values, resolution, sensor.event_resolution, output_sensor.unit
             )
+            ranks = self._resample_source_type_ranks(
+                self._source_type_ranks(df), resolution, sensor.event_resolution
+            )
+            # an event this sensor did not report has no say in the type of the aggregate
+            ranks = ranks.reindex(values.index).where(values.notna())
 
             values = values * sign
             if column_name in weights:
@@ -691,12 +776,18 @@ class AggregatorReporter(Reporter):
 
             # a unique name per column, so that two entries for the same sensor both survive the concat
             columns.append(values.rename(f"{column_name}_{index}"))
+            rank_columns.append(ranks.rename(f"{column_name}_{index}"))
             column_sensor_ids[f"{column_name}_{index}"] = sensor.id
 
         frame = pd.concat(columns, axis=1)
         aggregated = frame.aggregate(method, axis=1)
+        event_types = self._event_source_types(
+            pd.concat(rank_columns, axis=1).reindex(frame.index)
+        )
 
-        aggregated, sources = self._settle_gaps(frame, aggregated, column_sensor_ids)
+        aggregated, sources = self._settle_gaps(
+            frame, aggregated, column_sensor_ids, event_types
+        )
 
         # Built explicitly, because resampling the inputs with pandas leaves plain Series behind,
         # and the report has to come back as a BeliefsDataFrame of the output sensor.
@@ -724,7 +815,7 @@ class AggregatorReporter(Reporter):
         }
         if self._config.get("group"):
             superseding = self._complete_events_superseding_a_partial_one(
-                output_df, output_sensor, start, end
+                output_df, output_sensor, start, end, event_types
             )
             if len(superseding) > 0:
                 result["save_even_if_unchanged"] = superseding
@@ -735,15 +826,19 @@ class AggregatorReporter(Reporter):
         frame: pd.DataFrame,
         aggregated: pd.Series,
         column_sensor_ids: dict[str, int],
+        event_types: pd.Series,
     ) -> tuple[pd.Series, pd.Series]:
-        """Settle what to record for events that not every sensor reported, and under which source to record each event."""
+        """Settle what to record for events that not every sensor reported, and under which source to record each event, of the type `event_types` gives it."""
         # An event no sensor reported is missing, whichever mode this is: Pandas sums an all-missing row to zero,
         # which would report an hour nothing was measured in as an hour nothing flowed in.
         nothing_reported = frame.isna().all(axis=1)
         aggregated = aggregated.where(~nothing_reported)
         incomplete = frame.isna().any(axis=1) & ~nothing_reported
 
-        sources = pd.Series(self.data_source, index=aggregated.index, dtype=object)
+        sources = pd.Series(None, index=aggregated.index, dtype=object)
+        for source_type in event_types.unique():
+            with self._saving_as(source_type):
+                sources.loc[event_types == source_type] = self.data_source
         if self._config.get("skip_missing") is False:
             if incomplete.any():
                 self._warn_about_gaps(frame, incomplete)
@@ -753,7 +848,7 @@ class AggregatorReporter(Reporter):
             # so an event that some of them did not report is recorded under a source that names them.
             # Where the caller named the sensors itself, aggregating what reported is what these reports have always done.
             sources = self._label_incomplete_events(
-                frame, incomplete, column_sensor_ids, sources
+                frame, incomplete, column_sensor_ids, sources, event_types
             )
         return aggregated, sources
 
@@ -763,6 +858,7 @@ class AggregatorReporter(Reporter):
         output_sensor: Sensor,
         start: datetime,
         end: datetime,
+        event_types: pd.Series,
     ) -> pd.DatetimeIndex:
         """Return the starts of the complete events of this report that a partial aggregate recorded since the last complete one stands in for.
 
@@ -772,26 +868,30 @@ class AggregatorReporter(Reporter):
         So such a complete aggregate is saved even if unchanged.
         Only a partial aggregate that this report's belief would supersede counts, which is one of the same version recorded no later.
         A report on a sensor that never had a partial aggregate of this version costs only the lookup of its sources.
+        The type of an event's source follows its inputs (see `_event_source_types`), so a partial aggregate of any type this report saves under counts,
+        such as a partial one saved as a report, for an event whose forecast member was missing, superseded by a complete one saved as a forecast.
         """
-        complete_source = self.data_source
+        complete_sources = []
+        for source_type in event_types.unique():
+            with self._saving_as(source_type):
+                complete_sources.append(self.data_source)
+        generator_types = list(current_app.data_generators)
         family = [
             source
             for source in output_sensor.search_data_sources(
-                source_types=[complete_source.type]
+                source_types=generator_types
             )
-            if (source.name, source.type, source.model, source.version)
-            == (
-                complete_source.name,
-                complete_source.type,
-                complete_source.model,
-                complete_source.version,
+            if any(
+                (source.name, source.model, source.version)
+                == (complete.name, complete.model, complete.version)
+                for complete in complete_sources
             )
         ]
         if not any(source.missing_members for source in family):
             return pd.DatetimeIndex([])
 
         is_complete = (
-            output_df.index.get_level_values("source") == complete_source
+            output_df.index.get_level_values("source").isin(complete_sources)
         ) & output_df["event_value"].notna().to_numpy()
         new = output_df[is_complete]
         if new.empty:

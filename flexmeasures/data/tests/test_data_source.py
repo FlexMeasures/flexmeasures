@@ -973,54 +973,18 @@ def _aggregator_source(db, type: str, config: dict, name: str) -> DataSource:
 
 
 def test_a_reporter_saving_under_the_forecaster_type_is_found_from_its_source(db, app):
-    """A source of another type than its generator's own is looked for among the other kinds of data generator, if the config says so."""
+    """A source of another type than its generator's own kind is looked for among the other kinds of data generator.
+
+    A sum of forecasts is saved under a forecaster-type source (see `AggregatorReporter.source_type`), so its reporter has to be found from it.
+    """
     source = _aggregator_source(
-        db,
-        "forecaster",
-        {"method": "sum", "output-source-type": "forecaster"},
-        "forecaster-typed aggregator",
+        db, "forecaster", {"method": "sum"}, "forecaster-typed aggregator"
     )
 
     generator = source.data_generator
 
     assert isinstance(generator, AggregatorReporter)
-    assert generator.source_type == "forecaster"
     assert generator.data_source is source
-
-
-@pytest.mark.parametrize(
-    "config",
-    [
-        {"method": "sum"},
-        {"method": "sum", "output-source-type": "scheduler"},
-    ],
-    ids=["no output-source-type", "another output-source-type"],
-)
-def test_a_source_of_another_type_than_its_generator_saves_under_has_no_generator(
-    db, app, config
-):
-    """Only a data generator configured to save under the source's type can have made its data, so a source of that type without such a config is refused."""
-    source = _aggregator_source(
-        db, "forecaster", config, f"unconfigured aggregator {len(config)}"
-    )
-
-    with pytest.raises(NotImplementedError, match="unavailable"):
-        source.data_generator
-
-
-def test_a_source_of_its_generators_own_kind_is_refused_if_the_config_names_another_type(
-    db, app
-):
-    """A reporter-type source whose config says to save under the forecaster type cannot have made its data either, so it is refused, too."""
-    source = _aggregator_source(
-        db,
-        "reporter",
-        {"method": "sum", "output-source-type": "forecaster"},
-        "reporter-typed aggregator configured as forecaster",
-    )
-
-    with pytest.raises(NotImplementedError, match="unavailable"):
-        source.data_generator
 
 
 def test_a_model_registered_as_two_other_kinds_of_data_generator_is_ambiguous(
@@ -1043,7 +1007,7 @@ def test_a_forecaster_typed_reporter_source_serves_reporters_only(db, app):
     source = _aggregator_source(
         db,
         "forecaster",
-        {"method": "sum", "output-source-type": "forecaster"},
+        {"method": "sum"},
         "forecaster-typed aggregator for lookup",
     )
 
