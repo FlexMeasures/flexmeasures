@@ -12,10 +12,10 @@ A hook is a callable taking one `CriticalAutomationFailure`. Register it either
 
 which is for a host that wants to point at a function without writing a plugin.
 
-Hooks run inside the dispatcher or the worker that recorded the failure, straight after it was
-recorded and committed. They are expected to be quick and to do their own error handling;
-a hook that raises is logged and skipped, and never fails the run it was told about, which has
-failed already. Anything slow belongs on a queue of the host's own.
+Hooks run inside the dispatcher or the worker that recorded the failure, straight after it was recorded and committed.
+They are expected to be quick and to do their own error handling;
+a hook that raises is logged and skipped, and never fails the run it was told about, which has failed already.
+Anything slow belongs on a queue of the host's own.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ from flexmeasures.utils.time_utils import server_now
 class CriticalAutomationFailure:
     """What a hook is told about a failed run of an automation flagged as critical.
 
-    Plain values rather than ORM objects, so a hook can hand this to a pager, a webhook or a
-    queue without holding on to a database session. Use `automation_id` and `run_id` to look
-    the records up where more is needed.
+    Plain values rather than ORM objects,
+    so a hook can hand this to a pager, a webhook or a queue without holding on to a database session.
+    Use `automation_id` and `run_id` to look the records up where more is needed.
     """
 
     automation_id: int
@@ -101,8 +101,8 @@ def _hook_name(hook: Callable) -> str:
 def _configured_hooks() -> list[Callable]:
     """Resolve the hooks named by dotted path in the server settings.
 
-    Resolved on each failure rather than at startup, so a host that mistypes a path learns about
-    it in the logs of the failure it missed, instead of having the server refuse to start.
+    Resolved on each failure rather than at startup,
+    so a host that mistypes a path learns about it in the logs of the failure it missed, instead of having the server refuse to start.
     """
     hooks = []
     paths = current_app.config.get("FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS", [])
@@ -161,12 +161,12 @@ def describe_critical_failure(
 def notify_critical_automation_failure(run: AutomationRun, stage: str) -> bool:
     """Hand a failed run to the critical-failure hooks, once.
 
-    Does nothing unless the automation is flagged critical. A run notifies once, however many of
-    its jobs fail and however often its dispatch is retried, which is recorded on the run itself
-    so that a second dispatcher or worker does not page again.
+    Does nothing unless the automation is flagged critical.
+    A run notifies once, however many of its jobs fail and however often its dispatch is retried,
+    which is recorded on the run itself, so that a second dispatcher or worker does not page again.
 
-    Never raises: this is called while recording a failure, and a hook that misbehaves must not
-    cost us the record of what failed.
+    Never raises: this is called while recording a failure,
+    and a hook that misbehaves must not cost us the record of what failed.
 
     :returns: whether the hooks were called for this run.
     """

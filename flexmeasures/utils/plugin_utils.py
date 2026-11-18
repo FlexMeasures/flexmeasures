@@ -150,9 +150,9 @@ def register_plugins(app: Flask):  # noqa: C901
             if isinstance(getattr(module, a), Blueprint)
         ]
         if not plugin_blueprints:
-            # Not every plugin serves pages. One may exist only to register automation types,
-            # data generators or critical-automation-failure hooks, so carry on registering
-            # what it does contribute rather than dropping the plugin here.
+            # Not every plugin serves pages.
+            # One may exist only to register automation types, data generators or critical-automation-failure hooks,
+            # so carry on registering what it does contribute rather than dropping the plugin here.
             app.logger.info(
                 f"No blueprints found for plugin {plugin_name} at {plugin}."
                 " It registers no routes."

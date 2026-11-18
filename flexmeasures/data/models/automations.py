@@ -97,9 +97,8 @@ class Automation(db.Model, AuthModelMixin):
     active = db.Column(db.Boolean, nullable=False, default=True)
     # Whether this automation is critical to the organisation running FlexMeasures.
     # It changes nothing about how the automation runs or how its failures are retried;
-    # it only decides whether a failure is handed to the critical-failure hooks (see
-    # `flexmeasures.data.services.automation_failure_hooks`), where a host's own business
-    # logic can act on it, for instance by paging the engineer on duty.
+    # it only decides whether a failure is handed to the critical-failure hooks (see `flexmeasures.data.services.automation_failure_hooks`),
+    # where a host's own business logic can act on it, for instance by paging the engineer on duty.
     critical = db.Column(db.Boolean, nullable=False, default=False)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
