@@ -300,3 +300,17 @@ def test_a_mistyped_hook_path_is_logged_and_skipped(app, caplog):
         assert "Cannot use critical-automation-failure hook" in caplog.text
     finally:
         app.config["FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS"] = []
+
+
+def test_settings_can_name_hooks_in_a_comma_separated_string(app, caplog):
+    """As FLEXMEASURES_PLUGINS allows, rather than reading the string one character at a time."""
+    app.config["FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS"] = (
+        "flexmeasures.utils.time_utils.server_now, flexmeasures.utils.time_utils.server_now"
+    )
+    try:
+        from flexmeasures.utils.time_utils import server_now
+
+        assert get_automation_failure_hooks().count(server_now) == 2
+        assert "Cannot use critical-automation-failure hook" not in caplog.text
+    finally:
+        app.config["FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS"] = []

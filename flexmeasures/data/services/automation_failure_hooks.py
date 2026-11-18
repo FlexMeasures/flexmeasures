@@ -105,9 +105,11 @@ def _configured_hooks() -> list[Callable]:
     it in the logs of the failure it missed, instead of having the server refuse to start.
     """
     hooks = []
-    for path in current_app.config.get(
-        "FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS", []
-    ):
+    paths = current_app.config.get("FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS", [])
+    if isinstance(paths, str):
+        # Accept a comma-separated string, as FLEXMEASURES_PLUGINS does, rather than iterating over its characters.
+        paths = [path.strip() for path in paths.split(",") if path.strip()]
+    for path in paths:
         try:
             module_path, _, attribute = str(path).rpartition(".")
             if not module_path:
