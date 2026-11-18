@@ -2265,11 +2265,12 @@ def update_automation(
     critical: bool | None = None,
     origin: str = "API",
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation's name, cron string, timezone, activation status and/or criticality (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
+    Criticality changes nothing about which runs are due, so it leaves the cursor as it is.
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
