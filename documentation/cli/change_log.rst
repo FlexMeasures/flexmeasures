@@ -4,6 +4,13 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.1.2 | November 23, 2026
+=================================
+
+* ``flexmeasures add user`` refuses a password shorter than ``SECURITY_PASSWORD_LENGTH_MIN``, which is now 12 characters by default.
+* ``flexmeasures add asset --parent-asset``, ``flexmeasures edit transfer-parenthood`` and ``flexmeasures edit transfer-ownership`` warn when an asset ends up under a parent asset of another organisation (or a public asset under an organisation's asset). They go ahead, as the CLI is not held to the permissions that the API and UI require for this.
+* ``flexmeasures delete sensor`` no longer fails for every sensor when one automation on the server cannot be resolved; it logs a warning and skips that automation.
+
 since v1.1.0 | November 05, 2026
 =================================
 
