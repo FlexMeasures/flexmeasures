@@ -625,6 +625,14 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+SECURITY_RETURN_GENERIC_RESPONSES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Answer login, "forgot password" and other authentication forms alike, whether or not a user with the given email address exists, so the answers don't reveal who has an account.
+``/api/requestAuthToken`` likewise answers ``401`` for an unknown email address, as for a wrong password.
+
+Default: ``True``
+
 SECURITY_PASSWORD_LENGTH_MIN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -711,6 +719,8 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 
 Default: ``True``
 
+
+.. _force_https:
 
 FLEXMEASURES_FORCE_HTTPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
