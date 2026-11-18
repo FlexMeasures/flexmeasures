@@ -268,6 +268,7 @@ We can confirm this is the case on the updated scheduling in the `FlexMeasures U
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-multiasset-negativeprices.png
     :align: center
+
 |
 
 .. note:: We are not displaying the price profile blocks on the graphs page, but the day ahead prices which this schedule did not consider. By passing the price profile blocks in the ``flex-context``, we are overwriting them for this calculation.

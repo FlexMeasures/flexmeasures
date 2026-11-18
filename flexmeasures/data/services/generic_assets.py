@@ -1,26 +1,139 @@
 from typing import Any
 
 from flask import current_app
+from marshmallow import ValidationError
 from sqlalchemy import delete
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import (
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from flexmeasures.data.services.group_membership_audit import (
+    note_deletion as note_group_membership_deletion,
+)
+from flexmeasures.auth.policy import check_access
 
 """Services for managing assets"""
+
+
+def _validate_kpi_sensors_for_access(kpis: Any, permission: str) -> None:
+    """Validate KPI entries and check access to each referenced sensor."""
+    if not isinstance(kpis, list):
+        raise ValidationError(
+            "sensors_to_show_as_kpis must be a list.",
+            field_name="sensors_to_show_as_kpis",
+        )
+    for kpi in kpis:
+        if (
+            not isinstance(kpi, dict)
+            or not isinstance(kpi.get("title"), str)
+            or type(kpi.get("sensor")) is not int
+            or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+        ):
+            raise ValidationError(
+                "Invalid sensors_to_show_as_kpis entry.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        sensor = db.session.get(Sensor, kpi["sensor"])
+        if sensor is None:
+            raise ValidationError(
+                f"Sensor {kpi['sensor']} in sensors_to_show_as_kpis does not exist.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        check_access(sensor, permission)
+
+
+def _validate_updated_kpi_sensors(db_asset: GenericAsset, asset_data: dict) -> None:
+    """Validate changed KPI references before patching the asset."""
+    if (
+        "sensors_to_show_as_kpis" in asset_data
+        and asset_data["sensors_to_show_as_kpis"] != db_asset.sensors_to_show_as_kpis
+    ):
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
+
+
+def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
+    """Return whether an asset subtree holds beliefs or annotations.
+
+    The subtree's assets and sensors are looked up first, and the probes name them by ID.
+    Probing ``timed_belief`` with a subquery for its sensors instead lets Postgres plan a join that reads the whole table's index,
+    which takes seconds on a large database whenever the subtree holds no beliefs.
+    """
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    subtree = (
+        sa.select(GenericAsset.id)
+        .where(GenericAsset.id == asset.id)
+        .cte(recursive=True)
+    )
+    subtree = subtree.union_all(
+        sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
+    )
+    asset_query = sa.select(GenericAsset.id).where(
+        GenericAsset.id.in_(sa.select(subtree.c.id))
+    )
+    if lock:
+        asset_query = asset_query.with_for_update()
+    asset_ids = db.session.scalars(asset_query).all()
+    sensor_query = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        sensor_query = sensor_query.with_for_update()
+    sensor_ids = db.session.scalars(sensor_query).all()
+    for model, condition in (
+        (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
+        (
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id.in_(asset_ids),
+        ),
+        (
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.sensor_id.in_(sensor_ids),
+        ),
+    ):
+        if db.session.scalar(
+            sa.select(sa.literal(True)).select_from(model).where(condition).limit(1)
+        ):
+            return True
+    return False
+
+
+def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
+    """The assets below this one, at any depth, which the current user may read.
+
+    Being below a readable asset grants nothing by itself: a child asset can belong to another account than its parent,
+    so each one is checked on its own.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    readable = []
+    for descendant in asset.offspring:
+        try:
+            check_access(descendant, "read")
+        except (Forbidden, Unauthorized):
+            continue
+        readable.append(descendant)
+    return readable
 
 
 def create_asset(asset_data: dict) -> GenericAsset:
     """
     Create an asset.
 
-    Does not validate data or commit the session.
+    Validates KPI sensor references, but assumes other data was validated by the caller.
+    Does not commit the session.
     Creates an audit log.
     """
+    if "sensors_to_show_as_kpis" in asset_data:
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
     if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
         asset_data.pop("external_id")  # nothing to set, leave it as None
     asset = GenericAsset(**asset_data)
@@ -380,7 +493,7 @@ def cleanup_asset_references_in_assets(
                 GenericAsset.id != asset_id,
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.asset ? (@ == $aid)",
+                    sa.cast("$.**.asset ? (@ == $aid)", JSONPATH),
                     vars_json,
                 ),
             )
@@ -551,6 +664,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     Creates an audit log.
     """
     audit_log_data = list()
+    _validate_updated_kpi_sensors(db_asset, asset_data)
 
     # first special content
     schema_map = dict(
@@ -609,6 +723,8 @@ def delete_asset(asset: GenericAsset):
     asset_name, asset_id = asset.name, asset.id
     cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
+    # the statement below deletes the asset, its offspring and their sensors without a flush, which is where group changes are noted otherwise
+    note_group_membership_deletion(asset)
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)

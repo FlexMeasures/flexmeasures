@@ -271,51 +271,48 @@ def test_create_sequential_jobs_fallback_for_last_device(
 
     storage_module = "flexmeasures.data.models.planning.storage"
 
-    with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
-        # No scheduler ships with a fallback since PR #2252, so let the storage scheduler stand in as its own,
-        # which is the situation a custom scheduler that does define a fallback is still in.
+    # No scheduler ships with a fallback since PR #2252, so let the storage scheduler stand in as its own,
+    # which is the situation a custom scheduler that does define a fallback is still in.
+    with patch(
+        f"{storage_module}.StorageScheduler.fallback_scheduler_class",
+        StorageScheduler,
+    ):
+        # The first device is scheduled fine, the last one is infeasible and falls back
         with patch(
-            f"{storage_module}.StorageScheduler.fallback_scheduler_class",
-            StorageScheduler,
+            f"{storage_module}.StorageScheduler.compute",
+            side_effect=iter([[], InfeasibleProblemException(), []]),
         ):
-            # The first device is scheduled fine, the last one is infeasible and falls back
-            with patch(
-                f"{storage_module}.StorageScheduler.compute",
-                side_effect=iter([[], InfeasibleProblemException(), []]),
-            ):
-                create_sequential_scheduling_job(
-                    asset=assets["Test Site"],
-                    scheduler_specs=scheduler_specs,
-                    enqueue=True,
-                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
-                    **flex_description_sequential,
-                )
+            create_sequential_scheduling_job(
+                asset=assets["Test Site"],
+                scheduler_specs=scheduler_specs,
+                enqueue=True,
+                force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+                **flex_description_sequential,
+            )
 
-                queued_jobs = queue.jobs
-                deferred_jobs = sort_jobs(
-                    queue, queue.deferred_job_registry.get_job_ids()
-                )
-                assert len(queued_jobs) == 1
-                assert len(deferred_jobs) == 2
-                battery_job, wrapup_job = deferred_jobs
+            queued_jobs = queue.jobs
+            deferred_jobs = sort_jobs(queue, queue.deferred_job_registry.get_job_ids())
+            assert len(queued_jobs) == 1
+            assert len(deferred_jobs) == 2
+            battery_job, wrapup_job = deferred_jobs
 
-                # Work until the last subjob has failed and triggered its fallback, but no further
-                work_on_rq(queue, exc_handler=handle_scheduling_exception, max_jobs=2)
+            # Work until the last subjob has failed and triggered its fallback, but no further
+            work_on_rq(queue, exc_handler=handle_scheduling_exception, max_jobs=2)
 
-                battery_job.refresh()
-                wrapup_job.refresh()
-                fallback_job_id = battery_job.meta["fallback_job_id"]
-                assert battery_job.get_status() == "failed"
-                assert fallback_job_id in [job.id for job in queue.jobs]
+            battery_job.refresh()
+            wrapup_job.refresh()
+            fallback_job_id = battery_job.meta["fallback_job_id"]
+            assert battery_job.get_status() == "failed"
+            assert fallback_job_id in [job.id for job in queue.jobs]
 
-                # The wrap-up job must not be runnable while the fallback job is still pending
-                assert wrapup_job.get_status() == "deferred", (
-                    "The wrap-up job should still be waiting for the fallback job, "
-                    f"but it is {wrapup_job.get_status()}."
-                )
+            # The wrap-up job must not be runnable while the fallback job is still pending
+            assert wrapup_job.get_status() == "deferred", (
+                "The wrap-up job should still be waiting for the fallback job, "
+                f"but it is {wrapup_job.get_status()}."
+            )
 
-                # Now let the fallback job (and, after it, the wrap-up job) run
-                work_on_rq(queue, exc_handler=handle_scheduling_exception)
+            # Now let the fallback job (and, after it, the wrap-up job) run
+            work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
     finished_jobs = queue.finished_job_registry.get_job_ids()
 
@@ -360,28 +357,27 @@ def test_create_sequential_jobs_without_fallback(
         StorageScheduler.fallback_scheduler_class is None
     ), "This test needs a scheduler without a fallback."
 
-    with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
-        with patch(
-            f"{storage_module}.StorageScheduler.compute",
-            side_effect=iter([InfeasibleProblemException(), [], []]),
-        ):
-            create_sequential_scheduling_job(
-                asset=assets["Test Site"],
-                scheduler_specs=scheduler_specs,
-                enqueue=True,
-                force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
-                **flex_description_sequential,
-            )
+    with patch(
+        f"{storage_module}.StorageScheduler.compute",
+        side_effect=iter([InfeasibleProblemException(), [], []]),
+    ):
+        create_sequential_scheduling_job(
+            asset=assets["Test Site"],
+            scheduler_specs=scheduler_specs,
+            enqueue=True,
+            force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+            **flex_description_sequential,
+        )
 
-            queued_jobs = queue.jobs
-            deferred_jobs = sort_jobs(queue, queue.deferred_job_registry.get_job_ids())
-            assert len(queued_jobs) == 1
-            assert len(deferred_jobs) == 2
-            ev_job = queued_jobs[0]
-            battery_job, wrapup_job = deferred_jobs
+        queued_jobs = queue.jobs
+        deferred_jobs = sort_jobs(queue, queue.deferred_job_registry.get_job_ids())
+        assert len(queued_jobs) == 1
+        assert len(deferred_jobs) == 2
+        ev_job = queued_jobs[0]
+        battery_job, wrapup_job = deferred_jobs
 
-            # Work on jobs
-            work_on_rq(queue, exc_handler=handle_scheduling_exception)
+        # Work on jobs
+        work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
     failed_jobs = queue.failed_job_registry.get_job_ids()
 

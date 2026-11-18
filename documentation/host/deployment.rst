@@ -101,15 +101,16 @@ Both HiGHS-based solver choices (``highspy`` and ``appsi_highs``) rely on the ``
 More information on `the HiGHS website <https://highs.dev/>`_.
 
 An external solver, on the other hand, needs to be installed in addition to FlexMeasures (the Docker image already has it).
-For example, Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
+For example, Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` (or ``Cbc``) command.
+Cbc is a system dependency, not a Python package, so installing FlexMeasures does not install it.
 
-You can install it on Debian like this:
+Install it with your system's package manager:
 
 .. code-block:: bash
 
-   $ apt-get install coinor-cbc
-
-(also available in different popular package managers).
+   $ apt-get install coinor-cbc  # Debian / Ubuntu
+   $ dnf install coin-or-Cbc     # Fedora (the executable is called Cbc, which FlexMeasures also finds)
+   $ brew install cbc            # MacOS
 
 More information is on `the CBC website <https://projects.coin-or.org/Cbc>`_.
 

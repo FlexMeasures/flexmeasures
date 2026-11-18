@@ -64,20 +64,20 @@ def optional_arg_decorator(fn):
 
     So a decorator like this:
 
-    @optional_arg_decorator
-    def register_something(fn, optional_arg = 'Default Value'):
-        ...
-        return fn
+        @optional_arg_decorator
+        def register_something(fn, optional_arg = 'Default Value'):
+            ...
+            return fn
 
     will work in both of these usage scenarios:
 
-    @register_something('Custom Name')
-    def custom_name():
-        pass
+        @register_something('Custom Name')
+        def custom_name():
+            pass
 
-    @register_something
-    def default_name():
-        pass
+        @register_something
+        def default_name():
+            pass
 
     Thanks to https://stackoverflow.com/questions/3888158/making-decorators-with-optional-arguments#comment65959042_24617244
     """
@@ -226,6 +226,36 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
+
+
+def load_classes(specs: list[str], superclass) -> dict:
+    """Load the named classes, keyed by class name.
+
+    Each spec is written as ``"dotted.module.path:ClassName"``.
+    Only the named modules are imported, unlike ``get_classes_module``, which imports every submodule of a package.
+    """
+    classes = {}
+    for spec in specs:
+        module_name, _, class_name = spec.partition(":")
+        if not class_name:
+            raise ValueError(
+                f"Data generator spec {spec!r} should be written as 'dotted.module.path:ClassName'."
+            )
+        module_object = importlib.import_module(module_name)
+        try:
+            klass = getattr(module_object, class_name)
+        except AttributeError as e:
+            raise ImportError(
+                f"Module {module_name} has no class {class_name}, named in data generator spec {spec!r}."
+            ) from e
+        if not (inspect.isclass(klass) and issubclass(klass, superclass)):
+            raise TypeError(f"{spec} is not a subclass of {superclass.__name__}.")
+        if class_name in classes:
+            raise ValueError(
+                f"Data generator spec {spec!r} reuses the class name {class_name}, which is how a data generator is selected."
+            )
+        classes[class_name] = klass
+    return classes
 
 
 @functools.total_ordering

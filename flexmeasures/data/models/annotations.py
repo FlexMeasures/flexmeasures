@@ -27,7 +27,7 @@ class Annotation(db.Model):
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],
-        backref=db.backref("annotations", lazy=True),
+        backref=db.backref("annotations", lazy=True, order_by="Annotation.id"),
     )
     type = db.Column(
         db.Enum(

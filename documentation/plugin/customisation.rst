@@ -116,7 +116,17 @@ To use the forecaster through the CLI:
 
     flexmeasures add forecasts --forecaster DummyForecaster
 
-.. note:: Currently, the forecaster is responsible for saving the data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
+.. note:: FlexMeasures saves the forecasts your forecaster returns, and says how many were new.
+   There is no need to save them yourself;
+   a forecaster that still does costs nothing extra, since beliefs already on record are not saved again.
+   A forecaster that queues its own jobs, as the built-in ``TrainPredictPipeline`` does, saves what those jobs compute.
+
+You can also build on the built-in ``TrainPredictPipeline``, rather than on ``Forecaster`` directly,
+and one rule tells its methods apart: a ``compute`` method returns forecasts without recording anything,
+while a ``run`` method records what it computes.
+An override of ``compute_cycle`` therefore changes how a forecast is computed without taking on where it is kept,
+which ``flexmeasures.data.services.forecasting`` sees to.
+What each of these methods returns is described in its docstring.
 
 
 Deploying your plugin via Docker
@@ -398,3 +408,69 @@ Finally, add this config setting to your FlexMeasures config file (using the tem
  .. code-block:: python
 
     SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"
+
+
+.. _plugin_automation_types:
+
+Adding your own automation type
+--------------------------------
+
+A custom automation type combines a :class:`~flexmeasures.data.models.data_sources.DataGenerator` with an automation handler.
+The generator declares its inputs, outputs and strict configuration and parameter schemas.
+The handler gives the type a stable identifier, display name and worker queue.
+
+Let's walk through an example!
+This small plugin adds an ingestion automation type (it is the one FlexMeasures' own tests use):
+
+.. literalinclude:: ../../flexmeasures/data/tests/plugins/mock_ingestion/__init__.py
+    :language: python
+
+A few things to note:
+
+- FlexMeasures only registers plugins with a Flask Blueprint, so an automation-only plugin still declares one.
+- ``input_sensors`` and ``output_sensors`` must list every sensor the generator reads or writes.
+  The worker refuses results for any other sensor.
+- ``_compute`` receives the parameters as keyword arguments, and returns a list of dictionaries with ``sensor`` and ``data`` (a ``BeliefsDataFrame``) keys.
+  A real ingestion plugin would fetch its data from an external service here.
+- Unknown top-level fields in the configuration or parameters are always refused.
+- The handler's ``queue`` must be one of ``forecasting``, ``scheduling``, ``ingestion`` or ``reporting``.
+
+The generator's results are recorded under a data source, whose type is ``__data_generator_base__`` and whose version is the generator class's ``__version__``.
+The version is stored when the automation is created, and runs only go ahead while the installed generator has that same version.
+So raising that ``__version__`` means existing automations need to be recreated (the module's ``__version__`` is the plugin's own version, and does not affect them).
+
+Make sure the plugin is listed in ``FLEXMEASURES_PLUGINS`` (see :ref:`plugin-config`) for the web app, the automation dispatcher and the worker alike,
+and run a worker for the handler's queue (here ``flexmeasures jobs run-worker --queue ingestion``).
+
+Now you can create an automation with configuration and parameter files, for instance ``ingestion-config.yml``:
+
+.. code-block:: yaml
+
+    sensor: 12
+
+and ``ingestion-parameters.yml``:
+
+.. code-block:: yaml
+
+    value: 17.5
+
+The sensor must belong to the automation's asset or one of its descendants.
+
+Create the automation inactive, so you can try it out first:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type mock-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml --inactive
+
+Use ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
+See :ref:`automations` for more about this command.
+
+Type identifiers must be unique across built-in types and installed plugins.
+The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
+Keep identifiers stable: stored automations refer to them, so removing or renaming a handler makes those automations unavailable until the plugin is restored or the automations are migrated.
+Do not store credentials in generator configuration or automation parameters; read credentials from deployment settings instead.
+
+For app extensions that do not use plugin discovery, register a handler during app initialization with ``register_automation_handler(app, handler)`` from ``flexmeasures.data.automations``.
+Registration belongs to each Flask application, allowing separate applications to load different handlers.

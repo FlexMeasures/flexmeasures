@@ -14,7 +14,7 @@
  * - line/bar charts with centered subplot titles and "Sensor-type (unit)" y-axis titles
  * - histogram (binned values per source) and daily/weekly heatmaps
  *   (most prevalent source, diverging color scale centered at 0)
- * - per-point tooltips listing sensor, value, time, horizon and source details
+ * - compact per-point tooltips, with full belief provenance available on demand
  * - replay support (belief-time ruler), legends beside or below each subplot,
  *   and CSV/SVG/PNG export from the toolbox
  *
@@ -260,7 +260,7 @@ function numericRows(data) {
  * @param {Object[]} [groupSpec] - Optional subplot structure: [{ title, sensorIds, sensorType }].
  * @returns {Object[]} - List of groups: { title, units, sensorType, multiSensor, series }.
  */
-function groupData(data, groupSpec) {
+export function groupData(data, groupSpec) {
   const groups = [];
   // A sensor may be configured in several subplots (sensors_to_show rows), and
   // then its data must show in each of them, as in the Vega-Lite charts.
@@ -306,6 +306,7 @@ function groupData(data, groupSpec) {
       const seriesKey = sensor.id + "|" + source.id;
       if (!group.series.has(seriesKey)) {
         group.series.set(seriesKey, {
+          sensorId: sensor.id,
           sensorName: sensor.name || "sensor " + sensor.id,
           sensorDescription: sensor.description || sensor.name || "",
           sourceLabel: sourceLabel(source),
@@ -431,6 +432,48 @@ function inferResolutionMs(rowsOrTimestamps) {
   }
   if (!isFinite(res)) res = 60 * 60 * 1000;
   return Math.max(res, 60 * 1000); // at least 1 minute, to bound the number of cells
+}
+
+// The time span one bar stands for: the sensor's own event resolution,
+// falling back to the event spacing for legacy data that does not carry one.
+// Instantaneous sensors (resolution 0) have no width of their own, so they fall back as well.
+export function barIntervalMs(series) {
+  const sec = series.eventResolutionSec;
+  if (typeof sec === "number" && sec > 0) return sec * 1000;
+  return inferResolutionMs(series.eventStarts || []);
+}
+
+// Match Vega-Lite (`create_line_layer` in belief_charts.py): use linear interpolation if any of a row's real sensors is instantaneous (event_resolution 0),
+// otherwise use step-after.
+// Only real sensors determine interpolation; fixed-value sensors (negative sensorId) always have event_resolution=0 by construction,
+// and must not force a mixed row to linear (#2253).
+export function isGroupInstantaneous(group) {
+  const realSeries = (group.series || []).filter(
+    (s) => typeof s.sensorId !== "number" || s.sensorId >= 0
+  );
+  return realSeries.some((s) =>
+    typeof s.eventResolutionSec === "number"
+      ? s.eventResolutionSec === 0
+      : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
+  );
+}
+
+// How wide (in pixels) a bar covering `intervalMs` must be drawn on a time axis spanning `spanMs` across `gridWidthPx` pixels.
+//
+// ECharts derives a bar's width from the spacing between data points, which leaves it guessing when a series holds a single point:
+// the bar then covers most of the window, and the axis widens to fit it (issue #2454).
+// Setting the width ourselves takes that guess out of the picture.
+//
+// ECharts widens a bar chart's axis to keep the outermost bars inside the grid, by the width of the widest bar:
+// an axis configured to span S ends up spanning S + w, with w the bar width in domain units.
+// Solving w / (S + w) = barWidth / gridWidthPx for the width that makes a bar cover exactly one interval on the widened axis gives the ratio below,
+// and the axis then spans exactly `spanMs + intervalMs`.
+//
+// A bar therefore never widens the shown range by more than its own interval, at any zoom level,
+// and zooming in below one interval is bounded by that same interval rather than blowing the axis up.
+export function barWidthPx(intervalMs, spanMs, gridWidthPx) {
+  if (!(intervalMs > 0) || !(spanMs > 0) || !(gridWidthPx > 0)) return null;
+  return Math.max(1, (gridWidthPx * intervalMs) / (spanMs + intervalMs)); // at least a pixel, so a bar never vanishes
 }
 
 /* ============================== chart parts ============================== */
@@ -587,6 +630,54 @@ function refreshRoundedSteps(instance) {
   chart.setOption({ series: patch });
 }
 
+// Recompute every bar series' width so each bar still covers exactly one event resolution at the current zoom,
+// then merge it back in.
+// Called after each render and on every dataZoom, because a width in pixels does not scale with the axis by itself.
+//
+// The axis on screen is already one bar width wider than the span it was configured with (see barWidthPx),
+// so that padding is taken back out before the new width is derived from it.
+function refreshBarWidths(instance) {
+  const chart = instance.chart;
+  const list = instance._barSeries;
+  const gridWidth = instance._gridWidth;
+  if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0 || !(gridWidth > 0)) return;
+  // The widest bar of a subplot is the one whose width ECharts padded that subplot's axis with.
+  const paddingByGrid = new Map();
+  for (const b of list) {
+    const previous = chart.getModel().getSeriesByIndex(b.seriesIndex);
+    const width = previous ? previous.get("barWidth") : 0;
+    if (typeof width === "number" && width > (paddingByGrid.get(b.gridIndex) || 0)) paddingByGrid.set(b.gridIndex, width);
+  }
+  const spanByGrid = new Map();
+  const configuredSpan = (gridIndex) => {
+    if (spanByGrid.has(gridIndex)) return spanByGrid.get(gridIndex);
+    let span = null;
+    try {
+      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+      const msPerPx = Math.abs(xa(200) - xa(100)) / 100;
+      const padding = paddingByGrid.get(gridIndex) || 0;
+      if (isFinite(msPerPx) && msPerPx > 0) span = msPerPx * (gridWidth - padding);
+    } catch (e) {
+      span = null;
+    }
+    spanByGrid.set(gridIndex, span);
+    return span;
+  };
+
+  const widthByIndex = new Map();
+  let maxIdx = -1;
+  for (const b of list) {
+    const width = barWidthPx(b.intervalMs, configuredSpan(b.gridIndex), gridWidth);
+    if (!width) continue;
+    widthByIndex.set(b.seriesIndex, width);
+    if (b.seriesIndex > maxIdx) maxIdx = b.seriesIndex;
+  }
+  if (maxIdx < 0) return;
+  const patch = [];
+  for (let i = 0; i <= maxIdx; i++) patch.push(widthByIndex.has(i) ? { barWidth: widthByIndex.get(i) } : {});
+  chart.setOption({ series: patch });
+}
+
 // Nearest human-friendly time step (ms) giving about `target` gridlines for `span`.
 function niceTimeStep(span, target) {
   const raw = span / Math.max(target, 1);
@@ -613,8 +704,8 @@ function refreshTimeTicks(instance) {
 }
 
 // Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
-// pixel-accurate (refreshRoundedSteps) and the x-axis gridlines equidistant
-// (refreshTimeTicks), both initially and on every dataZoom.
+// pixel-accurate (refreshRoundedSteps), the bars one event resolution wide (refreshBarWidths),
+// and the x-axis gridlines equidistant (refreshTimeTicks), both initially and on every dataZoom.
 function wireZoomRefresh(instance) {
   const chart = instance.chart;
   if (instance.onZoomRefresh) {
@@ -622,10 +713,12 @@ function wireZoomRefresh(instance) {
     instance.onZoomRefresh = null;
   }
   const hasRounded = Array.isArray(instance._roundedSeries) && instance._roundedSeries.length > 0;
+  const hasBars = Array.isArray(instance._barSeries) && instance._barSeries.length > 0;
   const hasTimeTicks = instance._xDomainSpan > 0;
-  if (!hasRounded && !hasTimeTicks) return;
+  if (!hasRounded && !hasBars && !hasTimeTicks) return;
   const refresh = () => {
     if (hasRounded) refreshRoundedSteps(instance);
+    if (hasBars) refreshBarWidths(instance);
     if (hasTimeTicks) refreshTimeTicks(instance);
   };
   refresh(); // initial pass
@@ -653,16 +746,30 @@ const ZOOM_ICON =
   "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
 const PAN_ICON =
   "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
+// Two brackets joined by a bar: select a time range (for annotating it).
+const SELECT_ICON = "path://M3 5 L3 19 M21 5 L21 19 M3 12 L21 12 M7 8 L3 12 L7 16 M17 8 L21 12 L17 16";
 const RESET_ICON =
   "path://M868 545C868 736 713 891 522 891C331 891 176 736 176 545C176 354 331 199 522 199L522 95L722 255L522 415L522 311C393 311 289 415 289 544C289 672 393 776 522 776C650 776 754 672 754 544L868 545Z";
 // Selected (active) vs idle toolbox icon colours — blue mimics ECharts' own active zoom.
 const TOOL_BLUE = "#4e91fc";
 const TOOL_GRAY = "#666";
 
+// Whether the range selection is *effectively* active right now: the chosen mode, unless Ctrl is held to pan.
+function effectiveSelect(instance) {
+  return !!instance._selectable && !!instance._selectMode && !instance._ctrlHeld;
+}
+
 // Whether the marquee zoom (vs pan) is *effectively* active right now: the chosen mode,
 // inverted while Ctrl is held. Drives both the marquee and the blue button highlight.
+// In select mode, Ctrl pans, as it does in zoom mode.
 function effectiveZoom(instance) {
+  if (instance._selectMode && instance._selectable) return false;
   return (instance._zoomMode !== false) !== !!instance._ctrlHeld;
+}
+
+// The button colour of the Pan tool: blue when neither zooming nor selecting.
+function panColor(instance) {
+  return effectiveZoom(instance) || effectiveSelect(instance) ? TOOL_GRAY : TOOL_BLUE;
 }
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
@@ -710,9 +817,20 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
       show: true,
       title: "Pan",
       icon: PAN_ICON,
-      iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE },
+      iconStyle: { borderColor: panColor(instance) },
       onclick: () => setChartMode(elementId, false),
     };
+    if (instance._selectable) {
+      feature.mySelect = {
+        show: true,
+        title: "Select a time range",
+        icon: SELECT_ICON,
+        iconStyle: { borderColor: effectiveSelect(instance) ? TOOL_BLUE : TOOL_GRAY },
+        onclick: () => setSelectMode(elementId),
+      };
+      // ECharts gives a brush component its own toolbox buttons (box, lasso, keep, clear) unless told otherwise.
+      feature.brush = { show: false };
+    }
   } else if (!zoomable) {
     // histogram/heatmap keep the plain built-in dataZoom (zoom + reset), as before.
     feature.dataZoom = { yAxisIndex: false };
@@ -744,16 +862,23 @@ function applyChartMode(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
+  const selectActive = effectiveSelect(instance);
+  const feature = {
+    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+    myPan: { iconStyle: { borderColor: panColor(instance) } },
+  };
+  if (instance._selectable) {
+    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  }
   // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({
-    toolbox: {
-      feature: {
-        myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-        myPan: { iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE } },
-      },
-    },
-  });
-  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  chart.setOption({ toolbox: { feature: feature } });
+  // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
+  if (selectActive && instance.lastOption && instance.lastOption.brush) {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
+  } else {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  }
+  drawSelection(instance);
 }
 
 // The Zoom / Pan buttons pick the mode (persists across re-renders); Ctrl inverts it.
@@ -761,6 +886,15 @@ function setChartMode(elementId, zoom) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
   instance._zoomMode = zoom;
+  instance._selectMode = false;
+  applyChartMode(instance);
+}
+
+// The Select button makes a drag select a time range instead of zooming into it.
+function setSelectMode(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selectMode = true;
   applyChartMode(instance);
 }
 
@@ -952,22 +1086,28 @@ function noDataOption(message) {
   };
 }
 
-// Tooltip matching the Vega-Lite charts: a two-column table per data point
-// Render the rich single-point table for one series' data point.
-function singlePointTooltip(meta, value) {
+// Render one series' data point. Compact tooltips keep the exact value and time,
+// plus the sensor on asset charts. The remaining belief provenance is opt-in.
+export function singlePointTooltip(meta, value, options) {
   if (!meta || !value) {
     return "";
   }
-  return tooltipTable([
-    ["Sensor", meta.sensorDescription],
+  const opts = options || {};
+  const rows = [
     [capFirst(meta.sensorType), formatQuantity(value[1], meta.unit)],
     ["Time and date", formatFullDate(value[0])],
-    ["Horizon", formatTimedelta(value[2])],
-    ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
-    ["Type", meta.source.display_type || ""],
-    ["Model", meta.source.model || ""],
-    ["Version", meta.source.version || ""],
-  ]);
+  ];
+  if (opts.showSensor) rows.unshift(["Sensor", meta.sensorDescription]);
+  if (opts.fullBeliefInfo) {
+    rows.push(
+      ["Horizon", formatTimedelta(value[2])],
+      ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
+      ["Type", meta.source.display_type || ""],
+      ["Model", meta.source.model || ""],
+      ["Version", meta.source.version || ""]
+    );
+  }
+  return tooltipTable(rows);
 }
 
 // Choose, among the axis-trigger params (one point per series at the ruler), the
@@ -1015,11 +1155,12 @@ function pickNearestParam(params, instance) {
 
 // Nearest real data point (in a series' original `points`) to a given x value.
 // Used so the tooltip reports true data even when the drawn line carries extra,
-// purely-visual vertices (the rounded step corners from roundedStepData).
-function nearestRealPoint(meta, value) {
+// purely-visual vertices (the rounded step corners from roundedStepData),
+// and when a bar is plotted half a resolution late so that it covers its own event (`xOffsetMs`, see buildLineBarOption).
+export function nearestRealPoint(meta, value) {
   const pts = meta && meta.points;
   if (!Array.isArray(pts) || pts.length === 0 || !value) return value;
-  const x = value[0];
+  const x = value[0] - ((meta && meta.xOffsetMs) || 0);
   // points are kept sorted by x (groupData sorts them), so binary-search the nearest.
   let lo = 0;
   let hi = pts.length - 1;
@@ -1048,25 +1189,49 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
   });
 }
 
+// Whether a point belongs to the subplot the pointer is in.
+// The ruler is linked across subplots, so ECharts also reports the points of the other subplots at the ruler's time,
+// and a tooltip must describe the subplot being hovered, not a neighbour.
+// With no known pointer (or nothing to say which subplot a series is in), the point is kept.
+function paramInPointerSubplot(param, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  const lastOption = (instance && instance.lastOption) || {};
+  const xAxisIndex = ((lastOption.series || [])[param.seriesIndex] || {}).xAxisIndex;
+  const gridIndex = ((lastOption.xAxis || [])[xAxisIndex] || {}).gridIndex;
+  if (!pointer || !chart || gridIndex == null) {
+    return true;
+  }
+  return chart.containPixel({ gridIndex: gridIndex }, pointer);
+}
+
 function seriesTooltipFormatter(seriesMeta, instance) {
+  const tooltipOptions = () => ({
+    showSensor: !(instance && instance.isSensorPage),
+    fullBeliefInfo: !!(instance && instance.fullBeliefInfo),
+  });
   return function (params) {
     // Axis trigger passes an array of the series' points near the ruler; item
     // trigger passes a single point. In both cases we show just the nearest one,
     // as in the Vega-Lite charts (which snap to the nearest data point on hover).
     if (Array.isArray(params)) {
+      params = params.filter((p) => paramInPointerSubplot(p, instance));
       if (params.length === 0) {
         return "";
       }
       const best = pickNearestParam(params, instance);
       const meta = seriesMeta[best.seriesIndex];
       if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
-      return singlePointTooltip(meta, nearestRealPoint(meta, best.value));
+      return singlePointTooltip(meta, nearestRealPoint(meta, best.value), tooltipOptions());
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
+    if (!paramInPointerSubplot(params, instance)) {
+      return "";
+    }
     const meta = seriesMeta[params.seriesIndex];
-    return singlePointTooltip(meta, nearestRealPoint(meta, params.value));
+    return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
 }
 
@@ -1074,47 +1239,54 @@ function seriesTooltipFormatter(seriesMeta, instance) {
 
 // Warm warning hue for 'alert' annotations, matching the Vega-Lite charts'
 // ANNOTATION_ALERT_COLOR; other types use the neutral --gray.
+// A hovered or pinned annotation of any type takes the secondary (highlight) colour, as in the Vega-Lite charts.
 const ANNOTATION_ALERT_COLOR = "#d9822b";
+// Near-black annotation text, legible on the white chart background, as in the Vega-Lite charts
+const ANNOTATION_TEXT_COLOR = "#333";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
 const ANNOTATION_SELECT_OPACITY = 0.65;
-// Extra strip below each subplot's x-axis labels where the hovered annotation's
-// text appears, so revealing it never changes the chart layout.
-const ANNOTATION_STRIP = 28;
+// Extra strip below each subplot's x-axis labels where annotation text appears.
+// It fits a pinned label and a second, hovered label without either moving.
+const ANNOTATION_STRIP = 48;
 const ANNOTATION_LABEL_OFFSET = 34; // text sits this far below the subplot, clear of the two-line x-axis labels
+const ANNOTATION_LABEL_ROW_HEIGHT = FONT_SIZE + 4;
 
-// Parse the annotation records (start, end, content, type) into sorted
-// {start, end, label, type} entries with epoch-ms bounds. Zero-duration
+// Parse the annotation records into sorted entries with epoch-ms bounds.
+// Preserve their provenance for the annotation label's hover tooltip. Zero-duration
 // entries (start == end) are "instant" annotations, drawn as a rule.
-function normalizeAnnotations(raw) {
+export function normalizeAnnotations(raw) {
   if (!Array.isArray(raw) || raw.length === 0) return [];
   return raw
     .map((a) => ({
       start: new Date(a.start).getTime(),
       end: new Date(a.end).getTime(),
+      beliefTime: a.belief_time == null ? null : new Date(a.belief_time).getTime(),
       label: Array.isArray(a.content) ? a.content.join("\n") : (a.content || ""),
+      source:
+        typeof a.source === "object" ? sourceLabel(a.source || {}) : (a.source || ""),
       type: a.type,
     }))
     .filter((a) => isFinite(a.start) && isFinite(a.end))
     .sort((a, b) => a.start - b.start);
 }
 
-function annotationColor(a) {
-  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
+// The colour of an annotation, given whether it is "pinned", "hovered" or neither.
+export function annotationColor(a, highlight) {
   const cs = getComputedStyle(document.documentElement);
+  if (highlight === "pinned") return cs.getPropertyValue("--secondary-color").trim() || "#f1a122";
+  if (highlight === "hovered") return cs.getPropertyValue("--secondary-hover-color").trim() || "#f1a122";
+  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   return cs.getPropertyValue("--gray").trim() || "#bbb";
 }
 
-// The annotation text below the hovered/pinned subplot, colored like its
-// annotation, mirroring the Vega-Lite text layer.
-function annotationLabelConfig(a, show) {
-  return {
-    show: show,
-    fontSize: FONT_SIZE,
-    fontStyle: "italic",
-    color: annotationColor(a),
-    formatter: () => a.label,
-  };
+// The pinned annotations of a subplot: a set of indices, or a single index (-1 for none).
+function pinnedSet(pinned) {
+  return pinned instanceof Set ? pinned : new Set(pinned >= 0 ? [pinned] : []);
+}
+
+function annotationHighlight(idx, hoverIdx, pinned) {
+  return pinned.has(idx) ? "pinned" : idx === hoverIdx ? "hovered" : null;
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1122,6 +1294,7 @@ function annotationLabelConfig(a, show) {
 // shows below the subplot; the rest stay lightly shaded. Indices refer to the
 // full annotations array (instants are skipped but keep their index).
 function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
+  const pinned = pinnedSet(pinIdx);
   return {
     silent: true, // hover is handled via the zrender mouse listeners instead (wireAnnotationHover)
     animation: false,
@@ -1129,9 +1302,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
       .map((a, idx) => {
         if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
         const itemStyle = {
-          color: annotationColor(a),
+          color: annotationColor(a, annotationHighlight(idx, hoverIdx, pinned)),
           opacity:
-            idx === pinIdx
+            pinned.has(idx)
               ? ANNOTATION_SELECT_OPACITY
               : idx === hoverIdx
               ? ANNOTATION_HOVER_OPACITY
@@ -1146,12 +1319,10 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
             // carrier — into the blur state, which would dim the marks to near
             // invisibility. Pin the blur state to the normal style instead.
             blur: { itemStyle: itemStyle },
-            label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-              position: ["0%", "100%"], // at the band's left edge, at the bottom of the subplot
-              offset: [0, ANNOTATION_LABEL_OFFSET],
-              align: "left",
-              verticalAlign: "top",
-            }),
+            // Text is a DOM overlay managed by wireAnnotationHover. Keeping it
+            // outside markArea prevents every hover update from recreating all
+            // visible labels on the canvas.
+            label: { show: false },
           },
           { xAxis: a.end },
         ];
@@ -1165,11 +1336,12 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 // replay ruler at the current belief time (when replaying). Returns null when
 // there is nothing to draw.
 function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+  const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
       if (a.end > a.start) return null;
-      const color = annotationColor(a);
-      const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
+      const color = annotationColor(a, annotationHighlight(idx, hoverIdx, pinned));
+      const opacity = pinned.has(idx) ? 1 : idx === hoverIdx ? 0.9 : 0.5;
       const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
       const itemStyle = { color: color, opacity: opacity }; // the triangle marker
       return {
@@ -1178,10 +1350,8 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
         itemStyle: itemStyle,
         // Immune to the blur state, like the markArea items (see there)
         blur: { lineStyle: lineStyle, itemStyle: itemStyle },
-        label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-          position: "start", // at the bottom end of the rule, below the subplot
-          distance: ANNOTATION_LABEL_OFFSET,
-        }),
+        // Text is a DOM overlay managed by wireAnnotationHover (see markArea).
+        label: { show: false },
       };
     })
     .filter(Boolean);
@@ -1282,6 +1452,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const titles = [];
   const legends = [];
   const roundedList = []; // stepped series to re-round in pixel space (see refreshRoundedSteps)
+  const barList = []; // bar series to re-width on zoom (see refreshBarWidths)
   const annotGrids = []; // per subplot: which series carries the annotation marks, and the instant-hover tolerance
   const series = [];
   const seriesMeta = [];
@@ -1314,6 +1485,11 @@ function buildLineBarOption(elementId, groups, opts) {
       : isFinite(sharedMinTime) && isFinite(sharedMaxTime)
       ? { min: sharedMinTime, max: sharedMaxTime }
       : {};
+  const xDomainSpan =
+    typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
+      ? sharedXDomain.max - sharedXDomain.min
+      : 0;
+  const gridWidth = containerWidth - GRID_LEFT - gridRight;
 
   groups.forEach((group, i) => {
     const top = topOffset + i * (GRID_HEIGHT + gridGap);
@@ -1406,22 +1582,15 @@ function buildLineBarOption(elementId, groups, opts) {
       minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
-    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation for
-    // the whole row if ANY of its sensors is instantaneous (event_resolution 0),
-    // otherwise step-after. Prefer the sensor's real resolution; fall back to
-    // inferring it from event spacing only for legacy data without it.
-    const groupIsInstantaneous = group.series.some((s) =>
-      typeof s.eventResolutionSec === "number"
-        ? s.eventResolutionSec === 0
-        : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
-    );
+    // Linear or step-after for the whole row, as in Vega-Lite (see isGroupInstantaneous).
+    const groupIsInstantaneous = isGroupInstantaneous(group);
     // Annotation marks (shaded bands, instant rules) and the replay ruler live
     // on a dedicated, data-less carrier series, so they also show in subplots
     // that (still) have no data — parity with the Vega-Lite annotation layers.
     // The marks are silent and drawn behind the data, so the data tooltip keeps
     // working inside annotation bands; wireAnnotationHover darkens the hovered/
     // pinned annotation and reveals its text below the hovered subplot only.
-    if (annotations.length > 0) {
+    if (annotations.length > 0 || instance.replayTime != null) {
       // Hover tolerance for instant annotations: one resolution bin of this
       // subplot's finest sensor, as in the Vega-Lite annotation layers.
       const groupResolutionsMs = group.series
@@ -1430,6 +1599,9 @@ function buildLineBarOption(elementId, groups, opts) {
       annotGrids.push({
         seriesIndex: series.length,
         toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
+        labelTop: top + GRID_HEIGHT + ANNOTATION_LABEL_OFFSET,
+        labelLeft: GRID_LEFT,
+        labelRight: containerWidth - gridRight,
       });
       const carrier = {
         type: "line",
@@ -1439,6 +1611,9 @@ function buildLineBarOption(elementId, groups, opts) {
         silent: true,
         animation: false,
         legendHoverLink: false, // not in any legend (legends list explicit entries only)
+        // An explicit color keeps this empty carrier from consuming a data palette slot.
+        // Annotation marks and the replay ruler specify their own colors.
+        itemStyle: { color: "transparent" },
         markArea: buildAnnotationMarkArea(annotations, -1, -1),
       };
       const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
@@ -1446,7 +1621,7 @@ function buildLineBarOption(elementId, groups, opts) {
       series.push(carrier);
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
     }
-    group.series.forEach((s, j) => {
+    group.series.forEach((s) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
         name: s.name,
@@ -1471,12 +1646,24 @@ function buildLineBarOption(elementId, groups, opts) {
         entry.color = sensorColor.get(s.name);
       }
       let rounded = false;
+      let barInterval = 0;
       if (isBar) {
         Object.assign(entry, {
           barGap: "-100%", // overlay sources, as in the Vega-Lite bar chart
           large: true,
           itemStyle: { opacity: 0.7 },
         });
+        // A bar stands for one event, so draw it one event resolution wide rather than leaving that to ECharts' guess (see barWidthPx).
+        barInterval = barIntervalMs(s);
+        const width = barWidthPx(barInterval, xDomainSpan, gridWidth);
+        if (width) entry.barWidth = width;
+        // An event covers the resolution that FOLLOWS its start, and the Vega-Lite bar chart draws it that way,
+        // but ECharts centres a bar on its x value.
+        // Plotting each bar half a resolution late lands it on its own event; the tooltip reads the real event start back off the series' points (see nearestRealPoint).
+        if (barInterval > 0) {
+          s.xOffsetMs = barInterval / 2;
+          entry.data = s.points.map((p) => [p[0] + s.xOffsetMs, p[1], p[2]]);
+        }
       } else {
         const lineStyle = { width: 2.2, type: lineTypeForSource(s.source) };
         // Round the stepped corners when the series is sparse enough to see them.
@@ -1504,14 +1691,12 @@ function buildLineBarOption(elementId, groups, opts) {
           });
         }
       }
-      // Without annotations there is no carrier series, so the replay ruler
-      // rides on the subplot's first data series (as before).
-      if (j === 0 && annotations.length === 0) {
-        const markLine = buildAnnotationMarkLine([], -1, -1, instance.replayTime);
-        if (markLine) entry.markLine = markLine;
-      }
       series.push(entry);
       seriesMeta.push(s);
+      if (isBar && entry.barWidth) {
+        // Record for the zoom-driven re-width (see refreshBarWidths).
+        barList.push({ seriesIndex: series.length - 1, gridIndex: i, intervalMs: barInterval });
+      }
       if (rounded) {
         // Record for the pixel-accurate corner recompute (see refreshRoundedSteps).
         roundedList.push({ seriesIndex: series.length - 1, points: s.points, gridIndex: i });
@@ -1568,11 +1753,10 @@ function buildLineBarOption(elementId, groups, opts) {
   // so the recorded indices wouldn't line up); those keep their data-space rounding.
   if (!opts._companion) {
     instance._roundedSeries = roundedList;
+    instance._barSeries = barList;
+    instance._gridWidth = gridWidth;
     // Full visible time span, for the equidistant/adaptive x-axis ticks (see refreshTimeTicks).
-    instance._xDomainSpan =
-      typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
-        ? sharedXDomain.max - sharedXDomain.min
-        : 0;
+    instance._xDomainSpan = xDomainSpan;
     // Context for the per-subplot annotation hover/pin handling (see wireAnnotationHover).
     instance._annotCtx = annotations.length > 0 ? { annotations: annotations, grids: annotGrids } : null;
   }
@@ -1915,7 +2099,11 @@ function computeAssetLabels(sessions) {
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
 // Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
-function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash, fromLabel, toLabel) {
+// Every point carries both ends of its segment as x-dimensions (encode: x [0, 2]),
+// and the zoom's weakFilter drops a point only when all of its x-dimensions are out of the window on the same side,
+// so zooming into the middle of a long segment keeps it, where plain points would both be dropped and the segment vanish.
+// The segments are silent: hover is handled by the session's own hit area (see buildSessionHitSeries).
+function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash) {
   const series = [];
   for (const s of sessions) {
     const from = s[fromKey];
@@ -1923,51 +2111,6 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
     if (typeof from !== "number" || typeof to !== "number") continue;
     const catIdx = categoryIndex.get(s.assetId);
     const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
-    const data = [[from, catIdx], [to, catIdx]];
-    const tooltip = {
-      formatter: () =>
-        tooltipTable([
-          [fromLabel, formatFullDate(from)],
-          [toLabel, formatFullDate(to)],
-          ["Asset", s.assetLabel],
-        ]),
-    };
-    // Regular time-series lines (e.g. the companion subplots) have a data point
-    // every few pixels, so ECharts' "nearest point" hover snap always finds one
-    // close to the cursor anywhere along the line. A session segment only has 2
-    // points — its start and end, often hours apart — so that snap logic finds
-    // nothing nearby over most of a long bar. Densely interpolate the invisible
-    // hit-area line (kept off the visible line) so hovering anywhere along the
-    // bar's length has a point within range, not just right at its endpoints.
-    const hitPointCount = 40;
-    const hitData = [];
-    for (let i = 0; i <= hitPointCount; i++) {
-      hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
-    }
-    // Invisible companion line, much wider than the visible stroke, purely to
-    // widen the hoverable hit area: thin session bars (down to 1.5px) are
-    // otherwise very hard to hover precisely. Shares the visible line's name
-    // so it doesn't add its own legend entry or get toggled independently.
-    // Its OWN tooltip is disabled (tooltip.show: false): ECharts' tooltip box
-    // renders at zero size for a near-transparent series even though hover/hit
-    // -test work fine on it, so hovering it instead redirects (via the
-    // __hitAreaFor marker + the mouseover listener in wireSessionTooltipRedirect)
-    // to dispatch the visible sibling series' tooltip.
-    series.push({
-      name: s.assetLabel,
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      symbol: "none",
-      showSymbol: false,
-      animation: false,
-      legendHoverLink: false,
-      lineStyle: { width: Math.max(lineWidth, 16), opacity: 0.001 },
-      data: hitData,
-      tooltip: { show: false },
-      __hitAreaFor: true,
-      z: 1,
-    });
     series.push({
       name: s.assetLabel,
       type: "line",
@@ -1979,26 +2122,96 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
       color: color,
       lineStyle: { width: lineWidth, type: lineDash || "solid" },
       emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
-      data: data,
-      tooltip: tooltip,
+      encode: { x: [0, 2], y: 1 },
+      data: [[from, catIdx, to], [to, catIdx, from]],
+      silent: true,
       z: 2,
     });
   }
   return series;
 }
 
-// The two companion subplots Vega-Lite shows alongside the sessions chart (when
-// present in the dashboard config), restricted the same way the Python chart
-// builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
-const CHARGEPOINT_COMPANION_TITLES = ["Power flow by type", "Prices"];
-const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
-// Title of the dashboard group holding the raw session-marker sensors (arrival,
-// departure, plug in/out, start/stop charging). Their values are epoch timestamps,
-// not plottable quantities, so — like Vega-Lite — only the dedicated Charge Point
-// sessions chart type shows them; the default multi-sensor view hides this group.
-const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
+// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
+const SESSION_HIT_HEIGHT = 16;
 
-function buildChargePointSessionsOption(elementId, data, opts) {
+// The timestamps a session tooltip lists, in the order a session runs through them.
+const SESSION_TOOLTIP_ROWS = [
+  ["arrival", "Arrival"], ["plug in", "Plug-in"], ["start charging", "Start charging"],
+  ["stop charging", "Stop charging"], ["plug out", "Plug-out"], ["departure", "Departure"],
+];
+
+// One invisible hit area per session, spanning the whole session (its earliest to its latest timestamp),
+// so hovering anywhere along it, including between its layers, shows one tooltip with all of its timestamps.
+// A custom series draws a rectangle in pixel space, so the area stays hoverable at every zoom level
+// (a line's symbols are spaced in time, and leave gaps once zoomed in), and its items carry the data index the item tooltip needs.
+// It is named after the asset, like the visible lines, so it adds no legend entry and follows the legend's toggling.
+function buildSessionHitSeries(sessions, categoryIndex) {
+  const series = [];
+  for (const s of sessions) {
+    const times = SESSION_TOOLTIP_ROWS.map(([key]) => s[key]).filter((t) => typeof t === "number");
+    if (times.length === 0) continue;
+    const from = Math.min(...times);
+    const to = Math.max(...times);
+    const catIdx = categoryIndex.get(s.assetId);
+    const rows = SESSION_TOOLTIP_ROWS.filter(([key]) => typeof s[key] === "number").map(([key, label]) => [label, formatFullDate(s[key])]);
+    rows.push(["Asset", s.assetLabel]);
+    series.push({
+      name: s.assetLabel,
+      type: "custom",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      color: SENSOR_COLORS[catIdx % SENSOR_COLORS.length],
+      animation: false,
+      legendHoverLink: false,
+      clip: true,
+      emphasis: { disabled: true },
+      encode: { x: [0, 1], y: 2 },
+      data: [[from, to, catIdx]],
+      tooltip: { formatter: () => tooltipTable(rows) },
+      renderItem: (params, api) => {
+        const start = api.coord([api.value(0), api.value(2)]);
+        const end = api.coord([api.value(1), api.value(2)]);
+        const half = SESSION_HIT_HEIGHT / 2;
+        const shape = echarts.graphic.clipRectByRect(
+          { x: start[0], y: start[1] - half, width: Math.max(end[0] - start[0], 1), height: SESSION_HIT_HEIGHT },
+          { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height }
+        );
+        return shape ? { type: "rect", shape: shape, style: { fill: "rgba(0,0,0,0.001)" } } : null;
+      },
+      z: 3,
+    });
+  }
+  return series;
+}
+
+// The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
+// from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
+// - sessionsTitle: the dashboard group holding the raw session-marker sensors (arrival, departure, plug in/out, start/stop charging).
+//   Their values are epoch timestamps, not plottable quantities, so (like Vega-Lite) only the Charge Points chart type shows them;
+//   the default multi-sensor view hides this group.
+// - companionTitles: the two companion subplots Vega-Lite shows alongside the sessions chart (when present in the dashboard config),
+//   restricted the same way the Python chart builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
+// - powerFlowTitle and powerSensorName: of the power flows, only this sensor is shown.
+
+// Graph titles are matched as the Vega-Lite chart shows them, i.e. with a capital first letter,
+// so a graph titled "prices" counts as a Prices graph (see charge_point_companion_graph in belief_charts.py).
+function capitalizeTitle(title) {
+  return title ? title[0].toUpperCase() + title.slice(1) : title;
+}
+
+/**
+ * Whether the Charge Points chart shows this graph below its sessions.
+ *
+ * @param {string} title - The graph's title, as in sensors_to_show.
+ * @param {Object} chargePointChart - The names the Charge Points chart goes by (CHARGE_POINT_CHART_NAMES in belief_charts.py).
+ * @returns {boolean}
+ */
+export function isChargePointCompanionTitle(title, chargePointChart) {
+  return ((chargePointChart || {}).companionTitles || []).includes(capitalizeTitle(title));
+}
+
+export function buildChargePointSessionsOption(elementId, data, opts) {
+  const chargePointChart = opts.chargePointChart || {};
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2019,23 +2232,24 @@ function buildChargePointSessionsOption(elementId, data, opts) {
   }
 
   const sessionSeries = [
-    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed", "Arrival", "Departure"),
-    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid", "Plug-in", "Plug-out"),
-    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid", "Start charging", "Stop charging"),
+    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed"),
+    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid"),
+    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid"),
+    ...buildSessionHitSeries(sessions, categoryIndex),
   ];
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
   // via the normal multi-sensor line-chart renderer and spliced in underneath.
-  const companionSpec = (opts.groupSpec || []).filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title));
+  const companionSpec = (opts.groupSpec || []).filter((g) => isChargePointCompanionTitle(g.title, chargePointChart));
   let companionGroups = companionSpec.length > 0 ? groupData(data, companionSpec) : [];
   // groupData() falls back to grouping any row not covered by companionSpec's
   // sensorIds by unit, producing extra ad-hoc groups for the asset's other
   // sensors (soc, power, ...) — drop everything except the two intended titles.
   companionGroups = companionGroups
-    .filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title))
+    .filter((g) => isChargePointCompanionTitle(g.title, chargePointChart))
     .map((g) =>
-      g.title === "Power flow by type"
-        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === CHARGEPOINT_POWER_SENSOR_NAME) })
+      capitalizeTitle(g.title) === chargePointChart.powerFlowTitle
+        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === chargePointChart.powerSensorName) })
         : g
     )
     .filter((g) => g.series.length > 0);
@@ -2092,7 +2306,9 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     type: "time", // nice-aligned clock-time ticks (see line chart); minInterval biases granularity
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true },
+    // The ruler would highlight the session point nearest in time, which is often another charger's session.
+    // Hover over a session is answered by its own hit area instead (see buildSessionHitSeries).
+    axisPointer: { show: true, triggerEmphasis: false },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
@@ -2108,7 +2324,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     splitLine: { show: false },
   }];
   const titles = [{
-    text: "Charge Point sessions",
+    text: chargePointChart.sessionsTitle,
     left: plotCenter,
     textAlign: "center",
     top: sessionsTop - TITLE_RAISE,
@@ -2183,6 +2399,9 @@ function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
+  // A session is one item spanning its start to its end, which the default filter would drop once both ends are out of the window.
+  // weakFilter keeps an item that overlaps the window, and still rescales the companion subplots' y-axes to the visible data.
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "weakFilter";
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2201,7 +2420,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
       enterable: IS_TOUCH,
       extraCssText: IS_TOUCH ? "pointer-events: auto;" : undefined,
-      formatter: seriesTooltipFormatter(seriesMeta),
+      formatter: seriesTooltipFormatter(seriesMeta, sessionsInstance),
     },
     toolbox: toolbox,
     dataZoom: [
@@ -2209,6 +2428,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       {
         type: "inside",
         xAxisIndex: allAxisIndices,
+        filterMode: "weakFilter", // see the toolbox zoom above
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
@@ -2230,7 +2450,8 @@ function buildChargePointSessionsOption(elementId, data, opts) {
  *
  * @param {string} elementId - The id of the container div.
  * @param {Object[]} data - Decompressed chart data rows.
- * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName }.
+ * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName,
+ *   fullBeliefInfo }.
  *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
  *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
  */
@@ -2266,11 +2487,16 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
+  instance.isSensorPage = !!opts.isSensorPage;
+  instance.fullBeliefInfo = !!opts.fullBeliefInfo;
+  // Range selection (for annotating) is a desktop tool on the time-axis charts; read by toolboxFeatures.
+  instance._selectable = !!opts.selectable && !IS_TOUCH && isZoomableChartType(opts.chartType);
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
+  instance._barSeries = []; // rebuilt by buildLineBarOption for bar charts (see refreshBarWidths)
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
   instance._annotCtx = null; // rebuilt by buildLineBarOption when annotations are shown
 
@@ -2282,23 +2508,223 @@ export function renderFastChart(elementId, data, options) {
   } else if (opts.chartType === "chart_for_chargepoint_sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
-    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== CHARGE_POINT_SESSIONS_GROUP_TITLE);
+    const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
+    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== sessionsTitle);
     const groups = groupData(data, groupSpec);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
   }
   if (!option) {
     option = noDataOption();
   }
+  if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
+    option.brush = selectionBrush(option);
+  }
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
 
   wireAnnotationHover(instance);
-  wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
+  wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+}
+
+/* ============================== range selection ============================== */
+
+// The brush that draws the selected time range across the whole plot height.
+// It selects no series, so the data keeps its colours inside and outside the selection.
+function selectionBrush(option) {
+  return {
+    xAxisIndex: (option.xAxis || []).map((_, i) => i),
+    brushType: "lineX",
+    brushMode: "single",
+    seriesIndex: "none",
+    transformable: true,
+    // A click selects an instant instead (see wireSelection), and a click outside the plot clears the selection
+    removeOnClick: false,
+    throttleType: "debounce",
+    brushStyle: { borderWidth: 1, color: "rgba(78, 145, 252, 0.15)", borderColor: TOOL_BLUE },
+    outOfBrush: { colorAlpha: 1 },
+  };
+}
+
+// The time range a lineX brush covers, from the areas of a brushEnd event.
+export function selectedRangeFromBrushAreas(areas) {
+  const area = Array.isArray(areas) && areas.length > 0 ? areas[0] : null;
+  const range = area && area.coordRange;
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const start = Math.min(range[0], range[1]);
+  const end = Math.max(range[0], range[1]);
+  if (!isFinite(start) || !isFinite(end)) return null;
+  return { start: new Date(start), end: new Date(end) };
+}
+
+// Draw a selected instant as a blue rule with a triangle at its top, shaped like an instant annotation.
+// These are plain zrender elements, kept out of the chart option, and redrawn on every render and zoom.
+function drawSelectedInstant(instance, time) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance._instantMarker) {
+    zr.remove(instance._instantMarker);
+    instance._instantMarker = null;
+  }
+  if (time === null) return;
+  const gridModel = chart.getModel().getComponent("grid", 0);
+  const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+  const x = chart.convertToPixel({ xAxisIndex: 0 }, time);
+  if (!rect || !isFinite(x) || x < rect.x || x > rect.x + rect.width) return;
+  const group = new echarts.graphic.Group({ silent: true, z: 100 });
+  group.add(new echarts.graphic.Line({
+    shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
+    style: { stroke: TOOL_BLUE, lineWidth: 2 },
+    silent: true,
+  }));
+  group.add(new echarts.graphic.Polygon({
+    shape: { points: [[x - 6.5, rect.y - 5.5], [x + 6.5, rect.y - 5.5], [x, rect.y + 5.5]] },
+    style: { fill: TOOL_BLUE },
+    silent: true,
+  }));
+  zr.add(group);
+  instance._instantMarker = group;
+}
+
+// Draw the selected range or instant (kept on the instance, so it survives re-renders), or clear it.
+// A range can be dragged and resized only with the select tool, so that zooming or panning never moves it.
+function drawSelection(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed() || !instance.lastOption || !instance.lastOption.brush) return;
+  const selection = instance._selection;
+  const isInstant = !!selection && selection.start.getTime() === selection.end.getTime();
+  chart.dispatchAction({
+    type: "brush",
+    areas: selection && !isInstant
+      ? [{
+          brushType: "lineX",
+          xAxisIndex: 0,
+          coordRange: [selection.start.getTime(), selection.end.getTime()],
+          transformable: effectiveSelect(instance),
+        }]
+      : [],
+  });
+  drawSelectedInstant(instance, isInstant ? selection.start.getTime() : null);
+}
+
+// Report a drawn selection (or its removal) and zooming to the page,
+// as DOM events on the chart container: "chartrangeselected" and "chartvisiblerangechanged".
+// With the select tool, a drag selects a range and a click in a plot selects an instant.
+// With any tool, a click outside the plots clears the selection, as it releases pinned annotations.
+function wireSelection(instance, elementId) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance.onBrushEnd) {
+    chart.off("brushEnd", instance.onBrushEnd);
+    instance.onBrushEnd = null;
+  }
+  if (instance.onVisibleRangeChange) {
+    chart.off("dataZoom", instance.onVisibleRangeChange);
+    instance.onVisibleRangeChange = null;
+  }
+  if (instance.onSelectClick) {
+    zr.off("mousedown", instance.onSelectMouseDown);
+    zr.off("click", instance.onSelectClick);
+    instance.onSelectMouseDown = null;
+    instance.onSelectClick = null;
+  }
+  const container = document.getElementById(elementId);
+  if (!container || !instance.lastOption || !Array.isArray(instance.lastOption.dataZoom)) return;
+  const report = () => {
+    container.dispatchEvent(new CustomEvent("chartrangeselected", { bubbles: true, detail: instance._selection }));
+  };
+  instance.onVisibleRangeChange = () => {
+    drawSelectedInstant(instance, instance._selection && instance._selection.start.getTime() === instance._selection.end.getTime()
+      ? instance._selection.start.getTime() : null);
+    container.dispatchEvent(new CustomEvent("chartvisiblerangechanged", {
+      bubbles: true,
+      detail: visibleTimeRangeFromOption(chart.getOption()),
+    }));
+  };
+  chart.on("dataZoom", instance.onVisibleRangeChange);
+  if (!instance.lastOption.brush) return;
+  instance.onBrushEnd = (params) => {
+    const range = selectedRangeFromBrushAreas(params && params.areas);
+    if (!range) return; // clearing is done by a click outside the plots
+    instance._selection = range;
+    report();
+  };
+  chart.on("brushEnd", instance.onBrushEnd);
+  // The browser also fires a click at the end of a drag, so only a pointer that barely moved counts as a click.
+  instance.onSelectMouseDown = (e) => {
+    instance._selectPressedAt = [e.offsetX, e.offsetY];
+  };
+  instance.onSelectClick = (e) => {
+    const pressedAt = instance._selectPressedAt;
+    instance._selectPressedAt = null;
+    if (pressedAt && Math.hypot(e.offsetX - pressedAt[0], e.offsetY - pressedAt[1]) > 3) return;
+    const xAxes = instance.lastOption.xAxis || [];
+    const grid = xAxes.findIndex((_, g) => chart.containPixel({ gridIndex: g }, [e.offsetX, e.offsetY]));
+    if (grid < 0) {
+      if (instance._selection) {
+        instance._selection = null;
+        drawSelection(instance);
+        report();
+      }
+      return;
+    }
+    if (!effectiveSelect(instance)) return;
+    const time = new Date(chart.convertFromPixel({ xAxisIndex: grid }, e.offsetX));
+    instance._selection = { start: time, end: new Date(time) };
+    report();
+  };
+  zr.on("mousedown", instance.onSelectMouseDown);
+  zr.on("click", instance.onSelectClick);
+  drawSelection(instance);
+}
+
+// Show a selected time range on the chart (e.g. after rounding it to whole events), or clear it with null.
+// A range whose start equals its end is an instant.
+export function setFastChartSelection(elementId, range) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selection = range ? { start: new Date(range.start), end: new Date(range.end) } : null;
+  drawSelection(instance);
+}
+
+// The sensor annotation form uses the time interval currently visible after
+// mouse zooming, which can be narrower than the date picker's query window.
+export function visibleTimeRangeFromOption(option) {
+  const axis = option && option.xAxis && option.xAxis[0];
+  const zoom = option && option.dataZoom && option.dataZoom[0];
+  if (!axis || axis.type !== "time" || !zoom) return null;
+  const min = new Date(axis.min).getTime();
+  const max = new Date(axis.max).getTime();
+  const start = typeof zoom.start === "number" ? zoom.start : 0;
+  const end = typeof zoom.end === "number" ? zoom.end : 100;
+  if (!isFinite(min) || !isFinite(max) || min >= max ||
+      !isFinite(start) || !isFinite(end) || start < 0 || end > 100 || start >= end) return null;
+  return {
+    start: new Date(min + (max - min) * start / 100),
+    end: new Date(min + (max - min) * end / 100),
+  };
+}
+
+export function getFastChartVisibleTimeRange(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return null;
+  return visibleTimeRangeFromOption(instance.chart.getOption());
+}
+
+// Refresh annotation marks without discarding the user's current zoom.
+export function refreshFastChartAnnotations(elementId, annotations) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance.lastArgs) return;
+  const zoom = (instance.chart.getOption().dataZoom || [])[0];
+  const { data, options } = instance.lastArgs;
+  renderFastChart(elementId, data, { ...options, annotations });
+  if (zoom && typeof zoom.start === "number" && typeof zoom.end === "number") {
+    instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: zoom.start, end: zoom.end });
+  }
 }
 
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
@@ -2467,65 +2893,87 @@ function wirePointerTracking(instance) {
     zr.off("globalout", instance.onPointerOut);
   }
   instance.onPointerOut = () => {
+    instance._pointerPixel = null;
     instance._emphKey = null;
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
   zr.on("globalout", instance.onPointerOut);
 }
 
-// The wide invisible hit-area series added per session segment (see
-// buildSessionSegmentSeries) has its own tooltip disabled, because ECharts
-// renders a broken zero-size tooltip box for a near-transparent line series
-// even though hover/hit-testing on it work fine. Redirect hover on those
-// series to dispatch the visible sibling series' (real) tooltip instead.
-function wireSessionTooltipRedirect(instance, opts) {
-  const chart = instance.chart;
-  if (instance.onSessionHitHover) {
-    chart.off("mouseover", instance.onSessionHitHover);
-    instance.onSessionHitHover = null;
-  }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
-    return;
-  }
-  instance.onSessionHitHover = (ev) => {
-    if (ev.componentType !== "series") return;
-    const series = chart.getOption().series || [];
-    const hovered = series[ev.seriesIndex];
-    if (!hovered || !hovered.__hitAreaFor) return;
-    // The visible sibling is always pushed immediately after its hit-area series.
-    chart.dispatchAction({ type: "showTip", seriesIndex: ev.seriesIndex + 1, dataIndex: 0 });
-  };
-  chart.on("mouseover", instance.onSessionHitHover);
-}
-
 // Highlight the annotation band/rule under the cursor and show its text below the
 // hovered subplot ONLY (the other subplots keep the light shading), matching the
 // Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
-// clicking it again, or clicking outside any annotation, releases it. markArea
-// emphasis does not fire because the axisPointer intercepts mouse events, so we
-// react to zrender mouse events directly: the pointer's pixel position tells us
-// which subplot (grid) is hovered, and converting it to the time domain tells us
-// which annotation it is on. The regular data tooltip is untouched throughout
-// (the annotation marks are silent and sit behind the data).
-function wireAnnotationHover(instance) {
+// clicking it again, or clicking outside any annotation, releases it.
+// Shift-click pins another annotation, or releases a pinned one, keeping the other pins. markArea
+// emphasis does not fire because the axisPointer intercepts mouse events. Track
+// hover on the chart container, rather than the canvas: crossing belief hit areas
+// or the HTML data tooltip must not briefly clear the annotation. ZRender still
+// handles clicks, including touch taps. The regular data tooltip is untouched
+// throughout (the annotation marks are silent and sit behind the data).
+export function wireAnnotationHover(instance) {
   const chart = instance.chart;
   const zr = chart.getZr();
+  const container = chart.getDom();
+  // The chart container has card padding, while containPixel/convertFromPixel
+  // use canvas coordinates. Keep the canvas as the coordinate reference even
+  // when the mouse event bubbles from the HTML tooltip.
+  const canvas = container.querySelector("canvas") || container;
 
   // Drop any handlers from a previous render before deciding whether to add new ones.
   if (instance.onAnnotMove) {
-    zr.off("mousemove", instance.onAnnotMove);
-    zr.off("globalout", instance.onAnnotOut);
+    container.removeEventListener("mousemove", instance.onAnnotMove);
+    container.removeEventListener("mouseleave", instance.onAnnotOut);
     zr.off("click", instance.onAnnotClick);
     instance.onAnnotMove = null;
     instance.onAnnotOut = null;
     instance.onAnnotClick = null;
   }
+  if (instance.onAnnotZoom) {
+    chart.off("datazoom", instance.onAnnotZoom);
+    instance.onAnnotZoom = null;
+  }
+  if (instance._annotLabels) {
+    instance._annotLabels.forEach((label) => label.remove());
+    instance._annotLabels = null;
+  }
   const ctx = instance._annotCtx;
   if (!ctx) return;
   const annotations = ctx.annotations;
 
-  let hover = { grid: -1, idx: -1 };
-  let pin = { grid: -1, idx: -1 };
+  // Keep text outside the ECharts canvas. Updating markArea/markLine rebuilds
+  // those canvas elements, which made both the hovered label and an existing
+  // pinned label blink. These two stable DOM nodes are independent of that
+  // redraw. A simultaneous hover uses the second row below the pinned label.
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
+  const makeLabel = (kind) => {
+    const label = document.createElement("div");
+    label.dataset.annotationLabel = kind;
+    Object.assign(label.style, {
+      position: "absolute",
+      display: "none",
+      pointerEvents: "auto",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      width: "max-content",
+      fontFamily: CHART_FONT,
+      fontSize: FONT_SIZE + "px",
+      fontStyle: "italic",
+      lineHeight: ANNOTATION_LABEL_ROW_HEIGHT + "px",
+      zIndex: "10",
+    });
+    container.appendChild(label);
+    return label;
+  };
+  // One label per pinned annotation (added as needed), and one for the hovered annotation.
+  const pinLabels = [makeLabel("pin")];
+  const hoverLabel = makeLabel("hover");
+  instance._annotLabels = [pinLabels[0], hoverLabel];
+
+  const NONE = { grid: -1, idx: -1 };
+  const key = (state) => state.grid + ":" + state.idx;
+  let hover = NONE;
+  let pins = [];
 
   // Which annotation is at the given pixel position, and in which subplot?
   // Bands match when the time under the cursor falls inside their window;
@@ -2544,47 +2992,165 @@ function wireAnnotationHover(instance) {
     return { grid: -1, idx: -1 };
   };
 
-  const stateFor = (g, hv, pn) => ({
+  const stateFor = (g, hv, pns) => ({
     h: hv.grid === g ? hv.idx : -1,
-    p: pn.grid === g ? pn.idx : -1,
+    p: new Set(pns.filter((pn) => pn.grid === g).map((pn) => pn.idx)),
   });
+  const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+
+  const renderLabel = (label, state, row) => {
+    if (state.grid < 0 || state.idx < 0) {
+      label.style.display = "none";
+      return;
+    }
+    const annotation = annotations[state.idx];
+    const grid = ctx.grids[state.grid];
+    const annotationX = chart.convertToPixel({ xAxisIndex: state.grid }, annotation.start);
+    const containerRect = container.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasLeft = canvasRect.left - containerRect.left - container.clientLeft;
+    const canvasTop = canvasRect.top - containerRect.top - container.clientTop;
+    const plotWidth = grid.labelRight - grid.labelLeft;
+    // A label is one row even when annotation content has several lines. The
+    // full content and annotation context remain available through the native
+    // title on hover.
+    label.textContent = annotation.label.replace(/\n+/g, " · ");
+    label.title = [
+      annotation.label,
+      "Source: " + (annotation.source || "Unknown"),
+      "Belief time: " + (
+        annotation.beliefTime == null || !isFinite(annotation.beliefTime)
+          ? "Unknown"
+          : formatFullDate(annotation.beliefTime)
+      ),
+      "Start: " + formatFullDate(annotation.start),
+      "End: " + formatFullDate(annotation.end),
+    ].join("\n");
+    label.style.color = ANNOTATION_TEXT_COLOR;
+    label.style.maxWidth = plotWidth + "px";
+    label.style.display = "inline-block";
+    // Measure after showing it, then shift a right-edge label left instead of
+    // squeezing it into a narrow column. Long labels use the whole plot width.
+    const labelWidth = Math.min(label.offsetWidth, plotWidth);
+    const x = Math.max(grid.labelLeft, Math.min(annotationX, grid.labelRight - labelWidth));
+    label.style.left = Math.round(canvasLeft + x) + "px";
+    label.style.top =
+      Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
+    label.dataset.grid = state.grid;
+  };
+
+  const labelsOverlap = (first, second) => {
+    const firstLeft = parseFloat(first.style.left);
+    const secondLeft = parseFloat(second.style.left);
+    return (
+      firstLeft < secondLeft + second.offsetWidth &&
+      secondLeft < firstLeft + first.offsetWidth
+    );
+  };
+
+  // Show a label in the first row where it overlaps none of the labels already shown in its subplot.
+  // The strip below a subplot has two rows, so a third overlapping label shares the second row.
+  const placeLabel = (label, state, shown) => {
+    renderLabel(label, state, 0);
+    const clashes = shown.some(
+      (other) => other.dataset.grid === label.dataset.grid && other.style.top === label.style.top && labelsOverlap(other, label)
+    );
+    if (clashes) renderLabel(label, state, 1);
+  };
+
+  const shownPinLabels = () => pinLabels.filter((label) => label.style.display !== "none");
+
+  const renderPinLabels = (newPins) => {
+    while (pinLabels.length < newPins.length) {
+      const label = makeLabel("pin");
+      pinLabels.push(label);
+      instance._annotLabels.push(label);
+    }
+    const shown = [];
+    pinLabels.forEach((label, i) => {
+      if (i >= newPins.length) {
+        renderLabel(label, NONE, 0);
+        return;
+      }
+      placeLabel(label, newPins[i], shown);
+      shown.push(label);
+    });
+  };
+
+  const renderHoverLabel = (newHover, newPins) => {
+    const hoverDuplicatesPin = newHover.idx >= 0 && newPins.some((pn) => key(pn) === key(newHover));
+    if (hoverDuplicatesPin) {
+      renderLabel(hoverLabel, NONE, 0);
+      return;
+    }
+    if (newHover.grid < 0) {
+      renderLabel(hoverLabel, newHover, 0);
+      return;
+    }
+    placeLabel(hoverLabel, newHover, shownPinLabels());
+  };
 
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
-  const apply = (newHover, newPin) => {
+  const apply = (newHover, newPins) => {
+    const hoverChanged = key(newHover) !== key(hover);
+    const pinChanged = newPins.map(key).join() !== pins.map(key).join();
+    if (!hoverChanged && !pinChanged) return;
     const patches = new Map();
     let maxSeriesIdx = -1;
     ctx.grids.forEach((info, g) => {
-      const before = stateFor(g, hover, pin);
-      const after = stateFor(g, newHover, newPin);
-      if (before.h === after.h && before.p === after.p) return;
+      const before = stateFor(g, hover, pins);
+      const after = stateFor(g, newHover, newPins);
+      if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
       const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
       if (markLine) marks.markLine = markLine;
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
     });
-    hover = newHover;
-    pin = newPin;
-    if (maxSeriesIdx < 0) return;
-    const seriesPatch = [];
-    for (let i = 0; i <= maxSeriesIdx; i++) {
-      seriesPatch.push(patches.get(i) || {});
+    if (maxSeriesIdx >= 0) {
+      const seriesPatch = [];
+      for (let i = 0; i <= maxSeriesIdx; i++) {
+        seriesPatch.push(patches.get(i) || {});
+      }
+      chart.setOption({ series: seriesPatch });
     }
-    chart.setOption({ series: seriesPatch });
+    if (pinChanged) renderPinLabels(newPins);
+    renderHoverLabel(newHover, newPins);
+    hover = newHover;
+    pins = newPins;
   };
 
-  instance.onAnnotMove = (e) => apply(locate([e.offsetX, e.offsetY]), pin);
-  instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
+  instance.onAnnotMove = (e) => {
+    // Let a user reach an ellipsized label's native title without clearing the
+    // hover that made the label visible.
+    if (e.target && e.target.closest && e.target.closest("[data-annotation-label]")) return;
+    // offsetX/offsetY would be relative to the tooltip when it covers the
+    // canvas, so convert viewport coordinates to chart coordinates instead.
+    const rect = canvas.getBoundingClientRect();
+    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pins);
+  };
+  instance.onAnnotOut = () => apply(NONE, pins);
   instance.onAnnotClick = (e) => {
     const at = locate([e.offsetX, e.offsetY]);
-    const samePin = at.grid === pin.grid && at.idx === pin.idx;
-    apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
+    const isPinned = at.idx >= 0 && pins.some((pn) => key(pn) === key(at));
+    if (e.event && e.event.shiftKey) {
+      // Shift-click adds the annotation to the pins, or releases it, keeping the other pins
+      if (at.idx < 0) return;
+      apply(hover, isPinned ? pins.filter((pn) => key(pn) !== key(at)) : [...pins, at]);
+      return;
+    }
+    apply(hover, at.idx < 0 || (isPinned && pins.length === 1) ? [] : [at]);
   };
-  zr.on("mousemove", instance.onAnnotMove);
-  zr.on("globalout", instance.onAnnotOut);
+  instance.onAnnotZoom = () => {
+    renderPinLabels(pins);
+    renderHoverLabel(hover, pins);
+  };
+  container.addEventListener("mousemove", instance.onAnnotMove);
+  container.addEventListener("mouseleave", instance.onAnnotOut);
   zr.on("click", instance.onAnnotClick);
+  chart.on("datazoom", instance.onAnnotZoom);
 }
 
 /**
@@ -2599,6 +3165,24 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
 }
 
 /**
+ * Show or hide belief provenance fields without rebuilding or fetching chart data.
+ * Refresh an open tooltip at its last known pointer position when possible.
+ */
+export function setFastChartFullBeliefInfo(elementId, showFullBeliefInfo) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance.fullBeliefInfo = !!showFullBeliefInfo;
+  if (instance._pointerPixel) {
+    instance.chart.dispatchAction({ type: "hideTip" });
+    instance.chart.dispatchAction({
+      type: "showTip",
+      x: instance._pointerPixel[0],
+      y: instance._pointerPixel[1],
+    });
+  }
+}
+
+/**
  * Dispose the fast chart instance for the given container, freeing its canvas.
  *
  * @param {string} elementId - The id of the container div.
@@ -2606,6 +3190,18 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
 export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
+    if (instance.onAnnotMove && !instance.chart.isDisposed()) {
+      const container = instance.chart.getDom();
+      container.removeEventListener("mousemove", instance.onAnnotMove);
+      container.removeEventListener("mouseleave", instance.onAnnotOut);
+    }
+    if (instance._annotLabels) {
+      Object.values(instance._annotLabels).forEach((label) => label.remove());
+      instance._annotLabels = null;
+    }
+    if (instance.onAnnotZoom && !instance.chart.isDisposed()) {
+      instance.chart.off("datazoom", instance.onAnnotZoom);
+    }
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.
     if (instance.onCtrlDown) {

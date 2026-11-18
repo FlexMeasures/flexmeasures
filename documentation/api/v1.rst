@@ -1,3 +1,5 @@
+:orphan:
+
 .. _v1:
 
 Version 1.0

@@ -130,3 +130,44 @@ def test_commodity_commitment_with_devices_is_accepted():
     prepare_scheduling_problem(
         **make_problem_kwargs([ems_level_commitment, device_commitment])
     )
+
+
+@pytest.mark.parametrize("solver", ["highspy", "appsi_highs"])
+def test_device_mapped_commodity_costs_are_split_per_commodity(app, solver):
+    """A commitment mapping its devices to different commodities books each sub-commitment's costs to that sub-commitment's own commodity.
+
+    The commodity is read per group while splitting, not once per commitment from its first row.
+    Both backends read it from the sub-commitment headers.
+    """
+    from flexmeasures.data.models.planning.linear_optimization import (
+        device_scheduler,
+    )
+
+    index = make_index()
+    device_constraints = []
+    for _ in range(2):
+        constraints = make_device_constraints()
+        constraints["max"] = 10
+        constraints["derivative equals"] = 0.5
+        device_constraints.append(constraints)
+    commitment = FlowCommitment(
+        name="per-device capacity",
+        quantity=0,
+        upwards_deviation_price=pd.Series([1.0, 2.0, 3.0, 4.0], index=index),
+        downwards_deviation_price=-1,
+        device=pd.Series([0, 1, 0, 1], index=index),
+        commodity=pd.Series({0: "electricity", 1: "gas"}),
+        index=index,
+    )
+    original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
+    app.config["FLEXMEASURES_LP_SOLVER"] = solver
+    try:
+        _, _, _, model = device_scheduler(
+            device_constraints=device_constraints,
+            ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+            commitments=[commitment],
+        )
+    finally:
+        app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
+    # Each device consumes 0.5 per step: device 0 at prices 1 and 3, device 1 at prices 2 and 4.
+    assert model.commodity_costs == pytest.approx({"electricity": 2.0, "gas": 3.0})

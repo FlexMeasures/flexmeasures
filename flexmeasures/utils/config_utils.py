@@ -4,16 +4,18 @@ Reading in configuration
 
 from __future__ import annotations
 
+import ast
 import os
+import re
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
-from dotenv import dotenv_values
+import isodate
 import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
@@ -22,8 +24,13 @@ from flexmeasures.utils.config_defaults import (
     warnable,
 )
 
+logger = logging.getLogger(__name__)
+
 flexmeasures_logging_config = {
     "version": 1,
+    # Leave loggers alone that exist before FlexMeasures configures logging,
+    # such as gunicorn's own when it preloads the app, and those of libraries imported before the app is created.
+    "disable_existing_loggers": False,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
@@ -75,15 +82,12 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.10. In place of this we could investigate to use the in-built tomlib (in-built with Py3.11+)
-    cfg_config = dotenv_values(cfg_location)
-
     if app.testing:
         flexmeasures_env = "testing"
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
-    elif cfg_config.get("FLEXMEASURES_ENV", None):
-        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
+    elif cfg_env := read_flexmeasures_env_from_cfg(cfg_location):
+        flexmeasures_env = cfg_env
     elif os.getenv("FLASK_ENV", None):
         flexmeasures_env = os.getenv("FLASK_ENV", None)
         app.logger.warning(
@@ -92,6 +96,49 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
         )
 
     return flexmeasures_env or None
+
+
+def read_flexmeasures_env_from_cfg(cfg_location: str | None) -> str | None:
+    """Look up the FLEXMEASURES_ENV that a flexmeasures.cfg file sets, without running the file.
+
+    The file is Python, so it is parsed as Python, rather than as a dotenv file,
+    which made python-dotenv warn about every line that is not a plain assignment, such as an import.
+    Only a top-level assignment of a string literal counts.
+    The last top-level assignment wins, as it would when the file runs,
+    so a later assignment of anything other than a string literal leaves FLEXMEASURES_ENV unset here, with a warning.
+    A missing file sets nothing, quietly; a file that cannot be read or parsed sets nothing, with a warning.
+    """
+    if cfg_location is None or not os.path.isfile(cfg_location):
+        return None
+    try:
+        # Parse bytes, so that a byte order mark or a coding declaration is honoured, as it is when the file runs.
+        tree = ast.parse(Path(cfg_location).read_bytes(), filename=cfg_location)
+    except (OSError, SyntaxError, ValueError) as exc:
+        logger.warning(
+            f"Could not read FLEXMEASURES_ENV from {cfg_location}, as the file could not be read or parsed: {exc}"
+        )
+        return None
+    flexmeasures_env = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(
+            isinstance(t, ast.Name) and t.id == "FLEXMEASURES_ENV" for t in targets
+        ):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            flexmeasures_env = node.value.value
+        else:
+            logger.warning(
+                f"Ignoring FLEXMEASURES_ENV in {cfg_location} (line {node.lineno}), as it is not set to a string literal."
+                ' Set it to a string, such as FLEXMEASURES_ENV = "staging", or as an environment variable.'
+            )
+            flexmeasures_env = None
+    return flexmeasures_env
 
 
 def find_flexmeasures_cfg() -> str | None:
@@ -153,6 +200,9 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
     normalize_trusted_hosts(app)
+    pin_database_driver(app)
+    normalize_security_durations(app)
+    check_rate_limit_settings(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -302,6 +352,89 @@ def normalize_trusted_hosts(app: Flask) -> None:
         app.config["TRUSTED_HOSTS"] = trusted_hosts
     if trusted_hosts is not None and len(trusted_hosts) == 0:
         app.config["TRUSTED_HOSTS"] = None
+
+
+def pin_database_driver(app: Flask) -> None:
+    """Connect through psycopg 3 if the database URI names no driver.
+
+    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, and SQLAlchemy 2.1 through psycopg 3,
+    so without naming the driver, which one we get would depend on the SQLAlchemy version installed.
+    An explicitly chosen driver (e.g. postgresql+psycopg2://) is left alone.
+    """
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    if isinstance(uri, str) and uri.startswith("postgresql://"):
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            "postgresql+psycopg://" + uri.removeprefix("postgresql://")
+        )
+
+
+# Flask-Security settings that hold a duration.
+SECURITY_DURATION_SETTINGS = (
+    "SECURITY_LOGIN_WITHIN",
+    "SECURITY_CHANGE_EMAIL_WITHIN",
+    "SECURITY_CONFIRM_EMAIL_WITHIN",
+    "SECURITY_RESET_PASSWORD_WITHIN",
+    "SECURITY_TWO_FACTOR_SETUP_WITHIN",
+    "SECURITY_US_SETUP_WITHIN",
+    "SECURITY_WAN_REGISTER_WITHIN",
+    "SECURITY_WAN_SIGNIN_WITHIN",
+    "SECURITY_TWO_FACTOR_LOGIN_VALIDITY",
+)
+
+
+def parse_duration_setting(setting: str, value: str | timedelta) -> timedelta:
+    """Parse a duration given in a setting, such as "1 week", "7 days" or an ISO 8601 duration like "P1W".
+
+    Only units of a fixed length are accepted, so months and years are not.
+    """
+    if isinstance(value, timedelta):
+        return value
+    text = str(value).strip()
+    match = re.fullmatch(
+        r"(\d+)\s*(second|minute|hour|day|week)s?", text, flags=re.IGNORECASE
+    )
+    if match:
+        return timedelta(**{match.group(2).lower() + "s": int(match.group(1))})
+    try:
+        duration = isodate.parse_duration(text)
+    except (isodate.ISO8601Error, ValueError):
+        duration = None
+    if not isinstance(duration, timedelta):
+        raise ValueError(
+            f'Cannot read {setting} = {value!r} as a duration: use e.g. "1 week", "7 days" or "P1W" (months and years have no fixed length).'
+        )
+    return duration
+
+
+def normalize_security_durations(app: Flask) -> None:
+    """Hand Flask-Security each duration setting as a timedelta.
+
+    Flask-Security builds a timedelta from "<amount> <unit>", using the unit as a timedelta keyword,
+    so it reads "7 days", but not "1 week" or an ISO 8601 duration.
+    Flask-Security 5.9 and later accept a timedelta at startup.
+    """
+    for setting in SECURITY_DURATION_SETTINGS:
+        value = app.config.get(setting)
+        if value is None:
+            continue
+        app.config[setting] = parse_duration_setting(setting, value)
+
+
+def check_rate_limit_settings(app: Flask) -> None:
+    """Refuse a server-wide rate limit we cannot make sense of, or one which holds several limits.
+
+    Better to find out at startup than when the first request comes in.
+
+    :raises ValueError: naming the setting, when its value is not one rate limit.
+    """
+    from flexmeasures.api.common.rate_limiting import RATE_LIMIT_SETTINGS
+    from flexmeasures.utils.validation_utils import validate_rate_limit
+
+    for setting in RATE_LIMIT_SETTINGS.values():
+        try:
+            validate_rate_limit(app.config.get(setting))
+        except ValueError as exc:
+            raise ValueError(f"{setting}: {exc}") from exc
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

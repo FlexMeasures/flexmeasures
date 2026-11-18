@@ -1,13 +1,21 @@
+import logging
+from datetime import timedelta
+
 import pytest
 from flask import Flask
 from werkzeug.sansio.utils import host_is_trusted
 
+from flexmeasures.utils import config_utils
 from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
+    check_rate_limit_settings,
     get_config_warnings,
+    normalize_security_durations,
     normalize_trusted_hosts,
+    parse_duration_setting,
     parse_bool_env,
+    pin_database_driver,
     read_env_vars,
 )
 
@@ -120,6 +128,91 @@ def test_normalize_trusted_hosts(value, expected):
     assert app.config["TRUSTED_HOSTS"] == expected
 
 
+@pytest.mark.parametrize(
+    "uri, expected",
+    [
+        # Which driver SQLAlchemy picks for a plain URI depends on its version, so we name psycopg 3.
+        ("postgresql://fm:pw@localhost/fm", "postgresql+psycopg://fm:pw@localhost/fm"),
+        # An explicitly chosen driver is left alone.
+        (
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+        ),
+        (
+            "postgresql+psycopg://fm:pw@localhost/fm",
+            "postgresql+psycopg://fm:pw@localhost/fm",
+        ),
+        (None, None),
+    ],
+)
+def test_pin_database_driver(uri, expected):
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = uri
+    pin_database_driver(app)
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("1 week", timedelta(weeks=1)),
+        ("2 weeks", timedelta(weeks=2)),
+        ("1 Week", timedelta(weeks=1)),
+        ("7 days", timedelta(days=7)),
+        ("30 minutes", timedelta(minutes=30)),
+        ("P1W", timedelta(weeks=1)),
+        ("PT30M", timedelta(minutes=30)),
+        ("P1DT12H", timedelta(days=1, hours=12)),
+        (timedelta(hours=2), timedelta(hours=2)),
+    ],
+)
+def test_parse_duration_setting(value, expected):
+    assert (
+        parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value) == expected
+    )
+
+
+@pytest.mark.parametrize("value", ["1 month", "P1M", "P1Y", "soon", "1.5 days"])
+def test_parse_duration_setting_rejects_nominal_or_unreadable_durations(value):
+    """Months and years have no fixed length, so we ask for a duration that does."""
+    with pytest.raises(ValueError, match="SECURITY_TWO_FACTOR_LOGIN_VALIDITY"):
+        parse_duration_setting("SECURITY_TWO_FACTOR_LOGIN_VALIDITY", value)
+
+
+def test_normalize_security_durations():
+    app = Flask(__name__)
+    app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] = "1 week"
+    app.config["SECURITY_LOGIN_WITHIN"] = (
+        None  # unset settings are left to Flask-Security
+    )
+    normalize_security_durations(app)
+    assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == timedelta(weeks=1)
+    assert app.config["SECURITY_LOGIN_WITHIN"] is None
+
+
+@pytest.mark.parametrize(
+    "value, error",
+    [
+        ("10 per minute; 100 per hour", "holds 2 rate limits"),
+        ("10 per fortnight", "not a valid rate limit"),
+    ],
+)
+def test_check_rate_limit_settings_refuses_what_is_not_one_limit(value, error):
+    """A server-wide rate limit is refused at startup, naming the setting, unless it is one limit."""
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"] = "500 per minute"
+    app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"] = value
+    with pytest.raises(ValueError, match=error) as exc_info:
+        check_rate_limit_settings(app)
+    assert "FLEXMEASURES_API_TRIGGER_RATE_LIMIT" in str(exc_info.value)
+
+
+def test_check_rate_limit_settings_accepts_the_defaults():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    check_rate_limit_settings(app)
+
+
 def test_config_warnings_flag_unset_trusted_hosts():
     """An unset TRUSTED_HOSTS is reported, since it leaves generated URLs poisonable."""
     app = Flask(__name__)
@@ -150,10 +243,23 @@ def test_development_config_trusts_loopback():
     assert "TRUSTED_HOSTS" not in missing_settings
 
     normalize_trusted_hosts(app)
-    for host in ("localhost:5000", "127.0.0.1", "[::1]:5000", "app.localhost:5000"):
+    for host in ("localhost:5000", "127.0.0.1", "app.localhost:5000"):
         assert host_is_trusted(host, app.config["TRUSTED_HOSTS"]), host
     # Other hosts are still rejected, so development resembles production.
     assert not host_is_trusted("evil.example", app.config["TRUSTED_HOSTS"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Werkzeug 3.1.9 cuts each trusted host at its first colon, so no IPv6 address matches (https://github.com/pallets/werkzeug/issues/3312).",
+)
+def test_development_config_trusts_ipv6_loopback():
+    """A dev server reached over IPv6 loopback is trusted, and other IPv6 hosts are not."""
+    app = Flask(__name__)
+    app.config.from_object(DevelopmentConfig)
+    normalize_trusted_hosts(app)
+    assert host_is_trusted("[::1]:5000", app.config["TRUSTED_HOSTS"])
+    assert not host_is_trusted("[::2]:5000", app.config["TRUSTED_HOSTS"])
 
 
 def test_production_config_does_not_trust_any_host():
@@ -171,3 +277,127 @@ def test_config_warnings_silent_when_trusted_hosts_is_set():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" not in missing_settings
     assert not any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
+    """Loggers created before FlexMeasures configures logging should keep logging.
+
+    Gunicorn creates its own before it preloads the app, and libraries such as RQ create theirs when they are imported.
+    """
+    import logging
+
+    from flexmeasures.utils.config_utils import configure_logging
+
+    # Use the real logging config, except for its file handler, so this test writes no log file.
+    real_config = config_utils.flexmeasures_logging_config
+    logging_config = {
+        **real_config,
+        "handlers": {"console": real_config["handlers"]["console"]},
+        "root": {**real_config["root"], "handlers": ["console"]},
+    }
+    monkeypatch.setattr(config_utils, "flexmeasures_logging_config", logging_config)
+    # Configuring logging replaces the root logger's handlers, so put back those the rest of the test session uses.
+    root = logging.getLogger()
+    root_handlers, root_level = root.handlers[:], root.level
+
+    existing_logger = logging.getLogger("test.created.before.configure_logging")
+    try:
+        configure_logging()
+        assert not existing_logger.disabled
+    finally:
+        root.handlers[:] = root_handlers
+        root.setLevel(root_level)
+
+
+def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
+    tmp_path, monkeypatch, caplog
+):
+    """A flexmeasures.cfg is Python, so an import on its first line is fine, and should not set off python-dotenv's parse warning."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(
+        "from datetime import timedelta\n"
+        "\n"
+        'FLEXMEASURES_ENV = "staging"\n'
+        "FLEXMEASURES_PLANNING_HORIZON = timedelta(days=2)\n"
+        "FLEXMEASURES_PLUGINS = [\n"
+        '    "/app/plugin",\n'
+        "]\n"
+    )
+    monkeypatch.delenv("FLEXMEASURES_ENV", raising=False)
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    app = Flask("flexmeasures-test")
+
+    with caplog.at_level(logging.DEBUG):
+        assert config_utils.get_flexmeasures_env(app, str(cfg)) == "staging"
+    assert not [r for r in caplog.records if r.name.startswith("dotenv")]
+
+
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ('FLEXMEASURES_ENV = "production"\n', "production"),
+        ("FLEXMEASURES_ENV: str = 'staging'\n", "staging"),
+        # The last assignment wins, as it does when the file runs.
+        (
+            'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "production"\n',
+            "production",
+        ),
+        # Only a string literal counts: an expression is not evaluated, and is not mistaken for a string.
+        ('import os\nFLEXMEASURES_ENV = os.environ.get("X", "staging")\n', None),
+        ("SQLALCHEMY_DATABASE_URI = 'postgresql://x'\n", None),
+        # A later assignment that is not a string literal undoes an earlier one, as it would when the file runs.
+        (
+            'import os\nFLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = os.environ.get("X", "production")\n',
+            None,
+        ),
+        ("FLEXMEASURES_ENV = staging, but not Python\n", None),
+        # A byte order mark, as some editors save one, and Windows line endings.
+        (
+            '\ufefffrom datetime import timedelta\r\nFLEXMEASURES_ENV = "staging"\r\n',
+            "staging",
+        ),
+    ],
+)
+def test_read_flexmeasures_env_from_cfg(tmp_path, content, expected):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_bytes(content.encode("utf-8"))
+    assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == expected
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "FLEXMEASURES_ENV = staging, but not Python\n",
+        'FLEXMEASURES_ENV = "staging"\nFLEXMEASURES_ENV = "staging" if True else "production"\n',
+    ],
+)
+def test_read_flexmeasures_env_from_cfg_warns_when_it_cannot_tell(
+    tmp_path, caplog, content
+):
+    """When the cfg exists, but does not plainly say which environment to run in, say so, rather than silently falling back to the default."""
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text(content)
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) is None
+    assert any(
+        r.name == config_utils.logger.name and str(cfg) in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_read_flexmeasures_env_from_cfg_does_not_warn_about_a_plain_cfg(
+    tmp_path, caplog
+):
+    cfg = tmp_path / "flexmeasures.cfg"
+    cfg.write_text('import os\nFLEXMEASURES_ENV = "staging"\n')
+    with caplog.at_level(logging.WARNING, logger=config_utils.logger.name):
+        assert config_utils.read_flexmeasures_env_from_cfg(str(cfg)) == "staging"
+    assert not caplog.records
+
+
+def test_read_flexmeasures_env_from_missing_cfg(tmp_path):
+    assert config_utils.read_flexmeasures_env_from_cfg(None) is None
+    assert (
+        config_utils.read_flexmeasures_env_from_cfg(str(tmp_path / "missing.cfg"))
+        is None
+    )

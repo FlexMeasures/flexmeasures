@@ -30,8 +30,10 @@ Never expose internal role names (e.g. `account-admin`, `admin`) in UI text. Use
 ## Jinja2 template safety
 
 - Sensor/asset IDs embedded in JavaScript use `{{ sensor.id }}` (integer — safe), not `.name` or freeform text.
-- User-supplied values displayed in HTML use `{{ value | e }}` for auto-escaping.
-- Only use `{{ value | safe }}` for pre-sanitised server values (e.g. `sensor._ui_unit | safe`).
+- User-supplied values displayed in HTML rely on Jinja's auto-escaping (`{{ value }}`); do not mark them `| safe`.
+- Data embedded in a `<script>` uses `{{ value | tojson }}`, which yields valid JavaScript and cannot close the script element.
+  Never render a Python dict or list with `| safe` there, nor place either inside a JavaScript string literal.
+- In JavaScript, set user-supplied text with `textContent`, or pass it through `escapeHtml` (from `ui-utils.js`) when building markup for `innerHTML`.
 
 ## Toast vs. inline alert
 

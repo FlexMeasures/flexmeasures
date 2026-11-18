@@ -1,5 +1,6 @@
 import pytest
 import json
+import re
 
 from flexmeasures.auth import error_handling as auth_error_handling
 
@@ -47,3 +48,35 @@ def test_error_handling(
     assert b"- FlexMeasures" in res.data
     if expected_message:
         assert expected_message.encode() in res.data
+
+
+def test_error_page_link_clears_the_session(client, error_endpoints, as_prosumer_user1):
+    """The root view redirects without the query string, so the link must lead to the dashboard itself."""
+    res = client.get(
+        "/raise-error?type=bad_request", headers={"Content-Type": "text/html"}
+    )
+    link = re.search(r'href="([^"]*clear-session[^"]*)"', res.data.decode()).group(1)
+    cleared = client.get(link, follow_redirects=True)
+    assert b"Your session was cleared." in cleared.data
+
+
+def test_unhandled_error_is_an_internal_server_error(client, error_endpoints):
+    """An exception that is not an HTTPException becomes a proper 500 response, in JSON as well as in HTML.
+
+    SQLAlchemy errors carry a code like "f405", which once made it into the status line ("0 f405"),
+    so browsers behind a proxy reported a protocol error instead of showing our error page.
+    Also, the SQL and its parameters belong in the logs, not in the response.
+    """
+    raising_url = "/raise-error?type=database_error"
+    generic_message = "The server encountered an internal error"
+
+    res = client.get(raising_url, headers={"Content-Type": "text/html"})
+    assert res.status == "500 INTERNAL SERVER ERROR"
+    assert b"- FlexMeasures" in res.data
+    assert generic_message.encode() in res.data
+    assert b"SELECT secret" not in res.data
+
+    res = client.get(raising_url, headers={"Content-Type": "application/json"})
+    assert res.status == "500 INTERNAL SERVER ERROR"
+    assert generic_message in json.loads(res.data)["message"]
+    assert b"SELECT secret" not in res.data

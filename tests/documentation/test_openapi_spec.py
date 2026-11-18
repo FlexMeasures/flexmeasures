@@ -57,3 +57,16 @@ def test_openapi_spec_schema_types_are_not_python_aliases():
             for path, wrong, correct in invalid
         )
     )
+
+
+def test_openapi_specs_path_does_not_depend_on_working_directory(monkeypatch, tmp_path):
+    """The specs are generated into, and served from, the installed package, also when run from elsewhere."""
+    from flexmeasures.api.v3_0 import openapi_specs_path
+    from flexmeasures.ui import flexmeasures_ui
+
+    monkeypatch.chdir(tmp_path)
+    assert openapi_specs_path().exists()
+    assert (
+        openapi_specs_path()
+        == Path(flexmeasures_ui.root_path) / "static" / "openapi-specs.json"
+    )

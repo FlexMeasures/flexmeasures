@@ -227,6 +227,9 @@ export function encodeUrlQuery(rawUrl) {
     const [path, query] = rawUrl.split("?");
     if (!query) return rawUrl;  // No query to encode
 
-    const params = new URLSearchParams(query);
+    // URLSearchParams reads a literal "+" as an encoded space, as in form submissions,
+    // which would turn the offset in "+02:00" into " 02:00" before re-encoding it.
+    // Escaping it first keeps it a plus sign.
+    const params = new URLSearchParams(query.replaceAll("+", "%2B"));
     return `${path}?${params.toString()}`;
 }

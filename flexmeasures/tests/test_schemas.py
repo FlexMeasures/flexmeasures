@@ -18,17 +18,12 @@ def iter_marshmallow_field_subclasses():
     """Yield (class, module) for Marshmallow Field subclasses."""
     for module in iter_flexmeasures_modules():
         for obj in vars(module).values():
-            try:
-                is_field_subclass = (
-                    inspect.isclass(obj)
-                    and issubclass(obj, ma_fields.Field)
-                    and obj is not ma_fields.Field
-                    and obj.__module__ == module.__name__
-                )
-            except TypeError:
-                # On Python 3.10, generic aliases like list[dict] pass
-                # inspect.isclass but make issubclass raise (bpo-46080).
-                continue
+            is_field_subclass = (
+                inspect.isclass(obj)
+                and issubclass(obj, ma_fields.Field)
+                and obj is not ma_fields.Field
+                and obj.__module__ == module.__name__
+            )
             if is_field_subclass:
                 yield obj, module
 

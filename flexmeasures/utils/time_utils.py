@@ -305,6 +305,19 @@ def duration_isoformat(duration: timedelta):
     return re.sub("%P", repl, "P%P")
 
 
+def exact_duration_str(duration: timedelta) -> str:
+    """Say how long a duration is in whole hours or minutes, exactly, which a rounded duration such as humanize's would not.
+
+    For example, 6 hours is "6 hours" and 90 minutes is "90 minutes".
+    Seconds are left out.
+    """
+    minutes = int(duration.total_seconds() // 60)
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return "1 hour" if hours == 1 else f"{hours} hours"
+    return "1 minute" if minutes == 1 else f"{minutes} minutes"
+
+
 def determine_minimum_resampling_resolution(
     event_resolutions: list[timedelta],
     fallback_resolution: timedelta = timedelta(0),
@@ -343,6 +356,36 @@ def get_max_planning_horizon(resolution: timedelta) -> timedelta | None:
     return max_planning_horizon
 
 
+def _add_calendar_days(dt: pd.Timestamp, days: pd.offsets.Day) -> pd.Timestamp:
+    """Add days as calendar days, i.e. to the same local wall-clock time, also across a DST transition.
+
+    Where that wall-clock time is ambiguous or does not exist, add exactly 24 hours per day instead.
+    """
+    if dt.tz is None:
+        return dt + days
+    result = (dt.tz_localize(None) + days).tz_localize(
+        dt.tz, ambiguous="NaT", nonexistent="NaT"
+    )
+    if result is pd.NaT:
+        return dt + pd.Timedelta(days=days.n)
+    return result
+
+
+def _floor_on_wall_clock(dt: pd.Timestamp, freq: str) -> pd.Timestamp:
+    """Floor a timestamp on its local wall clock, e.g. to find the begin of its local day or hour.
+
+    Within the hour that occurs twice, the begin of the same occurrence is found,
+    and a day that begins in a DST gap begins when the gap ends.
+    """
+    if dt.tz is None:
+        return dt.floor(freq)
+    return (
+        dt.tz_localize(None)
+        .floor(freq)
+        .tz_localize(dt.tz, ambiguous=bool(dt.dst()), nonexistent="shift_forward")
+    )
+
+
 def apply_offset_chain(
     dt: pd.Timestamp | datetime, offset_chain: str
 ) -> pd.Timestamp | datetime:
@@ -351,6 +394,10 @@ def apply_offset_chain(
     An offset chain consist of multiple (pandas) offset strings separated by commas. Moreover,
     this function implements the offset string "DB", which stands for Day Begin, to
     get a date from a datetime, i.e. removing time details finer than a day.
+
+    Days are calendar days in the timestamp's own timezone,
+    so "1D,DB" is the start of the next local day, also across a DST transition.
+    Where the same wall-clock time a day later is ambiguous or does not exist, a day is exactly 24 hours.
 
     Args:
         dt (pd.Timestamp | datetime)
@@ -374,12 +421,18 @@ def apply_offset_chain(
     # Apply the offsets
     for offset in offset_chain.split(","):
         try:
-            _dt += to_offset(offset.strip())
+            pandas_offset = to_offset(offset.strip())
         except ValueError:
             if offset.strip().lower() == "db":  # db = day begin
-                _dt = _dt.floor("D")
+                _dt = _floor_on_wall_clock(_dt, "D")
             elif offset.strip().lower() == "hb":  # hb = hour begin
-                _dt = _dt.floor("h")
+                _dt = _floor_on_wall_clock(_dt, "h")
+            continue
+        if isinstance(pandas_offset, pd.offsets.Day):
+            # Before Pandas 3, a Day offset is a fixed 24 hours
+            _dt = _add_calendar_days(_dt, pandas_offset)
+        else:
+            _dt += pandas_offset
 
     # Return output in the same type as the input
     if isinstance(dt, datetime):

@@ -7,7 +7,9 @@ description: Prevents subtle bugs in time handling, units, and data semantics wi
 
 ## Role
 
-Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations, correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts. This agent owns the correctness of temporal and physical unit operations.
+Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations,
+correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts.
+This agent owns the correctness of temporal and physical unit operations.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -136,11 +138,9 @@ Critical conversions require duration or capacity parameters.
 
 ## Self-Improvement Notes
 
-Update this file when: a new time-handling pattern emerges, a DST-related bug is discovered, a
-unit-conversion edge case is found, a pandas version update changes time semantics (e.g.
-https://github.com/pandas-dev/pandas/issues/35248), or new timezones/unit definitions are added.
+Update this file when: a new time-handling pattern emerges, a DST-related bug is discovered, a unit-conversion edge case is found,
+a pandas version update changes time semantics (e.g. https://github.com/pandas-dev/pandas/issues/35248), or new timezones/unit definitions are added.
 Edit the relevant section in place — don't append a dated narrative.
 
-Before claiming timezone/DST/unit-conversion behavior is correct, actually run the code with
-different timezones and across a DST transition, and show the real output — don't assert
-correctness without proof.
+Before claiming timezone/DST/unit-conversion behavior is correct, actually run the code with different timezones and across a DST transition,
+and show the real output — don't assert correctness without proof.

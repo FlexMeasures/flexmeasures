@@ -8,6 +8,7 @@ import os
 from rq.job import Job
 from rq.timeouts import JobTimeoutException
 
+from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.services.forecasting import (
     FORECASTING_JOB_TIMEOUT_HINT,
@@ -129,6 +130,10 @@ def test_forecasting_job_timeout_exception_routes_hints_by_audience(
     assert failed_job.meta["exception"]["type"] == "JobTimeoutException"
     assert failed_job.meta["exception"]["hint"] == FORECASTING_JOB_TIMEOUT_HINT
     assert FORECASTING_JOB_TIMEOUT_HOST_HINT not in failed_job.meta["exception"]["hint"]
+    # The hint reaches whoever reads why the job failed, through the API, the CLI or the UI.
+    reason = failed_job_reason(failed_job)
+    assert reason.startswith("JobTimeoutException: Task exceeded maximum timeout value")
+    assert FORECASTING_JOB_TIMEOUT_HINT in reason
 
 
 def test_forecasting_job_meta_is_json_serializable(

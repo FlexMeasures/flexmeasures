@@ -7,7 +7,9 @@ description: Identifies performance bottlenecks, inefficient algorithms, and sca
 
 ## Role
 
-Keep FlexMeasures fast under realistic loads by identifying performance bottlenecks, inefficient algorithms, and scalability issues. Review changes for N+1 queries, inefficient data structures, unnecessary computation, and algorithmic complexity. Ensure the system remains responsive as data and users scale.
+Keep FlexMeasures fast under realistic loads by identifying performance bottlenecks, inefficient algorithms, and scalability issues.
+Review changes for N+1 queries, inefficient data structures, unnecessary computation, and algorithmic complexity.
+Ensure the system remains responsive as data and users scale.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -93,8 +95,7 @@ Keep FlexMeasures fast under realistic loads by identifying performance bottlene
 ],
 ```
 
-**Issue**: Lazy-loading relationships in loops causes N queries
-**Fix**: Use `query.options(selectinload(GenericAsset.sensors))` before iteration
+**Issue**: Lazy-loading relationships in loops causes N queries **Fix**: Use `query.options(selectinload(GenericAsset.sensors))` before iteration
 
 #### 2. Recursive Parent/Child Loading
 
@@ -108,8 +109,7 @@ if asset.parent_asset and parent_depth < 2:  # ⚠️ Lazy-loads parent
     )
 ```
 
-**Issue**: Recursive parent access without eager loading
-**Fix**: Use `contains_eager()` with explicit join in original query
+**Issue**: Recursive parent access without eager loading **Fix**: Use `contains_eager()` with explicit join in original query
 
 #### 3. Pandas Chained Indexing
 
@@ -119,8 +119,7 @@ if asset.parent_asset and parent_depth < 2:  # ⚠️ Lazy-loads parent
 quantity = commitments[c][commitments[c]["j"] == j]["quantity"].values[0]
 ```
 
-**Issue**: Double filtering creates intermediate DataFrame copies
-**Fix**: Use single boolean index or `.loc[]` with tuple indexing
+**Issue**: Double filtering creates intermediate DataFrame copies **Fix**: Use single boolean index or `.loc[]` with tuple indexing
 
 #### 4. Repeated DataFrame Operations
 
@@ -131,8 +130,7 @@ if len(sub_commitment["upwards deviation price"].unique()) > 1:
     if len(sub_commitment["downwards deviation price"].unique()) > 1:
 ```
 
-**Issue**: Multiple `.unique()` calls on same columns
-**Fix**: Store unique values in variables, reuse them
+**Issue**: Multiple `.unique()` calls on same columns **Fix**: Store unique values in variables, reuse them
 
 #### 5. O(n²) Constraint Rule Complexity
 
@@ -145,8 +143,7 @@ stock_changes = [
 ]
 ```
 
-**Issue**: Constraint rules evaluated for every (d, j) pair = O(D × J²)
-**Fix**: Precompute cumulative stock changes outside constraint rules
+**Issue**: Constraint rules evaluated for every (d, j) pair = O(D × J²) **Fix**: Precompute cumulative stock changes outside constraint rules
 
 ### Performance Best Practices
 
@@ -228,10 +225,10 @@ stock_changes = [
        return haversine_formula(lat1, lon1, lat2, lon2)
    ```
 
-3. **Redis caching for job results**:
-   - See `flexmeasures/data/services/job_cache.py`
-   - Cache expensive computation results
-   - Set appropriate TTL values
+3. **Redis lookup for jobs**:
+   - See `flexmeasures/data/services/job_map.py`
+   - Index RQ job IDs by asset or sensor and queue
+   - Remove stale IDs when fetching jobs or enqueue-time metadata
 
 ### When to Create Benchmarks
 
@@ -252,8 +249,9 @@ FlexMeasures provides built-in request profiling capabilities for performance an
   - `flexmeasures/data/models/planning/linear_optimization.py` - Scheduler optimization
   - `flexmeasures/data/queries/` - Database queries
   - `flexmeasures/ui/views/assets/utils.py` - Asset tree traversal
+- Job lookup:
+  - `flexmeasures/data/services/job_map.py` - Redis index of RQ job IDs
 - Caching:
-  - `flexmeasures/data/services/job_cache.py` - Redis job cache
   - `functools.cached_property` usage throughout codebase
 - Pandas usage:
   - Scheduler implementations
@@ -285,13 +283,11 @@ FlexMeasures provides built-in request profiling capabilities for performance an
 
 ## Self-Improvement Notes
 
-Update this file when: a new performance anti-pattern is discovered, FlexMeasures scales to
-larger datasets, new database/pandas patterns emerge, or caching strategies evolve. Edit the
-relevant section in place — don't append a dated narrative.
+Update this file when: a new performance anti-pattern is discovered, FlexMeasures scales to larger datasets, new database/pandas patterns emerge,
+or caching strategies evolve. Edit the relevant section in place — don't append a dated narrative.
 
-**Performance claims must be backed by actual benchmarks, not estimates.** "This is faster",
-"more efficient", or "no more N+1" all require before/after measurements with realistic
-data volume:
+**Performance claims must be backed by actual benchmarks, not estimates.** "This is faster", "more efficient",
+or "no more N+1" all require before/after measurements with realistic data volume:
 
 ```bash
 uv sync --group dev --group test

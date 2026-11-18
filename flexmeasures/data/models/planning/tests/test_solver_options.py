@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import logging
+from datetime import timedelta
+
+import pandas as pd
 import pytest
 
-from flexmeasures.data.models.planning.linear_optimization import validate_highs_options
+from flexmeasures.data.models.planning.linear_optimization import (
+    device_scheduler,
+    validate_highs_options,
+)
+from flexmeasures.data.models.planning.scheduling_problem import solver_options
+from flexmeasures.data.models.planning.utils import initialize_df
 
 highspy = pytest.importorskip("highspy")
 
@@ -60,3 +69,101 @@ def test_validate_highs_options_warns_about_the_global_thread_scheduler(app, cap
     with app.app_context():
         validate_highs_options({"threads": 2})
     assert "thread scheduler" in caplog.text
+
+
+@pytest.fixture
+def app_logging_level(app):
+    """Set the app logger's level for one test, as LOGGING_LEVEL would, and restore it afterwards."""
+    original_level = app.logger.level
+
+    def set_level(level: int | str):
+        app.logger.setLevel(level)
+
+    yield set_level
+    app.logger.setLevel(original_level)
+
+
+@pytest.mark.parametrize(
+    "level, silenced",
+    [
+        (logging.ERROR, True),
+        (logging.WARNING, True),
+        (logging.INFO, True),
+        ("INFO", True),
+        (logging.DEBUG, False),
+        ("DEBUG", False),
+    ],
+)
+def test_highs_output_is_silenced_unless_debugging(
+    app, app_logging_level, level, silenced
+):
+    """HiGHS logs to the console, bypassing our loggers, so only DEBUG lets it through.
+
+    LOGGING_LEVEL may be configured as a name or as a number; both must be honoured.
+    """
+    app_logging_level(level)
+    with app.app_context():
+        options = solver_options("highspy")
+    assert (options.get("output_flag") == "false") is silenced
+
+
+def solve_a_tiny_schedule():
+    columns = [
+        "equals",
+        "max",
+        "min",
+        "efficiency",
+        "derivative equals",
+        "derivative max",
+        "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
+        "stock delta",
+    ]
+    start = pd.Timestamp("2020-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2020-01-01T02:00:00+01:00")
+    device_constraints = initialize_df(columns, start, end, timedelta(hours=1))
+    device_constraints["derivative max"] = 1
+    device_constraints["derivative min"] = -1
+    _, _, results, _ = device_scheduler(
+        device_constraints=[device_constraints],
+        ems_constraints=initialize_df(columns, start, end, timedelta(hours=1)),
+        commitment_quantities=[pd.Series(0, index=device_constraints.index)],
+        commitment_downwards_deviation_price=[
+            pd.Series(-1, index=device_constraints.index)
+        ],
+        commitment_upwards_deviation_price=[
+            pd.Series(1, index=device_constraints.index)
+        ],
+    )
+    assert results.solver.termination_condition == "optimal"
+
+
+def test_highspy_writes_nothing_to_the_console_outside_debug(
+    app, app_logging_level, monkeypatch, capfd
+):
+    """Not even the banner HiGHS prints when its model is first built.
+
+    HiGHS writes to the process's stdout directly, so this captures at the file-descriptor level.
+    """
+    monkeypatch.setitem(app.config, "FLEXMEASURES_LP_SOLVER", "highspy")
+    app_logging_level(logging.INFO)
+    capfd.readouterr()  # discard anything printed before the solve
+    with app.app_context():
+        solve_a_tiny_schedule()
+    out, err = capfd.readouterr()
+    assert "HiGHS" not in out + err
+    assert out == ""
+
+
+def test_highspy_writes_its_log_to_the_console_when_debugging(
+    app, app_logging_level, monkeypatch, capfd
+):
+    """The counterpart of the test above, so that one cannot pass merely because nothing is captured."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_LP_SOLVER", "highspy")
+    app_logging_level(logging.DEBUG)
+    capfd.readouterr()
+    with app.app_context():
+        solve_a_tiny_schedule()
+    out, _ = capfd.readouterr()
+    assert "Running HiGHS" in out
