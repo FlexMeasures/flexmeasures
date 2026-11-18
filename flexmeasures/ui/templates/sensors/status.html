@@ -38,15 +38,26 @@
               </span>
             </h4>
 
-            {% if asset.child_assets %}
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" id="includeChildAssets" {{ 'checked' if include_child_assets }}>
-              <label class="form-check-label" for="includeChildAssets">
-                Include jobs of sub-assets
-                <span class="fa fa-info-circle" title="Jobs are often triggered on a sub-asset rather than on the asset you are looking at. Keep this on to see everything that happened below this asset, too."></span>
-              </label>
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+              <div>
+                <label class="visually-hidden" for="jobsQueueFilter">Job type</label>
+                <select class="form-select form-select-sm" id="jobsQueueFilter" title="Only show the jobs of one type">
+                  <option value="" selected>All job types</option>
+                  <option value="forecasting">Forecasts</option>
+                  <option value="scheduling">Schedules</option>
+                  <option value="reporting">Reports</option>
+                </select>
+              </div>
+              {% if asset.child_assets %}
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="includeChildAssets" {{ 'checked' if include_child_assets }}>
+                <label class="form-check-label" for="includeChildAssets">
+                  Include jobs of sub-assets
+                  <span class="fa fa-info-circle" title="Jobs are often triggered on a sub-asset rather than on the asset you are looking at. Keep this on to see everything that happened below this asset, too."></span>
+                </label>
+              </div>
+              {% endif %}
             </div>
-            {% endif %}
 
             <div class="table-responsive">
               <!-- Neither the "paginate" nor the "nav-on-click" class: both make flexmeasures.js build the table on page load, and this page builds each table itself, when its tab is first shown. -->
@@ -92,6 +103,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   const assetId = "{{ asset.id }}";
   const sensors = {{ sensors | tojson }};
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
+  // The queue to list the jobs of, or "" for all of them.
+  let jobsQueue = "";
 
   // Cells below are rendered as HTML and carry user-defined names, so escape what goes into them.
   function escapeHtml(text) {
@@ -238,7 +251,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         const sortBy = orderedColumn === "queue" ? "queue" : "enqueued_at";
         const sortDir = data.order[0].dir;
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}&sort-by=${sortBy}&sort-dir=${sortDir}`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}&sort-by=${sortBy}&sort-dir=${sortDir}${jobsQueue ? `&queue=${jobsQueue}` : ""}`,
           method: "GET",
           success: function (res) {
             if (res["redis-connection-err"]) {
@@ -305,6 +318,12 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
       // Only reload the jobs table if it has been built, which it has not while the sensor data tab is open.
+      if (jobsTable) jobsTable.ajax.reload(null, true);
+    });
+
+    $("#jobsQueueFilter").on("change", function () {
+      jobsQueue = this.value;
+      // Go back to page 1, as the current page may not exist for the chosen job type.
       if (jobsTable) jobsTable.ajax.reload(null, true);
     });
 
