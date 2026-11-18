@@ -314,3 +314,29 @@ def test_settings_can_name_hooks_in_a_comma_separated_string(app, caplog):
         assert "Cannot use critical-automation-failure hook" not in caplog.text
     finally:
         app.config["FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS"] = []
+
+
+def test_a_hook_whose_query_fails_leaves_the_session_usable(
+    app, fresh_db, forecast_automation, collected_pages
+):
+    """The caller may go on recording, such as the outcome of the run's other jobs, in the session the hook shared."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    def hook_that_looks_up_a_missing_table(failure):
+        fresh_db.session.execute(text("SELECT * FROM no_such_table"))
+
+    register_automation_failure_hook(app, hook_that_looks_up_a_missing_table)
+    try:
+        forecast_automation.critical = True
+        fresh_db.session.commit()
+        run = failed_run(fresh_db, forecast_automation)
+
+        record_automation_job_failed(run.id, "cycle-001", RuntimeError("boom"))
+
+        try:
+            fresh_db.session.execute(text("SELECT 1"))
+        except DBAPIError as exc:
+            pytest.fail(f"the hook left the session unusable: {exc}")
+    finally:
+        app.automation_failure_hooks.remove(hook_that_looks_up_a_missing_table)

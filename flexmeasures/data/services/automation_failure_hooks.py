@@ -207,6 +207,11 @@ def notify_critical_automation_failure(run: AutomationRun, stage: str) -> bool:
         except Exception as exc:
             current_app.logger.error(
                 f"[AUTOMATIONS] Critical-automation-failure hook {_hook_name(hook)}"
-                f" raised on run {run.id}: {exc!r}."
+                f" raised on run {failure.run_id}: {exc!r}."
             )
+        finally:
+            # Hooks share the caller's session, and the caller may record more after this, such as the outcome of a run's other jobs.
+            # Everything of the caller's was committed before the hooks were called, so this only discards what a hook left behind,
+            # including the aborted transaction of a hook whose query failed.
+            db.session.rollback()
     return True
