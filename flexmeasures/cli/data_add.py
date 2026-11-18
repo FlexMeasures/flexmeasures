@@ -2471,6 +2471,20 @@ def add_report(  # noqa: C901
         save_config=save_config,
         data_generator_type=Reporter,
     )
+    if reporter is None:
+        if source is not None:
+            click.secho(
+                f"No reporter can be set up from data source {source.id} ({source.description})."
+                " Pass the source of a report computed earlier, or name a reporter with --reporter instead.",
+                **MsgStyle.ERROR,
+            )
+        else:
+            click.secho(
+                f"Reporter `{reporter_class}` is not available."
+                " See `flexmeasures show reporters` for the reporters on this server.",
+                **MsgStyle.ERROR,
+            )
+        raise click.Abort()
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()

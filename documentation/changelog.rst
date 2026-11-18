@@ -12,6 +12,7 @@ v1.2.0 | December xx, 2026
 New features
 -------------
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, and with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_]
+* The ``AggregatorReporter`` saves a sum that includes a forecast as a forecast, under a ``forecaster``-type source (or one that includes a schedule as a schedule), so that, for instance, a forecast of a community's sum is not trained on the sum of its members' forecasts; a reporter can be set up again from such a source, and the sources a data generator computed under can be listed with the new ``data-generator`` filter of ``GET /api/v3_0/sources`` [see `PR #2804 <https://www.github.com/FlexMeasures/flexmeasures/pull/2804>`_]
 
 Infrastructure / Support
 -------------------------
@@ -23,6 +24,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
+* ``flexmeasures add report --source`` names the source in an error when no reporter can be set up from it, rather than crashing [see `PR #2804 <https://www.github.com/FlexMeasures/flexmeasures/pull/2804>`_]
 
 
 v1.1.1 | November 11, 2026

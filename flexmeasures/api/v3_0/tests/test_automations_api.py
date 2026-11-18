@@ -1287,3 +1287,48 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_a_report_automation_can_be_set_up_from_a_forecaster_source(
+    app, db, add_battery_assets, requesting_user
+):
+    """A sum of forecasts is saved under a forecaster-type source, which stores a reporter, so it is accepted as the source of a report automation."""
+    battery = add_battery_assets["Test battery"]
+    report_sensor = Sensor(
+        "aggregated forecast",
+        generic_asset=battery,
+        event_resolution=battery.sensors[0].event_resolution,
+        unit=battery.sensors[0].unit,
+    )
+    summed_forecasts = DataSource(
+        "FlexMeasures",
+        type="forecaster",
+        model="AggregatorReporter",
+        attributes={"data_generator": {"config": {"method": "sum"}}},
+        account_id=battery.account_id,
+    )
+    db.session.add_all([report_sensor, summed_forecasts])
+    db.session.commit()
+
+    with app.test_client() as client:
+        created = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Summed forecasts again",
+                "cron": "0 2 * * *",
+                "type": "reporting",
+                "source": summed_forecasts.id,
+                "parameters": {
+                    "input": [{"sensor": battery.sensors[0].id}],
+                    "output": [{"sensor": report_sensor.id}],
+                },
+            },
+        )
+        assert created.status_code == 201, created.json
+        assert (
+            db.session.get(Automation, created.json["id"]).generator_id
+            == summed_forecasts.id
+        )

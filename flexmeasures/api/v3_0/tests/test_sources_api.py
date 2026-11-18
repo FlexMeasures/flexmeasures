@@ -610,3 +610,67 @@ def test_an_automation_of_ones_own_makes_its_source_readable(
     assert detail.json["attributes"] == {
         "data_generator": {"config": {"model": "CustomLGBM"}}
     }
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_filtered_by_data_generator(
+    client, setup_api_test_data, requesting_user, db
+):
+    """The data generator tells which sources can set up a report, even when the report is saved under a source of another type.
+
+    It is matched case-insensitively, and names its subclasses, too, so `Reporter` lists every report.
+    """
+    forecaster = DataSource(
+        name="DataGeneratorSeita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
+    summed_forecasts = DataSource(
+        name="DataGeneratorSeita",
+        type="forecaster",
+        model="AggregatorReporter",
+        attributes={"data_generator": {"config": {"method": "sum"}}},
+    )
+    reporter = DataSource(
+        name="DataGeneratorSeita",
+        type="reporter",
+        model="PandasReporter",
+    )
+    # a script's source named after a reporter stores no data generator to set up
+    script = DataSource(
+        name="DataGeneratorSeita",
+        type="demo script",
+        model="PandasReporter",
+    )
+    # the plugin of this reporter is not installed, so only its own name finds it
+    uninstalled = DataSource(
+        name="DataGeneratorSeita",
+        type="reporter",
+        model="UninstalledReporter",
+    )
+    db.session.add_all([forecaster, summed_forecasts, reporter, script, uninstalled])
+    db.session.flush()
+
+    def ids(data_generator: str | None = None, **query):
+        if data_generator is not None:
+            query["data-generator"] = data_generator
+        response = client.get(
+            url_for("SourceAPI:index"),
+            query_string=dict(filter="DataGeneratorSeita", **query),
+        )
+        assert response.status_code == 200, response.json
+        return {source["id"] for source in response.json["sources"]}
+
+    assert ids("Reporter") == {summed_forecasts.id, reporter.id}
+    assert ids("reporter") == ids("Reporter")
+    assert ids("aggregatorreporter") == {summed_forecasts.id}
+    assert ids("Forecaster") == {forecaster.id}
+    assert ids("UninstalledReporter") == {uninstalled.id}
+    assert ids("NoSuchGenerator") == set()
+
+    # the source type alone cannot tell them apart
+    assert {forecaster.id, summed_forecasts.id} <= ids(type="forecaster")

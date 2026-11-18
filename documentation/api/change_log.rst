@@ -8,6 +8,7 @@ API change log
 v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
+- ``GET /api/v3_0/sources`` accepts ``data-generator``, listing only the sources whose data generator is of the named class or a subclass of it, matched case-insensitively, whatever their type: ``data-generator=AggregatorReporter`` lists the sums, also those saved as forecasts, and ``data-generator=Reporter`` every report.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
 
 v3.0-34 | November 05, 2026

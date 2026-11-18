@@ -224,6 +224,68 @@ anywhere on the site stops the report, even on a device outside the group — a 
 The error says so, and names the asset whose entry does not validate.
 
 
+Example: the forecast of a community, summed from its houses' forecasts
+-------------------------------------------------------------------------
+
+The ``AggregatorReporter`` saves each event under a data source whose type follows the data that went into it, per event:
+
+- if any of its inputs came from a ``forecaster``-type source, the event is a forecast, saved under a ``forecaster``-type source;
+- otherwise, if any came from a ``scheduler``-type source, it is a schedule, saved under a ``scheduler``-type source;
+- otherwise it is a report, saved under a ``reporter``-type source. Any other type of source, such as a user's or a script's, counts as a measurement.
+
+A forecaster predicts and a scheduler prescribes, while a reporter only derives, so a sum takes over the claim its inputs make: a sum that includes a forecast is a forecast.
+No configuration is needed for this. With the reporter's configuration
+
+.. code-block:: json
+
+    {
+        "method" : "sum"
+    }
+
+and parameters that read only the forecasts of each house
+
+.. code-block:: json
+
+    {
+        "input": [
+            {"sensor": 11, "source_types": ["forecaster"]},
+            {"sensor": 12, "source_types": ["forecaster"]}
+        ],
+        "output": [
+            {"sensor": 10}
+        ],
+        "start" : "2026-11-01T00:00:00+01:00",
+        "end" : "2026-11-02T00:00:00+01:00"
+    }
+
+the community's forecast on sensor 10 is saved under a source of type ``forecaster``.
+It then counts as a forecast wherever data is filtered by source type:
+the UI labels it as a forecast, a sensor reference in a flex-config with ``"source-types": ["forecaster"]`` finds it,
+and a forecast of sensor 10 is not trained on it (see :ref:`forecasting`).
+
+Summing the houses' measurements instead saves the sum as a report, as before.
+Where a house's forecast is missing for some event, the sum of that event is made of the other inputs only, so it takes their type.
+If you would rather have a report with a gap than a forecast, leave forecasts out of the inputs.
+
+.. note::
+
+   A forecast of sensor 10 leaves out forecasters only when its config has no ``"auto"`` entry saying which sources of sensor 10 to train on.
+   Such an entry replaces that default, so add ``"exclude-source-types": ["forecaster"]`` to it, if its other filters would let the community's forecast in.
+
+.. note::
+
+   Sums of forecasts saved before FlexMeasures v1.2 are under a ``reporter``-type source, so a forecast of their sensor still trains on them.
+   Delete them, for instance with ``flexmeasures delete beliefs --source <id>``, and compute them again to have them saved as forecasts.
+
+A data source's type says what its data counts as, and its data generator says what computed it, which need not be of the same kind:
+the community's forecast above is saved under a ``forecaster``-type source by an ``AggregatorReporter``.
+To list the sources a data generator computed under, whatever their type, use the ``data-generator`` filter of ``GET /api/v3_0/sources``,
+which matches the class name case-insensitively and includes its subclasses.
+For instance, ``data-generator=AggregatorReporter`` lists only the sums, and ``data-generator=Reporter`` every report.
+A reporter can also be set up again from such a source, for instance with ``flexmeasures add report --source <id>``,
+while the forecasting CLI, API and automations refuse it.
+
+
 Example: Profits & losses
 ---------------------------
 

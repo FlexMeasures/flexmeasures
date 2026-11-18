@@ -19,8 +19,11 @@ from flexmeasures.data.models.data_sources import (
     DataSource,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.data_sources import get_data_generator
 
 
 def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
@@ -954,3 +957,75 @@ def test_get_data_source_finds_the_source_of_the_organisation_it_is_asked_about(
         data_source_version="1",
     )
     assert hosts_own.account_id is None
+
+
+def _aggregator_source(db, type: str, config: dict, name: str) -> DataSource:
+    """A source of the given type, made by an AggregatorReporter with the given config."""
+    source = DataSource(
+        name,
+        type=type,
+        model="AggregatorReporter",
+        attributes={"data_generator": {"config": config}},
+    )
+    db.session.add(source)
+    db.session.flush()
+    return source
+
+
+def test_a_reporter_saving_under_the_forecaster_type_is_found_from_its_source(db, app):
+    """A source of another type than its generator's own kind is looked for among the other kinds of data generator.
+
+    A sum of forecasts is saved under a forecaster-type source (see `AggregatorReporter.source_type`), so its reporter has to be found from it.
+    """
+    source = _aggregator_source(
+        db, "forecaster", {"method": "sum"}, "forecaster-typed aggregator"
+    )
+
+    generator = source.data_generator
+
+    assert isinstance(generator, AggregatorReporter)
+    assert generator.data_source is source
+
+
+def test_a_model_registered_as_two_other_kinds_of_data_generator_is_ambiguous(
+    db, app, monkeypatch
+):
+    """With the model registered as two kinds other than the source's own, which one made the data cannot be told, so the error names them."""
+    monkeypatch.setitem(
+        app.data_generators["scheduler"], "AggregatorReporter", AggregatorReporter
+    )
+    source = _aggregator_source(
+        db, "forecaster", {"method": "sum"}, "ambiguous aggregator"
+    )
+
+    with pytest.raises(NotImplementedError, match="reporter, scheduler"):
+        source.data_generator
+
+
+def test_a_forecaster_typed_reporter_source_serves_reporters_only(db, app):
+    """The source stores a reporter, whatever its type, so it is accepted as one and refused as a forecaster."""
+    source = _aggregator_source(
+        db,
+        "forecaster",
+        {"method": "sum"},
+        "forecaster-typed aggregator for lookup",
+    )
+
+    as_reporter = get_data_generator(
+        source=source,
+        model="AggregatorReporter",
+        config={},
+        save_config=True,
+        data_generator_type=Reporter,
+    )
+    as_forecaster = get_data_generator(
+        source=source,
+        model="AggregatorReporter",
+        config={},
+        save_config=True,
+        data_generator_type=Forecaster,
+    )
+
+    assert isinstance(as_reporter, AggregatorReporter)
+    assert as_reporter.data_source is source
+    assert as_forecaster is None

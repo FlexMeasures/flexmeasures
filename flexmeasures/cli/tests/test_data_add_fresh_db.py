@@ -1348,6 +1348,33 @@ def test_add_report_dry_run_saves_no_beliefs(
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
 
 
+def test_add_report_refuses_a_source_that_stores_no_reporter(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A source no reporter can be set up from is named in an error, rather than crashing the command, and nothing is saved."""
+    from flexmeasures.cli.data_add import add_report
+    from flexmeasures.data.models.data_sources import DataSource
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    script = DataSource("a script, not a reporter", type="demo script")
+    fresh_db.session.add(script)
+    fresh_db.session.commit()
+    cli_input = _report_cli_input(
+        tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+    )
+    del cli_input["reporter"]
+    del cli_input["config"]
+    cli_input["source"] = script.id
+    beliefs_before = _count_beliefs(fresh_db, report_sensor_id)
+
+    result = app.test_cli_runner().invoke(add_report, to_flags(cli_input))
+
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, AttributeError), result.exception
+    assert f"No reporter can be set up from data source {script.id}" in result.output
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before
+
+
 def test_add_report_rejects_dry_run_as_job(app, setup_dummy_data_fresh_db):
     """A dry run cannot be queued, because its results would never reach the user."""
     from flexmeasures.cli.data_add import add_report
