@@ -1253,6 +1253,23 @@ def test_asset_sequential_schedule_without_fallback_fails_terminally(
         )
         assert "InfeasibleProblemException" in message_to_client
 
+        # Asking for the schedule of the device that was never scheduled gives the same reason,
+        # without naming a scheduler, as none ran for it
+        wrapup_job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        never_scheduled_job_id = wrapup_job.args[0][1]
+        get_schedule_response = client.get(
+            url_for(
+                "SensorAPI:get_schedule",
+                id=feasible_sensor.id,
+                uuid=never_scheduled_job_id,
+            )
+        )
+        print("Server responded with:\n%s" % get_schedule_response.json)
+        assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
+        schedule_message = get_schedule_response.json["message"]
+        assert f"sensor {infeasible_sensor.id}" in schedule_message
+        assert "was used" not in schedule_message
+
         # No job is left waiting on a chain that will never complete
         assert deferred_jobs_of_this_chain.isdisjoint(deferred_registry.get_job_ids())
 

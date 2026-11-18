@@ -1366,7 +1366,12 @@ class SensorAPI(FlaskView):
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
-        scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
+        # A job that never ran, such as one failed because a job earlier in its chain failed, used no scheduler to name
+        scheduler_info_msg = (
+            f"{scheduler_info['scheduler']} was used."
+            if scheduler_info["scheduler"]
+            else ""
+        )
 
         if job.is_finished:
             message = "A scheduling job has been processed with your job ID"
