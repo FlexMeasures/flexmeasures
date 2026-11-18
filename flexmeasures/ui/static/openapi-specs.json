@@ -4295,7 +4295,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n\nPass `queue` to only list the jobs of one queue: `forecasting`, `scheduling` or `reporting`.\nOn a paginated response, `num-records` still counts all jobs, and `filtered-records` counts the jobs of that queue.\n",
+        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\nEach job also says in `can_rerun` whether you may re-run it now with [POST /api/v3_0/jobs/<uuid>/rerun](#/Jobs/post_api_v3_0_jobs__uuid__rerun), which requires it to have failed.\n\nPass `queue` to only list the jobs of one queue: `forecasting`, `scheduling` or `reporting`.\nOn a paginated response, `num-records` still counts all jobs, and `filtered-records` counts the jobs of that queue.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4402,7 +4402,8 @@
                           "err": null,
                           "enqueued_at": "2023-10-01T00:00:00",
                           "created_via": "API",
-                          "metadata_hash": "abc123"
+                          "metadata_hash": "abc123",
+                          "can_rerun": false
                         }
                       ],
                       "redis-connection-err": null
@@ -5560,6 +5561,73 @@
           },
           "429": {
             "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/api/v3_0/jobs/{uuid}/rerun": {
+      "post": {
+        "summary": "Re-run a failed background job",
+        "description": "Queue a failed forecasting, scheduling or reporting job again.\n\nThe job keeps its UUID, so it stays listed under its assets and sensors,\nand the jobs waiting on it stay attached.\nIt runs with the same parameters as before.\n\nOnly failed jobs can be re-run.\nThe permission needed follows the type of job, as when triggering one:\n<code>trigger-schedules</code> for a schedule, <code>trigger-forecasts</code> on the sensor for a forecast,\nand <code>trigger-reports</code> on the asset of each output sensor for a report.\nA report also needs read access to its input sensors, and the right to record data on its output sensors.\n\nRe-running a job counts against the trigger rate limit.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the failed background job.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The job was queued again.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "requeued": {
+                    "summary": "Job queued again",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "message": "Job b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b has been queued again.",
+                      "job": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                      "job-url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "409": {
+            "description": "The job has not failed, so it cannot be re-run."
+          },
+          "422": {
+            "description": "The job cannot be re-run from the API, for example because it names no asset or sensor."
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [

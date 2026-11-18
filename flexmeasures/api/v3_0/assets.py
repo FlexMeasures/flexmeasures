@@ -2188,6 +2188,7 @@ class AssetAPI(FlaskView):
             Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
             Only the assets below it which you may read are included.
             Each job names the asset it happened on, in `asset_id` and `asset_name`.
+            Each job also says in `can_rerun` whether you may re-run it now with [POST /api/v3_0/jobs/<uuid>/rerun](#/Jobs/post_api_v3_0_jobs__uuid__rerun), which requires it to have failed.
 
             Pass `queue` to only list the jobs of one queue: `forecasting`, `scheduling` or `reporting`.
             On a paginated response, `num-records` still counts all jobs, and `filtered-records` counts the jobs of that queue.
@@ -2262,6 +2263,7 @@ class AssetAPI(FlaskView):
                             enqueued_at: "2023-10-01T00:00:00"
                             created_via: API
                             metadata_hash: abc123
+                            can_rerun: false
                         redis-connection-err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
