@@ -310,8 +310,14 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
             )
         )
 
-        # Convert to desired time range
-        index = initialize_index(start=start, end=end, resolution=resolution)
+        # Convert to desired time range.
+        # Lay out the grid in the sensor's timezone rather than in the request's UTC offset,
+        # so that steps of a day or more follow the sensor's calendar across DST changes.
+        index = initialize_index(
+            start=pd.Timestamp(start).tz_convert(sensor.timezone),
+            end=pd.Timestamp(end).tz_convert(sensor.timezone),
+            resolution=resolution,
+        )
         df = df.reindex(index)
 
         # Convert to desired unit
