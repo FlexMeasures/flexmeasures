@@ -9,6 +9,7 @@ v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
+- ``GET /api/v3_0/assets/<id>/jobs`` accepts ``queue``, to list only the jobs of one queue: ``forecasting``, ``scheduling`` or ``reporting``. On a paginated response, ``num-records`` still counts all jobs, and ``filtered-records`` counts the jobs of that queue.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
