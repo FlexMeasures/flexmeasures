@@ -12,7 +12,7 @@ Let's take a look at how FlexMeasures users can access information from these se
 
 If you want to learn more about the actual algorithms used in the background, head over to :ref:`scheduling` and :ref:`forecasting`.
 
-.. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin-customization`.
+.. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin_customization`.
 
 
 Maintaining the queues
@@ -51,7 +51,7 @@ When forecasts and schedules have been generated, they should be visible at ``ht
 .. _how_queue_forecasting:
 
 How forecasting jobs are queued
-------------------
+-------------------------------
 
 A forecasting job is an order to create forecasts based on measurements.
 A job can be about forecasting one point in time or about forecasting a range of points.
@@ -140,7 +140,7 @@ There are two ways to queue a forecasting job:
 .. _how_queue_scheduling:
 
 How scheduling jobs are queued
-------------------
+------------------------------
 
 In FlexMeasures, a scheduling job is an order to plan optimised actions for flexible devices.
 It usually involves a linear program that combines a state of energy flexibility with forecasted data to draw up a consumption or production plan ahead of time.
@@ -261,7 +261,7 @@ If you don't specify ``--resolution``:
 .. _getting_prognoses:
 
 Getting power forecasts (prognoses)
------------------
+-----------------------------------
 
 Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to determine the best control signals to valorise on balancing opportunities.
 
@@ -292,7 +292,7 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 .. _getting_schedules:
 
 Getting schedules (control signals)
------------------------
+-----------------------------------
 
 After FlexMeasures creates an optimised schedule with control signals for flexible devices, you can access it via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-id-schedules-uuid>`_ endpoint. The URL then looks like this:
 

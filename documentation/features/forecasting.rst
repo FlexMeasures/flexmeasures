@@ -26,7 +26,7 @@ At the same time, the design we implemented in FlexMeasures is inspired by **rol
 This is controlled by the ``forecast-frequency`` parameter, which specifies how often predictions are generated during the forecast period.
 
 How a forecasting cycle works
--------------
+-----------------------------
 
 A single forecasting cycle consists of the following steps:
 
@@ -171,6 +171,7 @@ Here are more details:
   Training and prediction can then be repeated in **cycles** until a user-specified end date is reached.  
   This cycle-based design is inspired by rolling forecasts while keeping a fixed viewpoint.  
   The ``forecast-frequency`` parameter controls how often predictions are generated during the forecast period.
+
 A use case: automating solar production prediction
 -----------------------------------------------------
 

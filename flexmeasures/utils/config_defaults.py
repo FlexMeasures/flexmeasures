@@ -85,7 +85,7 @@ class Config(object):
         True  # False if you want to skip validation for testing
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
-    # Flask-Security's default as of 5.9, set here for 5.8, which Python 3.10 still gets, and which also allows GET.
+    # Explicitly require POST for logout.
     SECURITY_LOGOUT_METHODS = ["POST"]
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
@@ -125,6 +125,10 @@ class Config(object):
         []
     )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
+    # How long an automation run may execute before `flexmeasures monitor automations` reports it as stuck.
+    FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER: timedelta = timedelta(hours=6)
+    # Where this server is reached on the web, e.g. "https://ems.example.com", for links in emails sent outside of a request, such as monitoring digests.
+    FLEXMEASURES_BASE_URL: str | None = None
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""

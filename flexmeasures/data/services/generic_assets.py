@@ -1,12 +1,14 @@
 from typing import Any
 
 from flask import current_app
+from marshmallow import ValidationError
 from sqlalchemy import delete
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.annotations import (
     GenericAssetAnnotationRelationship,
@@ -18,8 +20,45 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.services.group_membership_audit import (
     note_deletion as note_group_membership_deletion,
 )
+from flexmeasures.auth.policy import check_access
 
 """Services for managing assets"""
+
+
+def _validate_kpi_sensors_for_access(kpis: Any, permission: str) -> None:
+    """Validate KPI entries and check access to each referenced sensor."""
+    if not isinstance(kpis, list):
+        raise ValidationError(
+            "sensors_to_show_as_kpis must be a list.",
+            field_name="sensors_to_show_as_kpis",
+        )
+    for kpi in kpis:
+        if (
+            not isinstance(kpi, dict)
+            or not isinstance(kpi.get("title"), str)
+            or type(kpi.get("sensor")) is not int
+            or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+        ):
+            raise ValidationError(
+                "Invalid sensors_to_show_as_kpis entry.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        sensor = db.session.get(Sensor, kpi["sensor"])
+        if sensor is None:
+            raise ValidationError(
+                f"Sensor {kpi['sensor']} in sensors_to_show_as_kpis does not exist.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        check_access(sensor, permission)
+
+
+def _validate_updated_kpi_sensors(db_asset: GenericAsset, asset_data: dict) -> None:
+    """Validate changed KPI references before patching the asset."""
+    if (
+        "sensors_to_show_as_kpis" in asset_data
+        and asset_data["sensors_to_show_as_kpis"] != db_asset.sensors_to_show_as_kpis
+    ):
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
 
 
 def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
@@ -75,8 +114,6 @@ def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
     """
     from werkzeug.exceptions import Forbidden, Unauthorized
 
-    from flexmeasures.auth.policy import check_access
-
     readable = []
     for descendant in asset.offspring:
         try:
@@ -91,9 +128,12 @@ def create_asset(asset_data: dict) -> GenericAsset:
     """
     Create an asset.
 
-    Does not validate data or commit the session.
+    Validates KPI sensor references, but assumes other data was validated by the caller.
+    Does not commit the session.
     Creates an audit log.
     """
+    if "sensors_to_show_as_kpis" in asset_data:
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
     if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
         asset_data.pop("external_id")  # nothing to set, leave it as None
     asset = GenericAsset(**asset_data)
@@ -624,6 +664,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     Creates an audit log.
     """
     audit_log_data = list()
+    _validate_updated_kpi_sensors(db_asset, asset_data)
 
     # first special content
     schema_map = dict(

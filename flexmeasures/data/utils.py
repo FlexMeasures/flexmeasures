@@ -101,6 +101,7 @@ def database_schema_has_revision(app, required_revision: str) -> bool:
 
     Reuses the revision status cached on `app` by `register_at()`,
     avoiding a second database round trip during startup.
+    That status is the one found when the app was created, so a long-running process does not see a `flexmeasures db upgrade` run after it started.
     """
     revision_status = getattr(app, "database_schema_revision_status", None)
     if revision_status is None:

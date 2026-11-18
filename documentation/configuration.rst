@@ -207,7 +207,7 @@ Default ``[]``
 .. _menu-config:
 
 FLEXMEASURES_MENU_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of the view names which are listed in the menu.
 
@@ -221,7 +221,7 @@ Default: ``["dashboard"]``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_ICONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a Font Awesome icon name for each view name listed in the menu.
 For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
@@ -232,7 +232,7 @@ Default: ``{}``
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_TITLES
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a string title for each view name listed in the menu.
 For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
@@ -419,6 +419,12 @@ Solver options passed to the scheduling solver, overriding the defaults FlexMeas
 
 HiGHS writes its log straight to the console, bypassing FlexMeasures' logging, so FlexMeasures switches it off (``output_flag``) unless ``LOGGING_LEVEL`` is ``DEBUG``.
 Set ``output_flag`` here to override that either way.
+
+Under ``appsi_highs`` (and Pyomo's other appsi solvers), FlexMeasures likewise shows the solver's output on stdout without passing it through its log handlers,
+because Pyomo captures that output and log handlers writing to the console would feed it back into the capture, which can hang a worker.
+One difference: ``appsi_highs`` applies the options only after HiGHS has printed its banner, so ``output_flag`` cannot suppress the banner there.
+Bypassing the log handlers also means the solver's output no longer reaches FlexMeasures' log file.
+To keep a HiGHS log in a file, set HiGHS' own ``log_file`` option here, together with ``"output_flag": "true"`` unless ``LOGGING_LEVEL`` is ``DEBUG``, since HiGHS writes nothing to that file while ``output_flag`` is off.
 
 When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
 
@@ -685,10 +691,15 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 Default: ``True``
 
 
+.. _force_https:
+
 FLEXMEASURES_FORCE_HTTPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Set to ``True`` if all requests should be forced to be HTTPS.
+FlexMeasures then redirects requests made via ``http://`` to ``https://``, unless the app runs in debug mode or the request carries ``X-Forwarded-Proto: https``, as a reverse proxy that handles HTTPS sets it.
+The redirect comes from Flask-SSLify, so its own settings, such as ``SSLIFY_SKIPS`` for paths that should not be redirected, apply as well.
+FlexMeasures reads this setting from the config file only, not from an environment variable.
 
 Default: ``False``
 
@@ -867,9 +878,32 @@ Default: ``None``
 FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run``, ``flexmeasures monitor last-seen`` and ``flexmeasures monitor automations`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+
+.. _monitor_automations_stuck_after:
+
+FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long an automation run may execute before ``flexmeasures monitor automations`` reports it as stuck, for instance because the worker running its job died.
+Its ``--stuck-after-minutes`` option overrides this setting.
+
+Default: ``timedelta(hours=6)``
+
+.. _base_url:
+
+FLEXMEASURES_BASE_URL
+^^^^^^^^^^^^^^^^^^^^^
+
+Where this server is reached on the web, for instance ``"https://ems.example.com"``.
+Emails sent from the CLI, outside of any request, use it to link to the web pages they are about.
+For instance, the digest of ``flexmeasures monitor automations`` links each failing automation to the Automations page of its asset.
+Without it, these emails carry no links.
+
+Default: ``None``
 
 
 .. _redis-config:
@@ -1099,7 +1133,7 @@ Reporters
 ---------
 
 FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type: list of strings or comma-separated string
 

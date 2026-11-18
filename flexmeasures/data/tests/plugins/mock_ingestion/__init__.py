@@ -1,4 +1,7 @@
-"""A deterministic ingestion plugin for exercising automation execution."""
+"""A deterministic ingestion plugin for exercising automation execution.
+
+The plugin documentation shows this module in full as its example of an automation type, so keep it readable.
+"""
 
 from flask import Blueprint
 from marshmallow import Schema, fields

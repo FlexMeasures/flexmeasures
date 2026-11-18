@@ -107,7 +107,7 @@ See `.github/instructions/README.md` for the current file list.
 - Key invariants: acyclic asset trees, non-null flex_context, timezone-aware datetimes
 - Architectural layers: API (v3_0), CLI, Data Services, Models
 - Common pitfalls: N+1 queries, DST bugs, unit mismatches, serialization issues
-- CI/CD: GitHub Actions, Python 3.10-3.12 matrix, PostgreSQL 17.4
+- CI/CD: GitHub Actions, Python 3.11-3.12 matrix, PostgreSQL 17.4
 - Code quality: flake8, black, mypy via pre-commit hooks
 
 ### Schema parity across duplicated Marshmallow schemas

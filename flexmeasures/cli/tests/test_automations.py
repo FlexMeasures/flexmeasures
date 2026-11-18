@@ -1869,6 +1869,58 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
+def test_a_failed_report_run_is_reported_by_monitoring(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A report run whose job failed on the worker shows up in the host's monitoring digest, with the job's error."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.cli.monitor import monitor_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+
+    mocker.patch.object(
+        PandasReporter, "compute", side_effect=KeyError("df_agg is missing")
+    )
+    work_on_rq(app.queues["reporting"])
+
+    with app.mail.record_messages() as outbox:
+        result = runner.invoke(monitor_automations, ["--recipient", "ops@example.test"])
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    body = outbox[0].body
+    assert f"Automation {automation.id} '{automation.name}' (reporting)" in body
+    assert "failed once (execution failed: 1)" in body
+    assert "last error: KeyError: 'df_agg is missing'" in body
+
+
 def _two_output_report_automation_cli_input(
     tmp_path,
     sensor1_id,
@@ -1991,10 +2043,20 @@ def test_run_report_automation_with_two_outputs_saves_both(
     )
     assert (stored_sub.values.T == [0, 0, 0, 0, 0]).all()
 
-    assert job.return_value() == [
-        {"sensor_id": report_sensor_id, "n_rows": 5},
-        {"sensor_id": report_sensor_2_id, "n_rows": 5},
-    ]
+    assert job.return_value() == {
+        "outputs": [
+            {
+                "sensor": report_sensor_id,
+                "num-computed-beliefs": 5,
+                "num-recorded-beliefs": 5,
+            },
+            {
+                "sensor": report_sensor_2_id,
+                "num-computed-beliefs": 5,
+                "num-recorded-beliefs": 5,
+            },
+        ]
+    }
 
     import pandas as pd
 
@@ -2160,7 +2222,7 @@ def test_none_permitted_output_set_disables_output_guard(
         StubReporter(), {}, permitted_output_sensor_ids=None
     )
     save.assert_called_once()
-    assert saved == [{"sensor_id": sensor1_id, "n_rows": 0}]
+    assert saved == [{"sensor_id": sensor1_id, "n_computed": 0, "n_rows": 0}]
 
 
 def test_report_job_persistence_failure_rolls_back_all_outputs(
@@ -2249,7 +2311,7 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import run_report_job
 
-    report_sensor_id = setup_dummy_data_fresh_db[2]
+    *_, report_sensor_id, report_sensor_2_id = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     runner = app.test_cli_runner()
     freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
@@ -2266,13 +2328,24 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     )
 
     first = run_report_job(**job.kwargs)
-    assert all(result["n_rows"] > 0 for result in first), first
+    assert first == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 5}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
 
     info = mocker.spy(app.logger, "info")
     warning = mocker.spy(app.logger, "warning")
     second = run_report_job(**job.kwargs)
 
-    assert [result["n_rows"] for result in second] == [0] * len(first)
+    # The rerun computed as much as the first run did, which tells it apart from a run that computed nothing.
+    assert second == {
+        "outputs": [
+            {"sensor": sensor_id, "num-computed-beliefs": 5, "num-recorded-beliefs": 0}
+            for sensor_id in (report_sensor_id, report_sensor_2_id)
+        ]
+    }
     assert any(
         "already on record" in call.args[0] for call in info.call_args_list
     ), info.call_args_list
@@ -2319,7 +2392,7 @@ def test_a_report_is_saved_but_left_for_its_caller_to_commit(
 
     beliefs_before = count_beliefs()
     _, saved = compute_and_save_report(StubReporter(), {})
-    assert saved == [{"sensor_id": sensor.id, "n_rows": 3}]
+    assert saved == [{"sensor_id": sensor.id, "n_computed": 3, "n_rows": 3}]
     assert count_beliefs() == beliefs_before + 3, "the results are staged"
 
     # A caller that decides against its transaction takes the report down with it.
