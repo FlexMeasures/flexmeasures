@@ -488,9 +488,12 @@ def mark_automation_run_dispatch_failed(
     run.claim_expires_at = _now_utc() + _retry_delay(run.attempt_count)
     _finish_attempt(attempt, run.dispatch_state, queued_count, error)
     db.session.commit()
-    if run.attempt_count >= AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS:
-        # No runner will pick this occurrence up again (see the attempt-count filters in
-        # `_claim_due_run`), so this is the moment FlexMeasures gives up on dispatching it.
+    if (
+        run.automation_type not in AUTOMATION_RUN_RETRIED_TYPES
+        or run.attempt_count >= AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
+    ):
+        # No runner will pick this occurrence up again, so this is the moment FlexMeasures gives up on dispatching it:
+        # only forecasts and schedules are dispatched again, and only while they have attempts left (see `get_dispatchable_automation_runs`).
         from flexmeasures.data.services.automation_failure_hooks import (
             notify_critical_automation_failure,
         )

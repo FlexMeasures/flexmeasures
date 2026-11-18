@@ -238,6 +238,26 @@ def test_dispatch_pages_only_once_the_attempts_are_spent(
     assert collected_pages[0].error_type == "ValueError"
 
 
+@pytest.mark.parametrize("automation_type", ["reporting", "my-plugin-type"])
+def test_dispatch_pages_at_once_for_a_type_that_is_not_dispatched_again(
+    fresh_db, forecast_automation, collected_pages, automation_type
+):
+    """Reports and plugin types are not dispatched again, so their first failed dispatch is already the last one."""
+    forecast_automation.critical = True
+    fresh_db.session.commit()
+    run = failed_run(fresh_db, forecast_automation, execution_state="pending")
+    run.automation_type = automation_type
+    fresh_db.session.commit()
+
+    mark_automation_run_dispatch_failed(
+        run.id, None, ValueError("No sensor found with ID 999.")
+    )
+
+    assert len(collected_pages) == 1
+    assert collected_pages[0].stage == "dispatch"
+    assert collected_pages[0].attempt_count == 1
+
+
 def test_a_hook_that_raises_does_not_break_the_record_of_the_failure(
     app, fresh_db, forecast_automation, collected_pages
 ):
