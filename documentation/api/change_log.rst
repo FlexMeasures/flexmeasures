@@ -9,6 +9,7 @@ v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
+- Fixed: when a sequential schedule (triggered with ``"sequential": true`` on `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST)) cannot schedule one of its devices, and the scheduler defines no fallback scheduler, the job whose id was returned now reaches a terminal failed state, rather than staying deferred indefinitely. ``GET /api/v3_0/jobs/<uuid>`` answers such a job with ``422 Unprocessable Entity``, a ``FAILED`` status and a ``message`` naming the device that could not be scheduled, the devices that were consequently not scheduled either, and the devices that were scheduled before it; ``GET /sensors/<id>/schedules/<uuid>`` answers with ``UNKNOWN_SCHEDULE`` and the same reason.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
@@ -65,7 +66,6 @@ v3.0-34 | November 05, 2026
 v3.0-33 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
-- Fixed: when a sequential schedule (triggered with ``"sequential": true`` on `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST)) cannot schedule one of its devices, and the scheduler defines no fallback scheduler, the job whose id was returned now reaches a terminal failed state, rather than staying deferred indefinitely. ``GET /api/v3_0/jobs/<uuid>`` answers such a job with ``422 Unprocessable Entity``, a ``FAILED`` status and a ``message`` naming the device that could not be scheduled (and the devices that were consequently not scheduled either); ``GET /sensors/<id>/schedules/<uuid>`` answers with ``UNKNOWN_SCHEDULE`` and the same reason.
 
 v3.0-32 | August 11, 2026
 """""""""""""""""""""""""
