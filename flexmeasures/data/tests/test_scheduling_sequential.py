@@ -410,9 +410,56 @@ def test_create_sequential_jobs_without_fallback(
         f"no schedule was computed for sensor {sensors['Test Battery'].id} (Test Battery - power)"
         in reason
     )
+    # No device was scheduled, so none is said to be
+    assert "Schedules were computed" not in reason
 
     # No job is left waiting on a chain that will never complete
     assert queue.deferred_job_registry.get_job_ids() == []
+
+
+def test_create_sequential_jobs_names_the_devices_that_were_scheduled(
+    db, app, flex_description_sequential, smart_building
+):
+    """Test that a chain failing part-way tells which devices were scheduled before it failed.
+
+    The first device is scheduled, and the last one is infeasible.
+    A client polling the wrap-up job should learn that the first device's schedule is there to use.
+    """
+    assets, sensors, _ = smart_building
+    queue = app.queues["scheduling"]
+
+    flex_description_sequential["start"] = pd.Timestamp("2015-01-03").tz_localize(
+        "Europe/Amsterdam"
+    )
+    flex_description_sequential["end"] = pd.Timestamp("2015-01-04").tz_localize(
+        "Europe/Amsterdam"
+    )
+
+    with patch(
+        "flexmeasures.data.models.planning.storage.StorageScheduler.compute",
+        side_effect=iter([[], InfeasibleProblemException(), []]),
+    ):
+        wrapup_job = create_sequential_scheduling_job(
+            asset=assets["Test Site"],
+            scheduler_specs={
+                "module": "flexmeasures.data.models.planning.storage",
+                "class": "StorageScheduler",
+            },
+            enqueue=True,
+            force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+            **flex_description_sequential,
+        )
+        work_on_rq(queue, exc_handler=handle_scheduling_exception)
+
+    reason = failed_job_reason(Job.fetch(wrapup_job.id, connection=queue.connection))
+    assert (
+        f"Sequential scheduling failed for sensor {sensors['Test Battery'].id} (Test Battery - power)"
+        in reason
+    )
+    assert (
+        f"Schedules were computed for sensor {sensors['Test EV'].id} (Test EV - power)."
+        in reason
+    )
 
 
 def test_create_sequential_jobs_with_sign_explicit_context(

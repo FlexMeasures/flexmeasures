@@ -506,9 +506,10 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     :raises UpstreamSchedulingFailure:  When any of the subjobs did not produce a schedule.
     """
     connection = current_app.queues["scheduling"].connection
-    failed_devices, skipped_devices = [], []
+    failed_devices, skipped_devices, succeeded_job_ids = [], [], []
     for job_id in jobs_ids:
         if _scheduling_job_succeeded(job_id, connection):
+            succeeded_job_ids.append(job_id)
             continue
         try:
             job = Job.fetch(job_id, connection=connection)
@@ -539,6 +540,17 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     if skipped_devices:
         complaints.append(
             f"As a result, no schedule was computed for {', '.join(skipped_devices)}."
+        )
+    # Tell the client which schedules it can use all the same
+    scheduled_devices = [
+        _describe_scheduled_device(
+            Job.fetch(job_id, connection=connection).meta.get("asset_or_sensor")
+        )
+        for job_id in succeeded_job_ids
+    ]
+    if scheduled_devices:
+        complaints.append(
+            f"Schedules were computed for {', '.join(scheduled_devices)}."
         )
     raise UpstreamSchedulingFailure(" ".join(complaints))
 
