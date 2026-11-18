@@ -336,8 +336,9 @@ def _fail_deferred_job(job: Job, reason: str) -> None:
     :param reason:  Why the schedule could not be computed, naming the device that failed to be scheduled.
     """
     queue = current_app.queues["scheduling"]
-    job.meta["exception"] = UpstreamSchedulingFailure(reason)
-    job.save_meta()
+    store_job_exception(
+        job, UpstreamSchedulingFailure, UpstreamSchedulingFailure(reason)
+    )
     job.set_status(JobStatus.FAILED)
     queue.deferred_job_registry.remove(job)
     queue.failed_job_registry.add(job, ttl=job.failure_ttl, exc_string=reason)
@@ -511,7 +512,7 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
             )
             continue
         device = _describe_scheduled_device(job.meta.get("asset_or_sensor"))
-        if isinstance(job.meta.get("exception"), UpstreamSchedulingFailure):
+        if _failed_upstream(job):
             # This device was never scheduled, because a device earlier in the chain failed.
             skipped_devices.append(device)
         else:
@@ -534,6 +535,18 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
             f"As a result, no schedule was computed for {', '.join(skipped_devices)}."
         )
     raise UpstreamSchedulingFailure(" ".join(complaints))
+
+
+def _failed_upstream(job: Job) -> bool:
+    """Tell whether a scheduling job was failed without running, because a job earlier in its chain failed (see `_fail_deferred_job`).
+
+    The failure is recognised by the type in its summary (see `store_job_exception`), as a job's meta holds no exception objects.
+    """
+    exception = job.meta.get("exception")
+    return (
+        isinstance(exception, dict)
+        and exception.get("type") == UpstreamSchedulingFailure.__name__
+    )
 
 
 def _scheduling_job_succeeded(job_id: str, connection) -> bool:

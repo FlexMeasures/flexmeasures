@@ -390,12 +390,26 @@ def test_create_sequential_jobs_without_fallback(
     assert battery_job.id in failed_jobs
     assert battery_job.get_status() == "failed"
 
+    # Its failure is stored as a plain summary, like any other failure, rather than as an exception object
+    battery_job.refresh()
+    battery_failure = battery_job.meta["exception"]
+    assert battery_failure["type"] == "UpstreamSchedulingFailure"
+    assert (
+        f"sensor {sensors['Test EV'].id} (Test EV - power)"
+        in battery_failure["message"]
+    )
+
     # The wrap-up job ran, and failed while naming the device that could not be scheduled
     assert wrapup_job.id in failed_jobs
     assert wrapup_job.get_status() == "failed"
     reason = failed_job_reason(Job.fetch(wrapup_job.id, connection=queue.connection))
     assert f"sensor {sensors['Test EV'].id} (Test EV - power)" in reason
     assert "InfeasibleProblemException" in reason
+    # The battery is reported as never scheduled, rather than as a device that failed by itself
+    assert (
+        f"no schedule was computed for sensor {sensors['Test Battery'].id} (Test Battery - power)"
+        in reason
+    )
 
     # No job is left waiting on a chain that will never complete
     assert queue.deferred_job_registry.get_job_ids() == []
