@@ -673,14 +673,14 @@ def test_build_asset_jobs_data_reports_current_status(
     app.job_map.add(asset.id, job.id, "scheduling", "asset")
 
     assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.QUEUED
-    page, total_jobs = build_asset_jobs_data(asset, page=1)
+    page, total_jobs, filtered_jobs = build_asset_jobs_data(asset, page=1)
     assert page[0]["status"] == JobStatus.QUEUED
-    assert total_jobs == 1
+    assert total_jobs == filtered_jobs == 1
 
     job.set_status(JobStatus.FAILED)
 
     assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.FAILED
-    page, _ = build_asset_jobs_data(asset, page=1)
+    page, _, _ = build_asset_jobs_data(asset, page=1)
     assert page[0]["job_id"] == job.id
     assert page[0]["status"] == JobStatus.FAILED
 
