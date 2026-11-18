@@ -192,8 +192,8 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
     and the scheduler that failed defines a fallback scheduler.
 
     Schedulers are not required to define a fallback, though. Without one, the failure is cascaded to the jobs that depend on the failed job,
-    so that a client polling one of them (such as the wrap-up job of a sequential schedule, whose id is what the trigger endpoint returns)
-    reaches a terminal state with a reason, rather than waiting on a job that stays deferred forever.
+    so that a client polling one of them reaches a terminal state with a reason, rather than waiting on a job that stays deferred forever.
+    One such job is the wrap-up job of a sequential schedule, whose id is what the trigger endpoint returns.
     """
 
     store_job_exception(job, type, value)
@@ -258,8 +258,7 @@ def _trigger_fallback_job(job) -> bool:
     else:
         scheduler_class: Type[Scheduler] = find_scheduler_class(asset_or_sensor)
 
-    # only schedule a fallback schedule job if the original job has a fallback
-    # mechanism
+    # Only schedule a fallback schedule job if the original job has a fallback mechanism
     if scheduler_class.fallback_scheduler_class is None:
         return False
 
@@ -803,8 +802,8 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
     job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset)
-    # This job should also run when a subjob failed, so it can report which devices could not be scheduled
-    # (see _cascade_failure_to_dependents), instead of staying deferred forever.
+    # This job should also run when a subjob failed (see _cascade_failure_to_dependents),
+    # so it can report which devices could not be scheduled, instead of staying deferred forever.
     job.meta[RUNS_ON_CHAIN_FAILURE] = True
     if trigger:
         job.meta["trigger"] = trigger
