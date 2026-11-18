@@ -142,6 +142,10 @@ class Config(object):
         []
     )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
+    # How long an automation run may execute before `flexmeasures monitor automations` reports it as stuck.
+    FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER: timedelta = timedelta(hours=6)
+    # Where this server is reached on the web, e.g. "https://ems.example.com", for links in emails sent outside of a request, such as monitoring digests.
+    FLEXMEASURES_BASE_URL: str | None = None
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""

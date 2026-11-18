@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, and with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_]
 
 Infrastructure / Support
 -------------------------
@@ -21,6 +22,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 
 
 v1.1.1 | November 11, 2026
