@@ -201,19 +201,26 @@ def get_or_create_annotation(
     """Add annotation to db session if it doesn't exist in the session already.
 
     Return tuple of (annotation object, is_new boolean).
-    Match the database identity (content, start, belief time, source, type).
+    With an explicit belief time, match the database identity and update end.
+    Without one, also match end to preserve distinct legacy spans.
     If annotation exists, update its end and return (existing_annotation, False).
     If annotation is new, return (new_annotation, True).
     """
     with db.session.no_autoflush:
+        filters = [
+            Annotation.content == annotation.content,
+            Annotation.start == annotation.start,
+            Annotation.belief_time == annotation.belief_time,
+            Annotation.source == annotation.source,
+            Annotation.type == annotation.type,
+        ]
+        # NULL belief times are not unique in the database. Preserve the existing
+        # distinction between spans when no prior was supplied; several such labels
+        # may already share their content and start while having different ends.
+        if annotation.belief_time is None:
+            filters.append(Annotation.end == annotation.end)
         existing_annotation = db.session.execute(
-            select(Annotation).filter(
-                Annotation.content == annotation.content,
-                Annotation.start == annotation.start,
-                Annotation.belief_time == annotation.belief_time,
-                Annotation.source == annotation.source,
-                Annotation.type == annotation.type,
-            )
+            select(Annotation).filter(*filters)
         ).scalar_one_or_none()
     if existing_annotation is None:
         db.session.add(annotation)

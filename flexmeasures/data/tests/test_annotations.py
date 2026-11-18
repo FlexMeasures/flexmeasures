@@ -185,3 +185,41 @@ def test_get_or_create_annotation_preserves_distinct_belief_times(db, setup_sour
     db.session.flush()
     assert is_new
     assert second.id != first.id
+
+
+def test_get_or_create_annotation_without_prior_preserves_legacy_spans(db, setup_sources):
+    """NULL-prior labels with different ends can coexist and remain repeatable."""
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    start = pd.Timestamp("2030-01-16 07:45+01")
+    fields = dict(
+        content="Configured EV target without prior",
+        start=start,
+        belief_time=None,
+        source=source,
+        type="label",
+    )
+    first = Annotation(end=start + pd.Timedelta(minutes=15), **fields)
+    second = Annotation(end=start + pd.Timedelta(minutes=30), **fields)
+    # Seed valid pre-existing data: the unique constraint permits both NULLs.
+    db.session.add_all([first, second])
+    db.session.flush()
+    first_id, second_id = first.id, second.id
+    before = db.session.scalar(select(func.count()).select_from(Annotation))
+
+    for existing in (first, second):
+        repeated, is_new = get_or_create_annotation(Annotation(end=existing.end, **fields))
+        db.session.flush()
+        assert not is_new
+        assert repeated.id == existing.id
+    assert first.end == start + pd.Timedelta(minutes=15)
+    assert second.end == start + pd.Timedelta(minutes=30)
+    assert db.session.scalar(select(func.count()).select_from(Annotation)) == before
+
+    # A new end without a prior still represents a distinct span, as before.
+    third, is_new = get_or_create_annotation(
+        Annotation(end=start + pd.Timedelta(minutes=45), **fields)
+    )
+    db.session.flush()
+    assert is_new
+    assert third.id not in (first_id, second_id)
+    assert db.session.scalar(select(func.count()).select_from(Annotation)) == before + 1
