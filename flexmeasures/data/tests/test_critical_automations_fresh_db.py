@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.automations import (
@@ -15,6 +15,7 @@ from flexmeasures.data.models.automations import (
 )
 from flexmeasures.data.services.automation_failure_hooks import (
     get_automation_failure_hooks,
+    notify_critical_automation_failure,
     register_automation_failure_hook,
 )
 from flexmeasures.data.services.automations import (
@@ -187,6 +188,31 @@ def test_a_run_pages_once_however_many_of_its_jobs_fail(
     record_automation_job_failed(run.id, "cycle-002", RuntimeError("second"))
 
     assert len(collected_pages) == 1
+
+
+def test_a_run_another_worker_already_paged_for_does_not_page_again(
+    fresh_db, forecast_automation, collected_pages
+):
+    """Two workers failing two jobs of one run at the same moment both load the run before either claims the notification.
+
+    Here the other worker's claim lands in the database while this worker's copy of the run still says it was not notified.
+    """
+    forecast_automation.critical = True
+    fresh_db.session.commit()
+    run = failed_run(fresh_db, forecast_automation)
+    assert run.critical_failure_notified_at is None
+    fresh_db.session.execute(
+        update(AutomationRun)
+        .where(AutomationRun.id == run.id)
+        .values(
+            critical_failure_notified_at=datetime(2026, 8, 5, 1, 5, tzinfo=timezone.utc)
+        )
+        .execution_options(synchronize_session=False)
+    )
+    assert run.critical_failure_notified_at is None, "this worker's copy is stale"
+
+    assert notify_critical_automation_failure(run, "execution") is False
+    assert collected_pages == []
 
 
 def test_dispatch_pages_only_once_the_attempts_are_spent(

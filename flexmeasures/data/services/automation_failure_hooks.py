@@ -26,6 +26,7 @@ from importlib import import_module
 from typing import Callable
 
 from flask import current_app
+from sqlalchemy import update
 
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation, AutomationRun
@@ -174,9 +175,21 @@ def notify_critical_automation_failure(run: AutomationRun, stage: str) -> bool:
         if run.critical_failure_notified_at is not None:
             return False
         failure = describe_critical_failure(run, stage)
-        # Claim the notification before calling anything, so a hook that is slow or that crashes
-        # the process does not have the next attempt page all over again.
-        run.critical_failure_notified_at = server_now()
+        # Claim the notification before calling anything, so a hook that is slow or that crashes the process does not have the next attempt page all over again.
+        # The claim is a conditional update rather than a check on the loaded run,
+        # because two workers failing two jobs of one run at the same moment both read it as not notified yet.
+        claimed = db.session.execute(
+            update(AutomationRun)
+            .where(
+                AutomationRun.id == run.id,
+                AutomationRun.critical_failure_notified_at.is_(None),
+            )
+            .values(critical_failure_notified_at=server_now())
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount != 1:
+            db.session.rollback()
+            return False
         db.session.commit()
     except Exception as exc:
         current_app.logger.error(
