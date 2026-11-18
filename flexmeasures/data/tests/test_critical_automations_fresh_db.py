@@ -340,3 +340,30 @@ def test_a_hook_whose_query_fails_leaves_the_session_usable(
             pytest.fail(f"the hook left the session unusable: {exc}")
     finally:
         app.automation_failure_hooks.remove(hook_that_looks_up_a_missing_table)
+
+
+def test_a_plugin_without_blueprints_still_registers_its_hooks(app):
+    """A plugin may exist only to register hooks, so it must not be dropped for serving no pages."""
+    from flask import Flask
+
+    from flexmeasures.data.services.automation_failure_hooks import (
+        initialize_automation_failure_hooks,
+    )
+    from flexmeasures.data.tests.plugins.mock_pager import page_the_engineer_on_duty
+    from flexmeasures.utils.plugin_utils import register_plugins
+
+    plugin_app = Flask("plugin-hook-test")
+    plugin_app.config["FLEXMEASURES_PLUGINS"] = [
+        "flexmeasures.data.tests.plugins.mock_pager"
+    ]
+    plugin_app.automation_handlers = {}
+    plugin_app.data_generators = {"forecaster": {}, "reporter": {}, "scheduler": {}}
+    initialize_automation_failure_hooks(plugin_app)
+
+    register_plugins(plugin_app)
+
+    assert plugin_app.automation_failure_hooks == [page_the_engineer_on_duty]
+    assert (
+        "flexmeasures.data.tests.plugins.mock_pager"
+        in plugin_app.config["LOADED_PLUGINS"]
+    )
