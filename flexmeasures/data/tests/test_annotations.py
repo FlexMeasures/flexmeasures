@@ -187,7 +187,9 @@ def test_get_or_create_annotation_preserves_distinct_belief_times(db, setup_sour
     assert second.id != first.id
 
 
-def test_get_or_create_annotation_without_prior_preserves_legacy_spans(db, setup_sources):
+def test_get_or_create_annotation_without_prior_preserves_legacy_spans(
+    db, setup_sources
+):
     """NULL-prior labels with different ends can coexist and remain repeatable."""
     source = db.session.scalars(select(DataSource).limit(1)).first()
     start = pd.Timestamp("2030-01-16 07:45+01")
@@ -207,7 +209,9 @@ def test_get_or_create_annotation_without_prior_preserves_legacy_spans(db, setup
     before = db.session.scalar(select(func.count()).select_from(Annotation))
 
     for existing in (first, second):
-        repeated, is_new = get_or_create_annotation(Annotation(end=existing.end, **fields))
+        repeated, is_new = get_or_create_annotation(
+            Annotation(end=existing.end, **fields)
+        )
         db.session.flush()
         assert not is_new
         assert repeated.id == existing.id
