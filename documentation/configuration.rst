@@ -878,9 +878,32 @@ Default: ``None``
 FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run``, ``flexmeasures monitor last-seen`` and ``flexmeasures monitor automations`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+
+.. _monitor_automations_stuck_after:
+
+FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long an automation run may execute before ``flexmeasures monitor automations`` reports it as stuck, for instance because the worker running its job died.
+Its ``--stuck-after-minutes`` option overrides this setting.
+
+Default: ``timedelta(hours=6)``
+
+.. _base_url:
+
+FLEXMEASURES_BASE_URL
+^^^^^^^^^^^^^^^^^^^^^
+
+Where this server is reached on the web, for instance ``"https://ems.example.com"``.
+Emails sent from the CLI, outside of any request, use it to link to the web pages they are about.
+For instance, the digest of ``flexmeasures monitor automations`` links each failing automation to the Automations page of its asset.
+Without it, these emails carry no links.
+
+Default: ``None``
 
 
 .. _redis-config:

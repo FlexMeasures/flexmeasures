@@ -934,6 +934,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // The types the page keeps a tab and a table for.
   const AUTOMATION_TYPES = Object.keys(automationTypes);
 
+  /* A link can point at one automation (?automation=<id>), as the monitoring digest's links do.
+     Once the listing is in, its tab and its info panel are opened, which show its latest run, its error and its jobs. */
+  let automationToOpen = Number(new URLSearchParams(window.location.search).get("automation")) || null;
+
+  function openLinkedAutomation() {
+    const automation = automationToOpen === null ? undefined : automationsById.get(automationToOpen);
+    automationToOpen = null;  // only on the first load, not on every refresh
+    if (automation === undefined) {
+      return;
+    }
+    const tab = document.getElementById(`${automation.type}-tab`);
+    if (tab) {
+      bootstrap.Tab.getOrCreateInstance(tab).show();
+    }
+    const modal = document.getElementById(`AutomationInfoModal-${automation.id}`);
+    if (modal) {
+      bootstrap.Modal.getOrCreateInstance(modal).show();
+    }
+  }
+
   function loadAutomations({ rebuild = false } = {}) {
     // One refresh at a time: a slow response must not pile up behind the next tick.
     if (loadInFlight) {
@@ -956,6 +976,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           }
         }
         markAutomationsRefreshed();
+        openLinkedAutomation();
         // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
         if (res["redis-connection-err"]) {
           showAutomationsError(res["redis-connection-err"]);

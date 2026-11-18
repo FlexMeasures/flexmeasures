@@ -10,6 +10,7 @@ import pytest
 from flexmeasures.utils.time_utils import (
     as_utc_isoformat,
     duration_isoformat,
+    exact_duration_str,
     server_now,
     naturalized_datetime_str,
     get_most_recent_clocktime_window,
@@ -309,3 +310,17 @@ def test_to_utc_timestamp(input_value, expected_output):
         assert result is None
     else:
         assert result == pytest.approx(expected_output)
+
+
+@pytest.mark.parametrize(
+    "duration, expected",
+    [
+        (timedelta(hours=6), "6 hours"),
+        (timedelta(hours=1), "1 hour"),
+        (timedelta(minutes=90), "90 minutes"),
+        (timedelta(minutes=1), "1 minute"),
+        (timedelta(days=1), "24 hours"),
+    ],
+)
+def test_exact_duration_str(duration: timedelta, expected: str):
+    assert exact_duration_str(duration) == expected

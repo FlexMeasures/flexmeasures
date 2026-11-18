@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v1.2.0 | December xx, 2026
 =================================
 
+* Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation.
 * ``flexmeasures edit automation`` gets ``--parameters``, ``--data-generator``, ``--config`` and ``--source``, to change what an automation computes, and ``--run-as`` to change the user it runs as; it warns when that user could not run what the automation now computes [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
 * ``flexmeasures show automations`` says which user each automation runs as [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
 
