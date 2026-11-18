@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from io import TextIOBase
 
 import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account, Plan
+from marshmallow import ValidationError
+from flexmeasures.api.common.schemas.users import UserIdField
+from flexmeasures.data.models.user import Account, Plan, User
 from flexmeasures.data.schemas.account import AccountIdField
 from sqlalchemy import delete, select
 
@@ -26,7 +29,13 @@ from flexmeasures.data.schemas.automations import (
     CronField,
 )
 from flexmeasures.data.schemas.times import TimezoneField
-from flexmeasures.data.services.automations import update_automation
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    run_user_problem,
+    update_automation,
+)
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -98,22 +107,97 @@ def fm_edit_data():
     default=None,
     help="Activate or deactivate the automation.",
 )
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to a JSON or YAML file with new parameters, replacing the current ones as a whole.",
+)
+@click.option(
+    "--data-generator",
+    "generator_class",
+    required=False,
+    type=click.STRING,
+    help="Class of a new data generator. Leaving out --config keeps the current configuration.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to a JSON or YAML file with a new configuration for the data generator, replacing the current one as a whole."
+    " The automation moves to the data source storing it, and the old data source is left as it is.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="ID of an existing data source to move the automation to."
+    " Its class and configuration are read from the source, so --data-generator and --config cannot be combined with it.",
+)
+@click.option(
+    "--run-as",
+    "run_as",
+    required=False,
+    type=UserIdField(),
+    help="ID of the user to run the automation as from now on: every run checks that user's access to the asset and its sensors."
+    " See `flexmeasures show automations` for whom it runs as now.",
+)
 def edit_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    parameters_file: TextIOBase | None = None,
+    generator_class: str | None = None,
+    config_file: TextIOBase | None = None,
+    source: DataSource | None = None,
+    run_as: User | None = None,
 ):
-    """Edit the name, recurrence, timezone or activation status of an automation."""
-    changes = update_automation(
-        automation,
-        name=name,
-        cronstr=cronstr,
-        timezone=timezone,
-        active=active,
-        origin="CLI",
-    )
+    """Edit an automation.
+
+    \b
+    Examples
+      flexmeasures edit automation --id 4 --cron "0 7 * * *"
+      flexmeasures edit automation --id 4 --parameters forecast-parameters.yml
+      flexmeasures edit automation --id 4 --config forecaster-config.yml
+      flexmeasures edit automation --id 4 --run-as 2
+
+    New parameters, a new data generator or config, or another data source are validated as on creation.
+    A new configuration moves the automation to the data source storing it,
+    because other automations may share the old one, and what was computed under it was computed with its configuration.
+    A schedule automation's data source follows from the asset, so it accepts new --parameters only.
+    The CLI is trusted, so an edit is not checked against anyone's access,
+    but it warns when the user the automation runs as could not run what it now computes, as every run would then be refused.
+    """
+    from flexmeasures.cli.data_add import _load_yaml_mapping
+
+    try:
+        changes = update_automation(
+            automation,
+            name=name,
+            cronstr=cronstr,
+            timezone=timezone,
+            active=active,
+            parameters=(
+                _load_yaml_mapping(parameters_file, "--parameters")
+                if parameters_file
+                else None
+            ),
+            generator_class=generator_class,
+            config=_load_yaml_mapping(config_file, "--config") if config_file else None,
+            source=source,
+            origin="CLI",
+            run_as_user_id=run_as.id if run_as is not None else None,
+        )
+    except ValidationError as e:
+        # The messages name the part of the definition at fault, which is not always the parameters.
+        abort(f"Invalid automation: {e.messages}")
+    except (AutomationSensorsUnknown, ValueError) as e:
+        abort(str(e))
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
@@ -122,6 +206,13 @@ def edit_automation(
         f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
         **MsgStyle.SUCCESS,
     )
+    problem = run_user_problem(automation)
+    if problem is not None:
+        click.secho(
+            f"Warning: the runs of this automation will be refused: {problem}"
+            " From the CLI, pass --run-as to run it as someone who may.",
+            **MsgStyle.WARN,
+        )
 
 
 # Plan fields which may be cleared back to NULL (meaning: server-wide behaviour applies)

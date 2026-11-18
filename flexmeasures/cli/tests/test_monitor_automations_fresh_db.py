@@ -92,7 +92,7 @@ def add_run(
     run = AutomationRun(
         automation=automation,
         scheduled_at=scheduled_at,
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         generator_id=automation.generator_id,
         parameters={},
         plan={},

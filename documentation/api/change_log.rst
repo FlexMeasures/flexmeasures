@@ -8,6 +8,9 @@ API change log
 v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
+- `PATCH /assets/(id)/automations/(id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_ also takes ``parameters``, ``data-generator``, ``config`` and ``source``, checked as on creation, against the access of both the user making the change and the user the automation runs as; ``run-as-me`` makes the user making the change the one it runs as instead. A refusal for the user it runs as carries ``reason: run-user-lacks-access``.
+- Automation responses include ``runs-as``, the user whose access every run checks (null for an automation set up through the CLI).
+- `GET /assets/(id)/automations/(id) <../api/v3_0.html#get--api-v3_0-assets-id-automations-automation-id>`_ answers anyone who may read the asset, also where the automation involves a sensor they may not read; such a sensor is listed with its ID only, with ``readable`` false.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
 
 v3.0-34 | November 05, 2026
