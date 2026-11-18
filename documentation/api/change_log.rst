@@ -5,7 +5,46 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-35 | November xx, 2026
+v3.0-36 | November 23, 2026
+""""""""""""""""""""""""""""
+
+Security release (FlexMeasures v1.1.2); see the :ref:`changelog <v1.1.2-behaviour-changes>` for the advisories behind these changes. FlexMeasures v1.0.3 makes the same changes, except those to reports, automations and data sources, which v1.0 does not offer through the API.
+
+**Authentication**
+
+- ``POST /api/requestAuthToken`` answers an unknown email address with ``401``, like a wrong password, instead of ``404``. It also answers ``401`` to a deactivated user, to a request from a logged-in session that does not send the user's correct password, and, on servers with two-factor authentication (``SECURITY_TWO_FACTOR``), to an email address and password alone for a user who logs in with a second factor (unless the host sets ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA``). Such a user can still request a token from a session that completed the second factor.
+- After too many failed attempts for one email address (by default 10 in 15 minutes from one client address), ``POST /api/requestAuthToken`` answers ``429`` until the window ends, whether the password is right or not.
+- An auth token in the URL query (``?auth_token=…``) is refused with ``400 (Bad Request)`` on every endpoint. Send it in the ``Authorization`` header.
+
+**Requests and responses**
+
+- Every request body is limited to the server's sensor data ingestion limit (3.1 MB by default), unless the host configures another limit; larger bodies get ``413 (Payload Too Large)``, also when sent without a ``Content-Length`` header.
+- Every response carries ``X-Content-Type-Options: nosniff``, ``X-Frame-Options: SAMEORIGIN``, ``Content-Security-Policy: frame-ancestors 'self'`` and ``Referrer-Policy: strict-origin-when-cross-origin``, unless the host changes them.
+- ``GET /api/v3_0/assets/<id>/chart``, ``GET /api/v3_0/assets/<id>/chart_data``, ``GET /api/v3_0/assets/<id>/chart_annotations`` and their sensor equivalents (under ``/api/ui/sensor`` and ``/api/dev/sensor``) answer with ``Content-Type: application/json`` instead of ``text/html``. The response body is unchanged.
+
+**Assets, flex-configs and schedules**
+
+- ``POST /api/v3_0/assets`` and ``PATCH /api/v3_0/assets/<id>`` refuse (``403``) a ``flex_context`` or ``flex_model`` that names a sensor the user may not read, or an output sensor (such as ``consumption``, ``production``, ``state-of-charge``, ``aggregate-power`` or a group) on which the user may not record data. On ``PATCH``, only references that are new, or moved to another field, are checked.
+- ``POST /api/v3_0/sensors/<id>/schedules/trigger`` and ``POST /api/v3_0/assets/<id>/schedules/trigger`` require the right to record data on every output sensor named in the request (``403`` otherwise), so users other than admins can no longer name public sensors as outputs.
+- ``POST /api/v3_0/assets`` and ``PATCH /api/v3_0/assets/<id>`` accept a ``parent_asset_id`` in another organisation only if the user may add assets under that parent and edit assets in the asset's own organisation (for a public asset: admins only), and ``PATCH`` refuses the asset itself or one of its descendants as its parent; both with ``422``. A ``PATCH`` that leaves the parent unchanged is not checked.
+- ``POST /api/v3_0/assets/<id>/copy`` requires the right to edit assets in the organisation the copy lands in whenever that differs from the parent's organisation (``403``), and checks the copied flex-context and flex-model: references must point to a copied sensor, a sensor in the destination organisation or a public sensor (``422``), and the user needs the right to record data on output sensors outside the copy (``403``).
+- The ``custom-scheduler`` attribute of an asset or sensor is only used if it names a registered scheduler; the ``{"module": …, "class": …}`` form is refused.
+- ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` also requires read access on the asset or sensor the job was made for, and ``GET /api/v3_0/jobs/<uuid>`` shows a job whose asset or sensor cannot be resolved only to admins and admin-readers.
+
+**Forecasts, reports and automations**
+
+- ``POST /api/v3_0/sensors/<id>/forecasts/trigger`` and forecast automations refuse ``model-save-dir`` and ``output-path`` (``422``), accept only a limited set of ``model-params`` within bounds (``422`` otherwise), check regressors given as string ids, and require read access (``403``) on the organisations, assets and sensors named in ``annotation-regressors``.
+- Report triggers and report automations refuse ``PandasReporter`` transformations that use methods or properties outside an allow-list of pure pandas transformations.
+- ``POST /api/v3_0/assets/<id>/automations`` counts against the trigger rate limit. For users other than admins, creating an automation, changing its ``cron`` or activating it is refused (``422``) when its runs can be closer together than the server's minimum interval for its type (by default an hour for forecasting, a minute for ingestion and 15 minutes for other types).
+- ``GET /api/v3_0/sources/<id>`` shows the data source of an automation on a public asset without its attributes, and such a data source can no longer be named as the ``source`` of another user's automation.
+
+**Accounts and users**
+
+- ``PATCH /api/v3_0/accounts/<id>`` answers ``403`` to users other than admins who change ``account_roles`` (sending the current roles again still works), and to plain members of the organisation; editing an organisation needs the account-admin role in it, the consultant role in its consultancy, or the admin role.
+- ``PATCH /api/v3_0/users/<id>`` and ``PATCH /api/v3_0/users/<id>/password-reset`` answer ``403`` when the editor changes another user's ``email`` or ``active``, or resets their password, without holding (or being allowed to give and take) each of that user's roles. Sending an unchanged value is not checked. An email change is mailed to the previous address, and fails if that mail cannot be sent.
+- Account-admins can give the ``consultant`` role only to users of an organisation with the ``Consultancy`` account role (``403`` otherwise).
+
+v3.0-35 | November 11, 2026
 """"""""""""""""""""""""""""
 
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.

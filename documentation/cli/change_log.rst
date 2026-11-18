@@ -9,6 +9,15 @@ since v1.2.0 | December xx, 2026
 
 * Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation.
 
+since v1.1.2 | November 23, 2026
+=================================
+
+* ``flexmeasures add user`` refuses a password shorter than ``SECURITY_PASSWORD_LENGTH_MIN``, which is now 12 characters by default.
+* ``flexmeasures add asset --parent-asset``, ``flexmeasures edit transfer-parenthood`` and ``flexmeasures edit transfer-ownership`` warn when an asset ends up under a parent asset of another organisation (or a public asset under an organisation's asset). They go ahead, as the CLI is not held to the permissions that the API and UI require for this.
+* ``flexmeasures delete sensor`` no longer fails for every sensor when one automation on the server cannot be resolved; it logs a warning and skips that automation.
+
+The first two changes also ship in v1.0.3.
+
 since v1.1.0 | November 05, 2026
 =================================
 
