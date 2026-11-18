@@ -617,63 +617,60 @@ def test_an_automation_of_ones_own_makes_its_source_readable(
     ["test_admin_user@seita.nl"],
     indirect=True,
 )
-def test_get_sources_filtered_by_generator_type(
+def test_get_sources_filtered_by_data_generator(
     client, setup_api_test_data, requesting_user, db
 ):
-    """The kind of data generator tells which sources can set up a report, even when the report is saved under a source of another type."""
+    """The data generator tells which sources can set up a report, even when the report is saved under a source of another type.
+
+    It is matched case-insensitively, and names its subclasses, too, so `Reporter` lists every report.
+    """
     forecaster = DataSource(
-        name="GeneratorTypeSeita",
+        name="DataGeneratorSeita",
         type="forecaster",
         model="TrainPredictPipeline",
     )
     summed_forecasts = DataSource(
-        name="GeneratorTypeSeita",
+        name="DataGeneratorSeita",
         type="forecaster",
         model="AggregatorReporter",
-        attributes={
-            "data_generator": {
-                "config": {"method": "sum", "output-source-type": "forecaster"}
-            }
-        },
+        attributes={"data_generator": {"config": {"method": "sum"}}},
     )
     reporter = DataSource(
-        name="GeneratorTypeSeita",
+        name="DataGeneratorSeita",
         type="reporter",
         model="PandasReporter",
     )
     # a script's source named after a reporter stores no data generator to set up
     script = DataSource(
-        name="GeneratorTypeSeita",
+        name="DataGeneratorSeita",
         type="demo script",
         model="PandasReporter",
     )
-    db.session.add_all([forecaster, summed_forecasts, reporter, script])
+    # the plugin of this reporter is not installed, so only its own name finds it
+    uninstalled = DataSource(
+        name="DataGeneratorSeita",
+        type="reporter",
+        model="UninstalledReporter",
+    )
+    db.session.add_all([forecaster, summed_forecasts, reporter, script, uninstalled])
     db.session.flush()
 
-    def ids(generator_type: str | None = None, **query):
-        if generator_type is not None:
-            query["generator-type"] = generator_type
-        response = client.get(url_for("SourceAPI:index"), query_string=query)
+    def ids(data_generator: str | None = None, **query):
+        if data_generator is not None:
+            query["data-generator"] = data_generator
+        response = client.get(
+            url_for("SourceAPI:index"),
+            query_string=dict(filter="DataGeneratorSeita", **query),
+        )
         assert response.status_code == 200, response.json
         return {source["id"] for source in response.json["sources"]}
 
-    reporters = ids(generator_type="reporter", filter="GeneratorTypeSeita")
-    assert {summed_forecasts.id, reporter.id} <= reporters
-    assert forecaster.id not in reporters
-    assert script.id not in reporters
-
-    forecasters = ids(generator_type="forecaster", filter="GeneratorTypeSeita")
-    assert forecaster.id in forecasters
-    assert not {summed_forecasts.id, reporter.id} & forecasters
+    assert ids("Reporter") == {summed_forecasts.id, reporter.id}
+    assert ids("reporter") == ids("Reporter")
+    assert ids("aggregatorreporter") == {summed_forecasts.id}
+    assert ids("Forecaster") == {forecaster.id}
+    assert ids("UninstalledReporter") == {uninstalled.id}
+    assert ids("NoSuchGenerator") == set()
 
     # the source type alone cannot tell them apart
-    assert {forecaster.id, summed_forecasts.id} <= ids(
-        type="forecaster", filter="GeneratorTypeSeita"
-    )
-
-    # a kind of data generator that does not exist is refused, rather than matching no source
-    response = client.get(
-        url_for("SourceAPI:index"), query_string={"generator-type": "reportr"}
-    )
-    assert response.status_code == 422
-    assert "reportr" in str(response.json)
+    assert {forecaster.id, summed_forecasts.id} <= ids(type="forecaster")

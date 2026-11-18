@@ -6,14 +6,17 @@ from flask_json import as_json
 from flask_security import auth_required
 from marshmallow import fields, Schema, validate
 from packaging.version import Version, InvalidVersion
-from sqlalchemy import select, or_
+from sqlalchemy import func, select, or_
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.models.data_sources import (
+    DataGenerator,
+    DataSource,
+    DEFAULT_DATASOURCE_TYPES,
+)
 from flexmeasures.data.queries.utils import id_prefix_filter
-from flexmeasures.data.schemas.sources import validate_data_generator_kind
 from flexmeasures.data.services.data_sources import (
     usable_source_filter,
     user_may_read_source,
@@ -51,14 +54,15 @@ class SourceQuerySchema(Schema):
             "example": "forecaster",
         },
     )
-    generator_type = fields.Str(
+    data_generator = fields.Str(
         required=False,
-        data_key="generator-type",
-        validate=validate_data_generator_kind,
+        data_key="data-generator",
         metadata={
-            "description": "Only return sources whose data generator is of this kind, such as forecaster, scheduler or reporter, whatever type of source it saves under."
-            " A reporter can save under a source of another type (see its `output-source-type`), so this tells which sources can set up a report, for instance.",
-            "example": "reporter",
+            "description": "Only return sources whose data generator is of this class, or of a subclass of it, matched case-insensitively,"
+            " such as AggregatorReporter for the sums, or Reporter (or reporter) for every report, whatever type of source it saves under."
+            " A source's type says what its data counts as, and its data generator what computed it:"
+            " a sum of forecasts is saved under a forecaster-type source by an AggregatorReporter, for instance.",
+            "example": "AggregatorReporter",
         },
     )
 
@@ -122,6 +126,26 @@ def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
     return list(best.values())
 
 
+def data_generator_models(name: str) -> list[str]:
+    """List the models of the data generators of the named class or of a subclass of it, lowercased, as sources record them.
+
+    The name is matched case-insensitively against each registered data generator and the classes it inherits from,
+    so ``reporter`` names the base class ``Reporter``, and with it every reporter.
+    The name itself is in the list, too, so the sources of a data generator whose plugin is no longer installed are still found by its own name.
+    """
+    name = name.lower()
+    models = {name}
+    for generators in current_app.data_generators.values():
+        for model, generator_class in generators.items():
+            if any(
+                base.__name__.lower() == name
+                for base in generator_class.__mro__
+                if issubclass(base, DataGenerator)
+            ):
+                models.add(model.lower())
+    return sorted(models)
+
+
 class SourceAPI(FlaskView):
     route_base = "/sources"
     trailing_slash = False
@@ -135,7 +159,7 @@ class SourceAPI(FlaskView):
         only_latest: bool = True,
         filter: list[str] | None = None,
         type: str | None = None,
-        generator_type: str | None = None,
+        data_generator: str | None = None,
         limit: int | None = None,
     ):
         """List accessible data sources and defined source types.
@@ -151,7 +175,7 @@ class SourceAPI(FlaskView):
 
             The ``filter`` parameter searches the sources by name, by model and by id prefix,
             the ``type`` parameter narrows the list to one source type, such as ``forecaster``,
-            the ``generator-type`` parameter to the sources whose data generator is of one kind, such as ``reporter``,
+            the ``data-generator`` parameter to the sources whose data generator is of one class or a subclass of it, such as ``Reporter``,
             and the ``limit`` parameter returns only the most recently created ones.
 
             The ``types`` in the response are those of every source this listing can hold,
@@ -212,11 +236,11 @@ class SourceAPI(FlaskView):
             query = query.where(usable_sources)
         if type is not None:
             query = query.where(DataSource.type == type)
-        if generator_type is not None:
-            # Which sources a data generator of this kind made is told by their model, as their type can be configured (see `Reporter.source_type`).
+        if data_generator is not None:
+            # Which data generator made a source is told by its model, as its type follows the data (see `AggregatorReporter.source_type`).
             # The type still has to be a kind of data generator, as a source of another type (e.g. a script) can carry such a model name, too.
             query = query.where(
-                DataSource.model.in_(list(current_app.data_generators[generator_type])),
+                func.lower(DataSource.model).in_(data_generator_models(data_generator)),
                 DataSource.type.in_(list(current_app.data_generators)),
             )
         if filter is not None:

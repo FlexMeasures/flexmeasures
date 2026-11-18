@@ -1,5 +1,4 @@
-from flask import current_app
-from marshmallow import ValidationError, fields
+from marshmallow import fields
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.utils import (
@@ -25,12 +24,3 @@ class DataSourceIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, source, attr, data, **kwargs):
         """Turn a DataSource into a source id."""
         return source.id
-
-
-def validate_data_generator_kind(value: str):
-    """Check that a kind of data generator is registered, such as forecaster, reporter or scheduler, or one that a plugin adds."""
-    generator_kinds = sorted(current_app.data_generators)
-    if value not in generator_kinds:
-        raise ValidationError(
-            f"Unknown kind of data generator '{value}'. Choose one of: {', '.join(generator_kinds)}."
-        )
