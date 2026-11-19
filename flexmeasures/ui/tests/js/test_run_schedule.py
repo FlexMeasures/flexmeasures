@@ -88,7 +88,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("price selection waits for lookup", field("price").disabled);
         check("SoC selection waits for lookup", field("soc-source").disabled);
         check("run waits for lookup", field("run").disabled);
-        eq("disabled button wrapper has a hoverable explanation", field("run-tooltip").title, "Disable, check prerequisites warnings.");
+        eq("disabled button wrapper has a hoverable explanation", field("run-tooltip").title, "Disabled; check prerequisite warnings.");
         check("disabled button wrapper can receive focus", field("run-tooltip").tabIndex === 0);
         check("loading is announced", notices.some(item => item[0].includes("Checking prerequisites")));
         await answer(available);

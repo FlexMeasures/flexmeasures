@@ -97,7 +97,7 @@ export function initializeRunSchedule(root, config) {
             (!options.is_storage || !missing(options.soc_min) || hasSocMin()) &&
             (!options.requires_soc || hasSoc);
         el('run').disabled = loading || running || !ready;
-        el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
+        el('run-tooltip').title = el('run').disabled ? 'Disabled; check prerequisite warnings.' : '';
         el('run-tooltip').tabIndex = el('run').disabled ? 0 : -1;
         el('price').disabled = loading || running;
         el('demo-price').disabled = loading || running;
