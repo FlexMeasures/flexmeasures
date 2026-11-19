@@ -759,7 +759,7 @@ def test_image_exports_show_the_replay_ruler(assert_js):
         const exported = buildExportOption(option, 1200, 600, 1234);
         eq("one ruler per time-axis subplot", rulers(exported).map((s) => [s.xAxisIndex, s.yAxisIndex]), [[0, 0], [1, 1]]);
         check("at the replay time", rulers(exported).every((s) => s.markLine.data[0].xAxis === 1234));
-        check("behind the data", rulers(exported).every((s) => s.z < 2 && s.data.length === 0));
+        check("above the data", rulers(exported).every((s) => s.markLine.z > 2 && s.data.length === 0));
         eq("the data series are kept", exported.option.series.length, 3);
         """)
 
@@ -767,7 +767,7 @@ def test_image_exports_show_the_replay_ruler(assert_js):
 def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
     """The replay ruler follows the replay on every frame, so moving it must not re-render the chart.
 
-    It is drawn in every time-axis subplot, between the split lines and the data,
+    It is drawn in every time-axis subplot, above the data,
     and has to survive re-renders (also without visible data) and follow zooming.
     """
     assert_js(LOAD_ECHARTS + """
@@ -806,7 +806,7 @@ def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
             eq(`${chartType}: one ruler per subplot`, rulers(chart).length, 2);
             check("at the replay time", rulers(chart).every((line, i) =>
                 near(line.shape.x1, chart.convertToPixel({xAxisIndex: i}, time))), rulers(chart).map((l) => l.shape.x1));
-            check("above the split lines and behind the data", rulers(chart).every((line) => line.zlevel === 0 && line.z > 0 && line.z < 2));
+            check("above the data", rulers(chart).every((line) => line.zlevel === 0 && line.z > 2));
             setFastChartReplayTime(container.id, time + hour);
             eq("moving it leaves the chart option alone", setOptionCalls, 0);
             check("but moves the ruler", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)));

@@ -1020,7 +1020,7 @@ export function buildExportOption(lastOption, width, height, replayTime = null) 
   return { option: option, width: width + extraWidth, height: height };
 }
 
-// The replay ruler as data-less series with a markLine, one per time-axis subplot, drawn behind the data.
+// The replay ruler as data-less series with a markLine, one per time-axis subplot, drawn above the data.
 function replayRulerExportSeries(lastOption, replayTime) {
   const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
   const yAxes = asList(lastOption.yAxis);
@@ -1037,9 +1037,9 @@ function replayRulerExportSeries(lastOption, replayTime) {
       data: [],
       silent: true,
       animation: false,
-      z: REPLAY_RULER_Z,
       itemStyle: { color: "transparent" }, // keeps this empty series from consuming a data palette slot
       markLine: {
+        z: REPLAY_RULER_Z,
         silent: true,
         animation: false,
         symbol: "none",
@@ -2563,8 +2563,9 @@ export function renderFastChart(elementId, data, options) {
 /* ============================== replay ruler ============================== */
 
 const REPLAY_RULER_COLOR = "#555";
-// Above the split lines (z 0) and behind the series (z 2).
-const REPLAY_RULER_Z = 1;
+// Above the series (z 2), so the ruler stays visible inside bars and filled areas,
+// at the default z of a markLine, where the ruler was drawn when it was one (as the Vega-Lite chart draws its ruler last).
+const REPLAY_RULER_Z = 5;
 
 // Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, or clear it.
 // These are plain zrender elements, kept out of the chart option, so moving the ruler never re-renders the chart:
