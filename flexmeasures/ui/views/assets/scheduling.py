@@ -32,20 +32,15 @@ def price_covers_schedule(sensor, start_time, end_time, belief_time):
     resolution = sensor.event_resolution
     if resolution <= timedelta(0):
         return False
-    event_starts = db.session.scalars(
-        select(TimedBelief.event_start)
-        .where(
-            TimedBelief.sensor_id == sensor.id,
-            TimedBelief.event_start > start_time - resolution,
-            TimedBelief.event_start < end_time,
-            TimedBelief.event_start + resolution - TimedBelief.belief_horizon
-            <= belief_time,
-        )
-        .distinct()
-        .order_by(TimedBelief.event_start)
+    beliefs = sensor.search_beliefs(
+        event_starts_after=start_time - resolution + timedelta(microseconds=1),
+        event_ends_before=end_time + resolution,
+        beliefs_before=belief_time,
     )
     covered_until = start_time
-    for event_start in event_starts:
+    for event_start in sorted(set(beliefs.index.get_level_values("event_start"))):
+        if event_start >= end_time:
+            break
         if event_start > covered_until:
             return False
         covered_until = max(covered_until, event_start + resolution)

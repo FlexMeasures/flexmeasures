@@ -10,6 +10,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.sensors import create_demo_price_sensor
 from flexmeasures.ui.views.assets import scheduling
 from sqlalchemy import delete
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 START = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
@@ -313,6 +314,41 @@ def test_future_price_events_are_not_available_before_their_belief_time(
                 belief_horizon=timedelta(days=2),
             )
         )
+    db.session.commit()
+    assert options(client, asset).get_json()["price_available"] is True
+
+
+def test_day_ahead_prices_are_available_when_their_knowledge_time_has_passed(
+    db, client, schedule_assets, setup_sources, as_admin, monkeypatch
+):
+    asset = schedule_assets["test_battery"]
+    price = Sensor(
+        name="day-ahead price",
+        unit="EUR/MWh",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+        knowledge_horizon=(
+            x_days_ago_at_y_oclock,
+            {"x": 1, "y": 12, "z": "Europe/Paris"},
+        ),
+    )
+    db.session.add(price)
+    for hour in range(24):
+        db.session.add(
+            TimedBelief(
+                sensor=price,
+                source=setup_sources["Seita"],
+                event_start=START + timedelta(hours=hour),
+                event_value=50,
+                belief_horizon=timedelta(0),
+            )
+        )
+    db.session.commit()
+    monkeypatch.setattr(scheduling, "server_now", lambda: START + timedelta(hours=12))
+    assert price.id in [
+        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+    ]
+    asset.flex_context = {"consumption-price": {"sensor": price.id}}
     db.session.commit()
     assert options(client, asset).get_json()["price_available"] is True
 
