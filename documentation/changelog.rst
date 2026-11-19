@@ -23,7 +23,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
-* Correct the toy tutorial's data source IDs, so that the solar forecast is stored under the forecaster and the reports are computed by the ProfitOrLossReporter, rather than under or by whichever data source happens to have the ID the tutorial named [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Correct the toy tutorial's data source IDs, so that the solar forecast is stored under the forecaster and the reports are computed by the ProfitOrLossReporter, rather than under or by whichever data source happens to have the ID the tutorial named [see `PR #2886 <https://www.github.com/FlexMeasures/flexmeasures/pull/2886>`_]
 
 v1.1.1 | November 11, 2026
 ============================
