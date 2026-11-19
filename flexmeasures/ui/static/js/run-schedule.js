@@ -20,6 +20,10 @@ export function initializeRunSchedule(root, config) {
         const message = data.message || data.error || data;
         return typeof message === 'string' ? message : JSON.stringify(message);
     };
+    const demoDayPrices = [90, 80, 75, 70, 65, 70, 90, 120, 150, 135, 110, 90,
+        65, 45, 30, 50, 100, 160, 190, 180, 140, 115, 100, 90];
+    const apiJsonHeaders = {'Content-Type': 'application/json'};
+    const parseConfig = value => typeof value === 'string' ? JSON.parse(value) : (value || {});
     async function jsonResponse(response) {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(errorMessage(data) || response.statusText);
@@ -154,7 +158,7 @@ export function initializeRunSchedule(root, config) {
                     el('power').append(link);
                 }
                 el('power').append('); see info below.');
-                warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue yet. Support for scheduling multiple power sensors here is coming soon. For now, configure multi-device scheduling in flex-config and use the scheduling API.');
+                warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue yet. Support for scheduling multiple power sensors here is coming soon. For now, configure multi-device scheduling in the flex-model and flex-context and use the scheduling API.');
             }
             const previousPrice = el('price').value;
             el('price').replaceChildren();
@@ -296,11 +300,41 @@ export function initializeRunSchedule(root, config) {
         updateReady();
         try {
             const range = period();
+            if (new Date(range.end) - new Date(range.start) > 31 * 86400000) {
+                throw new Error('Demo prices can cover at most 31 days.');
+            }
             notify('Creating a demo price sensor and prices for this period…');
-            const sensor = await jsonResponse(await fetch(config.demoPricesUrl, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({start_time: range.start, end_time: range.end, profile: el('demo-profile').value})
+            const profile = el('demo-profile').value;
+            const first = new Date(range.start);
+            first.setUTCMinutes(0, 0, 0);
+            const values = [];
+            const dutchHour = new Intl.DateTimeFormat('en-GB', {hour: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Amsterdam'});
+            for (let time = first.getTime(); time < new Date(range.end).getTime(); time += 3600000) {
+                values.push(profile === 'uniform' ? 100 : demoDayPrices[Number(dutchHour.format(new Date(time)))]);
+            }
+            const sensor = await jsonResponse(await fetch(config.sensorsApiUrl, {
+                method: 'POST', headers: apiJsonHeaders,
+                body: JSON.stringify({name: `Demo electricity price (${profile === 'uniform' ? 'Uniform' : 'NL October Day'})`,
+                    generic_asset_id: config.assetId, unit: 'EUR/MWh', event_resolution: 'PT1H',
+                    attributes: JSON.stringify({demo_data: true, demo_profile: profile})})
             }));
+            const ingestionResponse = await fetch(`${config.sensorsApiUrl}/${sensor.id}/data`, {
+                method: 'POST', headers: apiJsonHeaders,
+                body: JSON.stringify({start: first.toISOString(), duration: `PT${values.length}H`, unit: 'EUR/MWh', values})
+            });
+            const ingestion = await jsonResponse(ingestionResponse);
+            if (ingestionResponse.status === 202 && ingestion.job) {
+                notify('Demo price data queued. Waiting for ingestion…');
+                let finished = false;
+                for (let attempt = 0; attempt < 100; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    const response = await fetch(`${config.jobsUrl}/${encodeURIComponent(ingestion.job)}`);
+                    await jsonResponse(response);
+                    if (response.status === 200) { finished = true; break; }
+                }
+                if (!finished) throw new Error('Demo price ingestion is still running. Check the Jobs page before trying again.');
+            }
+            sensor.url = `/sensors/${sensor.id}`;
             notify(`Demo price sensor ${sensor.name} (ID: ${sensor.id}) is ready.`, 'success');
             await lookup();
             if (!options.price_sensors.some(item => item.id === sensor.id)) {
@@ -350,7 +384,7 @@ export function initializeRunSchedule(root, config) {
             payload['flex-model'] = [model];
             notify('Queuing schedule…');
             const job = await jsonResponse(await fetch(config.triggerUrl, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+                method: 'POST', headers: apiJsonHeaders, body: JSON.stringify(payload)
             }));
             const jobId = job.job || job.schedule;
             if (!jobId) throw new Error('The scheduling response did not contain a job ID.');
@@ -393,11 +427,20 @@ export function initializeRunSchedule(root, config) {
         if (!savedChoices) return;
         el('save').disabled = true;
         try {
-            await jsonResponse(await fetch(config.defaultsUrl, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(savedChoices)
+            const asset = await jsonResponse(await fetch(config.assetApiUrl));
+            const context = parseConfig(asset.flex_context);
+            const model = parseConfig(asset.flex_model);
+            if (savedChoices.consumption_price_sensor) context['consumption-price'] = {sensor: savedChoices.consumption_price_sensor};
+            if (savedChoices.power_capacity) model['power-capacity'] = savedChoices.power_capacity;
+            if (savedChoices.state_of_charge_sensor) model['state-of-charge'] = {sensor: savedChoices.state_of_charge_sensor};
+            const changes = {};
+            if (savedChoices.consumption_price_sensor) changes.flex_context = JSON.stringify(context);
+            if (savedChoices.power_capacity || savedChoices.state_of_charge_sensor) changes.flex_model = JSON.stringify(model);
+            await jsonResponse(await fetch(config.assetApiUrl, {
+                method: 'PATCH', headers: apiJsonHeaders, body: JSON.stringify(changes)
             }));
             show('save-group', false);
-            notify('Defaults saved to the asset’s flex-config.', 'success');
+            notify('Defaults saved to the asset’s flex-context and flex-model.', 'success');
             savedChoices = null;
             await lookup();
         } catch (error) {

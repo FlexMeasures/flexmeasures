@@ -43,8 +43,9 @@ def modal_setup():
         window.showToast = (...args) => notices.push(args);
         initializeRunSchedule(root, {{
             optionsUrl: "/assets/3/scheduling-options",
-            defaultsUrl: "/assets/3/scheduling-defaults",
-            demoPricesUrl: "/assets/3/demo-prices",
+            assetApiUrl: "/api/v3_0/assets/3",
+            sensorsApiUrl: "/api/v3_0/sensors",
+            assetId: 3,
             newSensorUrl: "/assets/3/sensors/new",
             triggerUrl: "/api/v3_0/assets/3/schedules/trigger",
             jobsUrl: "/api/v3_0/jobs",
@@ -120,10 +121,12 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         eq("dynamic daily prices are the default", field("demo-profile").value, "nl_october_day");
         eq("lookup does not create data", requests.length, 1);
         field("demo-price").click();
-        eq("click posts demo prices", requests[1].url, "/assets/3/demo-prices");
-        eq("chosen profile is submitted", JSON.parse(requests[1].options.body).profile, "nl_october_day");
+        eq("click creates sensor through API", requests[1].url, "/api/v3_0/sensors");
+        eq("chosen profile is saved as sensor metadata", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "nl_october_day");
         check("demo action is disabled during creation", field("demo-price").disabled);
         await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
+        eq("prices are posted through sensor-data API", requests[2].url, "/api/v3_0/sensors/20/data");
+        await answer({message: "Saved"}, 200);
         await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
         eq("new price is selected", field("price").value, "20");
         check("demo price selection clears the missing-price warning", field("price-warning").classList.contains("d-none"));
@@ -151,8 +154,10 @@ def test_demo_price_creation_can_choose_uniform_profile(assert_js):
         check("creation controls follow the dropdown choice", !field("demo-price-group").classList.contains("d-none"));
         field("demo-profile").value = "uniform";
         field("demo-price").click();
-        eq("uniform profile is submitted", JSON.parse(requests[1].options.body).profile, "uniform");
+        eq("uniform profile is submitted", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "uniform");
         await answer({id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}, 201);
+        eq("uniform demo values are posted", JSON.parse(requests[2].options.body).values[0], 100);
+        await answer({message: "Saved"}, 200);
         await answer({...available, price_sensors: [available.price_sensors[0], {id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}]});
         eq("uniform price sensor is selected", field("price").value, "21");
     """)
@@ -226,9 +231,13 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         check("save prompt names permanent flex-model", field("save-summary").textContent.includes("in flex-model"));
         eq("success does not save automatically", requests.length, 4);
         field("save").click();
-        eq("save uses a separate endpoint", requests[4].url, "/assets/3/scheduling-defaults");
-        eq("only reusable defaults are saved", JSON.parse(requests[4].options.body),
-            {consumption_price_sensor: 12, power_capacity: "10 kW", state_of_charge_sensor: 13});
+        eq("save reads current asset first", requests[4].url, "/api/v3_0/assets/3");
+        await answer({flex_context: "{}", flex_model: "{}"});
+        eq("save patches the asset through API", requests[5].url, "/api/v3_0/assets/3");
+        const saved = JSON.parse(requests[5].options.body);
+        eq("price is saved in flex-context", JSON.parse(saved.flex_context), {"consumption-price": {sensor: 12}});
+        eq("device settings are saved in flex-model", JSON.parse(saved.flex_model),
+            {"power-capacity": "10 kW", "state-of-charge": {sensor: 13}});
         await answer({message: "Saved"});
         await answer({...available, consumption_price: {sensor: 12}, power_capacity: "10 kW"});
         check("saved defaults are acknowledged", notices.some(item => item[0].includes("Defaults saved")));

@@ -6,7 +6,7 @@ from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from marshmallow import ValidationError, fields, validate
+from marshmallow import ValidationError
 from pytz import all_timezones
 
 from flexmeasures.data import db
@@ -61,13 +61,6 @@ asset_schema = AssetSchema()
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
-class DemoPricesSchema(StartEndTimeSchema):
-    profile = fields.Str(
-        load_default="nl_october_day",
-        validate=validate.OneOf(["nl_october_day", "uniform"]),
-    )
-
-
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -91,47 +84,6 @@ class AssetCrudUI(FlaskView):
         if start_time is None or end_time is None:
             return {"message": "Provide start_time and end_time."}, 422
         return schedule_options(asset, start_time, end_time)
-
-    @login_required
-    @route("/<id>/demo-prices", methods=["POST"])
-    @use_kwargs(DemoPricesSchema, location="json")
-    def demo_prices(
-        self, id: str, start_time=None, end_time=None, profile="nl_october_day"
-    ):
-        """Create explicit demo price data for a manual scheduling run."""
-        from flexmeasures.data.services.sensors import create_demo_price_sensor
-        from flexmeasures.ui.views.assets.scheduling import sensor_option
-
-        asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "read")
-        check_access(asset, "trigger-schedules")
-        check_access(asset, "edit-sensors")
-        if start_time is None or end_time is None:
-            return {"message": "Provide start_time and end_time."}, 422
-        try:
-            sensor = create_demo_price_sensor(
-                asset, start_time, end_time, profile=profile
-            )
-            db.session.commit()
-        except ValidationError as exc:
-            db.session.rollback()
-            return {"message": exc.messages}, 422
-        return sensor_option(sensor), 201
-
-    @login_required
-    @route("/<id>/schedule-defaults", methods=["POST"])
-    def schedule_defaults(self, id: str):
-        """Save only the missing basics offered by the scheduling dialog."""
-        from flexmeasures.ui.views.assets.scheduling import save_schedule_defaults
-
-        asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "read")
-        check_access(asset, "edit-flex-config")
-        try:
-            return save_schedule_defaults(asset, request.get_json())
-        except ValidationError as exc:
-            db.session.rollback()
-            return {"message": exc.messages}, 422
 
     @login_required
     def index(self, msg="", **kwargs):

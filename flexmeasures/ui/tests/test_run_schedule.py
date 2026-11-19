@@ -48,25 +48,7 @@ def test_reader_cannot_open_wizard(client, public_asset, as_prosumer_user1):
     assert b'id="runScheduleModal"' not in page.data
 
 
-def test_reader_cannot_save_defaults(client, public_asset, as_prosumer_user1):
-    with patch(
-        "flexmeasures.ui.views.assets.scheduling.save_schedule_defaults"
-    ) as save:
-        response = client.post(
-            url_for("AssetCrudUI:schedule_defaults", id=public_asset.id),
-            json={"power_capacity": "5 kW"},
-        )
-    assert response.status_code == 403
-    save.assert_not_called()
-    assert "power-capacity" not in public_asset.flex_model
-
-
-@pytest.mark.parametrize("endpoint", ["schedule_options", "schedule_defaults"])
-def test_wizard_requires_login(client, public_asset, endpoint):
-    url = url_for(f"AssetCrudUI:{endpoint}", id=public_asset.id)
-    response = (
-        client.get(url, query_string=PERIOD)
-        if endpoint == "schedule_options"
-        else client.post(url, json={"power_capacity": "5 kW"})
-    )
+def test_wizard_requires_login(client, public_asset):
+    url = url_for("AssetCrudUI:schedule_options", id=public_asset.id)
+    response = client.get(url, query_string=PERIOD)
     assert response.status_code in (302, 401)

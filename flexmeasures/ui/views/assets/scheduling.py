@@ -9,13 +9,11 @@ from marshmallow import ValidationError
 from sqlalchemy import or_, select
 from flask_security import current_user
 
-from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.planning.storage import storage_asset_types
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.services.generic_assets import patch_asset
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.ui.utils.auth_utils import user_can_access
 from flexmeasures.utils.time_utils import server_now
@@ -245,85 +243,3 @@ def soc_options(asset, start_time):
                 )
             )
     return soc_sensors
-
-
-def validate_soc_sensor_to_save(asset, sensor_id):
-    """Validate a state-of-charge sensor proposed as a permanent default."""
-    if not isinstance(sensor_id, int) or isinstance(sensor_id, bool):
-        raise ValidationError("state_of_charge_sensor must be a sensor ID.")
-    sensor = db.session.get(Sensor, sensor_id)
-    if sensor is None:
-        raise ValidationError("State-of-charge sensor does not exist.")
-    check_access(sensor, "read")
-    if sensor.generic_asset_id != asset.id or not (
-        sensor.measures_energy or sensor.unit == "%"
-    ):
-        raise ValidationError("Choose a state-of-charge sensor on this asset.")
-    if asset.flex_model.get("state-of-charge") is not None:
-        raise ValidationError(
-            "State of charge is already configured. Reload the dialog."
-        )
-
-
-def save_schedule_defaults(asset, data):
-    """Merge only missing wizard defaults, preserving concurrent asset edits."""
-    check_access(asset, "edit-flex-config")
-    if not isinstance(data, dict) or set(data) - {
-        "consumption_price_sensor",
-        "power_capacity",
-        "state_of_charge_sensor",
-    }:
-        raise ValidationError(
-            "Only consumption_price_sensor, power_capacity and state_of_charge_sensor are accepted."
-        )
-    asset = db.session.scalars(
-        select(GenericAsset)
-        .where(GenericAsset.id == asset.id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    ).one()
-    changes = {}
-    if "consumption_price_sensor" in data:
-        sensor_id = data["consumption_price_sensor"]
-        if not isinstance(sensor_id, int) or isinstance(sensor_id, bool):
-            raise ValidationError("consumption_price_sensor must be a sensor ID.")
-        sensor = db.session.get(Sensor, sensor_id)
-        check_access(sensor, "read")
-        if not sensor.measures_energy_price:
-            raise ValidationError("Choose a sensor measuring energy prices.")
-        context = asset.get_flex_context()
-        if (
-            context.get("consumption-price") is not None
-            or context.get("consumption-price-sensor") is not None
-        ):
-            raise ValidationError(
-                "A consumption price is already configured. Reload the dialog."
-            )
-        changes["flex_context"] = dict(
-            asset.flex_context, **{"consumption-price": {"sensor": sensor.id}}
-        )
-    if "power_capacity" in data:
-        if not isinstance(data["power_capacity"], str):
-            raise ValidationError(
-                "Power capacity must be a quantity with a unit, such as 5 kW."
-            )
-        capacity = QuantityField("MW", return_magnitude=True).deserialize(
-            data["power_capacity"]
-        )
-        if not isfinite(capacity) or capacity <= 0:
-            raise ValidationError(
-                "Power capacity must be finite and greater than zero."
-            )
-        changes["flex_model"] = dict(
-            asset.flex_model, **{"power-capacity": data["power_capacity"]}
-        )
-    if "state_of_charge_sensor" in data:
-        sensor_id = data["state_of_charge_sensor"]
-        validate_soc_sensor_to_save(asset, sensor_id)
-        changes["flex_model"] = dict(
-            changes.get("flex_model", asset.flex_model),
-            **{"state-of-charge": {"sensor": sensor_id}},
-        )
-    patch_asset(asset, changes)
-    db.session.commit()
-    return {"message": "Scheduling defaults saved on the asset."}

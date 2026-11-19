@@ -1,8 +1,9 @@
 """Exercise suggestions and additive defaults for manual scheduling."""
 
+import json
 from datetime import datetime, timedelta, timezone
 
-from flask import url_for
+from flask import g, url_for
 import pytest
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -53,41 +54,6 @@ def options(client, asset):
     )
 
 
-def test_demo_prices_create_reusable_sensor_with_known_full_period(
-    db, client, schedule_assets, as_admin
-):
-    asset = schedule_assets["test_battery"]
-    start = START + timedelta(minutes=30)
-    end = START + timedelta(hours=2, minutes=15)
-    response = client.post(
-        url_for("AssetCrudUI:demo_prices", id=asset.id),
-        json={"start_time": start.isoformat(), "end_time": end.isoformat()},
-    )
-    assert response.status_code == 201
-    sensor = db.session.get(Sensor, response.get_json()["id"])
-    assert sensor.generic_asset_id == asset.id
-    assert sensor.attributes["demo_data"] is True
-    assert sensor.attributes["demo_profile"] == "nl_october_day"
-    assert sensor.unit == "EUR/MWh"
-    beliefs = (
-        db.session.query(TimedBelief)
-        .filter(TimedBelief.sensor_id == sensor.id)
-        .order_by(TimedBelief.event_start)
-        .all()
-    )
-    assert [b.event_start for b in beliefs] == [
-        START,
-        START + timedelta(hours=1),
-        START + timedelta(hours=2),
-    ]
-    assert [b.event_value for b in beliefs] == [80, 75, 70]
-    assert all(b.belief_time <= datetime.now(timezone.utc) for b in beliefs)
-    assert all(b.source.type == "demo" for b in beliefs)
-    assert scheduling.price_covers_schedule(
-        sensor, start, end, datetime.now(timezone.utc)
-    )
-
-
 def test_demo_price_profiles_repeat_by_dutch_clock_and_offer_uniform_option(
     db, schedule_assets
 ):
@@ -115,66 +81,51 @@ def test_demo_price_profiles_repeat_by_dutch_clock_and_offer_uniform_option(
     assert uniform_values == [100] * 48
 
 
-def test_demo_prices_accepts_uniform_profile(db, client, schedule_assets, as_admin):
-    asset = schedule_assets["test_battery"]
-    response = client.post(
-        url_for("AssetCrudUI:demo_prices", id=asset.id),
-        json={
-            "start_time": START.isoformat(),
-            "end_time": (START + timedelta(hours=2)).isoformat(),
-            "profile": "uniform",
-        },
-    )
-    assert response.status_code == 201
-    sensor = db.session.get(Sensor, response.get_json()["id"])
-    assert sensor.attributes["demo_profile"] == "uniform"
-    assert [
-        belief.event_value
-        for belief in db.session.query(TimedBelief).filter_by(sensor_id=sensor.id)
-    ] == [100, 100]
-
-
-def test_demo_prices_allow_configured_price_but_refuse_overlong_period(
+def test_existing_apis_create_demo_prices_and_save_chosen_defaults(
     db, client, schedule_assets, as_admin
 ):
     asset = schedule_assets["test_battery"]
-    endpoint = url_for("AssetCrudUI:demo_prices", id=asset.id)
-    response = client.post(
-        endpoint,
-        json={
-            "start_time": START.isoformat(),
-            "end_time": (START + timedelta(days=32)).isoformat(),
-        },
-    )
-    assert response.status_code == 422
-    asset.flex_context = {"consumption-price": "100 EUR/MWh"}
+    asset.flex_model = {"soc-max": "20 kWh"}
     db.session.commit()
-    response = client.post(
-        endpoint,
+    for key in ("_login_user", "fs_authn_via", "fs_paa", "csrf_valid"):
+        g.pop(key, None)
+    assert client.get(f"/api/v3_0/assets/{asset.id}").status_code == 200
+    created = client.post(
+        "/api/v3_0/sensors",
         json={
-            "start_time": START.isoformat(),
-            "end_time": (START + timedelta(hours=1)).isoformat(),
+            "name": "Demo electricity price (Uniform)",
+            "generic_asset_id": asset.id,
+            "unit": "EUR/MWh",
+            "event_resolution": "PT1H",
+            "attributes": json.dumps({"demo_data": True, "demo_profile": "uniform"}),
         },
     )
-    assert response.status_code == 201
-    assert db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count() == 1
-
-
-def test_demo_prices_requires_asset_sensor_edit_permission(
-    db, client, schedule_assets, setup_accounts, as_prosumer_user1
-):
-    asset = schedule_assets["test_battery"]
-    asset.owner = setup_accounts["Supplier"]
-    db.session.commit()
-    response = client.post(
-        url_for("AssetCrudUI:demo_prices", id=asset.id),
+    assert created.status_code == 201
+    sensor_id = created.get_json()["id"]
+    posted = client.post(
+        f"/api/v3_0/sensors/{sensor_id}/data",
         json={
-            "start_time": START.isoformat(),
-            "end_time": (START + timedelta(hours=1)).isoformat(),
+            "start": START.isoformat(),
+            "duration": "PT2H",
+            "unit": "EUR/MWh",
+            "values": [100, 100],
         },
     )
-    assert response.status_code == 403
-    assert not db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count()
+    assert posted.status_code == 200
+    assert sensor_id in [
+        s["id"] for s in options(client, asset).get_json()["price_sensors"]
+    ]
+    patched = client.patch(
+        f"/api/v3_0/assets/{asset.id}",
+        json={
+            "flex_context": json.dumps({"consumption-price": {"sensor": sensor_id}}),
+            "flex_model": json.dumps({"soc-max": "20 kWh", "power-capacity": "5 kW"}),
+        },
+    )
+    assert patched.status_code == 200
+    db.session.refresh(asset)
+    assert asset.flex_context["consumption-price"] == {"sensor": sensor_id}
+    assert asset.flex_model["soc-max"] == "20 kWh"
 
 
 def test_suggestions_use_requested_period_and_latest_soc(
@@ -469,57 +420,6 @@ def test_starting_soc_is_required_only_for_storage_without_a_configured_value(
     assert options(client, asset).get_json()["requires_soc"] is False
 
 
-def test_defaults_preserve_config_and_refuse_overwrite(
-    db, client, schedule_assets, as_admin
-):
-    asset = schedule_assets["test_battery"]
-    asset.flex_model = {"soc-min": "1 kWh"}
-    db.session.commit()
-    url = url_for("AssetCrudUI:schedule_defaults", id=asset.id)
-    response = client.post(url, json={"power_capacity": "5 kW"})
-    assert response.status_code == 200
-    db.session.refresh(asset)
-    assert asset.flex_model == {"soc-min": "1 kWh", "power-capacity": "5 kW"}
-    assert client.post(url, json={"power_capacity": "6 kW"}).status_code == 200
-    db.session.refresh(asset)
-    assert asset.flex_model["power-capacity"] == "6 kW"
-
-
-def test_selected_soc_sensor_can_be_saved_in_flex_model(
-    db, client, schedule_assets, as_admin
-):
-    asset = schedule_assets["test_battery"]
-    soc = Sensor(
-        name="Stored energy",
-        unit="kWh",
-        generic_asset=asset,
-        event_resolution=timedelta(0),
-    )
-    db.session.add(soc)
-    db.session.commit()
-    response = client.post(
-        url_for("AssetCrudUI:schedule_defaults", id=asset.id),
-        json={"state_of_charge_sensor": soc.id},
-    )
-    assert response.status_code == 200
-    db.session.refresh(asset)
-    assert asset.flex_model["state-of-charge"] == {"sensor": soc.id}
-
-
-@pytest.mark.parametrize("capacity", ["-1 kW", "0 kW", "5 kWh", {"sensor": 1}, None])
-def test_defaults_reject_invalid_capacity(
-    db, client, schedule_assets, as_admin, capacity
-):
-    asset = schedule_assets["test_battery"]
-    response = client.post(
-        url_for("AssetCrudUI:schedule_defaults", id=asset.id),
-        json={"power_capacity": capacity},
-    )
-    assert response.status_code == 422
-    db.session.refresh(asset)
-    assert "power-capacity" not in asset.flex_model
-
-
 def test_percentage_soc_needs_energy_capacity(
     db, client, schedule_assets, setup_sources, as_admin
 ):
@@ -584,7 +484,7 @@ def test_soc_suggestions_are_no_more_than_one_week_old(
     assert options(client, asset).get_json()["soc_sensors"][0]["value"] == 5
 
 
-def test_unreadable_price_sensor_cannot_be_suggested_or_saved(
+def test_unreadable_price_sensor_cannot_be_suggested(
     db, client, schedule_assets, setup_accounts, setup_sources, as_prosumer_user1
 ):
     asset = schedule_assets["test_battery"]
@@ -612,13 +512,6 @@ def test_unreadable_price_sensor_cannot_be_suggested_or_saved(
     assert price.id not in [
         sensor["id"] for sensor in response.get_json()["price_sensors"]
     ]
-    response = client.post(
-        url_for("AssetCrudUI:schedule_defaults", id=asset.id),
-        json={"consumption_price_sensor": price.id},
-    )
-    assert response.status_code == 403
-    db.session.refresh(asset)
-    assert "consumption-price" not in asset.flex_context
 
 
 def test_newest_price_sensor_is_suggested_when_more_than_ten_match(
