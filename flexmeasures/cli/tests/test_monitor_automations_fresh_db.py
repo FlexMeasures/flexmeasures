@@ -534,6 +534,24 @@ def test_an_unmonitored_automation_is_reported_once_it_is_monitored_again(
     assert run.alerted_at == DUE_AT
 
 
+def test_users_hear_nothing_about_an_unmonitored_automation(
+    app, fresh_db, automations_per_organisation
+):
+    """Opting out of monitoring also keeps the automation out of the digests to account admins and consultants."""
+    client = automations_per_organisation["client"]
+    client.monitored = False
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app, "--notify-users")
+
+    assert result.exit_code == 0, result.output
+    assert f"Automation {client.id} " not in outbox[0].body
+    digests = emails_by_user(outbox)
+    assert set(digests) == {"test_prosumer_user_2@seita.nl"}
+    for body in digests.values():
+        assert f"Automation {client.id} " not in body
+
+
 def test_the_digest_says_which_runs_failed_while_unmonitored(
     app, fresh_db, forecast_automation, freeze_server_now
 ):
