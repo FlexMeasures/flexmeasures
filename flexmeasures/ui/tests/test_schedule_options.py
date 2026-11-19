@@ -619,3 +619,34 @@ def test_unreadable_price_sensor_cannot_be_suggested_or_saved(
     assert response.status_code == 403
     db.session.refresh(asset)
     assert "consumption-price" not in asset.flex_context
+
+
+def test_newest_price_sensor_is_suggested_when_more_than_ten_match(
+    db, client, schedule_assets, setup_sources, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    sensors = []
+    for number in range(12):
+        sensor = Sensor(
+            name=f"Price {number}",
+            unit="EUR/MWh",
+            generic_asset=asset,
+            event_resolution=timedelta(hours=1),
+        )
+        db.session.add(sensor)
+        db.session.flush()
+        sensors.append(sensor)
+        db.session.add(
+            TimedBelief(
+                sensor=sensor,
+                source=setup_sources["Seita"],
+                event_start=START,
+                event_value=50,
+                belief_horizon=timedelta(0),
+            )
+        )
+    db.session.commit()
+    selected_ids = [s["id"] for s in options(client, asset).get_json()["price_sensors"]]
+    assert len(selected_ids) == 10
+    assert sensors[-1].id == selected_ids[0]
+    assert sensors[0].id not in selected_ids

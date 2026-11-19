@@ -6,17 +6,20 @@ from zoneinfo import ZoneInfo
 
 from flask import url_for
 from marshmallow import ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from flask_security import current_user
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.planning.storage import storage_asset_types
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.generic_assets import patch_asset
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.ui.utils.auth_utils import user_can_access
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.unit_utils import is_energy_price_unit
 
 
 def sensor_option(sensor):
@@ -46,6 +49,47 @@ def last_price_end(sensor, start_time, end_time, belief_time):
 def price_covers_schedule(sensor, start_time, end_time, belief_time):
     """Report whether the scheduler can use at least one known price event."""
     return last_price_end(sensor, start_time, end_time, belief_time) is not None
+
+
+def readable_price_candidates(start_time, end_time):
+    """Filter price candidates by readable organisation and event window in SQL."""
+    account_ids = [current_user.account_id]
+    if current_user.has_role("consultant"):
+        client_ids = select(Account.id).where(
+            Account.consultancy_account_id == current_user.account_id
+        )
+        account_ids.extend(db.session.scalars(client_ids).all())
+    scope = or_(
+        GenericAsset.account_id.in_(account_ids), GenericAsset.account_id.is_(None)
+    )
+    if current_user.has_role("admin"):
+        scope = True
+    unit_query = (
+        select(Sensor.unit)
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+        .where(scope)
+        .distinct()
+    )
+    price_units = [
+        unit for unit in db.session.scalars(unit_query) if is_energy_price_unit(unit)
+    ]
+    if not price_units:
+        return []
+    candidate_ids = (
+        select(Sensor.id)
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+        .join(TimedBelief, TimedBelief.sensor_id == Sensor.id)
+        .where(
+            scope,
+            Sensor.unit.in_(price_units),
+            TimedBelief.event_start < end_time,
+            TimedBelief.event_start + Sensor.event_resolution > start_time,
+        )
+        .distinct()
+    )
+    return db.session.scalars(
+        select(Sensor).where(Sensor.id.in_(candidate_ids)).order_by(Sensor.id.desc())
+    )
 
 
 def power_capacity_option(model, context):
@@ -99,8 +143,8 @@ def schedule_options(asset, start_time, end_time):
     ]
     prices = []
     if consumption_price is None or not price_available or price_ends_at:
-        for sensor in db.session.scalars(select(Sensor).order_by(Sensor.id)):
-            if not sensor.measures_energy_price or not user_can_access(sensor, "read"):
+        for sensor in readable_price_candidates(start_time, end_time):
+            if not user_can_access(sensor, "read"):
                 continue
             if price_covers_schedule(sensor, start_time, end_time, belief_time):
                 prices.append(sensor_option(sensor))
