@@ -2810,6 +2810,7 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                 flex_model={
                     "power-capacity": "500 kVA",
                     "roundtrip-efficiency": "90%",
+                    "soc-min": "0 kWh",
                     "soc-max": "450 kWh",
                 },
             )
