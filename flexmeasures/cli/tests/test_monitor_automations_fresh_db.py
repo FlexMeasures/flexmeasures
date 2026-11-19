@@ -423,17 +423,14 @@ def emails_by_user(outbox) -> dict[str, str]:
 
 
 def test_users_hear_only_about_the_automations_they_may_read(
-    app, fresh_db, automations_per_organisation, monkeypatch
+    app, fresh_db, automations_per_organisation
 ):
     """Account admins and consultants each get one digest, about their organisations' automations, while the host hears about all of them."""
-    monkeypatch.setitem(
-        app.config, "FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS", True
-    )
     prosumer, client, public = (
         automations_per_organisation[key] for key in ("prosumer", "client", "public")
     )
 
-    result, outbox = monitor(app)
+    result, outbox = monitor(app, "--notify-users")
 
     assert result.exit_code == 0, result.output
     host_digests = [message for message in outbox if message.bcc]
@@ -462,7 +459,7 @@ def test_users_hear_only_about_the_automations_they_may_read(
 
 
 def test_user_digests_are_off_by_default(app, fresh_db, automations_per_organisation):
-    """Without the setting, only the host is told, and the runs still count as reported."""
+    """Without --notify-users, only the host is told, and the runs still count as reported."""
     result, outbox = monitor(app)
 
     assert result.exit_code == 0, result.output
@@ -481,9 +478,6 @@ def test_a_user_digest_that_cannot_be_sent_is_not_sent_again(
     """Runs count as reported once the host is told, so a user digest that fails is logged, while the other users still get theirs."""
     from smtplib import SMTPRecipientsRefused
 
-    monkeypatch.setitem(
-        app.config, "FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS", True
-    )
     send = app.mail.send
 
     def refuse_the_consultant(message):
@@ -493,7 +487,7 @@ def test_a_user_digest_that_cannot_be_sent_is_not_sent_again(
 
     monkeypatch.setattr(app.mail, "send", refuse_the_consultant)
 
-    result, outbox = monitor(app)
+    result, outbox = monitor(app, "--notify-users")
 
     assert result.exit_code == 0, result.output
     assert set(emails_by_user(outbox)) == {

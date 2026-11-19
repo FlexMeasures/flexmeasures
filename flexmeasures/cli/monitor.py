@@ -637,9 +637,16 @@ def send_automation_digests_to_users(
     multiple=True,
     help="User ID or email address to send the digest to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
 )
+@click.option(
+    "--notify-users",
+    is_flag=True,
+    default=False,
+    help="Also email the account admins and consultants of each asset's organisation a digest of the failed automations they may read.",
+)
 def monitor_automations(
     stuck_after_minutes: int | None = None,
     recipient: tuple[str, ...] = (),
+    notify_users: bool = False,
 ):
     """
     Email a digest of the automation runs that failed since the last check.
@@ -649,7 +656,7 @@ def monitor_automations(
     Each run is reported once, so a monitoring run that was missed is made up for by the next one.
     Repeated failures are collapsed per automation, and no email is sent when nothing failed.
 
-    With FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS switched on, the admins of each asset's organisation and its consultants also receive a digest,
+    With --notify-users, the admins of each asset's organisation and its consultants also receive a digest,
     listing only the automations they may read.
     A run counts as reported once the host's digest is sent.
 
@@ -691,7 +698,7 @@ def monitor_automations(
         f"Reported {len(failed_runs)} failed run(s) of {len(failures)} automation(s) to {', '.join(email_recipients)}.",
         **MsgStyle.WARN,
     )
-    if app.config["FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS"]:
+    if notify_users:
         send_automation_digests_to_users(failures, stuck_after)
 
 
