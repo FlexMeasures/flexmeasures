@@ -408,6 +408,10 @@ def test_inherited_settings_avoid_redundant_suggestions(
     data = options(client, asset).get_json()
     assert data["consumption_price"] == "0.2 EUR/kWh"
     assert data["power_capacity"] == "10 kW"
+    assert data["power_capacity_kw"] == 10
+    assert data["power_capacity_source"] == "inherited site-power-capacity"
+    assert data["is_storage"] is True
+    assert data["soc_min"] is None
     assert data["price_sensors"] == []
 
 
@@ -476,9 +480,9 @@ def test_defaults_preserve_config_and_refuse_overwrite(
     assert response.status_code == 200
     db.session.refresh(asset)
     assert asset.flex_model == {"soc-min": "1 kWh", "power-capacity": "5 kW"}
-    assert client.post(url, json={"power_capacity": "6 kW"}).status_code == 422
+    assert client.post(url, json={"power_capacity": "6 kW"}).status_code == 200
     db.session.refresh(asset)
-    assert asset.flex_model["power-capacity"] == "5 kW"
+    assert asset.flex_model["power-capacity"] == "6 kW"
 
 
 def test_selected_soc_sensor_can_be_saved_in_flex_model(

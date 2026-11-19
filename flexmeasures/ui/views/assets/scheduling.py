@@ -48,6 +48,28 @@ def price_covers_schedule(sensor, start_time, end_time, belief_time):
     return last_price_end(sensor, start_time, end_time, belief_time) is not None
 
 
+def power_capacity_option(model, context):
+    """Show the effective power limit and its source before it is overridden."""
+    capacity_keys = (
+        ("power-capacity", "this asset’s power-capacity"),
+        ("consumption-capacity", "this asset’s consumption-capacity"),
+        ("production-capacity", "this asset’s production-capacity"),
+    )
+    capacity, source = next(
+        (
+            (model[key], label)
+            for key, label in capacity_keys
+            if model.get(key) is not None
+        ),
+        (context.get("site-power-capacity"), "inherited site-power-capacity"),
+    )
+    try:
+        capacity_kw = QuantityField("kW", return_magnitude=True).deserialize(capacity)
+    except ValidationError:
+        capacity_kw = None
+    return capacity, capacity_kw, source if capacity is not None else None
+
+
 def schedule_options(asset, start_time, end_time):
     """Find readable candidates only when the dialog requests them."""
     belief_time = server_now()
@@ -86,6 +108,7 @@ def schedule_options(asset, start_time, end_time):
                     break
     soc_sensors = soc_options(asset, start_time)
     model = asset.flex_model
+    capacity, capacity_kw, capacity_source = power_capacity_option(model, context)
     try:
         soc_max = QuantityField("kWh", return_magnitude=True).deserialize(
             model.get("soc-max")
@@ -99,13 +122,11 @@ def schedule_options(asset, start_time, end_time):
         consumption_price_sensor=consumption_price_sensor,
         price_available=price_available,
         price_ends_at=price_ends_at,
-        power_capacity=model.get(
-            "power-capacity",
-            model.get(
-                "consumption-capacity",
-                model.get("production-capacity", context.get("site-power-capacity")),
-            ),
-        ),
+        power_capacity=capacity,
+        power_capacity_kw=capacity_kw,
+        power_capacity_source=capacity_source,
+        soc_min=model.get("soc-min"),
+        is_storage=asset.asset_type.name in storage_asset_types,
         soc_sensors=soc_sensors,
         soc_max=soc_max,
         configured_soc_sensor=(
@@ -248,13 +269,6 @@ def save_schedule_defaults(asset, data):
         if not isfinite(capacity) or capacity <= 0:
             raise ValidationError(
                 "Power capacity must be finite and greater than zero."
-            )
-        if any(
-            asset.flex_model.get(key) is not None
-            for key in ("power-capacity", "consumption-capacity", "production-capacity")
-        ):
-            raise ValidationError(
-                "A power capacity is already configured. Reload the dialog."
             )
         changes["flex_model"] = dict(
             asset.flex_model, **{"power-capacity": data["power_capacity"]}

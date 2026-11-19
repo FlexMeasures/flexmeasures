@@ -49,7 +49,12 @@
                         <div data-role="capacity-group" class="mb-3 d-none">
                             <label for="scheduleCapacity" class="form-label">Power capacity (kW)</label>
                             <input id="scheduleCapacity" data-role="capacity" type="number" min="0.000001" step="any" class="form-control">
-                            <small class="text-muted">Maximum power for this device. Used temporarily for this run.</small>
+                            <small data-role="capacity-source" class="text-muted"></small>
+                        </div>
+                        <div data-role="soc-min-group" class="mb-3 d-none">
+                            <label for="scheduleSocMin" class="form-label">Minimum state of charge (kWh)</label>
+                            <input id="scheduleSocMin" data-role="soc-min" type="number" min="0" step="any" value="0" class="form-control">
+                            <small class="text-muted">Confirm the lower bound for this storage device. Zero means it may discharge to empty.</small>
                         </div>
                         <div class="mb-3">
                             <label for="scheduleSocSource" class="form-label">Starting state of charge</label>

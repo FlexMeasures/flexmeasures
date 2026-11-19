@@ -56,7 +56,8 @@ def modal_setup():
 OPTIONS = """
     const available = {
         power_sensors: [{id: 7, name: "Battery power", unit: "kW", url: "/sensors/7"}],
-        consumption_price: null, power_capacity: null, requires_soc: true,
+        consumption_price: null, power_capacity: null, power_capacity_kw: null,
+        requires_soc: true, is_storage: true, soc_min: null,
         price_sensors: [{id: 12, name: "Day-ahead", unit: "EUR/MWh", url: "/sensors/12"}],
         soc_sensors: [{id: 13, name: "Battery charge", value: 4.5, unit: "kWh",
                        event_start: "2026-10-14T09:00:00+02:00", timezone: "Europe/Amsterdam"}],
@@ -206,7 +207,7 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         eq("explicit force flag is sent", payload["force-new-job-creation"], true);
         eq("price belongs to flex-context", payload["flex-context"], {"consumption-price": {sensor: 12}});
         eq("device overrides carry units", payload["flex-model"], [
-            {sensor: 7, "power-capacity": "10 kW", "state-of-charge": {sensor: 13}}
+            {sensor: 7, "power-capacity": "10 kW", "soc-min": "0 kWh", "state-of-charge": {sensor: 13}}
         ]);
         await answer({job: "job-42"});
         await tick();
@@ -282,6 +283,24 @@ def test_old_soc_reading_warns_without_disabling_sensor_choice(assert_js):
         change("soc-source");
         check("older reading is identified", !field("soc-age-warning").classList.contains("d-none"));
         check("reading shows the sensor timezone", field("soc-source").options[1].textContent.includes("Europe/Amsterdam"));
+    """)
+
+
+def test_inherited_capacity_is_visible_and_can_be_overridden(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, consumption_price: 50,
+            power_capacity: "17 kW", power_capacity_kw: 17,
+            power_capacity_source: "inherited site-power-capacity"});
+        eq("effective site limit is shown", field("capacity").value, "17");
+        check("source is explained", field("capacity-source").textContent.includes("inherited site-power-capacity"));
+        field("capacity").value = "5";
+        change("capacity");
+        field("soc").value = "5";
+        field("soc").dispatchEvent(new Event("input"));
+        submit();
+        eq("device limit overrides site limit for run", JSON.parse(requests[1].options.body)["flex-model"][0]["power-capacity"], "5 kW");
+        eq("minimum SoC is explicit", JSON.parse(requests[1].options.body)["flex-model"][0]["soc-min"], "0 kWh");
     """)
 
 
@@ -363,12 +382,12 @@ def test_partial_configured_prices_warn_and_offer_demo_for_window(assert_js):
 def test_existing_defaults_are_preserved_and_period_edits_require_lookup(assert_js):
     assert_js(modal_setup() + OPTIONS + """
         open();
-        const configured = {...available, consumption_price: 0, power_capacity: "20 kW", requires_soc: false};
+        const configured = {...available, consumption_price: 0, power_capacity: "20 kW", power_capacity_kw: 20, soc_min: "0 kWh", requires_soc: false};
         await answer(configured);
         check("configured zero price is valid", !field("run").disabled);
         eq("fixed price is displayed", field("configured-price").textContent, "0");
         check("price override is hidden", field("price-group").classList.contains("d-none"));
-        check("capacity override is hidden", field("capacity-group").classList.contains("d-none"));
+        check("capacity remains visible", !field("capacity-group").classList.contains("d-none"));
         field("duration").value = "48";
         field("duration").dispatchEvent(new Event("input"));
         check("editing the period invalidates previous lookup", field("run").disabled);
@@ -409,7 +428,7 @@ def test_soc_selector_is_hidden_without_existing_readings(assert_js):
 def test_storage_requires_a_starting_soc_but_non_storage_does_not(assert_js):
     assert_js(modal_setup() + OPTIONS + """
         open();
-        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW", power_capacity_kw: 10});
         check("storage without SoC cannot run", field("run").disabled);
         check("missing SoC is explained", field("warnings").textContent.includes("starting state of charge"));
         check("SoC warning is visible while missing", !field("soc-warning").classList.contains("d-none"));
@@ -419,7 +438,7 @@ def test_storage_requires_a_starting_soc_but_non_storage_does_not(assert_js):
         check("custom SoC hides its warning", field("soc-warning").classList.contains("d-none"));
         check("warning box is hidden when it has no other notes", field("warnings").classList.contains("d-none"));
         field("retry").click();
-        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW", power_capacity_kw: 10});
         check("rechecking keeps the custom SoC warning hidden", field("soc-warning").classList.contains("d-none") && field("warnings").classList.contains("d-none"));
         field("soc").value = "-1";
         field("soc").dispatchEvent(new Event("input"));
@@ -431,12 +450,12 @@ def test_storage_requires_a_starting_soc_but_non_storage_does_not(assert_js):
         check("choosing a reading provides SoC", !field("run").disabled);
         check("chosen reading hides its warning", field("soc-warning").classList.contains("d-none"));
         field("retry").click();
-        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW", power_capacity_kw: 10});
         eq("rechecking keeps the chosen reading", field("soc-source").value, "13");
         check("rechecking keeps its warning hidden", field("soc-warning").classList.contains("d-none"));
         field("soc-source").value = "";
         change("soc-source");
         change("duration");
-        await answer({...available, consumption_price: 0, power_capacity: "10 kW", requires_soc: false});
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW", power_capacity_kw: 10, requires_soc: false, is_storage: false});
         check("non-storage asset can run without SoC", !field("run").disabled);
     """)

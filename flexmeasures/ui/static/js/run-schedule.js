@@ -41,6 +41,9 @@ export function initializeRunSchedule(root, config) {
     function hasPowerCapacity() {
         return el('capacity').value !== '' && Number(el('capacity').value) > 0 && el('capacity').checkValidity();
     }
+    function hasSocMin() {
+        return el('soc-min').value !== '' && Number(el('soc-min').value) >= 0 && el('soc-min').checkValidity();
+    }
     function hasSelectedPrice() {
         return Boolean(options?.price_sensors.some(sensor => String(sensor.id) === el('price').value));
     }
@@ -58,6 +61,8 @@ export function initializeRunSchedule(root, config) {
         }
         const capacityWarning = el('capacity-warning');
         if (capacityWarning) capacityWarning.classList.toggle('d-none', hasPowerCapacity());
+        const socMinWarning = el('soc-min-warning');
+        if (socMinWarning) socMinWarning.classList.toggle('d-none', hasSocMin());
         const priceWarning = el('price-warning');
         if (priceWarning) priceWarning.classList.toggle('d-none', hasSelectedPrice());
         const configuredPriceWarning = el('configured-price-warning');
@@ -79,7 +84,8 @@ export function initializeRunSchedule(root, config) {
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
             (options.price_available !== false || hasSelectedPrice()) &&
             (!missing(options.consumption_price) || hasSelectedPrice()) &&
-            (!missing(options.power_capacity) || hasPowerCapacity()) &&
+            hasPowerCapacity() &&
+            (!options.is_storage || !missing(options.soc_min) || hasSocMin()) &&
             (!options.requires_soc || hasSoc);
         el('run').disabled = loading || running || !ready;
         el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
@@ -88,6 +94,7 @@ export function initializeRunSchedule(root, config) {
         el('demo-price').disabled = loading || running;
         el('demo-profile').disabled = loading || running;
         el('capacity').disabled = loading || running;
+        el('soc-min').disabled = loading || running;
         el('soc-source').disabled = loading || running;
         el('soc').disabled = running || Boolean(el('soc-source').value);
         el('soc-unit').disabled = el('soc').disabled;
@@ -164,8 +171,15 @@ export function initializeRunSchedule(root, config) {
                     ? String(data.consumption_price) : 'Configured price sensor unavailable';
             updateSelectedPrice();
             if (data.price_available === false) warnings.push('The configured consumption price sensor has no usable prices for this period. Choose another sensor or create demo prices for this run.');
-            show('capacity-group', missing(data.power_capacity));
-            el('capacity').required = missing(data.power_capacity);
+            show('capacity-group', true);
+            el('capacity').required = true;
+            if (el('capacity').value === '' && Number(data.power_capacity_kw) > 0) {
+                el('capacity').value = String(data.power_capacity_kw);
+            }
+            el('capacity-source').textContent = data.power_capacity_source
+                ? `Current effective limit: ${data.power_capacity} from ${data.power_capacity_source}. Change it for this run if it is not this device’s limit.`
+                : 'Enter this device’s power limit for this run.';
+            show('soc-min-group', data.is_storage && missing(data.soc_min));
             const previousSocSource = el('soc-source').value;
             el('soc-source').replaceChildren();
             show('soc-source', data.soc_sensors.length > 0);
@@ -227,6 +241,13 @@ export function initializeRunSchedule(root, config) {
                 p.textContent = 'A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.';
                 el('warnings').append(p);
             }
+            if (data.is_storage && missing(data.soc_min)) {
+                const p = document.createElement('p');
+                p.dataset.role = 'soc-min-warning';
+                p.className = 'mb-1';
+                p.textContent = 'This storage asset has no minimum state of charge. Confirm a lower bound, such as 0 kWh, for this run.';
+                el('warnings').append(p);
+            }
             const ageWarning = document.createElement('p');
             ageWarning.dataset.role = 'soc-age-warning';
             ageWarning.className = 'mb-1 d-none';
@@ -264,6 +285,7 @@ export function initializeRunSchedule(root, config) {
         updateReady();
     });
     el('capacity').addEventListener('input', updateReady);
+    el('soc-min').addEventListener('input', updateReady);
     el('soc').addEventListener('input', updateReady);
     el('retry').addEventListener('click', event => {
         event.preventDefault();
@@ -314,10 +336,11 @@ export function initializeRunSchedule(root, config) {
                 choices.consumption_price_sensor = Number(el('price').value);
                 payload['flex-context'] = {'consumption-price': {sensor: choices.consumption_price_sensor}};
             }
-            if (missing(options.power_capacity)) {
+            if (missing(options.power_capacity_kw) || Number(el('capacity').value) !== Number(options.power_capacity_kw)) {
                 choices.power_capacity = `${Number(el('capacity').value)} kW`;
                 model['power-capacity'] = choices.power_capacity;
             }
+            if (options.is_storage && missing(options.soc_min)) model['soc-min'] = `${Number(el('soc-min').value)} kWh`;
             const soc = options.soc_sensors.find(item => String(item.id) === el('soc-source').value);
             if (soc) {
                 model['state-of-charge'] = {sensor: soc.id};
