@@ -526,20 +526,22 @@ For the data, note the following:
     });
     const availableUnits = {{ available_units | tojson }};
     
+    // The upload form, with its units dropdown, is only there for users who may upload data to the sensor
     const flexUnitsSelect = document.getElementById('flexUnitsSelect');
-    
-    // Populate the units dropdown
-    availableUnits.forEach(unit => {
-        const option = document.createElement('option');
-        option.value = unit;
-        option.textContent = unit;
-        flexUnitsSelect.appendChild(option);
-    });
+    if (flexUnitsSelect) {
+        // Populate the units dropdown
+        availableUnits.forEach(unit => {
+            const option = document.createElement('option');
+            option.value = unit;
+            option.textContent = unit;
+            flexUnitsSelect.appendChild(option);
+        });
 
-    // Pre-select the current unit
-    const currentUnit = "{{ sensor.unit }}";
-    if (currentUnit) {
-        flexUnitsSelect.value = currentUnit;
+        // Pre-select the current unit
+        const currentUnit = "{{ sensor.unit }}";
+        if (currentUnit) {
+            flexUnitsSelect.value = currentUnit;
+        }
     }
 
 
