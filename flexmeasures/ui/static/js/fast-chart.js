@@ -937,9 +937,12 @@ function exportCSV(elementId, datasetName) {
 // exported canvas grows to the right by just enough for them — otherwise the
 // extra columns would spill over the plot (see #2513).
 //
+// While replaying, the export also shows the replay ruler at the given belief time
+// (on screen it is drawn outside the option, see drawReplayRuler).
+//
 // Returns the option together with the canvas size the export should use.
 // (Exported for the JavaScript tests, which check the legend never covers a plot.)
-export function buildExportOption(lastOption, width, height) {
+export function buildExportOption(lastOption, width, height, replayTime = null) {
   const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
   const grids = asList(lastOption.grid);
   // The room the on-screen layout reserves beside the plots for the legend
@@ -999,6 +1002,9 @@ export function buildExportOption(lastOption, width, height) {
   const series = asList(lastOption.series).map((s) =>
     Object.assign({}, s, { progressive: 0, animation: false })
   );
+  if (replayTime != null) {
+    series.push(...replayRulerExportSeries(lastOption, replayTime));
+  }
   // Widening the canvas must not stretch the plots: every grid keeps its width
   // by giving the added space to its right margin.
   const option = Object.assign({}, lastOption, {
@@ -1014,6 +1020,37 @@ export function buildExportOption(lastOption, width, height) {
   return { option: option, width: width + extraWidth, height: height };
 }
 
+// The replay ruler as data-less series with a markLine, one per time-axis subplot, drawn behind the data.
+function replayRulerExportSeries(lastOption, replayTime) {
+  const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+  const yAxes = asList(lastOption.yAxis);
+  const series = [];
+  asList(lastOption.xAxis).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridIndex = xAxis.gridIndex || 0;
+    const yAxisIndex = yAxes.findIndex((y) => (y.gridIndex || 0) === gridIndex);
+    if (yAxisIndex < 0) return;
+    series.push({
+      type: "line",
+      xAxisIndex: i,
+      yAxisIndex: yAxisIndex,
+      data: [],
+      silent: true,
+      animation: false,
+      z: REPLAY_RULER_Z,
+      itemStyle: { color: "transparent" }, // keeps this empty series from consuming a data palette slot
+      markLine: {
+        silent: true,
+        animation: false,
+        symbol: "none",
+        label: { show: false },
+        data: [{ xAxis: replayTime, lineStyle: { color: REPLAY_RULER_COLOR, width: 1.5, type: "solid" } }],
+      },
+    });
+  });
+  return series;
+}
+
 function exportSVG(elementId, datasetName) {
   const instance = instances[elementId];
   if (!instance || !instance.lastOption || typeof echarts === "undefined") {
@@ -1023,7 +1060,8 @@ function exportSVG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    instance.replayTime
   );
   const svgChart = echarts.init(null, null, {
     renderer: "svg",
@@ -1049,7 +1087,8 @@ function exportPNG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    instance.replayTime
   );
   const holder = document.createElement("div");
   holder.style.width = exported.width + "px";
@@ -2524,11 +2563,12 @@ export function renderFastChart(elementId, data, options) {
 /* ============================== replay ruler ============================== */
 
 const REPLAY_RULER_COLOR = "#555";
-// The ruler gets a canvas layer of its own, so moving it repaints only that layer, not the chart.
-const REPLAY_RULER_ZLEVEL = 1;
+// Above the split lines (z 0) and behind the series (z 2).
+const REPLAY_RULER_Z = 1;
 
 // Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, or clear it.
-// These are plain zrender elements, kept out of the chart option, so moving the ruler never re-renders the chart.
+// These are plain zrender elements, kept out of the chart option, so moving the ruler never re-renders the chart:
+// it only repaints the canvas, which takes about a millisecond even for tens of thousands of points.
 function drawReplayRuler(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
@@ -2539,7 +2579,7 @@ function drawReplayRuler(instance) {
   }
   const time = instance.replayTime;
   if (time == null || !instance.lastOption) return;
-  const group = new echarts.graphic.Group({ silent: true, zlevel: REPLAY_RULER_ZLEVEL });
+  const group = new echarts.graphic.Group({ silent: true });
   const model = chart.getModel();
   [].concat(instance.lastOption.xAxis || []).forEach((xAxis, i) => {
     if (!xAxis || xAxis.type !== "time") return;
@@ -2551,7 +2591,7 @@ function drawReplayRuler(instance) {
       shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
       style: { stroke: REPLAY_RULER_COLOR, lineWidth: 1.5 },
       silent: true,
-      zlevel: REPLAY_RULER_ZLEVEL,
+      z: REPLAY_RULER_Z,
     }));
   });
   zr.add(group);
@@ -3193,7 +3233,7 @@ export function wireAnnotationHover(instance) {
 
 /**
  * Set (or clear, with null) the replay belief time, shown as a vertical ruler.
- * Moving the ruler is cheap: it repaints the ruler's own layer without re-rendering the chart,
+ * Moving the ruler is cheap: it repaints the canvas without re-rendering the chart,
  * so it can follow the replay on every animation frame.
  */
 export function setFastChartReplayTime(elementId, beliefTimeMs) {

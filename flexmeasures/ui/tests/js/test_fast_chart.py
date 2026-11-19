@@ -744,10 +744,30 @@ def test_shift_click_pins_several_annotations(assert_js):
         """)
 
 
+def test_image_exports_show_the_replay_ruler(assert_js):
+    """On screen, the ruler is drawn outside the chart option, so the export has to add it back."""
+    assert_js("""
+        import { buildExportOption } from "/js/fast-chart.js";
+        const option = {
+            grid: [{top: 50, height: 100, right: 300}, {top: 250, height: 100, right: 300}, {top: 450, height: 100, right: 300}],
+            xAxis: [{type: "time", gridIndex: 0}, {type: "time", gridIndex: 1}, {type: "category", gridIndex: 2}],
+            yAxis: [{gridIndex: 0}, {gridIndex: 1}, {gridIndex: 2}],
+            series: [{type: "line", xAxisIndex: 0, yAxisIndex: 0, data: [[0, 1]]}],
+        };
+        const rulers = (exported) => exported.option.series.filter((s) => s.markLine);
+        eq("no ruler outside a replay", rulers(buildExportOption(option, 1200, 600)).length, 0);
+        const exported = buildExportOption(option, 1200, 600, 1234);
+        eq("one ruler per time-axis subplot", rulers(exported).map((s) => [s.xAxisIndex, s.yAxisIndex]), [[0, 0], [1, 1]]);
+        check("at the replay time", rulers(exported).every((s) => s.markLine.data[0].xAxis === 1234));
+        check("behind the data", rulers(exported).every((s) => s.z < 2 && s.data.length === 0));
+        eq("the data series are kept", exported.option.series.length, 3);
+        """)
+
+
 def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
     """The replay ruler follows the replay on every frame, so moving it must not re-render the chart.
 
-    It is drawn on a layer of its own, in every time-axis subplot,
+    It is drawn in every time-axis subplot, between the split lines and the data,
     and has to survive re-renders (also without visible data) and follow zooming.
     """
     assert_js(LOAD_ECHARTS + """
@@ -786,7 +806,7 @@ def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
             eq(`${chartType}: one ruler per subplot`, rulers(chart).length, 2);
             check("at the replay time", rulers(chart).every((line, i) =>
                 near(line.shape.x1, chart.convertToPixel({xAxisIndex: i}, time))), rulers(chart).map((l) => l.shape.x1));
-            check("on a layer of its own", rulers(chart).every((line) => line.zlevel > 0));
+            check("above the split lines and behind the data", rulers(chart).every((line) => line.zlevel === 0 && line.z > 0 && line.z < 2));
             setFastChartReplayTime(container.id, time + hour);
             eq("moving it leaves the chart option alone", setOptionCalls, 0);
             check("but moves the ruler", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)));
