@@ -553,7 +553,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     while used_name in worker_names:
         used_name = f"{name}-{next(name_suffixes)}"
 
-    error_handler = get_exception_handler(queue)
+    # A worker can work on several queues, so each failed job goes to the handler of its own queue.
+    error_handler = handle_exception_by_queue
 
     # On macOS: RQ's fork-based Worker triggers a known OpenSSL/psycopg2
     # segmentation fault due to reinitialization of SSL state in forked children.
@@ -1006,6 +1007,20 @@ def get_exception_handler(queue_name: str) -> Callable:
     :returns:          an RQ exception handler.
     """
     return QUEUE_EXCEPTION_HANDLERS.get(queue_name, handle_worker_exception)
+
+
+def handle_exception_by_queue(
+    job: Job,
+    exc_type: Type[Exception],
+    exc_value: Exception,
+    traceback: TracebackType,
+) -> bool | None:
+    """Handle a failed job with the exception handler of the queue the job came from.
+
+    A worker that works on several queues would otherwise use one handler for the jobs of all of them.
+    RQ reads the return value to decide whether to call the next handler, so we pass it on.
+    """
+    return get_exception_handler(job.origin)(job, exc_type, exc_value, traceback)
 
 
 def parse_queue_list(queue_names_str: str) -> list[Queue]:

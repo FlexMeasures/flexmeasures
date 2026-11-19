@@ -203,10 +203,10 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     schedule_revision = ma.auto_field(
-        data_key="schedule-revision",
+        data_key="revision",
         dump_only=True,
         metadata={
-            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
             "example": 2,
         },
     )

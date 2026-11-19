@@ -37,13 +37,16 @@ Running the image (as a container) might work like this (remember to get the ima
 
 .. code-block:: bash
 
-    $ docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla --env SECURITY_TOTP_SECRETS={"1": "blabla"} --env FLEXMEASURES_ENV=development -p 5000:5000 -d --net=host lfenergy/flexmeasures
+    $ docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla --env FLEXMEASURES_ENV=development -p 5000:5000 -d --net=host lfenergy/flexmeasures
 
 .. note:: Don't know what your image is called (its "tag")? We used ``lfenergy/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
 .. include:: ../notes/macOS-docker-port-note.rst
 
-The three minimal environment variables to run the container successfully are ``SQLALCHEMY_DATABASE_URI``, the ``SECRET_KEY`` and ``SECURITY_TOTP_SECRETS``, see :ref:`configuration`. ``FLEXMEASURES_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
+The two minimal environment variables to run the container successfully are ``SQLALCHEMY_DATABASE_URI`` and the ``SECRET_KEY``, see :ref:`configuration`.
+``SECURITY_TOTP_SECRETS`` is needed, too, once you turn on two-factor authentication (see :ref:`installation_two_factor`).
+``FLEXMEASURES_ENV=development`` suits running FlexMeasures on your own computer: it shows debugging information and more log output, and by default only accepts requests addressed to loopback names and addresses, such as ``localhost`` or ``127.0.0.1`` (the default mode is ``production``).
+If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
 
 In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
 
@@ -56,7 +59,7 @@ Of course, you might not have created a user. You can use ``docker exec -it <fle
 Configuration and customization
 -----------------------------------
 
-Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables. A good example is the :ref:`mapbox_access_token`, so you can load maps on the dashboard.
+Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables. A good example is :ref:`FLEXMEASURES_FORCE_HTTPS <force_https>`.
 
 To load a configuration file into the container when starting up, we make use of the `instance folder <https://flask.palletsprojects.com/en/2.1.x/config/#instance-folders>`_. You can put a configuration file called ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
 
