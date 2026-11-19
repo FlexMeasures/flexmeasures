@@ -484,7 +484,7 @@
                 // so this one loads its own (reloadChartData renders it, in either renderer).
                 // A running replay is stopped first: it would keep drawing the previous chart type's data,
                 // and stopping it redraws the Vega-Lite chart, which must not land after the reload.
-                playBackDataLoadedForKnownDateRange = false;
+                forgetReplayData();
                 stopReplay().catch(console.error).then(() => reloadChartData());
                 return;
                 {% endif %}
@@ -1026,7 +1026,7 @@
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
         {% endif %}
-        playBackDataLoadedForKnownDateRange = false;
+        forgetReplayData();
         if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
@@ -1245,6 +1245,13 @@
             return replayAutoStepMs || DEFAULT_REPLAY_STEP_MS;
         }
         return parseInt(choice) * 60000;
+    }
+
+    // The data shown has changed, so the replay data has to be fetched again, and the Auto step inferred again
+    function forgetReplayData() {
+        playBackDataLoadedForKnownDateRange = false;
+        replayAutoStepMs = null;
+        showAutoReplayStep();
     }
 
     function showAutoReplayStep() {
