@@ -1,5 +1,10 @@
 """Tests for flexmeasures/ui/static/js/asset-tree.js, the layout of the asset tree on the asset context page."""
 
+import json
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
 # Builds an option for a list of assets, and helpers to find the drawn boxes in it.
 TREE = """
 import { buildAssetHierarchy, buildAssetTreeOption, wrapName, clampZoom, ZOOM_MIN, ZOOM_MAX } from "/js/asset-tree.js";
@@ -11,6 +16,45 @@ const boxes = (option) => option.series[0].data.filter((n) => n.symbol === "roun
 const box = (option, id) => boxes(option).find((n) => n.id === String(id));
 const leaves = (parent, n) => Array.from({length: n}, (_, i) => ({id: 100 + i, name: `leaf ${i}`, parent}));
 """
+
+
+def test_hidden_structure_tab_waits_for_a_measurable_canvas(assert_js):
+    template_dir = Path(__file__).resolve().parents[2] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=True,
+        undefined=StrictUndefined,
+    )
+    env.globals.update(
+        url_for=lambda *args, **kwargs: "/js/asset-tree.js",
+        flexmeasures_version="test",
+        vendor_attrs=lambda *args, **kwargs: "",
+    )
+    markup = env.get_template("_macros.html").module.show_tree(
+        [{"id": 1, "name": "Site", "parent": None}], 1
+    )
+    chart_script = markup.split('<script type="module">', 1)[1].split("</script>", 1)[0]
+    escaped_markup = json.dumps(markup).replace("</", "<\\/")
+    assert_js(f"""
+        const tab = document.createElement('div');
+        tab.id = 'structure-tab';
+        tab.style.display = 'none';
+        tab.innerHTML = {escaped_markup};
+        document.body.append(tab);
+        const options = [];
+        window.echarts = {{init: () => ({{
+            resize() {{}}, setOption(option) {{options.push(option);}}, on() {{}}, clear() {{}},
+            getZr: () => ({{on() {{}}}})
+        }})}};
+        {chart_script}
+        window.onload();
+        eq('hidden tab does not lay out the graph', options.length, 0);
+        tab.style.display = 'block';
+        tab.dispatchEvent(new Event('shown.bs.tab'));
+        eq('shown tab lays out the graph once', options.length, 1);
+        check('shown tab uses a finite, positive graph width',
+            options[0].series[0].data.every(node => Number.isFinite(node.x) && Number.isFinite(node.y)));
+        """)
 
 
 def test_hierarchy(assert_js):

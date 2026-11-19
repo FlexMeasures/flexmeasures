@@ -347,6 +347,10 @@ def get_series_from_quantity_or_sensor(
                 resolution,
             )
             time_series = time_series.fillna(default_value)
+        if fill_sides and time_series.notna().any():
+            time_series = extend_to_edges(
+                time_series, query_window=query_window, resolution=resolution
+            )
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,
@@ -368,6 +372,10 @@ def get_series_from_quantity_or_sensor(
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
+        if fill_sides and time_series.notna().any():
+            time_series = extend_to_edges(
+                time_series, query_window=query_window, resolution=resolution
+            )
     elif isinstance(variable_quantity, list):
         time_series = process_time_series_segments(
             index=index,
