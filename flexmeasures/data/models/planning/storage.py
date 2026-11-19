@@ -328,6 +328,8 @@ class MetaStorageScheduler(Scheduler):
                     soc_at_start[d0] = resolved_soc_at_start
             soc_targets[d0] = stock_model.get("soc_targets")
             soc_min[d0] = stock_model.get("soc_min")
+            if soc_min[d0] is None and soc_at_start[d0] is not None:
+                soc_min[d0] = default_soc_min(stock_model)
             soc_max[d0] = stock_model.get("soc_max")
             soc_minima[d0] = stock_model.get("soc_minima")
             soc_maxima[d0] = stock_model.get("soc_maxima")
@@ -3860,6 +3862,21 @@ def build_device_soc_values(
     ) - soc_at_start * (timedelta(hours=1) / resolution)
 
     return device_values
+
+
+def default_soc_min(stock_model: dict) -> float | None:
+    """Return the lower SoC bound to assume for a stock whose flex-model sets no ``soc-min``.
+
+    An energy stock cannot hold less than nothing, so its default lower bound is 0.
+    That reasoning only holds for energy (and shares of a capacity):
+    once fill levels may come in other units (see issue #2847), such as degrees Celsius for a freezer,
+    0 is no longer a physical boundary, and this function should return ``None`` for those units.
+    For now, all stocks are converted to MWh, so the default is always 0.
+
+    :param stock_model: The deserialized flex-model entry that holds the stock's SoC parameters.
+    :returns:           The default lower bound in the stock's unit (currently MWh), or ``None`` for no lower bound.
+    """
+    return 0.0
 
 
 def add_storage_constraints(

@@ -908,6 +908,47 @@ def test_add_storage_constraints(
     ].all()
 
 
+def test_battery_solver_defaults_soc_min_to_zero(
+    setup_planning_test_data,
+    add_battery_assets,
+    db,
+    monkeypatch,
+):
+    """A battery whose flex-model sets no soc-min should not be scheduled below an empty state of charge.
+
+    Day 2 starts with 8 expensive hours, so without a lower bound, the scheduler would sell more than the battery holds.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    # Leave soc-min out of the asset's flex-model, too
+    asset_flex_model = {
+        k: v for k, v in battery.generic_asset.flex_model.items() if k != "soc-min"
+    }
+    monkeypatch.setattr(battery.generic_asset, "flex_model", asset_flex_model)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 2.5  # MWh
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-max": "4.5 MWh",
+        },
+    )
+    schedule = scheduler.compute()
+
+    soc_schedule = check_constraints(
+        battery, schedule, soc_at_start, soc_min=0, soc_max=4.5
+    )
+
+    # The battery sells what it holds during the expensive hours, and no more
+    assert soc_schedule.min() == pytest.approx(0, abs=1e-6)
+
+
 def test_add_storage_constraints_skips_global_minimum_when_soc_min_is_missing():
     """Missing soc-min should not imply a zero lower bound."""
     start = datetime(2023, 5, 18, tzinfo=pytz.utc)
