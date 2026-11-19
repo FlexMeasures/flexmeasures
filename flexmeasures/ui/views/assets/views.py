@@ -108,12 +108,6 @@ class AssetCrudUI(FlaskView):
         check_access(asset, "edit-sensors")
         if start_time is None or end_time is None:
             return {"message": "Provide start_time and end_time."}, 422
-        context = asset.get_flex_context()
-        if (
-            context.get("consumption-price") is not None
-            or context.get("consumption-price-sensor") is not None
-        ):
-            return {"message": "A consumption price is already configured."}, 422
         try:
             sensor = create_demo_price_sensor(
                 asset, start_time, end_time, profile=profile

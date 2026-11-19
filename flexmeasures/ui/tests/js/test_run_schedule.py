@@ -333,9 +333,30 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
         await answer({...available, consumption_price: {sensor: 12}, price_available: false});
         field("capacity").value = "10";
         change("capacity");
+        field("price").value = "";
+        change("price");
         check("missing configured price coverage blocks the action", field("run").disabled);
-        check("price knowledge is explained", field("warnings").textContent.includes("known now") && field("warnings").textContent.includes("covering the full schedule"));
-        check("future beliefs are explained", field("warnings").textContent.includes("belief times are later than now"));
+        check("missing known prices are explained", field("warnings").textContent.includes("no usable prices"));
+        field("price").value = "12";
+        change("price");
+        check("a temporary price choice unblocks the run", !field("run").disabled);
+    """)
+
+
+def test_partial_configured_prices_warn_and_offer_demo_for_window(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, consumption_price: {sensor: 12},
+            consumption_price_sensor: available.price_sensors[0],
+            price_available: true, price_ends_at: "2026-10-15T00:00:00Z",
+            can_create_demo_prices: true});
+        field("capacity").value = "10";
+        change("capacity");
+        field("soc").value = "5";
+        field("soc").dispatchEvent(new Event("input"));
+        check("run can proceed with a known partial price", !field("run").disabled);
+        check("fill-forward warning gives the last price time", field("configured-price-warning").textContent.includes("2026-10-15T00:00:00Z"));
+        check("demo creation remains an option", [...field("price").options].some(option => option.value === "__create_demo__"));
     """)
 
 

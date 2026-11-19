@@ -28,26 +28,24 @@ def sensor_option(sensor):
     )
 
 
-def price_covers_schedule(sensor, start_time, end_time, belief_time):
-    """Check that prices known by belief_time cover the half-open schedule period."""
+def last_price_end(sensor, start_time, end_time, belief_time):
+    """Find the end of the latest known price event within the schedule period."""
     resolution = sensor.event_resolution
     if resolution <= timedelta(0):
-        return False
+        return None
     beliefs = sensor.search_beliefs(
-        event_starts_after=start_time - resolution + timedelta(microseconds=1),
-        event_ends_before=end_time + resolution,
+        event_starts_after=start_time,
+        event_ends_before=end_time,
         beliefs_before=belief_time,
     )
-    covered_until = start_time
-    for event_start in sorted(set(beliefs.index.get_level_values("event_start"))):
-        if event_start >= end_time:
-            break
-        if event_start > covered_until:
-            return False
-        covered_until = max(covered_until, event_start + resolution)
-        if covered_until >= end_time:
-            return True
-    return False
+    if beliefs.empty:
+        return None
+    return beliefs.index.get_level_values("event_start").max() + resolution
+
+
+def price_covers_schedule(sensor, start_time, end_time, belief_time):
+    """Report whether the scheduler can use at least one known price event."""
+    return last_price_end(sensor, start_time, end_time, belief_time) is not None
 
 
 def schedule_options(asset, start_time, end_time):
@@ -58,22 +56,27 @@ def schedule_options(asset, start_time, end_time):
     if consumption_price is None and context.get("consumption-price-sensor"):
         consumption_price = {"sensor": context["consumption-price-sensor"]}
     price_available = True
+    price_ends_at = None
     consumption_price_sensor = None
     if isinstance(consumption_price, dict) and "sensor" in consumption_price:
         sensor = db.session.get(Sensor, consumption_price["sensor"])
         if sensor and user_can_access(sensor, "read") and sensor.measures_energy_price:
             consumption_price_sensor = sensor_option(sensor)
-        price_available = bool(
-            consumption_price_sensor
-            and price_covers_schedule(sensor, start_time, end_time, belief_time)
+        last_end = (
+            last_price_end(sensor, start_time, end_time, belief_time)
+            if consumption_price_sensor
+            else None
         )
+        price_available = last_end is not None
+        if last_end is not None and last_end < end_time:
+            price_ends_at = last_end.isoformat()
     power_sensors = [
         sensor_option(sensor)
         for sensor in asset.sensors
         if sensor.measures_power and user_can_access(sensor, "read")
     ]
     prices = []
-    if consumption_price is None:
+    if consumption_price is None or not price_available or price_ends_at:
         for sensor in db.session.scalars(select(Sensor).order_by(Sensor.id)):
             if not sensor.measures_energy_price or not user_can_access(sensor, "read"):
                 continue
@@ -95,6 +98,7 @@ def schedule_options(asset, start_time, end_time):
         consumption_price=consumption_price,
         consumption_price_sensor=consumption_price_sensor,
         price_available=price_available,
+        price_ends_at=price_ends_at,
         power_capacity=model.get(
             "power-capacity",
             model.get(

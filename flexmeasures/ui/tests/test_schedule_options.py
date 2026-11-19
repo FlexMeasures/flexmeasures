@@ -8,6 +8,9 @@ import pytest
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.sensors import create_demo_price_sensor
+from flexmeasures.data.models.planning.utils import (
+    get_continuous_series_sensor_or_quantity,
+)
 from flexmeasures.ui.views.assets import scheduling
 from sqlalchemy import delete
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -131,7 +134,7 @@ def test_demo_prices_accepts_uniform_profile(db, client, schedule_assets, as_adm
     ] == [100, 100]
 
 
-def test_demo_prices_refuses_configured_price_and_overlong_period(
+def test_demo_prices_allow_configured_price_but_refuse_overlong_period(
     db, client, schedule_assets, as_admin
 ):
     asset = schedule_assets["test_battery"]
@@ -153,8 +156,8 @@ def test_demo_prices_refuses_configured_price_and_overlong_period(
             "end_time": (START + timedelta(hours=1)).isoformat(),
         },
     )
-    assert response.status_code == 422
-    assert not db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count()
+    assert response.status_code == 201
+    assert db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count() == 1
 
 
 def test_demo_prices_requires_asset_sensor_edit_permission(
@@ -229,7 +232,7 @@ def test_suggestions_use_requested_period_and_latest_soc(
     assert data["soc_sensors"][0]["event_start"] == START.isoformat()
 
 
-def test_price_suggestions_require_every_interval_and_allow_overlap_at_start(
+def test_price_suggestions_allow_gaps_that_scheduler_can_fill(
     db, client, schedule_assets, setup_sources, as_admin
 ):
     asset = schedule_assets["test_battery"]
@@ -253,7 +256,7 @@ def test_price_suggestions_require_every_interval_and_allow_overlap_at_start(
             )
         )
     db.session.commit()
-    assert price.id not in [
+    assert price.id in [
         sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
     ]
 
@@ -353,7 +356,7 @@ def test_day_ahead_prices_are_available_when_their_knowledge_time_has_passed(
     assert options(client, asset).get_json()["price_available"] is True
 
 
-def test_configured_price_sensor_without_full_coverage_is_reported(
+def test_configured_price_sensor_without_full_coverage_warns_but_allows_run(
     db, client, schedule_assets, setup_sources, as_admin
 ):
     asset = schedule_assets["test_battery"]
@@ -378,7 +381,17 @@ def test_configured_price_sensor_without_full_coverage_is_reported(
     db.session.commit()
     data = options(client, asset).get_json()
     assert data["consumption_price"] == {"sensor": price.id}
-    assert data["price_available"] is False
+    assert data["price_available"] is True
+    assert data["price_ends_at"] == (START + timedelta(hours=1)).isoformat()
+    prices = get_continuous_series_sensor_or_quantity(
+        variable_quantity=price,
+        unit="EUR/MWh",
+        query_window=(START, START + timedelta(days=1)),
+        resolution=timedelta(hours=1),
+        beliefs_before=datetime.now(timezone.utc),
+        fill_sides=True,
+    )
+    assert prices.iloc[-1] == 50
 
 
 def test_inherited_settings_avoid_redundant_suggestions(

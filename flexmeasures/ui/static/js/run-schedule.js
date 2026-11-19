@@ -60,6 +60,8 @@ export function initializeRunSchedule(root, config) {
         if (capacityWarning) capacityWarning.classList.toggle('d-none', hasPowerCapacity());
         const priceWarning = el('price-warning');
         if (priceWarning) priceWarning.classList.toggle('d-none', hasSelectedPrice());
+        const configuredPriceWarning = el('configured-price-warning');
+        if (configuredPriceWarning) configuredPriceWarning.classList.toggle('d-none', hasSelectedPrice());
         const hasWarnings = [...el('warnings').children].some(note => !note.classList.contains('d-none'));
         show('warnings', hasWarnings);
         if (el('status').textContent.startsWith('Prerequisites checked.')) {
@@ -75,7 +77,7 @@ export function initializeRunSchedule(root, config) {
         } catch { validPeriod = false; }
         const hasSoc = hasStartingSoc();
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
-            options.price_available !== false &&
+            (options.price_available !== false || hasSelectedPrice()) &&
             (!missing(options.consumption_price) || hasSelectedPrice()) &&
             (!missing(options.power_capacity) || hasPowerCapacity()) &&
             (!options.requires_soc || hasSoc);
@@ -108,7 +110,7 @@ export function initializeRunSchedule(root, config) {
         const sensor = options?.price_sensors.find(item => String(item.id) === el('price').value);
         if (sensor) showSensorLink(el('selected-price'), sensor);
         else el('selected-price').replaceChildren();
-        show('demo-price-group', Boolean(options && missing(options.consumption_price) && el('price').value === '__create_demo__'));
+        show('demo-price-group', Boolean(options && el('price').value === '__create_demo__'));
     }
     async function lookup() {
         if (running) return;
@@ -153,7 +155,7 @@ export function initializeRunSchedule(root, config) {
             for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, ID: ${sensor.id})`);
             if (data.can_create_demo_prices) addOption(el('price'), '__create_demo__', 'Create a demo price sensor…');
             el('price').value = previousPrice || (!data.price_sensors.length && data.can_create_demo_prices ? '__create_demo__' : '');
-            show('price-group', missing(data.consumption_price));
+            show('price-group', missing(data.consumption_price) || data.price_available === false || Boolean(data.price_ends_at));
             show('configured-price-group', !missing(data.consumption_price));
             el('configured-price').replaceChildren();
             if (data.consumption_price_sensor) showSensorLink(el('configured-price'), data.consumption_price_sensor);
@@ -161,7 +163,7 @@ export function initializeRunSchedule(root, config) {
                 typeof data.consumption_price === 'string' || typeof data.consumption_price === 'number'
                     ? String(data.consumption_price) : 'Configured price sensor unavailable';
             updateSelectedPrice();
-            if (data.price_available === false) warnings.push('The configured consumption price sensor has no prices (that are known now) covering the full schedule. A chart may show future values whose belief times are later than now. Check its belief horizon or add price data, or update the asset’s flex-config to use a different sensor.');
+            if (data.price_available === false) warnings.push('The configured consumption price sensor has no usable prices for this period. Choose another sensor or create demo prices for this run.');
             show('capacity-group', missing(data.power_capacity));
             el('capacity').required = missing(data.power_capacity);
             const previousSocSource = el('soc-source').value;
@@ -190,6 +192,13 @@ export function initializeRunSchedule(root, config) {
                 p.dataset.role = 'price-warning';
                 p.className = 'mb-1';
                 p.textContent = data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with prices (that are known now) and covering the full schedule were found. A chart may show future values whose belief times are later than now. Check the price sensor data and its belief horizon, or create a price sensor and upload a CSV, then check prerequisites again.';
+                el('warnings').append(p);
+            }
+            if (data.price_ends_at) {
+                const p = document.createElement('p');
+                p.dataset.role = 'configured-price-warning';
+                p.className = 'mb-1';
+                p.textContent = `Prices on sensor ${data.consumption_price_sensor?.id ?? ''} run until ${data.price_ends_at}; after that the scheduler assumes the last price. You can choose another sensor or create demo prices for this planning window.`;
                 el('warnings').append(p);
             }
             if (!powers.length) {
@@ -272,8 +281,13 @@ export function initializeRunSchedule(root, config) {
             }));
             notify(`Demo price sensor ${sensor.name} (ID: ${sensor.id}) is ready.`, 'success');
             await lookup();
+            if (!options.price_sensors.some(item => item.id === sensor.id)) {
+                options.price_sensors.push(sensor);
+                addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, ID: ${sensor.id})`);
+            }
             el('price').value = String(sensor.id);
             updateSelectedPrice();
+            updateReady();
         } catch (error) {
             notify(`Could not create demo prices: ${error.message}`, 'error');
         } finally {
@@ -296,7 +310,7 @@ export function initializeRunSchedule(root, config) {
             const model = {sensor: sensor.id};
             const choices = {};
             const payload = {start: range.start, duration: range.duration, 'force-new-job-creation': el('force').checked};
-            if (missing(options.consumption_price)) {
+            if (hasSelectedPrice()) {
                 choices.consumption_price_sensor = Number(el('price').value);
                 payload['flex-context'] = {'consumption-price': {sensor: choices.consumption_price_sensor}};
             }
