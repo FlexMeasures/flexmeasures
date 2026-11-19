@@ -207,9 +207,9 @@ def query_assets_by_search_terms(
     order by ascending asset ID if either sorting argument is omitted or ``sort_by`` is unsupported.
     This gives a total order for stable LIMIT/OFFSET pagination while the result set is unchanged.
 
-    :param search_terms:     Terms matched against asset names, account names, or numeric asset ID prefixes; None disables searching.
+    :param search_terms:     Terms matched against asset names, asset types, account names, or numeric asset ID prefixes; None disables searching.
     :param filter_statement: Additional filter applied to the selected assets.
-    :param sort_by:          Sort field: ``id``, ``name``, or ``owner``.
+    :param sort_by:          Sort field: ``id``, ``name``, ``owner``, or ``asset_type``.
     :param sort_dir:         Sort direction: ``asc`` or ``desc``.
     :returns:                A SQLAlchemy ``Select`` statement with deterministic ordering.
     """
@@ -224,17 +224,27 @@ def query_assets_by_search_terms(
         .correlate(GenericAsset)
         .scalar_subquery()
     )
+    asset_type_name = (
+        select(GenericAssetType.name)
+        .where(GenericAssetType.id == GenericAsset.generic_asset_type_id)
+        .correlate(GenericAsset)
+        .scalar_subquery()
+    )
     valid_sort_columns = {
         "id": GenericAsset.id,
         "name": GenericAsset.name,
         "owner": account_name_subquery,
+        "asset_type": asset_type_name,
     }
 
     # Initialize base query
     query = select_statement
 
     def asset_term_filters(term: str, include_account: bool = True):
-        filters = [GenericAsset.name.ilike(f"%{term}%")]
+        filters = [
+            GenericAsset.name.ilike(f"%{term}%"),
+            asset_type_name.ilike(f"%{term}%"),
+        ]
         if include_account:
             filters.append(Account.name.ilike(f"%{term}%"))
         if term.isdecimal():
@@ -277,6 +287,13 @@ def query_assets_by_search_terms(
                 order_by_column = (
                     select(Account.name)
                     .where(Account.id == asset_alias.account_id)
+                    .correlate(asset_alias)
+                    .scalar_subquery()
+                )
+            elif sort_by == "asset_type":
+                order_by_column = (
+                    select(GenericAssetType.name)
+                    .where(GenericAssetType.id == asset_alias.generic_asset_type_id)
                     .correlate(asset_alias)
                     .scalar_subquery()
                 )
