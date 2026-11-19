@@ -22,6 +22,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Default a storage's ``soc-min`` to 0 again, as before v1.0.0, so a battery whose flex-model sets no ``soc-min`` is no longer scheduled into a negative state of charge; the toy battery now also sets ``soc-min`` explicitly [see `PR #2884 <https://www.github.com/FlexMeasures/flexmeasures/pull/2884>`_]
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 
 
