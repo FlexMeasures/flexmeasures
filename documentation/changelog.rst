@@ -22,7 +22,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Default a storage's ``soc-min`` to 0 again, as before v1.0.0, so a battery whose flex-model sets no ``soc-min`` is no longer scheduled into a negative state of charge; the toy battery now also sets ``soc-min`` explicitly [see `PR #2884 <https://www.github.com/FlexMeasures/flexmeasures/pull/2884>`_]
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 
 
@@ -313,6 +312,14 @@ Automations arrived over several pull requests. This is what each of them contri
 * Automations now keep a durable record of every scheduled run, so a forecast or schedule run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and how its jobs ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_, `PR #2657 <https://www.github.com/FlexMeasures/flexmeasures/pull/2657>`_ and `PR #2670 <https://www.github.com/FlexMeasures/flexmeasures/pull/2670>`_]
 * Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization. A plugin job's result is kept for as long as results on its own queue are kept, and reports the number of beliefs it saved [see `PR #2553 <https://www.github.com/FlexMeasures/flexmeasures/pull/2553>`_ and `PR #2644 <https://www.github.com/FlexMeasures/flexmeasures/pull/2644>`_]
+
+
+v1.0.3 | November xx, 2026
+============================
+
+Bugfixes
+-----------
+* Default a storage's ``soc-min`` to 0 again, as before v1.0.0, so a battery whose flex-model sets no ``soc-min`` is no longer scheduled into a negative state of charge; the toy battery now also sets ``soc-min`` explicitly [see `PR #2884 <https://www.github.com/FlexMeasures/flexmeasures/pull/2884>`_]
 
 
 v1.0.2 | November 5, 2026
