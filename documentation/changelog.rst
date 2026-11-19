@@ -12,6 +12,7 @@ v1.2.0 | December xx, 2026
 New features
 -------------
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, and with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_]
+* Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as often as new data was recorded (or at a step of your choice), and the replay speed can be set [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 Infrastructure / Support
 -------------------------

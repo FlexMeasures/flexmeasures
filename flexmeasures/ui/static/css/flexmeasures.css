@@ -1896,6 +1896,20 @@ div.heading-group {
 #replay-time {
   margin-top: 15px;
 }
+/* Step and speed pickers below the replay button */
+.replay-settings {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 15px;
+}
+.replay-settings label {
+  cursor: help;
+}
+.replay-settings .form-select {
+  width: auto;
+}
 #replay {
   cursor: pointer !important;
   margin-top: 190px;

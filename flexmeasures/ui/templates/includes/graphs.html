@@ -25,7 +25,7 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, inferReplayStep, formatReplayStep, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
@@ -50,10 +50,17 @@
     // Selections are not serialised and their requests are not aborted,
     // so a slow earlier one can answer after a quick later one and draw the wrong range.
     let shownWindowGeneration = 0;
-    let previousPlaybackResult;
+    // All beliefs for the shown date range, as a timeline the replay walks through.
+    let replayTimeline = null;
+    // The step inferred from how often beliefs are formed, used when the step is set to Auto.
+    let replayAutoStepMs = null;
+    // The replay's belief time, tied to the wall clock (null while no replay runs).
+    let replayClock = null;
+    let replayFrameRequest = null;
+    // The step boundary whose data the chart shows.
+    let replayShownBoundary = null;
     let storeStartDate;
     let storeEndDate;
-    let replaySpeed = 100;
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
     let combineLegend = 'true';
     let dataPath;
@@ -68,7 +75,6 @@
     let sessionEnd = null;
     let minRes;
     let toggle;
-    let stepTriggered = false;
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
     let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
     let syncFullBeliefInfoToggle = () => {};
@@ -420,6 +426,17 @@
             e.preventDefault();
             toggleReplay();
         });
+        document.getElementById('replay-speed').addEventListener('change', function () {
+            if (replayClock) {
+                replayClock.setRate(replayRate(), performance.now());
+            }
+        });
+        document.getElementById('replay-step').addEventListener('change', function () {
+            // A paused replay shows the data at the new step's boundary right away
+            if (replayClock) {
+                requestReplayFrame();
+            }
+        });
 
         if (initialRange) {
             storeStartDate = new Date(initialRange.start);
@@ -687,6 +704,14 @@
             stopReplay();
         } else if (e.key === 'n') {
             stepReplay();
+        } else if (e.key === '+' || e.key === '-') {
+            // Faster or slower replay
+            const speedPicker = document.getElementById('replay-speed');
+            const index = speedPicker.selectedIndex + (e.key === '+' ? 1 : -1);
+            if (index >= 0 && index < speedPicker.options.length) {
+                speedPicker.selectedIndex = index;
+                speedPicker.dispatchEvent(new Event('change'));
+            }
         }
     }, false);
 
@@ -1131,11 +1156,14 @@
 
     function stepReplay() {
         if (toggle.classList.contains('stopped')) {
-            startReplay();
-            pauseReplay();
-            stepTriggered = true;
+            // Show the start of the replay, paused
+            startReplay({ paused: true });
         } else if (toggle.classList.contains('paused')) {
-            stepTriggered = true;
+            if (!replayClock) { return; }  // still loading
+            const now = performance.now();
+            const stepMs = replayStep();
+            replayClock.seek(stepFloor(replayClock.position(now), replayClock.start, stepMs) + stepMs, now);
+            requestReplayFrame();
         } else if (toggle.classList.contains('playing')) {
             pauseReplay();
         }
@@ -1153,10 +1181,17 @@
     function pauseReplay() {
         toggle.classList.remove('playing');
         toggle.classList.add('paused');
+        if (replayClock) {
+            replayClock.pause(performance.now());
+        }
     }
     function resumeReplay() {
         toggle.classList.remove('paused');
         toggle.classList.add('playing');
+        if (replayClock) {
+            replayClock.play(performance.now());
+            requestReplayFrame();
+        }
     }
     async function stopReplay() {
         if (toggle.classList.contains('stopped')) {
@@ -1165,6 +1200,11 @@
         toggle.classList.remove('playing');
         toggle.classList.remove('paused');
         toggle.classList.add('stopped');
+        if (replayFrameRequest !== null) {
+            cancelAnimationFrame(replayFrameRequest);
+            replayFrameRequest = null;
+        }
+        replayClock = null;
 
         // Abort previous request and create abort controller for new request
         controller.abort();
@@ -1193,102 +1233,114 @@
         $("#spinner").hide();
     }
 
-    function startReplay() {
-        stepTriggered = false;
+    // Belief time passing per ms of wall time, at the chosen speed
+    function replayRate() {
+        return BASE_REPLAY_RATE * parseFloat(document.getElementById('replay-speed').value);
+    }
+
+    // The chosen step in ms, or the step inferred from the data when the step is set to Auto
+    function replayStep() {
+        const choice = document.getElementById('replay-step').value;
+        if (choice === 'auto') {
+            return replayAutoStepMs || DEFAULT_REPLAY_STEP_MS;
+        }
+        return parseInt(choice) * 60000;
+    }
+
+    function showAutoReplayStep() {
+        const autoOption = document.querySelector('#replay-step option[value="auto"]');
+        autoOption.textContent = replayAutoStepMs ? 'Auto (' + formatReplayStep(replayAutoStepMs) + ')' : 'Auto';
+    }
+
+    function requestReplayFrame() {
+        if (replayFrameRequest === null) {
+            replayFrameRequest = requestAnimationFrame(replayFrame);
+        }
+    }
+
+    function startReplay({ paused = false } = {}) {
         toggle.classList.remove('stopped');
-        toggle.classList.add('playing');
-        var beliefTime = new Date(storeStartDate);
-        var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
+        toggle.classList.add(paused ? 'paused' : 'playing');
         const spinner = document.getElementById('spinner');
         if (!playBackDataLoadedForKnownDateRange) {
             spinner.hidden = false;
             spinner.style.display = 'block';
         }
-        Promise.all([
-            playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
+        const start = storeStartDate.getTime();
+        const end = storeEndDate.getTime();
+        (
+            playBackDataLoadedForKnownDateRange ? Promise.resolve() :
                 // Fetch time series data (all data, not only the most recent beliefs).
                 // Deliberately not through chartDataCache: that holds only the most recent belief per event,
                 // so mixing every belief into it would answer later chart requests with data the chart does not draw.
-                // Replay keeps its own copy in previousPlaybackResult instead.
-                fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, mostRecentBeliefsOnly: false, chartType: chartDataChartType(), signal: signal }),
-        ]).then(function (result) {
-            previousPlaybackResult = result[0];
-            replayBeliefsData(result[0]);
-            playBackDataLoadedForKnownDateRange = true;
+                // Replay keeps its own copy in replayTimeline instead.
+                fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, mostRecentBeliefsOnly: false, chartType: chartDataChartType(), signal: signal })
+                    .then(function (beliefs) {
+                        replayTimeline = new BeliefTimeline(beliefs);
+                        replayAutoStepMs = inferReplayStep(beliefs);
+                        showAutoReplayStep();
+                        playBackDataLoadedForKnownDateRange = true;
+                    })
+        ).then(function () {
+            if (toggle.classList.contains('stopped')) { return; }
+            replayTimeline.reset();
+            replayShownBoundary = null;
+            replayClock = new ReplayClock(start, end, replayRate());
+            if (toggle.classList.contains('playing')) {
+                replayClock.play(performance.now());
+            }
+            requestReplayFrame();
         }).catch(console.error)
             .finally(function () {
                 spinner.hidden = true;
                 spinner.style.display = 'none';
             });
+    }
 
-
-        const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
-
-        /**
-         * Replays beliefs data.
-         *
-         * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
-         * by splitting off newData from remainingData.
-         * Then, replayedData is loaded into the chart.
-         *
-         * @param {Array} remainingData Array containing beliefs.
-         */
-        async function replayBeliefsData(remainingData) {
-            var replayedData = [];
-            for (var beliefTime = new Date(storeStartDate); beliefTime <= storeEndDate; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
-                while (document.getElementById('replay').classList.contains('paused')) {
-                    if (stepTriggered) {
-                        stepTriggered = false;
-                        break;
-                    }
-                    await timer(100);
+    /**
+     * Draws one animation frame of the replay.
+     *
+     * The ruler follows the replay clock on every frame, so it moves at a constant speed.
+     * The data is redrawn only when a step boundary has been passed and new beliefs became known by then;
+     * when drawing takes longer than a step lasts, the steps passed in the meantime are drawn as one.
+     *
+     * @param {number} now Wall time in ms, as passed by requestAnimationFrame.
+     */
+    function replayFrame(now) {
+        replayFrameRequest = null;
+        if (toggle.classList.contains('stopped') || !replayClock) {
+            return;
+        }
+        const position = replayClock.position(now);
+        const boundary = stepFloor(position, replayClock.start, replayStep());
+        if (fastRenderActive()) {
+            setFastChartReplayTime(fastChartElementId, position);
+        }
+        if (boundary !== replayShownBoundary) {
+            const firstFrame = replayShownBoundary === null;
+            replayShownBoundary = boundary;
+            const changed = replayTimeline.advanceTo(boundary);
+            if (fastRenderActive()) {
+                if (changed || firstFrame) {
+                    renderFastChart(fastChartElementId, replayTimeline.data, fastChartOptions());
                 }
-                if (document.getElementById('replay').classList.contains('stopped')) {
-                    break;
+            } else if (vegaView) {
+                // Telling vega to remove all previous data and insert a completely new dataset turned out faster than removing only the obsolete beliefs and inserting only the new ones.
+                if (changed || firstFrame) {
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayTimeline.data));
                 }
-                var s = performance.now();
-
-                // Split off one replay step of new data from the remaining data
-                var newData;
-                [newData, remainingData] = partition(
-                    remainingData,
-                    (item) => item.belief_time <= beliefTime.getTime(),
-                );
-
-                // Update beliefs in the replayed data given the new data
-                replayedData = updateBeliefs(replayedData, newData);
-
-                if (fastRenderActive()) {
-                    setFastChartReplayTime(fastChartElementId, beliefTime.getTime());
-                    renderFastChart(fastChartElementId, replayedData, fastChartOptions());
-                } else {
-                    if (!vegaView) {
-                        break;
-                    }
-
-                    /** When selecting a longer time period (more than a week), the replay slows down a bit. This
-                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
-                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
-                     * graph. After trying different approaches, we fell back to the original approach of telling vega
-                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
-                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
-                     * a few data points (representing the most recent new beliefs) actually made it slower.
-                     */
-                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
-                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
-                    vegaView.run().finalize();
-                }
-
-                document.getElementById('replay-time').innerHTML = beliefTime;
-
-                // Approximate constant speed
-                var e = performance.now();
-                var throttle = e - s;
-                await timer(replaySpeed - throttle);
+                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': new Date(boundary) }));
+                vegaView.run().finalize();
             }
-
+            document.getElementById('replay-time').innerHTML = new Date(boundary);
+        }
+        if (position >= replayClock.end) {
             // Stop replay when finished
-            stopReplay()
+            stopReplay();
+            return;
+        }
+        if (replayClock.playing) {
+            requestReplayFrame();
         }
     }
 
