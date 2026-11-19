@@ -208,8 +208,12 @@ def create(  # noqa C901
 
     app.add_url_rule("/", view_func=root_dispatcher)
     from flexmeasures.data.automations import initialize_automation_handlers
+    from flexmeasures.data.services.automation_failure_hooks import (
+        initialize_automation_failure_hooks,
+    )
 
     initialize_automation_handlers(app)
+    initialize_automation_failure_hooks(app)
     register_plugins(app)
 
     # Register the UI

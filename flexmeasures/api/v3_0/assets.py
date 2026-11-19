@@ -1912,15 +1912,16 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status or criticality.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone or activation status.
+          summary: Update an automation's name, cron string, timezone, activation status or criticality.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Any subset of the fields `name`, `cronstr`, `timezone`, `active` and `critical` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
+            Flagging an automation as critical, or no longer critical, leaves its cursor as it is, as it does not change which runs are due.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:

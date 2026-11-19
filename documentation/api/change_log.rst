@@ -9,6 +9,8 @@ v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
+- Automations carry a ``critical`` flag, accepted by ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` and reported in automation responses. It says whether a failed run is reported to the server's critical-automation-failure hooks, and changes nothing about how the automation runs or how its failures are retried.
+- A run's entry in ``run-stats`` adds ``critical-failure-notified-at``: when those hooks were told about the run, or null.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""

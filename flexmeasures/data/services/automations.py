@@ -488,6 +488,17 @@ def mark_automation_run_dispatch_failed(
     run.claim_expires_at = _now_utc() + _retry_delay(run.attempt_count)
     _finish_attempt(attempt, run.dispatch_state, queued_count, error)
     db.session.commit()
+    if (
+        run.automation_type not in AUTOMATION_RUN_RETRIED_TYPES
+        or run.attempt_count >= AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
+    ):
+        # No runner will pick this occurrence up again, so this is the moment FlexMeasures gives up on dispatching it:
+        # only forecasts and schedules are dispatched again, and only while they have attempts left (see `get_dispatchable_automation_runs`).
+        from flexmeasures.data.services.automation_failure_hooks import (
+            notify_critical_automation_failure,
+        )
+
+        notify_critical_automation_failure(run, "dispatch")
 
 
 def record_automation_job_started(
@@ -607,6 +618,12 @@ def _record_automation_job_failure(
     run.last_error_type = error_type
     run.last_error_message = error_message
     db.session.commit()
+    if run.execution_state == "failed":
+        from flexmeasures.data.services.automation_failure_hooks import (
+            notify_critical_automation_failure,
+        )
+
+        notify_critical_automation_failure(run, "execution")
 
 
 def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
@@ -2018,6 +2035,7 @@ def create_automation(
     timezone: str | None = None,
     automation_type: str = "forecasting",
     active: bool = True,
+    critical: bool = False,
     parameters: dict | None = None,
     generator_class: str | None = None,
     config: dict | None = None,
@@ -2040,6 +2058,7 @@ def create_automation(
         timezone=timezone,
         automation_type=automation_type,
         active=active,
+        critical=critical,
         source=source,
         generator_class=generator_class,
         config=config,
@@ -2063,6 +2082,7 @@ def _create_builtin_automation(
     timezone: str | None = None,
     automation_type: str = "forecasting",
     active: bool = True,
+    critical: bool = False,
     parameters: dict | None = None,
     generator_class: str | None = None,
     config: dict | None = None,
@@ -2216,6 +2236,7 @@ def _create_builtin_automation(
         name=name,
         cronstr=cronstr,
         active=active,
+        critical=critical,
         generator_id=generator_id,
         parameters=parameters,
     )
@@ -2241,13 +2262,15 @@ def update_automation(
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    critical: bool | None = None,
     origin: str = "API",
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation's name, cron string, timezone, activation status and/or criticality (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
+    Criticality changes nothing about which runs are due, so it leaves the cursor as it is.
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
@@ -2272,6 +2295,11 @@ def update_automation(
         if active:
             reset_cursor = True
         automation.active = active
+    if critical is not None and critical != automation.critical:
+        # Criticality says who is told when a run fails, not which runs are due,
+        # so it does not reset the cursor or count up the schedule revision.
+        changes.append("flagged as critical" if critical else "no longer critical")
+        automation.critical = critical
     if reset_cursor:
         # A new revision keeps the durable runs of the old and the new schedule apart,
         # even where they fall on the same scheduled UTC time.
@@ -2306,6 +2334,11 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
         "dispatch-state": run.dispatch_state,
         "execution-state": run.execution_state,
         "attempt-count": run.attempt_count,
+        "critical-failure-notified-at": (
+            run.critical_failure_notified_at.isoformat()
+            if run.critical_failure_notified_at
+            else None
+        ),
         "intended-job-count": run.intended_job_count,
         "queued-job-count": run.queued_job_count,
         "first-enqueued-at": (

@@ -11,10 +11,12 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Flag an automation as critical, and implement a hook, from a plugin or by dotted path in the new ``FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS`` setting, that acts on its failed runs, such as paging the engineer on duty [see `PR #2856 <https://www.github.com/FlexMeasures/flexmeasures/pull/2856>`_ and `issue #2844 <https://www.github.com/FlexMeasures/flexmeasures/issues/2844>`_]
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, and with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_]
 
 Infrastructure / Support
 -------------------------
+* A plugin which registers no Blueprint is no longer dropped before its other registrations run, so a plugin can exist only to register automation types, data generators or critical-automation-failure hooks [see `PR #2856 <https://www.github.com/FlexMeasures/flexmeasures/pull/2856>`_]
 * ``StorageScheduler`` now also stores a ``commodity_costs`` breakdown in the job's ``scheduler_info``, for schedules with several commodities or a commodity other than electricity [see `PR #2448 <https://www.github.com/FlexMeasures/flexmeasures/pull/2448>`_]
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 * Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
