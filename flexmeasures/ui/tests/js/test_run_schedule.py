@@ -249,6 +249,7 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         eq("result shows five hours before the schedule", new URL(link.href).searchParams.get("start_time"), "2026-10-14T03:00:00.000Z");
         eq("result shows five hours after the schedule", new URL(link.href).searchParams.get("end_time"), "2026-10-14T15:00:00.000Z");
         check("save is offered after success", !field("save-group").classList.contains("d-none"));
+        check("save prompt names this asset", field("save-summary").textContent.includes("on this asset"));
         check("save prompt names permanent flex-model", field("save-summary").textContent.includes("in flex-model"));
         eq("success does not save automatically", requests.length, 4);
         field("save").click();

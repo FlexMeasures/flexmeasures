@@ -425,7 +425,7 @@ export function initializeRunSchedule(root, config) {
                     show('results', true);
                     if (Object.keys(choices).length && options.can_save) {
                         savedChoices = choices;
-                        el('save-summary').textContent = `Save these temporary choices permanently for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor} in flex-context. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity} in flex-model. ` : ''}${choices.state_of_charge_sensor ? `State-of-charge sensor #${choices.state_of_charge_sensor} in flex-model.` : ''}`;
+                        el('save-summary').textContent = `Save these temporary choices on this asset for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor} in flex-context. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity} in flex-model. ` : ''}${choices.state_of_charge_sensor ? `State-of-charge sensor #${choices.state_of_charge_sensor} in flex-model.` : ''}`;
                         show('save-group', true);
                     }
                     return;
