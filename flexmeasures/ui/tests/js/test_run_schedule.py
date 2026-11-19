@@ -123,11 +123,13 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         eq("dynamic daily prices are the default", field("demo-profile").value, "nl-october-day");
         eq("lookup does not create data", requests.length, 1);
         field("demo-price").click();
-        eq("click creates sensor through API", requests[1].url, "/api/v3_0/sensors");
-        eq("chosen profile is saved as sensor metadata", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "nl-october-day");
+        check("existing demo sensors are checked first", requests[1].url.includes("/api/v3_0/sensors?"));
+        await answer([]);
+        eq("click creates sensor through API", requests[2].url, "/api/v3_0/sensors");
+        eq("chosen profile is saved as sensor metadata", JSON.parse(JSON.parse(requests[2].options.body).attributes).demo_profile, "nl-october-day");
         check("demo action is disabled during creation", field("demo-price").disabled);
         await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
-        eq("prices are posted through sensor-data API", requests[2].url, "/api/v3_0/sensors/20/data");
+        eq("prices are posted through sensor-data API", requests[3].url, "/api/v3_0/sensors/20/data");
         await answer({message: "Saved"}, 200);
         await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
         eq("new price is selected", field("price").value, "20");
@@ -156,12 +158,29 @@ def test_demo_price_creation_can_choose_uniform_profile(assert_js):
         check("creation controls follow the dropdown choice", !field("demo-price-group").classList.contains("d-none"));
         field("demo-profile").value = "uniform";
         field("demo-price").click();
-        eq("uniform profile is submitted", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "uniform");
+        await answer([]);
+        eq("uniform profile is submitted", JSON.parse(JSON.parse(requests[2].options.body).attributes).demo_profile, "uniform");
         await answer({id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}, 201);
-        eq("uniform demo values are posted", JSON.parse(requests[2].options.body).values[0], 100);
+        eq("uniform demo values are posted", JSON.parse(requests[3].options.body).values[0], 100);
         await answer({message: "Saved"}, 200);
         await answer({...available, price_sensors: [available.price_sensors[0], {id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}]});
         eq("uniform price sensor is selected", field("price").value, "21");
+    """)
+
+
+def test_demo_price_action_reuses_matching_sensor(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, price_sensors: [], can_create_demo_prices: true});
+        field("demo-price").click();
+        await answer([{id: 25, name: "Demo electricity price (NL October Day)",
+            unit: "EUR/MWh", generic_asset_id: 3,
+            attributes: JSON.stringify({demo_data: true, demo_profile: "nl-october-day"})}]);
+        eq("matching sensor is reused for new data", requests[2].url, "/api/v3_0/sensors/25/data");
+        check("no new sensor was created", requests.filter(request => request.options.method === "POST" && request.url === "/api/v3_0/sensors").length === 0);
+        await answer({message: "Saved"}, 200);
+        await answer({...available, price_sensors: [{id: 25, name: "Demo electricity price (NL October Day)", unit: "EUR/MWh", url: "/sensors/25"}]});
+        eq("reused sensor is selected", field("price").value, "25");
     """)
 
 

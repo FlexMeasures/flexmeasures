@@ -102,6 +102,16 @@ def test_existing_apis_create_demo_prices_and_save_chosen_defaults(
     )
     assert created.status_code == 201
     sensor_id = created.get_json()["id"]
+    listed = client.get(
+        "/api/v3_0/sensors",
+        query_string={
+            "asset": asset.id,
+            "unit": "EUR/MWh",
+            "filter": "Demo electricity price",
+        },
+    )
+    assert listed.status_code == 200
+    assert sensor_id in [sensor["id"] for sensor in listed.get_json()]
     posted = client.post(
         f"/api/v3_0/sensors/{sensor_id}/data",
         json={

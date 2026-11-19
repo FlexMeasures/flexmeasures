@@ -317,12 +317,25 @@ export function initializeRunSchedule(root, config) {
             for (let time = first.getTime(); time < new Date(range.end).getTime(); time += 3600000) {
                 values.push(profile === 'uniform' ? 100 : demoDayPrices[Number(dutchHour.format(new Date(time)))]);
             }
-            const sensor = await jsonResponse(await fetch(config.sensorsApiUrl, {
-                method: 'POST', headers: apiJsonHeaders,
-                body: JSON.stringify({name: `Demo electricity price (${profile === 'uniform' ? 'Uniform' : 'NL October Day'})`,
-                    generic_asset_id: config.assetId, unit: 'EUR/MWh', event_resolution: 'PT1H',
-                    attributes: JSON.stringify({demo_data: true, demo_profile: profile})})
-            }));
+            const candidatesUrl = new URL(config.sensorsApiUrl, window.location.origin);
+            candidatesUrl.searchParams.set('asset', String(config.assetId));
+            candidatesUrl.searchParams.set('unit', 'EUR/MWh');
+            candidatesUrl.searchParams.set('filter', 'Demo electricity price');
+            const candidatesResponse = await jsonResponse(await fetch(candidatesUrl));
+            const candidates = Array.isArray(candidatesResponse) ? candidatesResponse : candidatesResponse.data || [];
+            let sensor = candidates.find(item => {
+                const attributes = parseConfig(item.attributes) || {};
+                return item.generic_asset_id === config.assetId && attributes.demo_data === true &&
+                    String(attributes.demo_profile).replaceAll('_', '-') === profile;
+            });
+            if (!sensor) {
+                sensor = await jsonResponse(await fetch(config.sensorsApiUrl, {
+                    method: 'POST', headers: apiJsonHeaders,
+                    body: JSON.stringify({name: `Demo electricity price (${profile === 'uniform' ? 'Uniform' : 'NL October Day'})`,
+                        generic_asset_id: config.assetId, unit: 'EUR/MWh', event_resolution: 'PT1H',
+                        attributes: JSON.stringify({demo_data: true, demo_profile: profile})})
+                }));
+            }
             const ingestionResponse = await fetch(`${config.sensorsApiUrl}/${sensor.id}/data`, {
                 method: 'POST', headers: apiJsonHeaders,
                 body: JSON.stringify({start: first.toISOString(), duration: `PT${values.length}H`, unit: 'EUR/MWh', values})
