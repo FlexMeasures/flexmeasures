@@ -8,6 +8,7 @@ API change log
 v3.0-35 | November xx, 2026
 """"""""""""""""""""""""""""
 
+- A storage flex-model without ``soc-min`` gets a lower bound of 0 again, as it did before FlexMeasures v1.0.0.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
 
 v3.0-34 | November 05, 2026

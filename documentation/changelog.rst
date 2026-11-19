@@ -314,6 +314,14 @@ Automations arrived over several pull requests. This is what each of them contri
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization. A plugin job's result is kept for as long as results on its own queue are kept, and reports the number of beliefs it saved [see `PR #2553 <https://www.github.com/FlexMeasures/flexmeasures/pull/2553>`_ and `PR #2644 <https://www.github.com/FlexMeasures/flexmeasures/pull/2644>`_]
 
 
+v1.0.3 | November xx, 2026
+============================
+
+Bugfixes
+-----------
+* Default a storage's ``soc-min`` to 0 again, as before v1.0.0, so a battery whose flex-model sets no ``soc-min`` is no longer scheduled into a negative state of charge; the toy battery now also sets ``soc-min`` explicitly [see `PR #2884 <https://www.github.com/FlexMeasures/flexmeasures/pull/2884>`_]
+
+
 v1.0.2 | November 5, 2026
 ============================
 

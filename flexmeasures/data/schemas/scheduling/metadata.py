@@ -324,7 +324,7 @@ Only kWh and MWh are allowed.
 )
 SOC_MIN = MetaData(
     description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
-If omitted, no lower boundary is applied.
+If omitted, it defaults to 0 for storage whose state of charge is known (an energy stock cannot hold less than nothing).
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,

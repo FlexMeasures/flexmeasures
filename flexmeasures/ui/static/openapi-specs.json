@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -7943,7 +7943,7 @@
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, it defaults to 0 for storage whose state of charge is known (an energy stock cannot hold less than nothing).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
