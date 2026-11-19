@@ -59,7 +59,7 @@ OPTIONS = """
         consumption_price: null, power_capacity: null, requires_soc: true,
         price_sensors: [{id: 12, name: "Day-ahead", unit: "EUR/MWh", url: "/sensors/12"}],
         soc_sensors: [{id: 13, name: "Battery charge", value: 4.5, unit: "kWh",
-                       event_start: "2026-10-14T09:00:00Z"}],
+                       event_start: "2026-10-14T09:00:00+02:00", timezone: "Europe/Amsterdam"}],
         warnings: [], can_save: true,
     };
     const open = () => root.dispatchEvent(new Event("show.bs.modal"));
@@ -206,7 +206,7 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         eq("explicit force flag is sent", payload["force-new-job-creation"], true);
         eq("price belongs to flex-context", payload["flex-context"], {"consumption-price": {sensor: 12}});
         eq("device overrides carry units", payload["flex-model"], [
-            {sensor: 7, "power-capacity": "10 kW", "soc-at-start": "4.5 kWh"}
+            {sensor: 7, "power-capacity": "10 kW", "state-of-charge": {sensor: 13}}
         ]);
         await answer({job: "job-42"});
         await tick();
@@ -222,12 +222,12 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         eq("result shows five hours before the schedule", new URL(link.href).searchParams.get("start_time"), "2026-10-14T03:00:00.000Z");
         eq("result shows five hours after the schedule", new URL(link.href).searchParams.get("end_time"), "2026-10-14T15:00:00.000Z");
         check("save is offered after success", !field("save-group").classList.contains("d-none"));
-        check("save prompt names permanent flex-config", field("save-summary").textContent.includes("permanently on this asset’s flex-config"));
+        check("save prompt names permanent flex-model", field("save-summary").textContent.includes("in flex-model"));
         eq("success does not save automatically", requests.length, 4);
         field("save").click();
         eq("save uses a separate endpoint", requests[4].url, "/assets/3/scheduling-defaults");
         eq("only reusable defaults are saved", JSON.parse(requests[4].options.body),
-            {consumption_price_sensor: 12, power_capacity: "10 kW"});
+            {consumption_price_sensor: 12, power_capacity: "10 kW", state_of_charge_sensor: 13});
         await answer({message: "Saved"});
         await answer({...available, consumption_price: {sensor: 12}, power_capacity: "10 kW"});
         check("saved defaults are acknowledged", notices.some(item => item[0].includes("Defaults saved")));
@@ -251,6 +251,37 @@ def test_failed_job_does_not_offer_success_or_save(assert_js):
         check("failure restores inputs", !field("inputs").disabled);
         check("no success result is shown", field("results").classList.contains("d-none"));
         check("no defaults are offered for saving", field("save-group").classList.contains("d-none"));
+    """)
+
+
+def test_missing_soc_reading_prefills_a_changeable_assumption(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        field("start").value = "2026-10-14T10:00";
+        open();
+        await answer({...available, soc_sensors: [], soc_max: 20});
+        eq("half of known maximum is suggested", field("soc").value, "10");
+        check("assumption is explained", field("soc-assumption").textContent.includes("Assumed 50%"));
+        check("user can change assumption", !field("soc").disabled);
+        field("soc").value = "8";
+        field("soc").dispatchEvent(new Event("input"));
+        field("price").value = "12";
+        change("price");
+        field("capacity").value = "10";
+        change("capacity");
+        submit();
+        eq("changed assumption is sent as manual starting SoC", JSON.parse(requests[1].options.body)["flex-model"][0]["soc-at-start"], "8 kWh");
+    """)
+
+
+def test_old_soc_reading_warns_without_disabling_sensor_choice(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        field("start").value = "2026-10-16T10:00";
+        open();
+        await answer(available);
+        field("soc-source").value = "13";
+        change("soc-source");
+        check("older reading is identified", !field("soc-age-warning").classList.contains("d-none"));
+        check("reading shows the sensor timezone", field("soc-source").options[1].textContent.includes("Europe/Amsterdam"));
     """)
 
 

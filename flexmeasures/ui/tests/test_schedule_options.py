@@ -468,6 +468,27 @@ def test_defaults_preserve_config_and_refuse_overwrite(
     assert asset.flex_model["power-capacity"] == "5 kW"
 
 
+def test_selected_soc_sensor_can_be_saved_in_flex_model(
+    db, client, schedule_assets, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    soc = Sensor(
+        name="Stored energy",
+        unit="kWh",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc)
+    db.session.commit()
+    response = client.post(
+        url_for("AssetCrudUI:schedule_defaults", id=asset.id),
+        json={"state_of_charge_sensor": soc.id},
+    )
+    assert response.status_code == 200
+    db.session.refresh(asset)
+    assert asset.flex_model["state-of-charge"] == {"sensor": soc.id}
+
+
 @pytest.mark.parametrize("capacity", ["-1 kW", "0 kW", "5 kWh", {"sensor": 1}, None])
 def test_defaults_reject_invalid_capacity(
     db, client, schedule_assets, as_admin, capacity

@@ -47,6 +47,15 @@ export function initializeRunSchedule(root, config) {
     function updateWarnings() {
         const socWarning = el('soc-warning');
         if (socWarning) socWarning.classList.toggle('d-none', hasStartingSoc());
+        const socAgeWarning = el('soc-age-warning');
+        if (socAgeWarning) {
+            const selected = options?.soc_sensors.find(item => String(item.id) === el('soc-source').value);
+            const start = new Date(el('start').value);
+            const ageHours = selected ? (start.getTime() - new Date(selected.event_start).getTime()) / 3600000 : 0;
+            socAgeWarning.classList.toggle('d-none', !selected || ageHours <= 24);
+            if (selected && ageHours > 24) socAgeWarning.textContent =
+                `The selected state-of-charge reading is ${Math.round(ageHours)} hours before the schedule starts. Check whether it is still representative.`;
+        }
         const capacityWarning = el('capacity-warning');
         if (capacityWarning) capacityWarning.classList.toggle('d-none', hasPowerCapacity());
         const priceWarning = el('price-warning');
@@ -160,9 +169,15 @@ export function initializeRunSchedule(root, config) {
             show('soc-source', data.soc_sensors.length > 0);
             addOption(el('soc-source'), '', 'Choose an existing SoC reading');
             for (const sensor of data.soc_sensors) {
-                addOption(el('soc-source'), sensor.id, `${sensor.name}: ${sensor.value} ${sensor.unit} at ${sensor.event_start}`);
+                addOption(el('soc-source'), sensor.id, `${sensor.name}: ${sensor.value} ${sensor.unit} at ${sensor.event_start} (${sensor.timezone})`);
             }
             el('soc-source').value = previousSocSource;
+            if (!data.soc_sensors.length && data.requires_soc && el('soc').value === '' && Number(data.soc_max) > 0) {
+                el('soc').value = String(data.soc_max / 2);
+                el('soc-unit').value = 'kWh';
+                el('soc-assumption').textContent = `Assumed 50% of the ${data.soc_max} kWh maximum. Change this if the current charge is known.`;
+                show('soc-assumption', true);
+            }
             el('warnings').replaceChildren();
             for (const warning of warnings) {
                 const p = document.createElement('p');
@@ -203,6 +218,10 @@ export function initializeRunSchedule(root, config) {
                 p.textContent = 'A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.';
                 el('warnings').append(p);
             }
+            const ageWarning = document.createElement('p');
+            ageWarning.dataset.role = 'soc-age-warning';
+            ageWarning.className = 'mb-1 d-none';
+            el('warnings').append(ageWarning);
             const hasWarnings = updateWarnings();
             show('retry', true);
             notify(hasWarnings ? 'Prerequisites checked. Review the notes before running.' : 'Prerequisites checked.', 'info');
@@ -286,7 +305,10 @@ export function initializeRunSchedule(root, config) {
                 model['power-capacity'] = choices.power_capacity;
             }
             const soc = options.soc_sensors.find(item => String(item.id) === el('soc-source').value);
-            if (soc) model['soc-at-start'] = `${soc.value} ${soc.unit}`;
+            if (soc) {
+                model['state-of-charge'] = {sensor: soc.id};
+                if (!options.configured_soc_sensor) choices.state_of_charge_sensor = soc.id;
+            }
             else if (el('soc').value !== '') model['soc-at-start'] = `${Number(el('soc').value)} ${el('soc-unit').value}`;
             payload['flex-model'] = [model];
             notify('Queuing schedule…');
@@ -314,7 +336,7 @@ export function initializeRunSchedule(root, config) {
                     show('results', true);
                     if (Object.keys(choices).length && options.can_save) {
                         savedChoices = choices;
-                        el('save-summary').textContent = `Save these temporary choices permanently on this asset’s flex-config for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor}. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity}.` : ''}`;
+                        el('save-summary').textContent = `Save these temporary choices permanently for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor} in flex-context. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity} in flex-model. ` : ''}${choices.state_of_charge_sensor ? `State-of-charge sensor #${choices.state_of_charge_sensor} in flex-model.` : ''}`;
                         show('save-group', true);
                     }
                     return;

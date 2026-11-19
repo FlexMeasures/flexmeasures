@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from math import isfinite
+from zoneinfo import ZoneInfo
 
 from flask import url_for
 from marshmallow import ValidationError
@@ -82,6 +83,12 @@ def schedule_options(asset, start_time, end_time):
                     break
     soc_sensors = soc_options(asset, start_time)
     model = asset.flex_model
+    try:
+        soc_max = QuantityField("kWh", return_magnitude=True).deserialize(
+            model.get("soc-max")
+        )
+    except ValidationError:
+        soc_max = None
     return dict(
         power_sensors=power_sensors,
         price_sensors=prices,
@@ -96,9 +103,16 @@ def schedule_options(asset, start_time, end_time):
             ),
         ),
         soc_sensors=soc_sensors,
+        soc_max=soc_max,
+        configured_soc_sensor=(
+            model.get("state-of-charge", {}).get("sensor")
+            if isinstance(model.get("state-of-charge"), dict)
+            else None
+        ),
         requires_soc=(
             asset.asset_type.name in storage_asset_types
             and model.get("soc-at-start") is None
+            and model.get("state-of-charge") is None
         ),
         timezone=asset.timezone,
         can_save=user_can_access(asset, "edit-flex-config"),
@@ -155,10 +169,31 @@ def soc_options(asset, start_time):
                 dict(
                     **option,
                     value=value,
-                    event_start=belief.event_start.isoformat(),
+                    event_start=belief.event_start.astimezone(
+                        ZoneInfo(sensor.timezone)
+                    ).isoformat(),
+                    timezone=sensor.timezone,
                 )
             )
     return soc_sensors
+
+
+def validate_soc_sensor_to_save(asset, sensor_id):
+    """Validate a state-of-charge sensor proposed as a permanent default."""
+    if not isinstance(sensor_id, int) or isinstance(sensor_id, bool):
+        raise ValidationError("state_of_charge_sensor must be a sensor ID.")
+    sensor = db.session.get(Sensor, sensor_id)
+    if sensor is None:
+        raise ValidationError("State-of-charge sensor does not exist.")
+    check_access(sensor, "read")
+    if sensor.generic_asset_id != asset.id or not (
+        sensor.measures_energy or sensor.unit == "%"
+    ):
+        raise ValidationError("Choose a state-of-charge sensor on this asset.")
+    if asset.flex_model.get("state-of-charge") is not None:
+        raise ValidationError(
+            "State of charge is already configured. Reload the dialog."
+        )
 
 
 def save_schedule_defaults(asset, data):
@@ -167,9 +202,10 @@ def save_schedule_defaults(asset, data):
     if not isinstance(data, dict) or set(data) - {
         "consumption_price_sensor",
         "power_capacity",
+        "state_of_charge_sensor",
     }:
         raise ValidationError(
-            "Only consumption_price_sensor and power_capacity are accepted."
+            "Only consumption_price_sensor, power_capacity and state_of_charge_sensor are accepted."
         )
     asset = db.session.scalars(
         select(GenericAsset)
@@ -218,6 +254,13 @@ def save_schedule_defaults(asset, data):
             )
         changes["flex_model"] = dict(
             asset.flex_model, **{"power-capacity": data["power_capacity"]}
+        )
+    if "state_of_charge_sensor" in data:
+        sensor_id = data["state_of_charge_sensor"]
+        validate_soc_sensor_to_save(asset, sensor_id)
+        changes["flex_model"] = dict(
+            changes.get("flex_model", asset.flex_model),
+            **{"state-of-charge": {"sensor": sensor_id}},
         )
     patch_asset(asset, changes)
     db.session.commit()
