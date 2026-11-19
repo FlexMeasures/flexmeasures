@@ -5,24 +5,6 @@ set -euo pipefail
 # Determine container name: use $1 if provided, otherwise construct from current folder name
 CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 
-extract_single_id() {
-    local table_output="$1"
-    local row_label="$2"
-    local entity_description="$3"
-    local ids
-
-    ids=$(awk -v row_label="$row_label" \
-        '$1 ~ /^[0-9]+$/ && index($0, row_label) {print $1}' \
-        <<< "$table_output")
-
-    if [[ $(wc -w <<< "$ids") -ne 1 ]]; then
-        echo "[TUTORIAL-RUNNER] Expected exactly one ${entity_description}, but found: ${ids:-none}" >&2
-        return 1
-    fi
-
-    printf '%s\n' "$ids"
-}
-
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 5 (REPORTERS / KPIs) ..."
 echo "------------------------------------------------------------"
 
@@ -39,18 +21,6 @@ TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind 
 eval "$TOY_VARS"
 TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')
 eval "$TOY_VARS"
-
-DATA_SOURCES=$(docker exec -i "$CONTAINER_NAME" flexmeasures show data-sources)
-FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID=$(extract_single_id \
-    "$DATA_SOURCES" "ProfitOrLossReporter" "ProfitOrLossReporter data source")
-
-PROCESS_ASSET=$(docker exec -i "$CONTAINER_NAME" flexmeasures show asset --id "$FM_TOY_PROCESS_ASSET_ID")
-FM_TOY_PROCESS_INFLEXIBLE_COST_SENSOR_ID=$(extract_single_id \
-    "$PROCESS_ASSET" "costs (Inflexible)" "inflexible-process cost sensor")
-FM_TOY_PROCESS_BREAKABLE_COST_SENSOR_ID=$(extract_single_id \
-    "$PROCESS_ASSET" "costs (Breakable)" "breakable-process cost sensor")
-FM_TOY_PROCESS_SHIFTABLE_COST_SENSOR_ID=$(extract_single_id \
-    "$PROCESS_ASSET" "costs (Shiftable)" "shiftable-process cost sensor")
 
 echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
 

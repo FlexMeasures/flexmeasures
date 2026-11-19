@@ -1766,6 +1766,34 @@ def test_add_toy_account_shell_vars_output(app, fresh_db):
     }.issubset(shell_vars.keys())
 
 
+def test_add_reporter_toy_account_shell_vars_output(app, fresh_db):
+    """The reporter toy account names its cost sensors and its reporter's data source,
+    so the reporter tutorial needs no IDs that depend on what was made before."""
+    from flexmeasures.cli.data_add import add_toy_account
+    from flexmeasures.data.models.data_sources import DataSource
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account, ["--kind", "reporter", "--shell-vars"])
+
+    check_command_ran_without_error(result)
+
+    shell_vars = dict(
+        line.split("=", 1)
+        for line in result.output.splitlines()
+        if line.startswith("FM_TOY_")
+    )
+
+    for name in ["Inflexible", "Breakable", "Shiftable"]:
+        sensor = fresh_db.session.get(
+            Sensor, int(shell_vars[f"FM_TOY_PROCESS_{name.upper()}_COST_SENSOR_ID"])
+        )
+        assert sensor.name == f"costs ({name})"
+    source = fresh_db.session.get(
+        DataSource, int(shell_vars["FM_TOY_PROFIT_OR_LOSS_REPORTER_SOURCE_ID"])
+    )
+    assert source.model == "ProfitOrLossReporter"
+
+
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
