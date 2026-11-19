@@ -83,6 +83,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         eq("asset page initialization performs no lookup", requests.length, 0);
         open();
         eq("opening starts one lookup", requests.length, 1);
+        check("start defaults to the ongoing hour", new Date(field("start").value).getHours() === new Date().getHours() && new Date(field("start").value).getMinutes() === 0);
         check("lookup uses kebab-case timing fields", new URL(requests[0].url).searchParams.has("start-time") && new URL(requests[0].url).searchParams.has("end-time"));
         check("price selection waits for lookup", field("price").disabled);
         check("SoC selection waits for lookup", field("soc-source").disabled);

@@ -278,7 +278,7 @@ export function initializeRunSchedule(root, config) {
     root.addEventListener('show.bs.modal', () => {
         if (!el('start').value) {
             const date = new Date();
-            date.setHours(date.getHours() + 1, 0, 0, 0);
+            date.setHours(date.getHours(), 0, 0, 0);
             const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
             el('start').value = local.toISOString().slice(0, 16);
         }
