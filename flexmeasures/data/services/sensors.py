@@ -1069,10 +1069,12 @@ def build_asset_jobs_data(
                                  - err: job error (equals to None when there was no error for a job)
                                  - enqueued_at: time when the job was enqueued
                                  - metadata_hash: hash of job metadata (internal field)
+                                 - can_rerun: whether the current user may re-run the job now, which requires it to have failed
                                  When page is set, return that list together with the total job count and the count of jobs in the requested queue.
     """
 
     from flexmeasures.data.services.generic_assets import get_readable_offspring
+    from flexmeasures.data.services.job_rerun import can_rerun_job
 
     assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
@@ -1196,6 +1198,7 @@ def build_asset_jobs_data(
                     "enqueued_at": job.enqueued_at,
                     "created_via": created_via,
                     "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
+                    "can_rerun": can_rerun_job(job, status),
                 }
             )
 
