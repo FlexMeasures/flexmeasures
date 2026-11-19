@@ -1332,10 +1332,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 }
 
 // Build the markLine config for one subplot: instant (zero-duration) annotations
-// as a thin vertical rule with an enlarged triangle marker at the top, plus the
-// replay ruler at the current belief time (when replaying). Returns null when
+// as a thin vertical rule with an enlarged triangle marker at the top. Returns null when
 // there is nothing to draw.
-function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx) {
   const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
@@ -1355,21 +1354,11 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
       };
     })
     .filter(Boolean);
-  if (replayTime != null) {
-    // Replay ruler: a vertical line at the current belief time
-    data.push({
-      xAxis: replayTime,
-      symbol: "none",
-      lineStyle: { color: "#555", width: 1.5, type: "solid" },
-      blur: { lineStyle: { color: "#555", width: 1.5, type: "solid" } },
-      label: { show: false },
-    });
-  }
   if (data.length === 0) return null;
   return {
     silent: true,
     animation: false,
-    // Downward triangle at the top of each rule (the replay ruler opts out per item)
+    // Downward triangle at the top of each rule
     symbol: ["none", "path://M-6,-5 L6,-5 L0,5 Z"],
     symbolSize: 13,
     data: data,
@@ -1584,13 +1573,13 @@ function buildLineBarOption(elementId, groups, opts) {
     });
     // Linear or step-after for the whole row, as in Vega-Lite (see isGroupInstantaneous).
     const groupIsInstantaneous = isGroupInstantaneous(group);
-    // Annotation marks (shaded bands, instant rules) and the replay ruler live
+    // Annotation marks (shaded bands, instant rules) live
     // on a dedicated, data-less carrier series, so they also show in subplots
     // that (still) have no data — parity with the Vega-Lite annotation layers.
     // The marks are silent and drawn behind the data, so the data tooltip keeps
     // working inside annotation bands; wireAnnotationHover darkens the hovered/
     // pinned annotation and reveals its text below the hovered subplot only.
-    if (annotations.length > 0 || instance.replayTime != null) {
+    if (annotations.length > 0) {
       // Hover tolerance for instant annotations: one resolution bin of this
       // subplot's finest sensor, as in the Vega-Lite annotation layers.
       const groupResolutionsMs = group.series
@@ -1612,11 +1601,11 @@ function buildLineBarOption(elementId, groups, opts) {
         animation: false,
         legendHoverLink: false, // not in any legend (legends list explicit entries only)
         // An explicit color keeps this empty carrier from consuming a data palette slot.
-        // Annotation marks and the replay ruler specify their own colors.
+        // Annotation marks specify their own colors.
         itemStyle: { color: "transparent" },
         markArea: buildAnnotationMarkArea(annotations, -1, -1),
       };
-      const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, -1, -1);
       if (markLine) carrier.markLine = markLine;
       series.push(carrier);
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
@@ -2529,6 +2518,55 @@ export function renderFastChart(elementId, data, options) {
   wireZoomRefresh(instance);
   wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+  wireReplayRuler(instance);
+}
+
+/* ============================== replay ruler ============================== */
+
+const REPLAY_RULER_COLOR = "#555";
+// The ruler gets a canvas layer of its own, so moving it repaints only that layer, not the chart.
+const REPLAY_RULER_ZLEVEL = 1;
+
+// Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, or clear it.
+// These are plain zrender elements, kept out of the chart option, so moving the ruler never re-renders the chart.
+function drawReplayRuler(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed()) return;
+  const zr = chart.getZr();
+  if (instance._replayRuler) {
+    zr.remove(instance._replayRuler);
+    instance._replayRuler = null;
+  }
+  const time = instance.replayTime;
+  if (time == null || !instance.lastOption) return;
+  const group = new echarts.graphic.Group({ silent: true, zlevel: REPLAY_RULER_ZLEVEL });
+  const model = chart.getModel();
+  [].concat(instance.lastOption.xAxis || []).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridModel = model.getComponent("grid", xAxis.gridIndex || 0);
+    const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+    const x = chart.convertToPixel({ xAxisIndex: i }, time);
+    if (!rect || !isFinite(x) || x < rect.x || x > rect.x + rect.width) return;
+    group.add(new echarts.graphic.Line({
+      shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
+      style: { stroke: REPLAY_RULER_COLOR, lineWidth: 1.5 },
+      silent: true,
+      zlevel: REPLAY_RULER_ZLEVEL,
+    }));
+  });
+  zr.add(group);
+  instance._replayRuler = group;
+}
+
+// Redraw the replay ruler now, and whenever zooming or panning moves the time axes.
+function wireReplayRuler(instance) {
+  const chart = instance.chart;
+  if (instance.onReplayRulerZoom) {
+    chart.off("dataZoom", instance.onReplayRulerZoom);
+  }
+  instance.onReplayRulerZoom = () => drawReplayRuler(instance);
+  chart.on("dataZoom", instance.onReplayRulerZoom);
+  drawReplayRuler(instance);
 }
 
 /* ============================== range selection ============================== */
@@ -3104,7 +3142,7 @@ export function wireAnnotationHover(instance) {
       const after = stateFor(g, newHover, newPins);
       if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
-      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p);
       if (markLine) marks.markLine = markLine;
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
@@ -3155,12 +3193,14 @@ export function wireAnnotationHover(instance) {
 
 /**
  * Set (or clear, with null) the replay belief time, shown as a vertical ruler.
- * Takes effect on the next renderFastChart call.
+ * Moving the ruler is cheap: it repaints the ruler's own layer without re-rendering the chart,
+ * so it can follow the replay on every animation frame.
  */
 export function setFastChartReplayTime(elementId, beliefTimeMs) {
   const instance = instances[elementId];
   if (instance) {
     instance.replayTime = beliefTimeMs;
+    drawReplayRuler(instance);
   }
 }
 

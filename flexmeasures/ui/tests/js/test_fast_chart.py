@@ -744,56 +744,68 @@ def test_shift_click_pins_several_annotations(assert_js):
         """)
 
 
-def test_replay_ruler_survives_empty_data(assert_js):
-    """Belief-time filtering must not remove the ruler along with the data series."""
-    assert_js("""
-        import { renderFastChart, setFastChartReplayTime, disposeFastChart } from "/js/fast-chart.js";
+def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
+    """The replay ruler follows the replay on every frame, so moving it must not re-render the chart.
+
+    It is drawn on a layer of its own, in every time-axis subplot,
+    and has to survive re-renders (also without visible data) and follow zooming.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart, setFastChartReplayTime, disposeFastChart } = await import("/js/fast-chart.js?replay-ruler");
         const container = document.createElement("div");
         container.id = "replay-chart";
-        container.style.width = "800px";
+        container.style.cssText = "width: 800px; height: 600px;";
         document.body.appendChild(container);
-        let option;
-        const zr = {on() {}, off() {}};
-        window.echarts = {init: () => ({
-            isDisposed: () => false, resize() {}, dispose() {},
-            setOption(value, opts) { if (opts?.notMerge) option = value; },
-            getOption: () => option,
-            getDom: () => container, getZr: () => zr,
-            getModel: () => ({getSeriesByIndex: () => null}),
-            on() {}, off() {}, dispatchAction() {},
-        })};
         const start = Date.parse("2026-01-01T00:00:00Z");
-        const row = {
-            event_start: start, event_value: 5, belief_horizon: 0,
-            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: 0},
+        const hour = 3600000;
+        const row = (sensor, offset) => ({
+            event_start: start + offset * hour, event_value: 5, belief_horizon: 0,
+            sensor: {id: sensor, name: "Power " + sensor, unit: "kW", event_resolution: 0},
             source: {id: 1, name: "Meter"},
-        };
-        const rulers = () => option.series.flatMap(s => s.markLine?.data || [])
-            .filter(mark => mark.lineStyle.color === "#555");
+        });
+        const rows = [row(1, 1), row(1, 2), row(2, 1), row(2, 2)];
+        const rulers = (chart) => chart.getZr().storage.getDisplayList(true)
+            .filter((el) => el.type === "line" && el.style.stroke === "#555");
+        const near = (a, b) => Math.abs(a - b) < 0.5;
+
         for (const chartType of ["line", "bar_chart"]) {
             const opts = {
-                chartType, isSensorPage: true,
-                groupSpec: [{title: "Power", sensorIds: [1]}],
-                timeWindow: {start, end: start + 86400000},
+                chartType,
+                groupSpec: [{title: "One", sensorIds: [1]}, {title: "Two", sensorIds: [2]}],
+                timeWindow: {start, end: start + 24 * hour},
             };
+            renderFastChart(container.id, rows, opts);
+            const chart = echarts.getInstanceByDom(container);
+            let setOptionCalls = 0;
+            const setOption = chart.setOption.bind(chart);
+            chart.setOption = (...args) => { setOptionCalls++; return setOption(...args); };
+
+            eq(`${chartType}: no ruler before replaying`, rulers(chart).length, 0);
+            const time = start + 6 * hour;
+            setFastChartReplayTime(container.id, time);
+            eq(`${chartType}: one ruler per subplot`, rulers(chart).length, 2);
+            check("at the replay time", rulers(chart).every((line, i) =>
+                near(line.shape.x1, chart.convertToPixel({xAxisIndex: i}, time))), rulers(chart).map((l) => l.shape.x1));
+            check("on a layer of its own", rulers(chart).every((line) => line.zlevel > 0));
+            setFastChartReplayTime(container.id, time + hour);
+            eq("moving it leaves the chart option alone", setOptionCalls, 0);
+            check("but moves the ruler", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)));
+
             renderFastChart(container.id, [], opts);
-            for (const [index, data] of [[], [row], [], [row]].entries()) {
-                const time = start + (index + 1) * 3600000;
-                setFastChartReplayTime(container.id, time);
-                renderFastChart(container.id, data, opts);
-                eq(`${chartType}: exactly one ruler even without visible data`, rulers().length, 1);
-                eq("the ruler follows playback", rulers()[0]?.xAxis, time);
-                eq("the carrier opts out of automatic data colors",
-                   option.series[0].itemStyle?.color, "transparent");
-                eq("the requested time window is retained", option.xAxis[0].min, start);
-                check("the ruler is independent of data", option.series.some(
-                    s => s.data.length === 0 && s.markLine?.data.some(m => m.xAxis === time)));
-            }
+            eq("a re-render without visible data keeps the ruler, once per subplot", rulers(chart).length, 2);
+            renderFastChart(container.id, rows, opts);
+            eq("so does one with data", rulers(chart).length, 2);
+
+            chart.dispatchAction({type: "dataZoom", startValue: start + 5 * hour, endValue: start + 9 * hour});
+            check("zooming moves the ruler along", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)),
+                  [rulers(chart)[0]?.shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)]);
+            setFastChartReplayTime(container.id, start + 12 * hour);
+            eq("a ruler outside the zoomed range is not drawn", rulers(chart).length, 0);
+
             setFastChartReplayTime(container.id, null);
-            renderFastChart(container.id, [], opts);
-            eq("stopping replay clears the ruler", rulers().length, 0);
+            eq("stopping replay clears the ruler", rulers(chart).length, 0);
+            disposeFastChart(container.id);
         }
-        disposeFastChart(container.id);
         container.remove();
         """)
 
