@@ -23,6 +23,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* On the sensor page, the buttons to delete the sensor or its data, and to create a forecast, now also work for users who may not upload data to that sensor [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 
 
