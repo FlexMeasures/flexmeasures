@@ -17,6 +17,7 @@ Most-missed rules, called out so they are not forgotten:
   a hook that rewrites a file aborts the commit, so re-stage and commit again.
   See [`pre-commit-hooks.instructions.md`](.github/instructions/pre-commit-hooks.instructions.md).
 - **Add a changelog entry** for user-facing changes, in the right section, with a PR link.
+  Before pushing a new PR, fill in its most likely number (check that it is still free), and check it once the PR exists.
   See [`changelog.instructions.md`](.github/instructions/changelog.instructions.md).
 - **Prove a new test can fail** — break what it covers, confirm it goes red, restore.
   A test that passes with the feature disabled asserts nothing.
