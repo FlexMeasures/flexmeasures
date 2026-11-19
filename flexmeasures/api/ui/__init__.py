@@ -25,9 +25,11 @@ def register_at(app: Flask):
         SensorAPI,
     )
     from flexmeasures.api.ui.session import LegacyV3SessionAPI, SessionAPI
+    from flexmeasures.api.ui.scheduling import AssetSchedulingAPI
 
     SensorAPI.register(app, route_prefix=UI_API_PREFIX)
     AssetAPI.register(app, route_prefix=UI_API_PREFIX)
+    AssetSchedulingAPI.register(app, route_prefix=UI_API_PREFIX)
 
     SessionAPI.register(app, route_prefix=UI_API_PREFIX)
 

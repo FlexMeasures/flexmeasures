@@ -42,7 +42,7 @@ def modal_setup():
         const notices = [];
         window.showToast = (...args) => notices.push(args);
         initializeRunSchedule(root, {{
-            optionsUrl: "/assets/3/scheduling-options",
+            optionsUrl: "/api/ui/assets/3/schedule-options",
             assetApiUrl: "/api/v3_0/assets/3",
             sensorsApiUrl: "/api/v3_0/sensors",
             assetId: 3,
@@ -83,6 +83,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         eq("asset page initialization performs no lookup", requests.length, 0);
         open();
         eq("opening starts one lookup", requests.length, 1);
+        check("lookup uses kebab-case timing fields", new URL(requests[0].url).searchParams.has("start-time") && new URL(requests[0].url).searchParams.has("end-time"));
         check("price selection waits for lookup", field("price").disabled);
         check("SoC selection waits for lookup", field("soc-source").disabled);
         check("run waits for lookup", field("run").disabled);
@@ -118,11 +119,11 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         check("demo action appears when no prices are available", !field("demo-price-group").classList.contains("d-none"));
         eq("create choice is selected when there are no sensors", field("price").value, "__create_demo__");
         check("the create choice cannot be used as a price sensor", field("run").disabled);
-        eq("dynamic daily prices are the default", field("demo-profile").value, "nl_october_day");
+        eq("dynamic daily prices are the default", field("demo-profile").value, "nl-october-day");
         eq("lookup does not create data", requests.length, 1);
         field("demo-price").click();
         eq("click creates sensor through API", requests[1].url, "/api/v3_0/sensors");
-        eq("chosen profile is saved as sensor metadata", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "nl_october_day");
+        eq("chosen profile is saved as sensor metadata", JSON.parse(JSON.parse(requests[1].options.body).attributes).demo_profile, "nl-october-day");
         check("demo action is disabled during creation", field("demo-price").disabled);
         await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
         eq("prices are posted through sensor-data API", requests[2].url, "/api/v3_0/sensors/20/data");

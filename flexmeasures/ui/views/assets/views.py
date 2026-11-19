@@ -72,20 +72,6 @@ class AssetCrudUI(FlaskView):
     trailing_slash = False
 
     @login_required
-    @route("/<id>/schedule-options")
-    @use_kwargs(StartEndTimeSchema, location="query")
-    def schedule_options(self, id: str, start_time=None, end_time=None):
-        """Return lazy, permission-filtered scheduling suggestions."""
-        from flexmeasures.ui.views.assets.scheduling import schedule_options
-
-        asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "read")
-        check_access(asset, "trigger-schedules")
-        if start_time is None or end_time is None:
-            return {"message": "Provide start_time and end_time."}, 422
-        return schedule_options(asset, start_time, end_time)
-
-    @login_required
     def index(self, msg="", **kwargs):
         """GET from /assets
 

@@ -7,8 +7,8 @@ from flask import url_for
 from flexmeasures.data.models.generic_assets import GenericAsset
 
 PERIOD = {
-    "start_time": "2026-10-14T12:00:00+00:00",
-    "end_time": "2026-10-15T12:00:00+00:00",
+    "start-time": "2026-10-14T12:00:00+00:00",
+    "end-time": "2026-10-15T12:00:00+00:00",
 }
 
 
@@ -38,7 +38,7 @@ def test_context_does_not_lookup_sensors(client, public_asset, as_admin):
 def test_reader_cannot_open_wizard(client, public_asset, as_prosumer_user1):
     with patch("flexmeasures.ui.views.assets.scheduling.schedule_options") as lookup:
         response = client.get(
-            url_for("AssetCrudUI:schedule_options", id=public_asset.id),
+            url_for("AssetSchedulingAPI:schedule_options", id=public_asset.id),
             query_string=PERIOD,
         )
     assert response.status_code == 403
@@ -49,6 +49,6 @@ def test_reader_cannot_open_wizard(client, public_asset, as_prosumer_user1):
 
 
 def test_wizard_requires_login(client, public_asset):
-    url = url_for("AssetCrudUI:schedule_options", id=public_asset.id)
+    url = url_for("AssetSchedulingAPI:schedule_options", id=public_asset.id)
     response = client.get(url, query_string=PERIOD)
     assert response.status_code in (302, 401)

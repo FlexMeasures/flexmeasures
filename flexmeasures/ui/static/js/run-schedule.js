@@ -24,6 +24,11 @@ export function initializeRunSchedule(root, config) {
         65, 45, 30, 50, 100, 160, 190, 180, 140, 115, 100, 90];
     const apiJsonHeaders = {'Content-Type': 'application/json'};
     const parseConfig = value => typeof value === 'string' ? JSON.parse(value) : (value || {});
+    const normalizeOptions = value => Array.isArray(value)
+        ? value.map(normalizeOptions)
+        : value && typeof value === 'object'
+            ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key.replaceAll('-', '_'), normalizeOptions(item)]))
+            : value;
     async function jsonResponse(response) {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(errorMessage(data) || response.statusText);
@@ -136,9 +141,9 @@ export function initializeRunSchedule(root, config) {
             const range = period();
             notify('Checking prerequisites and looking for price and state-of-charge data…');
             const url = new URL(config.optionsUrl, window.location.origin);
-            url.searchParams.set('start_time', range.start);
-            url.searchParams.set('end_time', range.end);
-            const data = await jsonResponse(await fetch(url, {signal: controller.signal}));
+            url.searchParams.set('start-time', range.start);
+            url.searchParams.set('end-time', range.end);
+            const data = normalizeOptions(await jsonResponse(await fetch(url, {signal: controller.signal})));
             if (currentGeneration !== generation) return;
             options = data;
             checkedPeriod = range;

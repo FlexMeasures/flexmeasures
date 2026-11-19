@@ -46,10 +46,10 @@ def schedule_assets(db, setup_generic_asset_types, setup_accounts):
 
 def options(client, asset):
     return client.get(
-        url_for("AssetCrudUI:schedule_options", id=asset.id),
+        url_for("AssetSchedulingAPI:schedule_options", id=asset.id),
         query_string={
-            "start_time": START.isoformat(),
-            "end_time": (START + timedelta(days=1)).isoformat(),
+            "start-time": START.isoformat(),
+            "end-time": (START + timedelta(days=1)).isoformat(),
         },
     )
 
@@ -113,7 +113,7 @@ def test_existing_apis_create_demo_prices_and_save_chosen_defaults(
     )
     assert posted.status_code == 200
     assert sensor_id in [
-        s["id"] for s in options(client, asset).get_json()["price_sensors"]
+        s["id"] for s in options(client, asset).get_json()["price-sensors"]
     ]
     patched = client.patch(
         f"/api/v3_0/assets/{asset.id}",
@@ -176,11 +176,11 @@ def test_suggestions_use_requested_period_and_latest_soc(
     response = options(client, asset)
     assert response.status_code == 200
     data = response.get_json()
-    assert power.id in [s["id"] for s in data["power_sensors"]]
-    assert price.id in [s["id"] for s in data["price_sensors"]]
-    assert empty_price.id not in [s["id"] for s in data["price_sensors"]]
-    assert data["soc_sensors"][0]["value"] == 5
-    assert data["soc_sensors"][0]["event_start"] == START.isoformat()
+    assert power.id in [s["id"] for s in data["power-sensors"]]
+    assert price.id in [s["id"] for s in data["price-sensors"]]
+    assert empty_price.id not in [s["id"] for s in data["price-sensors"]]
+    assert data["soc-sensors"][0]["value"] == 5
+    assert data["soc-sensors"][0]["event-start"] == START.isoformat()
 
 
 def test_price_suggestions_allow_gaps_that_scheduler_can_fill(
@@ -208,7 +208,7 @@ def test_price_suggestions_allow_gaps_that_scheduler_can_fill(
         )
     db.session.commit()
     assert price.id in [
-        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+        sensor["id"] for sensor in options(client, asset).get_json()["price-sensors"]
     ]
 
     db.session.add(
@@ -222,7 +222,7 @@ def test_price_suggestions_allow_gaps_that_scheduler_can_fill(
     )
     db.session.commit()
     assert price.id in [
-        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+        sensor["id"] for sensor in options(client, asset).get_json()["price-sensors"]
     ]
 
 
@@ -251,12 +251,12 @@ def test_future_price_events_are_not_available_before_their_belief_time(
         )
     db.session.commit()
     assert price.id not in [
-        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+        sensor["id"] for sensor in options(client, asset).get_json()["price-sensors"]
     ]
 
     asset.flex_context = {"consumption-price": {"sensor": price.id}}
     db.session.commit()
-    assert options(client, asset).get_json()["price_available"] is False
+    assert options(client, asset).get_json()["price-available"] is False
 
     for hour in range(24):
         db.session.add(
@@ -269,7 +269,7 @@ def test_future_price_events_are_not_available_before_their_belief_time(
             )
         )
     db.session.commit()
-    assert options(client, asset).get_json()["price_available"] is True
+    assert options(client, asset).get_json()["price-available"] is True
 
 
 def test_day_ahead_prices_are_available_when_their_knowledge_time_has_passed(
@@ -300,11 +300,11 @@ def test_day_ahead_prices_are_available_when_their_knowledge_time_has_passed(
     db.session.commit()
     monkeypatch.setattr(scheduling, "server_now", lambda: START + timedelta(hours=12))
     assert price.id in [
-        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+        sensor["id"] for sensor in options(client, asset).get_json()["price-sensors"]
     ]
     asset.flex_context = {"consumption-price": {"sensor": price.id}}
     db.session.commit()
-    assert options(client, asset).get_json()["price_available"] is True
+    assert options(client, asset).get_json()["price-available"] is True
 
 
 def test_configured_price_sensor_without_full_coverage_warns_but_allows_run(
@@ -331,9 +331,9 @@ def test_configured_price_sensor_without_full_coverage_warns_but_allows_run(
     )
     db.session.commit()
     data = options(client, asset).get_json()
-    assert data["consumption_price"] == {"sensor": price.id}
-    assert data["price_available"] is True
-    assert data["price_ends_at"] == (START + timedelta(hours=1)).isoformat()
+    assert data["consumption-price"] == {"sensor": price.id}
+    assert data["price-available"] is True
+    assert data["price-ends-at"] == (START + timedelta(hours=1)).isoformat()
     prices = get_continuous_series_sensor_or_quantity(
         variable_quantity=price,
         unit="EUR/MWh",
@@ -357,13 +357,13 @@ def test_inherited_settings_avoid_redundant_suggestions(
     asset.parent_asset = parent
     db.session.commit()
     data = options(client, asset).get_json()
-    assert data["consumption_price"] == "0.2 EUR/kWh"
-    assert data["power_capacity"] == "10 kW"
-    assert data["power_capacity_kw"] == 10
-    assert data["power_capacity_source"] == "inherited site-power-capacity"
-    assert data["is_storage"] is True
-    assert data["soc_min"] is None
-    assert data["price_sensors"] == []
+    assert data["consumption-price"] == "0.2 EUR/kWh"
+    assert data["power-capacity"] == "10 kW"
+    assert data["power-capacity-kw"] == 10
+    assert data["power-capacity-source"] == "inherited site-power-capacity"
+    assert data["is-storage"] is True
+    assert data["soc-min"] is None
+    assert data["price-sensors"] == []
 
 
 def test_inherited_price_sensor_is_identified_and_checked_for_coverage(
@@ -393,31 +393,31 @@ def test_inherited_price_sensor_is_identified_and_checked_for_coverage(
         )
     db.session.commit()
     data = options(client, asset).get_json()
-    assert data["consumption_price"] == {"sensor": price.id}
-    assert data["consumption_price_sensor"] == {
+    assert data["consumption-price"] == {"sensor": price.id}
+    assert data["consumption-price-sensor"] == {
         "id": price.id,
         "name": price.name,
         "unit": price.unit,
         "url": url_for("SensorUI:get", id=price.id),
     }
-    assert data["price_available"] is True
-    assert data["price_sensors"] == []
+    assert data["price-available"] is True
+    assert data["price-sensors"] == []
 
 
 def test_starting_soc_is_required_only_for_storage_without_a_configured_value(
     db, client, schedule_assets, setup_generic_asset_types, as_admin
 ):
     asset = schedule_assets["test_battery"]
-    assert options(client, asset).get_json()["requires_soc"] is True
+    assert options(client, asset).get_json()["requires-soc"] is True
 
     asset.flex_model = {"soc-at-start": "0 kWh"}
     db.session.commit()
-    assert options(client, asset).get_json()["requires_soc"] is False
+    assert options(client, asset).get_json()["requires-soc"] is False
 
     asset.flex_model = {}
     asset.generic_asset_type = setup_generic_asset_types["wind"]
     db.session.commit()
-    assert options(client, asset).get_json()["requires_soc"] is False
+    assert options(client, asset).get_json()["requires-soc"] is False
 
 
 def test_percentage_soc_needs_energy_capacity(
@@ -441,10 +441,10 @@ def test_percentage_soc_needs_energy_capacity(
         )
     )
     db.session.commit()
-    assert options(client, asset).get_json()["soc_sensors"] == []
+    assert options(client, asset).get_json()["soc-sensors"] == []
     asset.flex_model = {"soc-max": "20 kWh"}
     db.session.commit()
-    suggestion = options(client, asset).get_json()["soc_sensors"][0]
+    suggestion = options(client, asset).get_json()["soc-sensors"][0]
     assert suggestion["value"] == 10
     assert suggestion["unit"] == "kWh"
 
@@ -470,7 +470,7 @@ def test_soc_suggestions_are_no_more_than_one_week_old(
         )
     )
     db.session.commit()
-    assert options(client, asset).get_json()["soc_sensors"] == []
+    assert options(client, asset).get_json()["soc-sensors"] == []
     db.session.add(
         TimedBelief(
             sensor=soc,
@@ -481,7 +481,7 @@ def test_soc_suggestions_are_no_more_than_one_week_old(
         )
     )
     db.session.commit()
-    assert options(client, asset).get_json()["soc_sensors"][0]["value"] == 5
+    assert options(client, asset).get_json()["soc-sensors"][0]["value"] == 5
 
 
 def test_unreadable_price_sensor_cannot_be_suggested(
@@ -510,7 +510,7 @@ def test_unreadable_price_sensor_cannot_be_suggested(
     response = options(client, asset)
     assert response.status_code == 200
     assert price.id not in [
-        sensor["id"] for sensor in response.get_json()["price_sensors"]
+        sensor["id"] for sensor in response.get_json()["price-sensors"]
     ]
 
 
@@ -539,7 +539,7 @@ def test_newest_price_sensor_is_suggested_when_more_than_ten_match(
             )
         )
     db.session.commit()
-    selected_ids = [s["id"] for s in options(client, asset).get_json()["price_sensors"]]
+    selected_ids = [s["id"] for s in options(client, asset).get_json()["price-sensors"]]
     assert len(selected_ids) == 10
     assert sensors[-1].id == selected_ids[0]
     assert sensors[0].id not in selected_ids
