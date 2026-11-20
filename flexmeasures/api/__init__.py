@@ -59,10 +59,13 @@ def request_auth_token(args) -> tuple[dict, int]:
               schema:
                 type: object
                 properties:
-                  authentication_token:
+                  auth_token:
                     type: string
                     description: |
-                      Short-lived authentication token, which can be used in request headers using `{"Authorization": authentication_token}`.
+                      Short-lived authentication token, which can be used in request headers using `{"Authorization": auth_token}`.
+                  user_id:
+                    type: integer
+                    description: The ID of the authenticated user.
         400:
           description: INVALID_REQUEST
         401:
