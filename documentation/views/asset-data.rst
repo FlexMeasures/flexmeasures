@@ -174,7 +174,7 @@ Two settings below the play button control the replay:
   In the fast chart, the ruler itself moves smoothly, whatever the step.
 - **Speed** sets how fast belief time passes. At 1×, 6 hours pass per second.
 
-Press ``p`` to play or pause, ``s`` to stop, ``n`` to move one step ahead, and ``+`` or ``-`` to speed up or slow down.
+Press ``p`` to play or pause, ``s`` to stop, ``n`` to move one step ahead, ``b`` to move one step back, and ``+`` or ``-`` to speed up or slow down.
 The sensor page offers the same replay.
 
 .. _view_asset_properties:

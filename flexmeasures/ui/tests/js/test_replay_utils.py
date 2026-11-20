@@ -98,6 +98,15 @@ def test_step_floor_counts_steps_from_the_start(assert_js):
         """)
 
 
+def test_step_before_counts_steps_from_the_start(assert_js):
+    assert_js("""
+        import { stepBefore } from "/js/replay-utils.js";
+        eq("a time between boundaries steps back to the previous one", stepBefore(1037, 1000, 15), 1030);
+        eq("a boundary steps back to the one before it", stepBefore(1030, 1000, 15), 1015);
+        eq("the start steps back to before it, for the clock to stop at the start", stepBefore(1000, 1000, 15), 985);
+        """)
+
+
 def test_replay_data_follows_the_ruler(assert_js):
     """While playing, the data follows the step boundaries; while paused, it matches the ruler exactly, and it never goes back."""
     assert_js("""

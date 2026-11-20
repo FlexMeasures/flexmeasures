@@ -94,6 +94,18 @@ export function stepFloor(time, start, stepMs) {
 }
 
 /**
+ * Returns the last step boundary before the given time, counting steps from the start, to step back to.
+ *
+ * @param {number} time   Time in ms.
+ * @param {number} start  Start of the replay in ms.
+ * @param {number} stepMs Step in ms.
+ * @return {number}       Boundary in ms.
+ */
+export function stepBefore(time, start, stepMs) {
+  return start + (Math.ceil((time - start) / stepMs) - 1) * stepMs;
+}
+
+/**
  * Returns the belief time whose data a replay should show.
  *
  * While playing, the data follows the last step boundary the clock has passed.

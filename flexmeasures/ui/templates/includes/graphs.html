@@ -25,7 +25,7 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, REPLAY_PAUSE_GLIDE_MS, RedrawDurations, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, REPLAY_PAUSE_GLIDE_MS, RedrawDurations, inferReplayStep, formatReplayStep, replayDataTime, stepBefore, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
@@ -702,6 +702,8 @@
             stopReplay();
         } else if (e.key === 'n') {
             stepReplay();
+        } else if (e.key === 'b') {
+            stepReplayBack();
         } else if (e.key === '+' || e.key === '-') {
             // Faster or slower replay
             const speedPicker = document.getElementById('replay-speed');
@@ -1177,6 +1179,17 @@
             requestReplayFrame();
         } else if (toggle.classList.contains('playing')) {
             pauseReplay();
+        }
+    }
+
+    // Step back to the previous step boundary: pausing first if playing, like stepping forward.
+    function stepReplayBack() {
+        if (toggle.classList.contains('playing')) {
+            pauseReplay();
+        } else if (toggle.classList.contains('paused') && replayClock) {
+            const now = performance.now();
+            replayClock.seek(stepBefore(replayClock.position(now), replayClock.start, replayStep()), now);
+            requestReplayFrame();
         }
     }
 
