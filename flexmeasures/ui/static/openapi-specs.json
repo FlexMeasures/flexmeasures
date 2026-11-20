@@ -49,8 +49,7 @@
                     },
                     "expires-in": {
                       "type": "integer",
-                      "nullable": true,
-                      "description": "Access-token lifetime in seconds (null if unlimited), returned with refresh-token."
+                      "description": "Access-token lifetime in seconds, returned with refresh-token."
                     }
                   }
                 }
@@ -156,8 +155,7 @@
                     },
                     "expires-in": {
                       "type": "integer",
-                      "nullable": true,
-                      "description": "Access-token lifetime in seconds, or null if unlimited."
+                      "description": "Access-token lifetime in seconds."
                     }
                   }
                 }

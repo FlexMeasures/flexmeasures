@@ -70,8 +70,7 @@ def request_auth_token(args) -> tuple[dict, int]:
                     description: Returned only when include-refresh-token is true.
                   expires-in:
                     type: integer
-                    nullable: true
-                    description: Access-token lifetime in seconds (null if unlimited), returned with refresh-token.
+                    description: Access-token lifetime in seconds, returned with refresh-token.
         400:
           description: INVALID_REQUEST
         401:

@@ -59,8 +59,7 @@ def refresh_auth_token(args):
                     type: string
                   expires-in:
                     type: integer
-                    nullable: true
-                    description: Access-token lifetime in seconds, or null if unlimited.
+                    description: Access-token lifetime in seconds.
         400:
           description: The JSON in the request body cannot be parsed.
         401:

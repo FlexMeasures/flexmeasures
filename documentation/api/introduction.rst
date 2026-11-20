@@ -148,7 +148,8 @@ A successful response has HTTP status 200:
 ``auth_token`` is the access token used for ordinary API requests. ``expires-in`` is its
 lifetime in seconds, reflecting the host's configuration. The example uses the default
 six hours. A refresh token cannot authenticate an ordinary API request.
-If the host has configured access tokens without an expiry, ``expires-in`` is ``null``.
+``expires-in`` is rounded down to whole seconds; zero means no whole seconds of
+validity remain. Setting ``SECURITY_TOKEN_MAX_AGE`` to zero does not disable expiry.
 Responses also include FlexMeasures' usual ``status`` field.
 
 To replace the access token, send ``POST /api/refreshAuthToken`` with this JSON body:
