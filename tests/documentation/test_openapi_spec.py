@@ -19,6 +19,12 @@ PYTHON_TYPE_ALIASES = {
 }
 
 
+def test_openapi_documents_invalid_refresh_opt_in():
+    spec = json.loads(OPENAPI_SPEC_PATH.read_text())
+    responses = spec["paths"]["/api/requestAuthToken"]["post"]["responses"]
+    assert "422" in responses
+
+
 def _collect_type_values(node, path=""):
     """Yield (json_path, type_value) for every 'type' key found anywhere in *node*."""
     if isinstance(node, dict):

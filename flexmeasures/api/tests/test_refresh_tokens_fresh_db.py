@@ -84,6 +84,12 @@ def test_legacy_token_response(client, token_user, options):
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize("value", ["not-a-boolean", None, [], {}])
+def test_login_rejects_invalid_refresh_opt_in(client, token_user, value):
+    response = login(client, include_refresh_token=value)
+    assert response.status_code == 422
+
+
 def test_issue_and_rotate_tokens(client, token_user):
     pair = assert_pair(login(client, include_refresh_token=True), token_user.id)
     rotated = assert_pair(refresh(client, pair["refresh-token"]), token_user.id)
