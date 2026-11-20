@@ -347,21 +347,65 @@ def test_security_change_revokes_without_refresh_attempt(
 
 
 def test_per_token_expiry_limits_reported_lifetime(
-    app, client, token_user, monkeypatch
+    app, client, token_user, token_clock, monkeypatch
 ):
+    token_clock(0)
     monkeypatch.setitem(
-        app.config, "SECURITY_TOKEN_EXPIRE_TIMESTAMP", lambda user: time.time() + 30
+        app.config, "SECURITY_TOKEN_EXPIRE_TIMESTAMP", lambda user: time.time() + 5
     )
     pair = assert_pair(login(client, include_refresh_token=True), token_user.id)
-    assert 0 < pair["expires-in"] <= 30
+    assert 0 < pair["expires-in"] <= 5
+    clear_auth()
+    assert (
+        client.get(
+            url_for("AssetAPI:index"), headers={"Authorization": pair["auth_token"]}
+        ).status_code
+        == 200
+    )
+    token_clock(10)
+    clear_auth()
+    assert (
+        client.get(
+            url_for("AssetAPI:index"), headers={"Authorization": pair["auth_token"]}
+        ).status_code
+        == 401
+    )
 
 
-def test_unlimited_access_token_lifetime(app, client, token_user, monkeypatch):
+@pytest.mark.parametrize("per_token_expiry", [0, 30])
+def test_zero_access_token_lifetime(
+    app, client, token_user, token_clock, monkeypatch, per_token_expiry
+):
+    """Zero max age is not unlimited, even with a later per-token deadline."""
+    token_clock(0)
     monkeypatch.setitem(app.config, "SECURITY_TOKEN_MAX_AGE", timedelta(0))
-    monkeypatch.setitem(app.config, "SECURITY_TOKEN_EXPIRE_TIMESTAMP", lambda user: 0)
+    monkeypatch.setitem(
+        app.config,
+        "SECURITY_TOKEN_EXPIRE_TIMESTAMP",
+        lambda user: time.time() + per_token_expiry if per_token_expiry else 0,
+    )
     response = login(client, include_refresh_token=True)
     assert response.status_code == 200
-    assert response.json["expires-in"] is None
+    pair = response.json
+    assert pair["expires-in"] == 0
+    clear_auth()
+    assert (
+        client.get(
+            url_for("AssetAPI:index"), headers={"Authorization": pair["auth_token"]}
+        ).status_code
+        == 200
+    )
+    token_clock(2)
+    clear_auth()
+    assert (
+        client.get(
+            url_for("AssetAPI:index"), headers={"Authorization": pair["auth_token"]}
+        ).status_code
+        == 401
+    )
+    replacement = refresh(client, pair["refresh-token"])
+    assert replacement.status_code == 200
+    assert replacement.json["expires-in"] == 0
 
 
 def test_revocation_at_same_instant(client, token_user, token_clock):
