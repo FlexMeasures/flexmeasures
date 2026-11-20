@@ -263,3 +263,35 @@ export class ReplayClock {
     this.glide = null;
   }
 }
+
+/**
+ * The durations of the last few data redraws, to tell how long the next one will take at least.
+ *
+ * A replay draws its data for the belief time at which the redraw is expected to show up on screen, rather than when it starts,
+ * so that the data keeps up with the ruler.
+ * Expecting the shortest recent duration keeps the data from getting ahead of the ruler, unless a redraw is quicker than all of those.
+ */
+export class RedrawDurations {
+  /**
+   * @param {number} [size=5] How many recent durations to remember.
+   */
+  constructor(size = 5) {
+    this.size = size;
+    this.durations = [];
+  }
+
+  /**
+   * @param {number} ms How long a redraw took, in ms.
+   */
+  add(ms) {
+    this.durations.push(ms);
+    if (this.durations.length > this.size) this.durations.shift();
+  }
+
+  /**
+   * @return {number} The shortest recent duration in ms, or 0 before any redraw.
+   */
+  get shortest() {
+    return this.durations.length ? Math.min(...this.durations) : 0;
+  }
+}

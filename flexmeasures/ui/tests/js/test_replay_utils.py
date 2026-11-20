@@ -165,3 +165,15 @@ def test_replay_clock_glides_to_a_stop(assert_js):
         clock.pause(230, 5);
         eq("pausing a paused clock leaves it where it is", clock.position(230), 3460);
         """)
+
+
+def test_redraw_durations_tell_the_shortest_recent_one(assert_js):
+    assert_js("""
+        import { RedrawDurations } from "/js/replay-utils.js";
+        const durations = new RedrawDurations(3);
+        eq("nothing is expected before the first redraw", durations.shortest, 0);
+        [60, 80, 90].forEach((ms) => durations.add(ms));
+        eq("the shortest recent duration is expected", durations.shortest, 60);
+        durations.add(100);
+        eq("older durations are forgotten", durations.shortest, 80);
+        """)

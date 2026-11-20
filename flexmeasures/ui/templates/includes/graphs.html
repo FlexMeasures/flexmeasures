@@ -25,7 +25,7 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, REPLAY_PAUSE_GLIDE_MS, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, REPLAY_PAUSE_GLIDE_MS, RedrawDurations, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
@@ -61,6 +61,7 @@
     let replayShownTime = null;
     // The clock motion the ruler was last handed.
     let replayRulerMotion = null;
+    let replayRedrawDurations = new RedrawDurations();
     let storeStartDate;
     let storeEndDate;
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
@@ -1291,6 +1292,7 @@
             replayTimeline.reset();
             replayShownTime = null;
             replayRulerMotion = null;
+            replayRedrawDurations = new RedrawDurations();
             replayClock = new ReplayClock(start, end, replayRate());
             if (toggle.classList.contains('playing')) {
                 replayClock.play(performance.now());
@@ -1311,6 +1313,8 @@
      *
      * While playing, the data is redrawn only when a step boundary has been passed and new beliefs became known by then;
      * when drawing takes longer than a step lasts, the steps passed in the meantime are drawn as one.
+     * The data is drawn for where the clock will be when the redraw is expected to show, rather than where it was when the redraw started,
+     * so it keeps up with the ruler without getting ahead of it.
      * While paused, the data catches up with the ruler exactly, once the ruler has glided to a stop.
      *
      * @param {number} now Wall time in ms, as passed by requestAnimationFrame.
@@ -1334,7 +1338,7 @@
             return;
         }
         const playing = replayClock.playing;
-        const dataTime = replayDataTime(position, playing, replayClock.start, replayStep(), replayShownTime);
+        const dataTime = replayDataTime(playing ? replayClock.position(now + replayRedrawDurations.shortest) : position, playing, replayClock.start, replayStep(), replayShownTime);
         if (dataTime !== replayShownTime) {
             const firstFrame = replayShownTime === null;
             replayShownTime = dataTime;
@@ -1350,6 +1354,9 @@
                 }
                 vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': new Date(dataTime) }));
                 vegaView.run().finalize();
+            }
+            if (playing && (changed || firstFrame)) {
+                replayRedrawDurations.add(performance.now() - now);
             }
             document.getElementById('replay-time').innerHTML = new Date(dataTime);
         }
