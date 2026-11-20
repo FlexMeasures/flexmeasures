@@ -62,6 +62,28 @@
           "401": {
             "description": "UNAUTHORIZED"
           },
+          "409": {
+            "description": "The user's active API refresh-token family limit has been reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "refresh_token_family_limit"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "429": {
             "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }

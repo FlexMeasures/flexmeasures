@@ -75,6 +75,20 @@ def request_auth_token(args) -> tuple[dict, int]:
           description: INVALID_REQUEST
         401:
           description: UNAUTHORIZED
+        409:
+          description: The user's active API refresh-token family limit has been reached.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: refresh_token_family_limit
+                  errors:
+                    type: array
+                    items:
+                      type: string
       tags:
         - Auth
     """

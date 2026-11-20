@@ -169,6 +169,14 @@ its newest refresh token. Serialize refresh requests across workers that share c
 If a refresh response is lost, authenticate again with email and password; blindly retrying
 the old token may revoke the family.
 
+Store the current refresh token securely and reuse it between runs, rather than creating
+a new family on every run. A user can have up to 1,000 active API refresh-token families
+by default; hosts can change :ref:`FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT <refresh_token_family_limit>`.
+At the limit, an opt-in login returns HTTP 409 with ``error`` set to
+``"refresh_token_family_limit"``. Existing families are not revoked and the ordinary
+access-token login remains available. Revoke an unused family before creating another;
+if the tokens have been lost, wait for their idle expiry or ask the host to adjust the limit.
+
 To stop future refreshes, send ``POST /api/revokeRefreshToken`` with the current refresh
 token in the same JSON format. It returns HTTP status 200 with ``{"revoked": true}``
 and revokes the family. Already issued access tokens remain usable until they expire or
@@ -181,7 +189,9 @@ By default, a refresh-token family expires 90 days after its initial login, or a
 7 days without a successful refresh, whichever happens first. Rotation does not extend
 the absolute lifetime. Hosts configure these limits with ``SECURITY_REFRESH_TOKEN_MAX_AGE``
 and ``SECURITY_REFRESH_TOKEN_MAX_IDLE``. After expiry or revocation, authenticate again
-with email and password.
+with email and password. On a new opt-in login, the server removes that user's revoked,
+absolutely expired and idle-expired API families before checking the limit. Families that
+are still active are retained so that reuse of an older token still revokes the family.
 These settings take Python ``datetime.timedelta`` values. API refresh support does not
 require enabling Flask-Security's global ``SECURITY_REFRESH_TOKEN`` flag, which also
 changes browser authentication. Apply the database migration before running the upgraded server.
