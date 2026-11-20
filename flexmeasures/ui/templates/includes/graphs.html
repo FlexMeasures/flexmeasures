@@ -1356,8 +1356,9 @@
      * The ruler moves at the replay clock's constant speed by itself, so it is handed the clock's motion only when that changes.
      * Then the data waits for the next frame, so the ruler hears about the change without waiting for the data to be redrawn.
      *
-     * While playing, the data is redrawn only when a step boundary has been passed and new beliefs became known by then;
-     * when drawing takes longer than a step lasts, the steps passed in the meantime are drawn as one.
+     * While playing, the data is redrawn whenever new beliefs became known by the clock's time;
+     * when drawing takes a while, the beliefs that became known in the meantime are drawn at once.
+     * The Vega chart is an exception: it redraws in full to move its ruler, so there the data and ruler move on per step.
      * The data is drawn for where the clock will be when the redraw is expected to show, rather than where it was when the redraw started,
      * so it keeps up with the ruler without getting ahead of it.
      * While paused, the data catches up with the ruler exactly, once the ruler has glided to a stop.
@@ -1383,7 +1384,8 @@
             return;
         }
         const playing = replayClock.playing;
-        const dataTime = replayDataTime(playing ? replayClock.position(now + replayRedrawDurations.shortest) : position, playing, replayClock.start, replayStep(), replayShownTime);
+        const stepMs = fastRenderActive() ? null : replayStep();
+        const dataTime = replayDataTime(playing ? replayClock.position(now + replayRedrawDurations.shortest) : position, playing, replayClock.start, stepMs, replayShownTime);
         if (dataTime !== replayShownTime) {
             const firstFrame = replayShownTime === null;
             replayShownTime = dataTime;

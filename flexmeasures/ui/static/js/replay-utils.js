@@ -108,20 +108,21 @@ export function stepBefore(time, start, stepMs) {
 /**
  * Returns the belief time whose data a replay should show.
  *
- * While playing, the data follows the last step boundary the clock has passed.
- * While paused, it catches up with the clock exactly, so the data matches the ruler.
+ * Without a step, the data follows the clock itself.
+ * With a step, while playing, the data follows the last step boundary the clock has passed,
+ * and while paused, it catches up with the clock exactly, so the data matches the ruler.
  * Data shown ahead of the last boundary (since a pause, or a switch to a longer step) stays shown until the clock passes the next boundary,
  * rather than being taken back to an earlier belief time.
  *
  * @param {number} position  The replay clock's position, in ms.
  * @param {boolean} playing  Whether the replay clock is running.
  * @param {number} start     Start of the replay in ms.
- * @param {number} stepMs    Step in ms.
+ * @param {?number} stepMs   Step in ms, or null to follow the clock itself.
  * @param {?number} shown    The belief time whose data is shown, in ms, or null if none is shown yet.
  * @return {number}          Belief time in ms.
  */
 export function replayDataTime(position, playing, start, stepMs, shown) {
-  if (!playing) return position;
+  if (!playing || !stepMs) return position;
   const boundary = stepFloor(position, start, stepMs);
   if (shown !== null && boundary < shown && shown <= position) return shown;
   return boundary;

@@ -117,7 +117,7 @@ def test_step_before_counts_steps_from_the_start(assert_js):
 
 
 def test_replay_data_follows_the_ruler(assert_js):
-    """While playing, the data follows the step boundaries; while paused, it matches the ruler exactly, and it never goes back."""
+    """While playing, the data follows the step boundaries, if any; while paused, it matches the ruler exactly, and it never goes back."""
     assert_js("""
         import { replayDataTime } from "/js/replay-utils.js";
         // A replay from 1000, in steps of 15
@@ -129,6 +129,8 @@ def test_replay_data_follows_the_ruler(assert_js):
         eq("until the next boundary passes", replayDataTime(1045, true, 1000, 15, 1037), 1045);
         eq("switching to a longer step does not go back", replayDataTime(1050, true, 1000, 60, 1045), 1045);
         eq("a replay started over shows its start again", replayDataTime(1000, true, 1000, 15, 1045), 1000);
+        eq("without a step, the data follows the clock itself while playing", replayDataTime(1037, true, 1000, null, 1030), 1037);
+        eq("also while rewinding", replayDataTime(1023, true, 1000, null, 1030), 1023);
         """)
 
 
