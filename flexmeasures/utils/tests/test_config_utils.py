@@ -6,9 +6,14 @@ from flask import Flask
 from werkzeug.sansio.utils import host_is_trusted
 
 from flexmeasures.utils import config_utils
-from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
+from flexmeasures.utils.config_defaults import (
+    DevelopmentConfig,
+    ProductionConfig,
+    TestingConfig,
+)
 
 from flexmeasures.utils.config_utils import (
+    check_refresh_token_family_limit,
     check_rate_limit_settings,
     get_config_warnings,
     normalize_security_durations,
@@ -92,6 +97,38 @@ def test_read_env_vars_parses_sentry_daily_rate_limit(monkeypatch):
     read_env_vars(app)
 
     assert app.config["FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT"] == 100
+
+
+def test_read_env_vars_parses_refresh_token_family_limit(monkeypatch):
+    monkeypatch.setenv("FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", "25")
+    app = Flask(__name__)
+    read_env_vars(app)
+    assert app.config["FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"] == 25
+    check_refresh_token_family_limit(app)
+
+
+@pytest.mark.parametrize("value", [0, -1, True, None, "many", 1.5])
+def test_refresh_token_family_limit_must_be_a_positive_integer(value):
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"] = value
+    with pytest.raises(ValueError, match="FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"):
+        check_refresh_token_family_limit(app)
+
+
+def test_refresh_token_family_limit_default_is_valid():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    assert app.config["FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"] == 1000
+    check_refresh_token_family_limit(app)
+
+
+def test_invalid_refresh_token_family_limit_is_rejected_at_startup(monkeypatch):
+    monkeypatch.setattr(TestingConfig, "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", 0)
+    app = Flask(__name__)
+    app.testing = True
+    app.config["FLEXMEASURES_ENV"] = "testing"
+    with pytest.raises(ValueError, match="FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"):
+        config_utils.read_config(app, custom_path_to_config=None)
 
 
 def test_read_env_vars_reads_trusted_hosts(monkeypatch):

@@ -2,13 +2,17 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from threading import Barrier
+from threading import Barrier, Event, local
 import time
+from uuid import uuid4
 
 import pytest
 from flask import g, url_for
+from flask_security.tokens import new_refresh_tracker
+from flask_security.utils import hash_password
 from sqlalchemy import event, select
 
+from flexmeasures.auth import tokens as auth_tokens
 from flexmeasures.data.models.refresh_tokens import RefreshTokenTracker
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import delete_user
@@ -292,6 +296,321 @@ def test_independent_login_has_independent_token_family(client, token_user):
         "/api/revokeRefreshToken", json={"refresh-token": first["refresh-token"]}
     )
     assert_pair(refresh(client, second["refresh-token"]), token_user.id)
+
+
+def test_login_cleans_dead_api_families_without_weakening_replay_detection(
+    app, client, fresh_db, token_user, token_clock
+):
+    """Prune only this user's dead API families and retain live family history."""
+    token_clock(0)
+    first = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    rotated = assert_pair(refresh(client, first["refresh-token"]), token_user.id)
+    expired = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    idle = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    revoked = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    security = app.extensions["security"]
+
+    def family(pair):
+        return security.refresh_token_serializer.loads(pair["refresh-token"])["family"]
+
+    now = security.datetime_factory()
+    trackers = {
+        tracker.refresh_family: tracker
+        for tracker in fresh_db.session.scalars(
+            select(RefreshTokenTracker).where(
+                RefreshTokenTracker.user_id == token_user.id
+            )
+        )
+    }
+    trackers[family(expired)].expires_at = now - timedelta(seconds=1)
+    trackers[family(idle)].last_used_at = (
+        now - app.config["SECURITY_REFRESH_TOKEN_MAX_IDLE"] - timedelta(seconds=1)
+    )
+    trackers[family(revoked)].revoked_at = now
+    other_user = fresh_db.session.scalar(
+        select(User).where(User.id != token_user.id).limit(1)
+    )
+    other_family = uuid4().hex
+    browser_family = uuid4().hex
+    for user_id, name, key in (
+        (other_user.id, "api", other_family),
+        (token_user.id, "browser", browser_family),
+    ):
+        fresh_db.session.add(
+            RefreshTokenTracker(
+                user_id=user_id,
+                name=name,
+                refresh_family=key,
+                gen=1,
+                expires_at=now + timedelta(days=1),
+                last_used_at=now,
+                revoked_at=now,
+            )
+        )
+    fresh_db.session.commit()
+
+    fresh = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    remaining = set(
+        fresh_db.session.scalars(select(RefreshTokenTracker.refresh_family))
+    )
+    assert {family(first), family(fresh), other_family, browser_family} <= remaining
+    assert not {family(expired), family(idle), family(revoked)} & remaining
+    for pair in (expired, idle, revoked):
+        assert refresh(client, pair["refresh-token"]).status_code == 401
+    assert refresh(client, first["refresh-token"]).status_code == 401
+    assert refresh(client, rotated["refresh-token"]).status_code == 401
+
+
+def test_family_limit_rejects_new_login_without_revoking_existing_tokens(
+    app, client, fresh_db, token_user, monkeypatch
+):
+    monkeypatch.setitem(app.config, "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", 2)
+    first = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    second = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    now = app.extensions["security"].datetime_factory()
+    stale = RefreshTokenTracker(
+        user_id=token_user.id,
+        name="api",
+        refresh_family=uuid4().hex,
+        gen=1,
+        expires_at=now + timedelta(days=1),
+        last_used_at=now,
+        revoked_at=now,
+    )
+    fresh_db.session.add(stale)
+    fresh_db.session.commit()
+    stale_id = stale.id
+    denied = login(client, include_refresh_token=True)
+    assert denied.status_code == 409
+    assert denied.json["error"] == "refresh_token_family_limit"
+    assert "refresh-token" not in denied.json
+    assert "no-store" in denied.headers["Cache-Control"]
+    fresh_db.session.rollback()
+    assert fresh_db.session.get(RefreshTokenTracker, stale_id) is None
+    assert len(fresh_db.session.scalars(select(RefreshTokenTracker)).all()) == 2
+    assert login(client).status_code == 200
+    replacement = assert_pair(refresh(client, first["refresh-token"]), token_user.id)
+    assert (
+        client.post(
+            "/api/revokeRefreshToken", json={"refresh-token": second["refresh-token"]}
+        ).status_code
+        == 200
+    )
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    assert_pair(refresh(client, replacement["refresh-token"]), token_user.id)
+
+
+def test_family_limit_is_per_user(app, client, token_user, monkeypatch):
+    monkeypatch.setitem(app.config, "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", 1)
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    other = client.post(
+        "/api/requestAuthToken",
+        json={
+            "email": "test_prosumer_user@seita.nl",
+            "password": "testtest",
+            "include-refresh-token": True,
+        },
+    )
+    assert other.status_code == 200
+    assert "refresh-token" in other.json
+    assert login(client, include_refresh_token=True).status_code == 409
+
+
+@pytest.mark.parametrize("expiry", ["absolute", "idle"])
+def test_cleanup_preserves_family_at_exact_expiry_boundary(
+    app, client, fresh_db, token_user, token_clock, monkeypatch, expiry
+):
+    token_clock(0)
+    monkeypatch.setitem(app.config, "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", 1)
+    if expiry == "idle":
+        monkeypatch.setitem(
+            app.config, "SECURITY_REFRESH_TOKEN_MAX_IDLE", timedelta(seconds=10)
+        )
+    pair = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    if expiry == "absolute":
+        tracker = fresh_db.session.scalar(select(RefreshTokenTracker))
+        tracker.expires_at = app.extensions["security"].datetime_factory() + timedelta(
+            seconds=10
+        )
+        fresh_db.session.commit()
+    token_clock(10)
+    assert login(client, include_refresh_token=True).status_code == 409
+    token_clock(11)
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    assert refresh(client, pair["refresh-token"]).status_code == 401
+
+
+def test_family_limit_serializes_concurrent_logins(
+    app, client, fresh_db, token_user, monkeypatch
+):
+    monkeypatch.setitem(app.config, "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT", 2)
+    existing = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    first_inside = Event()
+    release_first = Event()
+    second_query = Event()
+    second_inside = Event()
+    thread_state = local()
+    original_create = auth_tokens.new_refresh_tracker
+
+    def paused_create(user, name):
+        if getattr(thread_state, "second", False):
+            second_inside.set()
+        else:
+            first_inside.set()
+            assert release_first.wait(timeout=10)
+        return original_create(user, name)
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        if (
+            getattr(thread_state, "second", False)
+            and "FROM fm_user" in statement
+            and "WHERE fm_user.id" in statement
+        ):
+            second_query.set()
+
+    monkeypatch.setattr(auth_tokens, "new_refresh_tracker", paused_create)
+
+    def issue(second=False):
+        thread_state.second = second
+        with app.app_context(), app.test_client() as concurrent_client:
+            response = login(concurrent_client, include_refresh_token=True)
+            return response.status_code
+
+    event.listen(fresh_db.engine, "before_cursor_execute", record)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(issue)
+            try:
+                assert first_inside.wait(timeout=10)
+                second = executor.submit(issue, True)
+                assert second_query.wait(timeout=10)
+                assert not second_inside.wait(timeout=1)
+            finally:
+                release_first.set()
+            assert sorted((first.result(timeout=20), second.result(timeout=20))) == [
+                200,
+                409,
+            ]
+    finally:
+        event.remove(fresh_db.engine, "before_cursor_execute", record)
+    assert len(fresh_db.session.scalars(select(RefreshTokenTracker)).all()) == 2
+    assert_pair(refresh(client, existing["refresh-token"]), token_user.id)
+
+
+def test_issuing_a_family_does_not_load_the_tracker_collection(
+    app, client, fresh_db, token_user
+):
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    fresh_db.session.expire_all()
+    clear_auth()
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(fresh_db.engine, "before_cursor_execute", record)
+    try:
+        assert_pair(login(client, include_refresh_token=True), token_user.id)
+    finally:
+        event.remove(fresh_db.engine, "before_cursor_execute", record)
+    assert not any(
+        statement.lstrip().upper().startswith("SELECT")
+        and "FROM refresh_token_tracker" in statement
+        and "count(" not in statement.lower()
+        for statement in statements
+    )
+
+
+@pytest.mark.parametrize(
+    "expired,revoked,expected",
+    [
+        (False, False, {"expired", "revoked"}),
+        (True, False, {"revoked"}),
+        (False, True, {"expired"}),
+        (True, True, set()),
+    ],
+)
+def test_flask_security_cleanup_options_are_preserved(
+    app, fresh_db, token_user, expired, revoked, expected
+):
+    """The optimized datastore still honors Flask-Security's cleanup flags."""
+    security = app.extensions["security"]
+    now = security.datetime_factory()
+    for family, expires_at, revoked_at in (
+        ("expired", now - timedelta(seconds=1), None),
+        ("revoked", now + timedelta(days=1), now),
+    ):
+        fresh_db.session.add(
+            RefreshTokenTracker(
+                user_id=token_user.id,
+                name="default",
+                refresh_family=family,
+                gen=1,
+                expires_at=expires_at,
+                last_used_at=now,
+                revoked_at=revoked_at,
+            )
+        )
+    fresh_db.session.commit()
+    security.datastore.cleanup_refresh_trackers(
+        token_user, expired=expired, revoked=revoked
+    )
+    fresh_db.session.commit()
+    assert (
+        set(fresh_db.session.scalars(select(RefreshTokenTracker.refresh_family)))
+        == expected
+    )
+
+
+def test_flask_security_cleanup_locks_user_before_pending_tracker_write(
+    app, client, fresh_db, token_user
+):
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    token_user.refresh_trackers[0].name = "modified"
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(fresh_db.engine, "before_cursor_execute", record)
+    try:
+        app.extensions["security"].datastore.cleanup_refresh_trackers(token_user)
+        fresh_db.session.commit()
+    finally:
+        event.remove(fresh_db.engine, "before_cursor_execute", record)
+    first_write = next(
+        i
+        for i, statement in enumerate(statements)
+        if statement.startswith(("UPDATE", "DELETE"))
+    )
+    assert any(
+        "FROM fm_user" in statement and "FOR UPDATE" in statement
+        for statement in statements[:first_write]
+    )
+
+
+@pytest.mark.parametrize("transient", [False, True])
+def test_flask_security_can_issue_a_family_for_a_new_user(
+    app, fresh_db, token_user, transient
+):
+    """Pending and transient users can still receive a Flask-Security refresh tracker."""
+    security = app.extensions["security"]
+    user = security.datastore.create_user(
+        email="refresh-new-user@example.com",
+        username="refresh-new-user",
+        password=hash_password("testtest"),
+        account_id=token_user.account_id,
+    )
+    if transient:
+        fresh_db.session.expunge(user)
+    tracker, token = new_refresh_tracker(user, name="default")
+    fresh_db.session.commit()
+    assert tracker.user_id == user.id
+    assert (
+        security.refresh_token_serializer.loads(token)["family"]
+        == tracker.refresh_family
+    )
+    assert [item.id for item in user.refresh_trackers] == [tracker.id]
 
 
 def test_wrong_password_cannot_obtain_refresh_token(client, fresh_db, token_user):
