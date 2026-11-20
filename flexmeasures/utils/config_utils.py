@@ -203,6 +203,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     pin_database_driver(app)
     normalize_security_durations(app)
     check_rate_limit_settings(app)
+    check_refresh_token_family_limit(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -296,6 +297,7 @@ def read_env_vars(app: Flask):
             "MAPBOX_ACCESS_TOKEN",
             "SENTRY_DSN",
             "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT",
+            "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT",
             "FLEXMEASURES_PLUGINS",
             "FLEXMEASURES_JSON_COMPACT",
             "SECURITY_TWO_FACTOR",
@@ -307,7 +309,10 @@ def read_env_vars(app: Flask):
             continue
         if isinstance(getattr(DefaultConfig, var, None), bool):
             value = parse_bool_env(value)
-        elif var == "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT":
+        elif var in (
+            "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT",
+            "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT",
+        ):
             try:
                 value = int(value)
             except ValueError:
@@ -418,6 +423,15 @@ def normalize_security_durations(app: Flask) -> None:
         if value is None:
             continue
         app.config[setting] = parse_duration_setting(setting, value)
+
+
+def check_refresh_token_family_limit(app: Flask) -> None:
+    """Reject a refresh-token family limit that is not a positive integer."""
+    value = app.config["FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT must be a positive integer"
+        )
 
 
 def check_rate_limit_settings(app: Flask) -> None:

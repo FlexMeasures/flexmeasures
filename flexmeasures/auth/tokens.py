@@ -10,8 +10,10 @@ from flask_security.tokens import (
     RefreshTokenErrors,
 )
 from flask_security.signals import refresh_tracker_revoked
+from sqlalchemy import func, select
 
 from flexmeasures.data import db
+from flexmeasures.data.models.refresh_tokens import RefreshTokenTracker
 
 
 def token_response(user, refresh_token: str) -> dict:
@@ -35,12 +37,28 @@ def token_response(user, refresh_token: str) -> dict:
     }
 
 
-def issue_refresh_token(user) -> dict:
+def issue_refresh_token(user) -> tuple[dict, int]:
     """Caller must hold the user lock and have verified their credentials."""
+    datastore = current_app.extensions["security"].datastore
+    datastore.cleanup_inactive_api_refresh_trackers(user)
+    active_families = db.session.scalar(
+        select(func.count(RefreshTokenTracker.id)).where(
+            RefreshTokenTracker.user_id == user.id,
+            RefreshTokenTracker.name == "api",
+        )
+    )
+    if active_families >= current_app.config["FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT"]:
+        db.session.commit()
+        return {
+            "error": "refresh_token_family_limit",
+            "errors": [
+                "Refresh-token family limit reached. Revoke an unused family before signing in again."
+            ],
+        }, 409
     _, refresh_token = new_refresh_tracker(user, name="api")
     payload = token_response(user, refresh_token)
     db.session.commit()
-    return payload
+    return payload, 200
 
 
 def exchange_refresh_token(token: str, *, revoke: bool = False) -> tuple[dict, int]:
