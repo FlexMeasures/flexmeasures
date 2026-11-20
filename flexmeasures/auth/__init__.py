@@ -5,7 +5,6 @@ Authentication and authorization policies and helpers.
 from flask import Flask
 from flask_security import (
     Security,
-    SQLAlchemySessionUserDatastore,
     password_reset,
     password_changed,
     reset_password_instructions_sent,
@@ -42,7 +41,15 @@ def register_at(app: Flask):
         FlexMeasuresForgotPasswordForm,
     )
 
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    from flexmeasures.auth.datastore import FlexMeasuresUserDatastore
+    from flexmeasures.data.models.refresh_tokens import RefreshTokenTracker
+
+    user_datastore = FlexMeasuresUserDatastore(
+        db.session, User, Role, refresh_tracker_model=RefreshTokenTracker
+    )
+    # API token issuance opts in explicitly and uses the tracker helpers directly.
+    # Keep Flask-Security's global REFRESH_TOKEN flag at its default: enabling it
+    # also changes browser login/logout and exposes its own refresh endpoint.
     app.security = Security(
         app,
         user_datastore,

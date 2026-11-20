@@ -31,7 +31,6 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "account_id",
         "account_roles",
         "active_user_id",
-        "authentication_token",
         "all_accessible",
         "asset_type",
         "belief_horizon",
@@ -110,6 +109,15 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "user_source_ids",
     }
 )
+
+# requestAuthToken has always returned these keys; its old OpenAPI description
+# incorrectly called the token authentication_token and omitted user_id. Keep
+# the real legacy response contract (also used by refreshAuthToken), without
+# allowing these spellings on new domain APIs or expanding the global debt list.
+LEGACY_AUTH_RESPONSE_FIELDS = {
+    "auth_token": {"/api/requestAuthToken", "/api/refreshAuthToken"},
+    "user_id": {"/api/requestAuthToken", "/api/refreshAuthToken"},
+}
 
 
 def _flexmeasures_schemas() -> list[type[Schema]]:
@@ -373,9 +381,11 @@ def test_a_body_property_in_the_openapi_specs_is_kebab_case():
     This catches a response field documented on its endpoint, whose payload is built as a plain dict rather than dumped by a schema.
     """
     offenders = {
-        name: sorted(places)
+        name: sorted(places - LEGACY_AUTH_RESPONSE_FIELDS.get(name, set()))
         for name, places in _openapi_property_names(_openapi_specs()).items()
-        if "_" in name and name not in KNOWN_SNAKE_CASE_WIRE_NAMES
+        if "_" in name
+        and name not in KNOWN_SNAKE_CASE_WIRE_NAMES
+        and places - LEGACY_AUTH_RESPONSE_FIELDS.get(name, set())
     }
 
     assert not offenders, (

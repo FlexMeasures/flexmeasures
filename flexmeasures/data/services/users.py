@@ -235,6 +235,12 @@ def delete_user(user: User):
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
 
+    # Lock the user before the ORM writes to their refresh-token families.
+    # Refreshing a token locks the user first and the family second, so writing in the opposite order could deadlock with it.
+    # Without autoflush, as that would write pending changes to the families before the lock is taken.
+    with db.session.no_autoflush:
+        db.session.execute(select(User.id).where(User.id == user.id).with_for_update())
+
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.delete_user(user)
     db.session.execute(delete(User).filter_by(id=user.id))

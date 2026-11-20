@@ -42,6 +42,15 @@ account_schema = AccountSchema()
 
 
 class AuthRequestSchema(Schema):
+    include_refresh_token = fields.Bool(
+        data_key="include-refresh-token",
+        attribute="include-refresh-token",
+        load_default=False,
+        metadata={
+            "description": "Also issue a rotating refresh token and access-token expires-in (seconds).",
+            "example": True,
+        },
+    )
     email = fields.Str(
         required=True, metadata={"description": "The user's email address."}
     )
