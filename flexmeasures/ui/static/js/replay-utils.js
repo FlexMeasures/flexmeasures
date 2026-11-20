@@ -14,8 +14,8 @@ export const REPLAY_STEPS_MS = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 1
 // The step used when the data says nothing about how often beliefs are formed.
 export const DEFAULT_REPLAY_STEP_MS = HOUR;
 
-// Belief time passing per ms of playback at speed 1×: 10 hours per second.
-export const BASE_REPLAY_RATE = (10 * HOUR) / 1000;
+// Belief time passing per ms of playback at speed 1×: 6 hours per second.
+export const BASE_REPLAY_RATE = (6 * HOUR) / 1000;
 
 // Wall time in ms over which a paused replay's ruler glides to a stop:
 // long enough for the browser to get word of the pause before the ruler, moving by itself, gets there.

@@ -172,7 +172,7 @@ Two settings below the play button control the replay:
   By default (*Auto*), it follows how often new data was recorded, such as every 15 minutes for a forecast that is renewed every 15 minutes,
   rounded down to a step that fits a whole number of times in an hour or a day.
   In the fast chart, the ruler itself moves smoothly, whatever the step.
-- **Speed** sets how fast belief time passes. At 1×, 10 hours pass per second.
+- **Speed** sets how fast belief time passes. At 1×, 6 hours pass per second.
 
 Press ``p`` to play or pause, ``s`` to stop, ``n`` to move one step ahead, and ``+`` or ``-`` to speed up or slow down.
 The sensor page offers the same replay.
