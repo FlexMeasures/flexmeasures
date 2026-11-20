@@ -46,7 +46,7 @@ class AssetAPIQuerySchema(PaginationSchema):
     sort_by = fields.Str(
         data_key="sort-by",
         required=False,
-        validate=validate.OneOf(["id", "name", "owner"]),
+        validate=validate.OneOf(["id", "name", "owner", "asset_type"]),
         metadata=dict(
             description="Sort results by this field.",
         ),
