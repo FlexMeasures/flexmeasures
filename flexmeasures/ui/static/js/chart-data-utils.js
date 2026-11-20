@@ -98,6 +98,29 @@ export function checkSourceMasking(data, chartType) {
   }
 }
 
+let kpiMissingDaysWarningShown = false;
+
+/**
+ * Warn when one or more selected days have no usable daily KPI result.
+ *
+ * Repeated responses with missing days should not stack identical toasts. A
+ * complete response resets the warning so a later incomplete selection can be
+ * pointed out again.
+ */
+export function checkMissingKpiDays(hasMissingKpiDays) {
+  if (!hasMissingKpiDays) {
+    kpiMissingDaysWarningShown = false;
+    return;
+  }
+  if (kpiMissingDaysWarningShown) return;
+
+  kpiMissingDaysWarningShown = true;
+  showToast(
+    "Some selected days have no results. KPIs are calculated only from days where the project was run.",
+    "info",
+  );
+}
+
 /**
  * Warn when loaded belief data falls outside a sub-chart's "Strict range…"
  * y-axis, since that data is drawn clamped to the nearest edge rather than
