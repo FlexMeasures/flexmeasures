@@ -704,6 +704,8 @@
             stepReplay();
         } else if (e.key === 'b') {
             stepReplayBack();
+        } else if (e.key === 'r') {
+            rewindReplay();
         } else if (e.key === '+' || e.key === '-') {
             // Faster or slower replay
             const speedPicker = document.getElementById('replay-speed');
@@ -1193,6 +1195,20 @@
         }
     }
 
+    // Play the replay backward, from wherever it is (or from the end, if stopped); pause it if it is rewinding already.
+    function rewindReplay() {
+        if (toggle.classList.contains('stopped')) {
+            startReplay({ rewind: true });
+        } else if (replayClock && replayClock.rewinding) {
+            pauseReplay();
+        } else if (replayClock) {
+            toggle.classList.remove('paused');
+            toggle.classList.add('playing');
+            replayClock.play(performance.now(), -1);
+            requestReplayFrame();
+        }
+    }
+
     function toggleReplay() {
         if (toggle.classList.contains('stopped')) {
             startReplay();
@@ -1290,7 +1306,7 @@
         }
     }
 
-    function startReplay({ paused = false } = {}) {
+    function startReplay({ paused = false, rewind = false } = {}) {
         toggle.classList.remove('stopped');
         toggle.classList.add(paused ? 'paused' : 'playing');
         const spinner = document.getElementById('spinner');
@@ -1320,8 +1336,11 @@
             replayRulerMotion = null;
             replayRedrawDurations = new RedrawDurations();
             replayClock = new ReplayClock(start, end, replayRate());
+            if (rewind) {
+                replayClock.seek(end, performance.now());
+            }
             if (toggle.classList.contains('playing')) {
-                replayClock.play(performance.now());
+                replayClock.play(performance.now(), rewind ? -1 : 1);
             }
             requestReplayFrame();
         }).catch(console.error)
@@ -1386,7 +1405,13 @@
             }
             document.getElementById('replay-time').innerHTML = new Date(dataTime);
         }
-        if (position >= replayClock.end) {
+        if (replayClock.rewinding) {
+            if (position <= replayClock.start) {
+                // Rewound all the way: wait at the start
+                pauseReplay();
+                return;
+            }
+        } else if (position >= replayClock.end) {
             // Stop replay when finished
             stopReplay();
             return;

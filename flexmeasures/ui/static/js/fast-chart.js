@@ -2626,7 +2626,9 @@ const REPLAY_RULER_Z = 5;
 function replayRulerTime(instance, now = performance.now()) {
   const motion = instance.replayMotion;
   if (!motion) return null;
-  return Math.min(motion.end, motion.time + (now - motion.wallTime) * motion.rate);
+  const time = motion.time + (now - motion.wallTime) * motion.rate;
+  // The ruler stops at the end of its motion, which lies before it while rewinding.
+  return motion.rate < 0 ? Math.max(motion.end, time) : Math.min(motion.end, time);
 }
 
 // Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, above the data, or clear it.
@@ -2661,7 +2663,7 @@ function drawReplayRuler(instance) {
     const rule = document.createElement("div");
     rule.style.cssText = `position: absolute; left: 0; top: 0; width: ${REPLAY_RULER_WIDTH}px; height: 100%; background: ${REPLAY_RULER_COLOR}; will-change: transform;`;
     rule.style.transform = `translateX(${x(time)}px)`;
-    if (motion.rate > 0 && time < motion.end && typeof rule.animate === "function") {
+    if (motion.rate !== 0 && time !== motion.end && typeof rule.animate === "function") {
       const animation = rule.animate(
         [{ transform: `translateX(${x(time)}px)` }, { transform: `translateX(${x(motion.end)}px)` }],
         { duration: (motion.end - time) / motion.rate, easing: "linear", fill: "forwards" }
@@ -3320,7 +3322,7 @@ export function wireAnnotationHover(instance) {
  * @param {string} elementId          The chart's element id.
  * @param {?number} beliefTimeMs      The replay's belief time, in ms, or null to clear the ruler.
  * @param {Object} motion             How the ruler moves on from there:
- * @param {number} motion.rate        Belief time passing per ms of wall time (0 while paused).
+ * @param {number} motion.rate        Belief time passing per ms of wall time (0 while paused, negative while rewinding).
  * @param {number} motion.end         The belief time at which the ruler stops, in ms.
  * @param {number} motion.now         The wall time at which the belief time was read, in ms, such as performance.now().
  */

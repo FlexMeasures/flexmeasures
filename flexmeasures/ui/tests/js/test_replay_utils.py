@@ -41,8 +41,17 @@ def test_belief_timeline_keeps_the_most_recent_belief_per_event(assert_js):
         timeline.advanceTo(40);
         eq("of beliefs formed at the same time, the one listed last wins",
            values()["1_0_9"], "same time, listed last");
-        eq("moving back in time reports a change", timeline.advanceTo(10), true);
-        eq("and shows only what was known then", values(), {"1_0_9": "old", "1_1_9": "untouched"});
+        eq("moving back in time reports a change", timeline.advanceTo(25), true);
+        eq("and shows only what was known then, restoring the beliefs replaced since", values(), {
+            "1_0_9": "newer", "1_1_9": "untouched", "1_0_8": "other source", "2_0_9": "other sensor",
+        });
+        eq("moving back without passing beliefs reports no change", timeline.advanceTo(21), false);
+        timeline.advanceTo(10);
+        eq("beliefs first known since are no longer shown", values(), {"1_0_9": "old", "1_1_9": "untouched"});
+        eq("moving back to before the first belief reports a change", timeline.advanceTo(5), true);
+        eq("and leaves no data", timeline.data, []);
+        timeline.advanceTo(40);
+        eq("moving forward again shows the same as before", values()["1_0_9"], "same time, listed last");
         """
     )
 
@@ -147,6 +156,27 @@ def test_replay_clock_runs_at_a_constant_rate(assert_js):
         eq("the position never passes the end", clock.position(1e9), 100000);
         clock.seek(0, 6030);
         eq("nor goes before the start", clock.position(6030), 1000);
+        """)
+
+
+def test_replay_clock_rewinds(assert_js):
+    """The clock can also run backward, at the same rate, down to the start."""
+    assert_js("""
+        import { ReplayClock } from "/js/replay-utils.js";
+        const clock = new ReplayClock(1000, 100000, 10);
+        clock.seek(5000, 0);
+        clock.play(0, -1);
+        eq("rewinding plays the clock backward", [clock.playing, clock.rewinding, clock.position(10)], [true, true, 4900]);
+        eq("its motion runs back at the rate, down to the start", clock.motion, {position: 5000, wallTime: 0, rate: -10, end: 1000});
+        eq("the position never goes before the start", clock.position(1e9), 1000);
+        clock.play(20, 1);
+        eq("turning around keeps the position", [clock.position(20), clock.rewinding], [4800, false]);
+        eq("and plays forward from there", clock.position(30), 4900);
+        clock.play(40, -1);
+        clock.pause(50, 5);
+        eq("a rewinding clock pauses where it would be a little later, further back", clock.position(50), 4850);
+        eq("gliding back to there", [clock.motion, clock.gliding(54), clock.gliding(55)],
+           [{position: 5000, wallTime: 40, rate: -10, end: 4850}, true, false]);
         """)
 
 

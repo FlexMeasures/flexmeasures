@@ -133,7 +133,8 @@ export function replayDataTime(position, playing, start, stepMs, shown) {
  * The beliefs are sorted by belief time once, and an index walks through them as the belief time advances,
  * so each move costs in proportion to the beliefs it adds, rather than to all beliefs.
  * Per sensor, event and source, only the most recent belief is kept.
- * Moving back in time starts over from the first belief.
+ * Moving back in time walks back through the beliefs in the same way, restoring the belief each one replaced,
+ * so that rewinding costs as little as playing.
  */
 export class BeliefTimeline {
   /**
@@ -142,6 +143,14 @@ export class BeliefTimeline {
   constructor(beliefs) {
     // The sort is stable, so beliefs with the same belief time keep their order, and the last one wins.
     this.beliefs = [...beliefs].sort((a, b) => a.belief_time - b.belief_time);
+    // For each belief, the index of the belief it replaces (the previous one about the same event from the same sensor and source), or -1.
+    const lastIndex = new Map();
+    this.replaced = this.beliefs.map((belief, i) => {
+      const key = beliefKey(belief);
+      const previous = lastIndex.has(key) ? lastIndex.get(key) : -1;
+      lastIndex.set(key, i);
+      return previous;
+    });
     this.reset();
   }
 
@@ -159,9 +168,13 @@ export class BeliefTimeline {
    */
   advanceTo(beliefTime) {
     let changed = false;
-    if (beliefTime < this.beliefTime) {
-      changed = this.latest.size > 0;
-      this.reset();
+    while (this.next > 0 && this.beliefs[this.next - 1].belief_time > beliefTime) {
+      // Beliefs are taken back latest first, so the one taken back is always the latest about its event.
+      const i = --this.next;
+      const previous = this.replaced[i];
+      if (previous >= 0) this.latest.set(beliefKey(this.beliefs[previous]), this.beliefs[previous]);
+      else this.latest.delete(beliefKey(this.beliefs[i]));
+      changed = true;
     }
     while (this.next < this.beliefs.length && this.beliefs[this.next].belief_time <= beliefTime) {
       const belief = this.beliefs[this.next++];
@@ -199,6 +212,7 @@ export class ReplayClock {
     this.rate = rate;
     this.anchorPosition = start;
     this.anchorWallTime = null; // null while paused
+    this.direction = 1; // 1 while playing forward, -1 while rewinding
     this.glide = null; // how the clock moved up to where it was paused, while that is still of use
   }
 
@@ -206,13 +220,18 @@ export class ReplayClock {
     return this.anchorWallTime !== null;
   }
 
+  get rewinding() {
+    return this.playing && this.direction < 0;
+  }
+
   /**
    * @param {number} now Wall time in ms, such as performance.now().
-   * @return {number}    Belief time in ms, never past the end.
+   * @return {number}    Belief time in ms, never past the end, nor before the start.
    */
   position(now) {
     if (!this.playing) return this.anchorPosition;
-    return Math.min(this.end, this.anchorPosition + (now - this.anchorWallTime) * this.rate);
+    const position = this.anchorPosition + (now - this.anchorWallTime) * this.rate * this.direction;
+    return Math.min(this.end, Math.max(this.start, position));
   }
 
   /**
@@ -220,20 +239,31 @@ export class ReplayClock {
    * The motion changes only when the clock is started, paused, sought or set to another rate,
    * so whatever moves along with the clock needs to hear about it only then.
    *
-   * While playing, the motion runs from the anchor at the rate, up to the end of the replay.
+   * While playing, the motion runs from the anchor at the rate, up to the end of the replay (or, while rewinding, back to its start, at a negative rate).
    * Right after a pause, it is the motion the clock had, up to where it was paused, so that what moves along glides to a stop there.
    * Otherwise, it stands still where the clock was paused.
    *
    * @return {{position: number, wallTime: ?number, rate: number, end: number}} The belief time at the wall time, the rate (0 when standing still), and where the motion stops.
    */
   get motion() {
-    if (this.playing) return { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate, end: this.end };
+    if (this.playing) {
+      return { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate * this.direction, end: this.direction > 0 ? this.end : this.start };
+    }
     if (this.glide) return { ...this.glide, end: this.anchorPosition };
     return { position: this.anchorPosition, wallTime: null, rate: 0, end: this.anchorPosition };
   }
 
-  play(now) {
-    if (!this.playing) this.anchorWallTime = now;
+  /**
+   * Plays the clock, forward or backward.
+   *
+   * @param {number} now            Wall time in ms.
+   * @param {number} [direction=1]  1 to play forward, -1 to rewind.
+   */
+  play(now, direction = 1) {
+    // Re-anchor first, so turning around does not make the position jump.
+    this.anchorPosition = this.position(now);
+    this.anchorWallTime = now;
+    this.direction = direction;
     this.glide = null;
   }
 
@@ -248,7 +278,7 @@ export class ReplayClock {
    * @param {number} [glideMs=0]  How much later, in wall time, to pause the clock.
    */
   pause(now, glideMs = 0) {
-    if (this.playing) this.glide = glideMs > 0 ? { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate } : null;
+    if (this.playing) this.glide = glideMs > 0 ? { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate * this.direction } : null;
     this.anchorPosition = this.position(now + glideMs);
     this.anchorWallTime = null;
   }
@@ -259,7 +289,7 @@ export class ReplayClock {
    */
   gliding(now) {
     const motion = this.motion;
-    return !this.playing && motion.rate > 0 && motion.position + (now - motion.wallTime) * motion.rate < motion.end;
+    return !this.playing && motion.rate !== 0 && now < motion.wallTime + (motion.end - motion.position) / motion.rate;
   }
 
   setRate(rate, now) {

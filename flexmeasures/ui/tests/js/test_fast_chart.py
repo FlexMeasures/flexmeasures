@@ -829,6 +829,16 @@ def test_replay_ruler_moves_by_itself(assert_js, echarts_available):
             animations.forEach((a) => { a.currentTime = 1e9; });
             check("until the end", rulers().every((rule, i) =>
                 near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time + 4 * hour))), rulers().map(rulerX));
+
+            // Rewound at 1000 ms of belief time per ms, back to the start
+            setFastChartReplayTime(container.id, time, {rate: -1000, end: start, now});
+            const rewinding = rulers().map((rule) => rule.getAnimations()[0]);
+            rewinding.forEach((a) => { a.pause(); a.currentTime = now + 1800 - a.startTime; });
+            check("while rewinding, each ruler moves back by itself, at the replay's rate", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time - 1800 * 1000))), rulers().map(rulerX));
+            rewinding.forEach((a) => { a.currentTime = 1e9; });
+            check("until the start", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, start))), rulers().map(rulerX));
             setFastChartReplayTime(container.id, time + hour);
 
             renderFastChart(container.id, [], opts);
