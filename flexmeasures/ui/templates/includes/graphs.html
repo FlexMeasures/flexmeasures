@@ -25,7 +25,7 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, inferReplayStep, formatReplayStep, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
@@ -57,8 +57,8 @@
     // The replay's belief time, tied to the wall clock (null while no replay runs).
     let replayClock = null;
     let replayFrameRequest = null;
-    // The step boundary whose data the chart shows.
-    let replayShownBoundary = null;
+    // The belief time whose data the chart shows.
+    let replayShownTime = null;
     // The clock anchor whose motion the ruler was last handed.
     let replayRulerAnchor = null;
     let storeStartDate;
@@ -431,12 +431,6 @@
         document.getElementById('replay-speed').addEventListener('change', function () {
             if (replayClock) {
                 replayClock.setRate(replayRate(), performance.now());
-                requestReplayFrame();
-            }
-        });
-        document.getElementById('replay-step').addEventListener('change', function () {
-            // A paused replay shows the data at the new step's boundary right away
-            if (replayClock) {
                 requestReplayFrame();
             }
         });
@@ -1295,7 +1289,7 @@
         ).then(function () {
             if (toggle.classList.contains('stopped')) { return; }
             replayTimeline.reset();
-            replayShownBoundary = null;
+            replayShownTime = null;
             replayRulerAnchor = null;
             replayClock = new ReplayClock(start, end, replayRate());
             if (toggle.classList.contains('playing')) {
@@ -1313,8 +1307,9 @@
      * Draws one animation frame of the replay.
      *
      * The ruler moves at the replay clock's constant speed by itself, so it is handed the clock's motion only when that changes.
-     * The data is redrawn only when a step boundary has been passed and new beliefs became known by then;
+     * While playing, the data is redrawn only when a step boundary has been passed and new beliefs became known by then;
      * when drawing takes longer than a step lasts, the steps passed in the meantime are drawn as one.
+     * While paused, the data catches up with the ruler exactly.
      *
      * @param {number} now Wall time in ms, as passed by requestAnimationFrame.
      */
@@ -1324,17 +1319,17 @@
             return;
         }
         const position = replayClock.position(now);
-        const boundary = stepFloor(position, replayClock.start, replayStep());
+        const dataTime = replayDataTime(position, replayClock.playing, replayClock.start, replayStep(), replayShownTime);
         const anchor = replayClock.anchor;
         const anchorKey = JSON.stringify(anchor);
         if (fastRenderActive() && anchorKey !== replayRulerAnchor) {
             replayRulerAnchor = anchorKey;
             setFastChartReplayTime(fastChartElementId, anchor.position, { rate: anchor.rate, end: replayClock.end, now: anchor.wallTime ?? now });
         }
-        if (boundary !== replayShownBoundary) {
-            const firstFrame = replayShownBoundary === null;
-            replayShownBoundary = boundary;
-            const changed = replayTimeline.advanceTo(boundary);
+        if (dataTime !== replayShownTime) {
+            const firstFrame = replayShownTime === null;
+            replayShownTime = dataTime;
+            const changed = replayTimeline.advanceTo(dataTime);
             if (fastRenderActive()) {
                 if (changed || firstFrame) {
                     renderFastChart(fastChartElementId, replayTimeline.data, fastChartOptions());
@@ -1344,10 +1339,10 @@
                 if (changed || firstFrame) {
                     vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayTimeline.data));
                 }
-                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': new Date(boundary) }));
+                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': new Date(dataTime) }));
                 vegaView.run().finalize();
             }
-            document.getElementById('replay-time').innerHTML = new Date(boundary);
+            document.getElementById('replay-time').innerHTML = new Date(dataTime);
         }
         if (position >= replayClock.end) {
             // Stop replay when finished

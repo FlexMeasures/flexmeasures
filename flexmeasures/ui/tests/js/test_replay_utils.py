@@ -98,6 +98,22 @@ def test_step_floor_counts_steps_from_the_start(assert_js):
         """)
 
 
+def test_replay_data_follows_the_ruler(assert_js):
+    """While playing, the data follows the step boundaries; while paused, it matches the ruler exactly, and it never goes back."""
+    assert_js("""
+        import { replayDataTime } from "/js/replay-utils.js";
+        // A replay from 1000, in steps of 15
+        eq("at the start, the start is shown", replayDataTime(1000, true, 1000, 15, null), 1000);
+        eq("while playing, the last boundary passed is shown", replayDataTime(1037, true, 1000, 15, 1015), 1030);
+        eq("while paused, the ruler's own time is shown", replayDataTime(1037, false, 1000, 15, 1030), 1037);
+        eq("also before anything is shown", replayDataTime(1037, false, 1000, 15, null), 1037);
+        eq("on resuming, what was shown at the pause stays", replayDataTime(1038, true, 1000, 15, 1037), 1037);
+        eq("until the next boundary passes", replayDataTime(1045, true, 1000, 15, 1037), 1045);
+        eq("switching to a longer step does not go back", replayDataTime(1050, true, 1000, 60, 1045), 1045);
+        eq("a replay started over shows its start again", replayDataTime(1000, true, 1000, 15, 1045), 1000);
+        """)
+
+
 def test_replay_clock_runs_at_a_constant_rate(assert_js):
     """The clock's position follows the wall clock, however irregularly it is read."""
     assert_js("""
