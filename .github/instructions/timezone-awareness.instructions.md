@@ -55,6 +55,33 @@ end = start + isodate.parse_duration("P1M")  # Jan 1 + 1 month = Feb 1
 - When iterating over hourly slots, use `pd.date_range` with `freq` rather than adding `timedelta(hours=1)` in a loop.
 - Test DST boundary cases explicitly (e.g., `Europe/Amsterdam` on last Sunday of March and October).
 
+## pandas 3 hands back zoneinfo timezones
+
+`pyproject.toml` allows `pandas>=2.2.1` with no upper bound, so code must work on pandas 2.x and 3.x.
+pandas 2.x hands back pytz timezones (`Timestamp.tz`, `Timestamp.to_pydatetime()`); pandas 3 hands back `zoneinfo` ones. Two consequences:
+
+1. **Subtracting two Python datetimes that share one `zoneinfo` timezone uses wall-clock time**, not the time that passed.
+   Across a DST transition, a day can then come out as 24 hours instead of 23 or 25.
+   pytz hid this, because each localized datetime carries its own fixed-offset tzinfo.
+   Subtract the `pd.Timestamp`s instead, which pandas always computes on the underlying instants:
+
+   ```python
+   start = pd.Timestamp("2026-03-29", tz="Europe/Amsterdam")  # the day the clocks go forward
+   end = start + pd.DateOffset(days=1)
+
+   # ❌ Wrong on pandas 3: 1 day, 0:00:00
+   end.to_pydatetime() - start.to_pydatetime()
+
+   # ✅ Correct on pandas 2 and 3: 23:00:00
+   (end - start).to_pytimedelta()
+   ```
+
+2. **An unknown timezone raises `zoneinfo.ZoneInfoNotFoundError`, not `pytz.exceptions.UnknownTimeZoneError`.**
+   Catch both where either library may be the one parsing (both subclass `KeyError`).
+
+To check behaviour on a given pandas version without changing your environment, use e.g.
+`uv run --no-project --with "pandas==3.*" python probe.py`.
+
 ## Documentation examples
 
 All code examples in documentation must use timezone-aware datetimes:
