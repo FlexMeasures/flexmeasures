@@ -920,3 +920,64 @@ def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_le
             eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
         }
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_a_re_render_takes_one_pass_where_it_can(assert_js, echarts_available):
+    """A re-render settles its gridlines, rounded corners and button colours in the render itself,
+    rather than in extra passes over the rendered chart, each about as costly as the render,
+    as long as that ends up as the extra passes would.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?one-pass");
+        const container = document.createElement("div");
+        container.id = "one-pass-chart";
+        container.style.cssText = "width: 800px; height: 600px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-01-01T00:00:00Z");
+        const hour = 3600000;
+        const rows = (values) => values.map((value, i) => ({
+            event_start: start + i * hour, event_value: value, belief_horizon: 0,
+            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: hour},
+            source: {id: 1, name: "Meter"},
+        }));
+        const opts = {chartType: "line", groupSpec: [{title: "One", sensorIds: [1]}], timeWindow: {start, end: start + 48 * hour}};
+        renderFastChart(container.id, rows([0, 5, 10, 5, 0, 5, 10]), opts);
+        const chart = echarts.getInstanceByDom(container);
+        let passes = 0;
+        const setOption = chart.setOption.bind(chart);
+        chart.setOption = (...args) => { passes++; return setOption(...args); };
+        const drawn = () => {
+            const option = chart.getOption();
+            const feature = option.toolbox[0].feature;
+            return {
+                corners: option.series[0].data, gridlines: option.xAxis[0].maxInterval,
+                zoomButton: feature.myZoom.iconStyle.borderColor, panButton: feature.myPan.iconStyle.borderColor,
+                marquee: feature.dataZoom.iconStatus && feature.dataZoom.iconStatus.zoom,
+            };
+        };
+        // What the extra passes make of the chart as it is drawn: zooming out to the full range runs them all.
+        const afterExtraPasses = () => {
+            chart.dispatchAction({type: "dataZoom", start: 0, end: 100});
+            chart.getOption().toolbox[0].feature[drawn().zoomButton === "#4e91fc" ? "myZoom" : "myPan"].onclick();
+            return drawn();
+        };
+
+        passes = 0;
+        renderFastChart(container.id, rows([10, 0, 5, 10, 5, 0, 5]), opts);
+        eq("data within the same axes is drawn in one pass", passes, 1);
+        const once = drawn();
+        eq("with 12-hourly gridlines on a 2-day axis", once.gridlines, 12 * hour);
+        eq("the Zoom button lit, and its marquee on", [once.zoomButton, once.panButton, once.marquee], ["#4e91fc", "#666", "emphasis"]);
+        eq("as the extra passes would have drawn it", afterExtraPasses(), once);
+
+        passes = 0;
+        renderFastChart(container.id, rows([0, 50, 100, 50, 0, 50, 100]), opts);
+        eq("data on another scale takes a second pass, for the rounded corners", passes, 2);
+        eq("which then are as the extra passes would have drawn them", afterExtraPasses().corners, drawn().corners);
+
+        chart.getOption().toolbox[0].feature.myPan.onclick();
+        renderFastChart(container.id, rows([0, 50, 100, 50, 0, 50, 100]), opts);
+        const panning = drawn();
+        eq("in Pan mode, a re-render lights the Pan button", [panning.zoomButton, panning.panButton], ["#666", "#4e91fc"]);
+        check("with the marquee off", panning.marquee !== "emphasis", panning.marquee);
+        """)

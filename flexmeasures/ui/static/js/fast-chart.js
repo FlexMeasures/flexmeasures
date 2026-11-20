@@ -597,26 +597,16 @@ function refreshRoundedSteps(instance) {
   const list = instance._roundedSeries;
   if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0) return;
   const perPixelByGrid = new Map();
-  const dataPerPixel = (gridIndex) => {
-    if (perPixelByGrid.has(gridIndex)) return perPixelByGrid.get(gridIndex);
-    let result = null;
-    try {
-      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
-      const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
-      const rx = Math.abs(xa(200) - xa(100)) / 100;
-      const ry = Math.abs(ya(200) - ya(100)) / 100;
-      if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) result = { rx: rx, ry: ry };
-    } catch (e) {
-      result = null;
-    }
-    perPixelByGrid.set(gridIndex, result);
-    return result;
-  };
+  for (const r of list) {
+    if (!perPixelByGrid.has(r.gridIndex)) perPixelByGrid.set(r.gridIndex, roundedStepScale(chart, r.gridIndex));
+  }
+  // Remembered, so the next render can cut its corners up front (see preRoundSteps).
+  instance._roundedScale = perPixelByGrid;
 
   const dataByIndex = new Map();
   let maxIdx = -1;
   for (const r of list) {
-    const pp = dataPerPixel(r.gridIndex);
+    const pp = perPixelByGrid.get(r.gridIndex);
     if (!pp) continue;
     dataByIndex.set(
       r.seriesIndex,
@@ -628,6 +618,47 @@ function refreshRoundedSteps(instance) {
   const patch = [];
   for (let i = 0; i <= maxIdx; i++) patch.push(dataByIndex.has(i) ? { data: dataByIndex.get(i) } : {});
   chart.setOption({ series: patch });
+}
+
+// The data per pixel along a subplot's axes, as the chart currently lays them out, or null if they can't be told.
+function roundedStepScale(chart, gridIndex) {
+  try {
+    const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+    const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
+    const rx = Math.abs(xa(200) - xa(100)) / 100;
+    const ry = Math.abs(ya(200) - ya(100)) / 100;
+    if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) return { rx: rx, ry: ry };
+  } catch (e) {
+    // the axes are not laid out
+  }
+  return null;
+}
+
+// Cut the corners of the rounded series in a new option at the scale the previous render ended up with,
+// so they need no second pass when the new render keeps that scale (see roundedStepsNeedRefresh),
+// as during a replay, where the data changes but the axes mostly do not.
+function preRoundSteps(instance, option) {
+  const scale = instance._roundedScale;
+  if (!scale) return;
+  const series = [].concat(option.series || []);
+  for (const r of instance._roundedSeries || []) {
+    const pp = scale.get(r.gridIndex);
+    if (!pp || !series[r.seriesIndex]) continue;
+    series[r.seriesIndex].data = roundedStepDataPx(r.points, STEP_ROUND_RADIUS_PX * pp.rx, STEP_ROUND_RADIUS_PX * pp.ry);
+  }
+}
+
+// Whether the rounded series' corners have to be cut again, because they were cut at another scale than the chart now has.
+function roundedStepsNeedRefresh(instance) {
+  const scale = instance._roundedScale;
+  if (!scale) return true;
+  const same = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+  for (const r of instance._roundedSeries || []) {
+    const before = scale.get(r.gridIndex);
+    const now = roundedStepScale(instance.chart, r.gridIndex);
+    if (!before || !now || !same(before.rx, now.rx) || !same(before.ry, now.ry)) return true;
+  }
+  return false;
 }
 
 // Recompute every bar series' width so each bar still covers exactly one event resolution at the current zoom,
@@ -693,14 +724,26 @@ function niceTimeStep(span, target) {
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
-  const dz = (chart.getOption().dataZoom || [])[0];
-  const start = dz && typeof dz.start === "number" ? dz.start : 0;
-  const end = dz && typeof dz.end === "number" ? dz.end : 100;
-  const span = (instance._xDomainSpan * (end - start)) / 100;
-  const maxInterval = niceTimeStep(span, 4); // ~4+ major gridlines across the visible span
+  const maxInterval = timeTickInterval(instance._xDomainSpan, (chart.getOption().dataZoom || [])[0]);
   const xAxis = chart.getOption().xAxis || [];
   const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { maxInterval: maxInterval } : {}));
   chart.setOption({ xAxis: patch });
+}
+
+// The cap on the time between major gridlines, for a time axis spanning the given time, zoomed into by the given dataZoom (if any).
+function timeTickInterval(domainSpan, dz) {
+  const start = dz && typeof dz.start === "number" ? dz.start : 0;
+  const end = dz && typeof dz.end === "number" ? dz.end : 100;
+  return niceTimeStep((domainSpan * (end - start)) / 100, 4); // ~4+ major gridlines across the visible span
+}
+
+// Set the gridline cap of refreshTimeTicks in a new option up front, rather than in a second pass after rendering it.
+function presetTimeTicks(instance, option) {
+  if (!(instance._xDomainSpan > 0)) return;
+  const maxInterval = timeTickInterval(instance._xDomainSpan, [].concat(option.dataZoom || [])[0]);
+  [].concat(option.xAxis || []).forEach((ax) => {
+    if (ax && ax.type === "time") ax.maxInterval = maxInterval;
+  });
 }
 
 // Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
@@ -721,7 +764,9 @@ function wireZoomRefresh(instance) {
     if (hasBars) refreshBarWidths(instance);
     if (hasTimeTicks) refreshTimeTicks(instance);
   };
-  refresh(); // initial pass
+  // Initial pass: the time ticks are already set in the option (presetTimeTicks), and the rounded corners usually are, too (preRoundSteps).
+  if (hasRounded && roundedStepsNeedRefresh(instance)) refreshRoundedSteps(instance);
+  if (hasBars) refreshBarWidths(instance);
   instance.onZoomRefresh = refresh;
   chart.on("dataZoom", instance.onZoomRefresh);
 }
@@ -858,20 +903,24 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
 
 // Apply the current mode: turn the marquee on when zoom is effectively active (mode XOR
 // Ctrl), and recolour the Zoom/Pan buttons so the active one is blue.
-function applyChartMode(instance) {
+//
+// A freshly rendered option already has the buttons coloured by toolboxFeatures, so recolouring them can be skipped then.
+function applyChartMode(instance, { recolour = true } = {}) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
   const selectActive = effectiveSelect(instance);
-  const feature = {
-    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-    myPan: { iconStyle: { borderColor: panColor(instance) } },
-  };
-  if (instance._selectable) {
-    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  if (recolour) {
+    const feature = {
+      myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+      myPan: { iconStyle: { borderColor: panColor(instance) } },
+    };
+    if (instance._selectable) {
+      feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+    }
+    // Recolour the buttons first, then set the marquee (so the merge can't clear it).
+    chart.setOption({ toolbox: { feature: feature } });
   }
-  // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({ toolbox: { feature: feature } });
   // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
   if (selectActive && instance.lastOption && instance.lastOption.brush) {
     chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
@@ -2522,6 +2571,8 @@ export function renderFastChart(elementId, data, options) {
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
+  // Ctrl is taken to be released by a re-render (see wireZoomInteractions), so the button colours are set accordingly.
+  instance._ctrlHeld = false;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._barSeries = []; // rebuilt by buildLineBarOption for bar charts (see refreshBarWidths)
@@ -2547,6 +2598,9 @@ export function renderFastChart(elementId, data, options) {
   if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
     option.brush = selectionBrush(option);
   }
+  // Settle what would otherwise take extra passes over the rendered chart, each about as costly as the render itself.
+  presetTimeTicks(instance, option);
+  preRoundSteps(instance, option);
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
@@ -2923,8 +2977,8 @@ function wireZoomInteractions(instance, opts) {
   // resets. Ctrl temporarily inverts the mode — the blue highlight jumps to the other
   // button and the marquee flips — restored on release.
   if (instance._zoomMode === undefined) instance._zoomMode = true;
-  instance._ctrlHeld = false;
-  applyChartMode(instance);
+  instance._ctrlHeld = false; // as already assumed in the option's button colours (see renderFastChart)
+  applyChartMode(instance, { recolour: false });
   instance.onDblClickReset = () => resetZoom();
   zr.on("dblclick", instance.onDblClickReset);
   instance.onCtrlDown = (e) => {
