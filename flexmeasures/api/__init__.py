@@ -89,6 +89,8 @@ def request_auth_token(args) -> tuple[dict, int]:
                     type: array
                     items:
                       type: string
+        422:
+          description: Invalid request fields, such as an invalid include-refresh-token value.
       tags:
         - Auth
     """
