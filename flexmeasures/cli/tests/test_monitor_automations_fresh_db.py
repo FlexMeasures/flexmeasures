@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -322,7 +323,7 @@ def test_repeated_failures_are_collapsed_per_automation(
     body = outbox[0].body
     assert body.count(f"Automation {forecast_automation.id} ") == 1
     assert (
-        "failed 4 times (execution failed: 3, dispatch failed: 1), last at 2026-08-05 00:30 UTC"
+        "failed 4 times (execution failed: 3, dispatch failed: 1), first at 2026-08-04 22:00 UTC, last at 2026-08-05 00:30 UTC"
         in body
     )
     # The dispatch failure recorded no error, so the latest error is that of the latest failed execution.
@@ -351,6 +352,241 @@ def test_without_recipients_nothing_is_marked_as_reported(
     assert "Nobody to send the digest to" in result.output
     fresh_db.session.refresh(run)
     assert run.alerted_at is None
+
+
+@pytest.fixture()
+def automations_per_organisation(fresh_db, setup_roles_users_fresh_db):
+    """Create one automation on an asset of the prosumer organisation, one on an asset of the consultancy client, and one on a public asset.
+
+    Also add the users who should not hear about any of them: an inactive account admin and one without an email address.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+    from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+    from flexmeasures.data.models.user import Account, Role, User
+
+    accounts = {
+        account.name: account for account in fresh_db.session.scalars(select(Account))
+    }
+    account_admin = fresh_db.session.scalars(
+        select(Role).filter_by(name="account-admin")
+    ).one()
+    users = {user.email: user for user in fresh_db.session.scalars(select(User))}
+    # The consultancy client gets an account admin of its own.
+    users["test_consultant_client@seita.nl"].roles.append(account_admin)
+    for email, active in (
+        ("inactive_prosumer_admin@seita.nl", False),
+        (None, True),
+        ("", True),
+    ):
+        fresh_db.session.add(
+            User(
+                username=f"Prosumer admin {email!r} {active}",
+                email=email,
+                active=active,
+                account=accounts["Test Prosumer Account"],
+                roles=[account_admin],
+                fs_uniquifier=uuid.uuid4().hex,
+            )
+        )
+    asset_type = GenericAssetType(name="site")
+    generator = DataSource(name="Monitored forecaster", type="forecaster")
+    automations = {}
+    for key, owner in (
+        ("prosumer", accounts["Test Prosumer Account"]),
+        ("client", accounts["Test ConsultancyClient Account"]),
+        ("public", None),
+    ):
+        asset = GenericAsset(
+            name=f"{key} site", generic_asset_type=asset_type, owner=owner
+        )
+        automations[key] = Automation(
+            asset=asset,
+            name=f"{key} forecasts",
+            cronstr="0 1 * * *",
+            generator=generator,
+        )
+        fresh_db.session.add(automations[key])
+    fresh_db.session.commit()
+    for automation in automations.values():
+        add_run(fresh_db, automation, DUE_AT, execution_state="failed")
+    return automations
+
+
+def emails_by_user(outbox) -> dict[str, str]:
+    """Map each user who got their own digest to its body, leaving out the host's digest."""
+    return {
+        recipient: message.body
+        for message in outbox
+        if not message.bcc
+        for recipient in message.recipients
+    }
+
+
+def test_users_hear_only_about_the_automations_they_may_read(
+    app, fresh_db, automations_per_organisation
+):
+    """Account admins and consultants each get one digest, about their organisations' automations, while the host hears about all of them."""
+    prosumer, client, public = (
+        automations_per_organisation[key] for key in ("prosumer", "client", "public")
+    )
+
+    result, outbox = monitor(app, "--notify-users")
+
+    assert result.exit_code == 0, result.output
+    host_digests = [message for message in outbox if message.bcc]
+    assert len(host_digests) == 1
+    assert host_digests[0].bcc == [RECIPIENT]
+    for automation in (prosumer, client, public):
+        assert f"Automation {automation.id} " in host_digests[0].body
+    digests = emails_by_user(outbox)
+    # Plain users, inactive users, users without an email address,
+    # account admins of other organisations and consultancy users without the consultant role hear nothing.
+    assert set(digests) == {
+        "test_prosumer_user_2@seita.nl",
+        "test_consultant_client@seita.nl",
+        "test_consultant@seita.nl",
+    }
+    assert len(outbox) == 1 + len(digests)
+    assert f"Automation {prosumer.id} " in digests["test_prosumer_user_2@seita.nl"]
+    for email in ("test_consultant_client@seita.nl", "test_consultant@seita.nl"):
+        assert f"Automation {client.id} " in digests[email]
+    for body in digests.values():
+        assert body.count("Automation ") == 1
+        assert f"Automation {public.id} " not in body
+        assert "These automations on assets you look after" in body
+        assert "check the logs" not in body
+    assert "Sent a digest of failed automation runs to 3 user(s)." in result.output
+
+
+def test_user_digests_are_off_by_default(app, fresh_db, automations_per_organisation):
+    """Without --notify-users, only the host is told, and the runs still count as reported."""
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    assert outbox[0].bcc == [RECIPIENT]
+    assert emails_by_user(outbox) == {}
+    assert all(
+        run.alerted_at is not None
+        for run in fresh_db.session.scalars(select(AutomationRun))
+    )
+
+
+def test_a_user_digest_that_cannot_be_sent_is_not_sent_again(
+    app, fresh_db, automations_per_organisation, monkeypatch
+):
+    """Runs count as reported once the host is told, so a user digest that fails is logged, while the other users still get theirs."""
+    from smtplib import SMTPRecipientsRefused
+
+    send = app.mail.send
+
+    def refuse_the_consultant(message):
+        if message.recipients == ["test_consultant@seita.nl"]:
+            raise SMTPRecipientsRefused({"test_consultant@seita.nl": (550, b"no")})
+        send(message)
+
+    monkeypatch.setattr(app.mail, "send", refuse_the_consultant)
+
+    result, outbox = monitor(app, "--notify-users")
+
+    assert result.exit_code == 0, result.output
+    assert set(emails_by_user(outbox)) == {
+        "test_prosumer_user_2@seita.nl",
+        "test_consultant_client@seita.nl",
+    }
+    assert "Sent a digest of failed automation runs to 2 user(s)." in result.output
+    assert "Could not send a digest to test_consultant@seita.nl." in result.output
+    assert all(
+        run.alerted_at is not None
+        for run in fresh_db.session.scalars(select(AutomationRun))
+    )
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert outbox == []
+
+
+def test_an_unmonitored_automation_is_reported_once_it_is_monitored_again(
+    app, fresh_db, forecast_automation
+):
+    """The failed runs of an automation that opted out of monitoring are left out, until it opts back in."""
+    forecast_automation.monitored = False
+    fresh_db.session.commit()
+    run = add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert outbox == []
+    fresh_db.session.refresh(run)
+    assert run.alerted_at is None
+
+    forecast_automation.monitored = True
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    assert f"Automation {forecast_automation.id} " in outbox[0].body
+    fresh_db.session.refresh(run)
+    assert run.alerted_at == DUE_AT
+
+
+def test_users_hear_nothing_about_an_unmonitored_automation(
+    app, fresh_db, automations_per_organisation
+):
+    """Opting out of monitoring also keeps the automation out of the digests to account admins and consultants."""
+    client = automations_per_organisation["client"]
+    client.monitored = False
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app, "--notify-users")
+
+    assert result.exit_code == 0, result.output
+    assert f"Automation {client.id} " not in outbox[0].body
+    digests = emails_by_user(outbox)
+    assert set(digests) == {"test_prosumer_user_2@seita.nl"}
+    for body in digests.values():
+        assert f"Automation {client.id} " not in body
+
+
+def test_the_digest_says_which_runs_failed_while_unmonitored(
+    app, fresh_db, forecast_automation, freeze_server_now
+):
+    """Once monitoring is switched back on, the digest names the first failure and says how many runs failed while it was off."""
+    from flexmeasures.data.services.automations import update_automation
+
+    update_automation(forecast_automation, monitored=False, origin="test")
+    fresh_db.session.commit()
+    for hours_ago in (72, 48, 24):
+        add_run(
+            fresh_db,
+            forecast_automation,
+            DUE_AT - timedelta(hours=hours_ago),
+            execution_state="failed",
+        )
+    switched_on_at = DUE_AT - timedelta(hours=2)
+    freeze_server_now(switched_on_at)
+    update_automation(forecast_automation, monitored=True, origin="test")
+    fresh_db.session.commit()
+    freeze_server_now(DUE_AT)
+    # One more failure once it is monitored again.
+    add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    body = outbox[0].body
+    assert (
+        "failed 4 times (execution failed: 4), first at 2026-08-02 01:00 UTC, last at 2026-08-05 01:00 UTC"
+        in body
+    )
+    assert (
+        "  3 of these failed while the automation was not monitored, before monitoring was switched back on at 2026-08-04 23:00 UTC"
+        in body
+    )
 
 
 def test_the_digest_links_to_the_automation_once_the_base_url_is_set(

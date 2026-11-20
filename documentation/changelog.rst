@@ -11,7 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
-* Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, and with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_]
+* Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page, hosts can have the admins and consultants of each organisation emailed, too, and admins can switch an automation's monitoring off [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_, `PR #2702 <https://www.github.com/FlexMeasures/flexmeasures/pull/2702>`_ and `PR #2703 <https://www.github.com/FlexMeasures/flexmeasures/pull/2703>`_]
 
 * Add opt-in rotating refresh tokens for API clients, with expiry and revocation while preserving existing access-token authentication [see `PR #2849 <https://github.com/FlexMeasures/flexmeasures/pull/2849>`_]
 

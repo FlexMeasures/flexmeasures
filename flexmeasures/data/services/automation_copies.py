@@ -197,6 +197,7 @@ def _copy_automation(
         timezone=automation.timezone,
         # A copy starts inactive, so that it can be inspected and tested before it runs.
         active=False,
+        monitored=automation.monitored,
         generator_id=generator.id,
         parameters=parameters,
         # A fresh cursor, so that the copy does not inherit the original's run history.
