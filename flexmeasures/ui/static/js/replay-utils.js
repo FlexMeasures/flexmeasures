@@ -17,6 +17,10 @@ export const DEFAULT_REPLAY_STEP_MS = HOUR;
 // Belief time passing per ms of playback at speed 1×: 10 hours per second.
 export const BASE_REPLAY_RATE = (10 * HOUR) / 1000;
 
+// Wall time in ms over which a paused replay's ruler glides to a stop:
+// long enough for the browser to get word of the pause before the ruler, moving by itself, gets there.
+export const REPLAY_PAUSE_GLIDE_MS = 50;
+
 function streamKey(belief) {
   return belief.sensor.id + "_" + belief.source.id;
 }
@@ -183,6 +187,7 @@ export class ReplayClock {
     this.rate = rate;
     this.anchorPosition = start;
     this.anchorWallTime = null; // null while paused
+    this.glide = null; // how the clock moved up to where it was paused, while that is still of use
   }
 
   get playing() {
@@ -199,23 +204,50 @@ export class ReplayClock {
   }
 
   /**
-   * Where the clock was last anchored, and how it moves on from there.
-   * The anchor changes only when the clock is started, paused, sought or set to another rate,
-   * so whatever moves along with the clock by itself needs to hear about it only then.
+   * How the clock moves from where it was last anchored, for whatever moves along with it by itself, such as a ruler.
+   * The motion changes only when the clock is started, paused, sought or set to another rate,
+   * so whatever moves along with the clock needs to hear about it only then.
    *
-   * @return {{position: number, wallTime: ?number, rate: number}} The belief time at the wall time, and the rate (0 while paused).
+   * While playing, the motion runs from the anchor at the rate, up to the end of the replay.
+   * Right after a pause, it is the motion the clock had, up to where it was paused, so that what moves along glides to a stop there.
+   * Otherwise, it stands still where the clock was paused.
+   *
+   * @return {{position: number, wallTime: ?number, rate: number, end: number}} The belief time at the wall time, the rate (0 when standing still), and where the motion stops.
    */
-  get anchor() {
-    return { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.playing ? this.rate : 0 };
+  get motion() {
+    if (this.playing) return { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate, end: this.end };
+    if (this.glide) return { ...this.glide, end: this.anchorPosition };
+    return { position: this.anchorPosition, wallTime: null, rate: 0, end: this.anchorPosition };
   }
 
   play(now) {
     if (!this.playing) this.anchorWallTime = now;
+    this.glide = null;
   }
 
-  pause(now) {
-    this.anchorPosition = this.position(now);
+  /**
+   * Pauses the clock, possibly a little ahead of the given wall time.
+   *
+   * Whatever moves along with the clock by itself (see motion) may already have moved on before it hears about the pause,
+   * and pausing where it already went would make it jump back.
+   * Pausing slightly ahead lets it glide to a stop instead.
+   *
+   * @param {number} now          Wall time in ms.
+   * @param {number} [glideMs=0]  How much later, in wall time, to pause the clock.
+   */
+  pause(now, glideMs = 0) {
+    if (this.playing) this.glide = glideMs > 0 ? { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.rate } : null;
+    this.anchorPosition = this.position(now + glideMs);
     this.anchorWallTime = null;
+  }
+
+  /**
+   * @param {number} now Wall time in ms.
+   * @return {boolean}   Whether the clock is still gliding to a stop after a pause, according to its motion.
+   */
+  gliding(now) {
+    const motion = this.motion;
+    return !this.playing && motion.rate > 0 && motion.position + (now - motion.wallTime) * motion.rate < motion.end;
   }
 
   setRate(rate, now) {
@@ -228,5 +260,6 @@ export class ReplayClock {
   seek(position, now) {
     this.anchorPosition = Math.min(this.end, Math.max(this.start, position));
     if (this.playing) this.anchorWallTime = now;
+    this.glide = null;
   }
 }

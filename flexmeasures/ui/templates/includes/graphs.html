@@ -25,7 +25,7 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { BeliefTimeline, ReplayClock, BASE_REPLAY_RATE, DEFAULT_REPLAY_STEP_MS, REPLAY_PAUSE_GLIDE_MS, inferReplayStep, formatReplayStep, replayDataTime, stepFloor } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { restoreChartDateRange, rememberChartDateRange } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-date-range.js') }}?v={{ flexmeasures_version }}";
@@ -59,8 +59,8 @@
     let replayFrameRequest = null;
     // The belief time whose data the chart shows.
     let replayShownTime = null;
-    // The clock anchor whose motion the ruler was last handed.
-    let replayRulerAnchor = null;
+    // The clock motion the ruler was last handed.
+    let replayRulerMotion = null;
     let storeStartDate;
     let storeEndDate;
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
@@ -1179,7 +1179,7 @@
         toggle.classList.remove('playing');
         toggle.classList.add('paused');
         if (replayClock) {
-            replayClock.pause(performance.now());
+            replayClock.pause(performance.now(), REPLAY_PAUSE_GLIDE_MS);
             requestReplayFrame();
         }
     }
@@ -1290,7 +1290,7 @@
             if (toggle.classList.contains('stopped')) { return; }
             replayTimeline.reset();
             replayShownTime = null;
-            replayRulerAnchor = null;
+            replayRulerMotion = null;
             replayClock = new ReplayClock(start, end, replayRate());
             if (toggle.classList.contains('playing')) {
                 replayClock.play(performance.now());
@@ -1307,9 +1307,11 @@
      * Draws one animation frame of the replay.
      *
      * The ruler moves at the replay clock's constant speed by itself, so it is handed the clock's motion only when that changes.
+     * Then the data waits for the next frame, so the ruler hears about the change without waiting for the data to be redrawn.
+     *
      * While playing, the data is redrawn only when a step boundary has been passed and new beliefs became known by then;
      * when drawing takes longer than a step lasts, the steps passed in the meantime are drawn as one.
-     * While paused, the data catches up with the ruler exactly.
+     * While paused, the data catches up with the ruler exactly, once the ruler has glided to a stop.
      *
      * @param {number} now Wall time in ms, as passed by requestAnimationFrame.
      */
@@ -1319,13 +1321,20 @@
             return;
         }
         const position = replayClock.position(now);
-        const dataTime = replayDataTime(position, replayClock.playing, replayClock.start, replayStep(), replayShownTime);
-        const anchor = replayClock.anchor;
-        const anchorKey = JSON.stringify(anchor);
-        if (fastRenderActive() && anchorKey !== replayRulerAnchor) {
-            replayRulerAnchor = anchorKey;
-            setFastChartReplayTime(fastChartElementId, anchor.position, { rate: anchor.rate, end: replayClock.end, now: anchor.wallTime ?? now });
+        const motion = replayClock.motion;
+        const motionKey = JSON.stringify(motion);
+        if (fastRenderActive() && motionKey !== replayRulerMotion) {
+            replayRulerMotion = motionKey;
+            setFastChartReplayTime(fastChartElementId, motion.position, { rate: motion.rate, end: motion.end, now: motion.wallTime ?? now });
+            requestReplayFrame();
+            return;
         }
+        if (replayClock.gliding(now)) {
+            requestReplayFrame();
+            return;
+        }
+        const playing = replayClock.playing;
+        const dataTime = replayDataTime(position, playing, replayClock.start, replayStep(), replayShownTime);
         if (dataTime !== replayShownTime) {
             const firstFrame = replayShownTime === null;
             replayShownTime = dataTime;

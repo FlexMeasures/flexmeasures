@@ -125,17 +125,43 @@ def test_replay_clock_runs_at_a_constant_rate(assert_js):
         eq("however irregularly it is read", [clock.position(51), clock.position(150), clock.position(70)], [1010, 2000, 1200]);
         clock.pause(150);
         eq("pausing holds the position", clock.position(5000), 2000);
-        eq("a paused clock is anchored where it stopped, without moving on", clock.anchor, {position: 2000, wallTime: null, rate: 0});
+        eq("a paused clock stands still where it stopped", clock.motion, {position: 2000, wallTime: null, rate: 0, end: 2000});
         clock.play(6000);
         eq("resuming continues from there", clock.position(6010), 2100);
         clock.setRate(20, 6010);
         eq("changing the rate does not move the position", clock.position(6010), 2100);
         eq("and applies from then on", clock.position(6020), 2300);
-        eq("a playing clock is anchored where its rate last changed, moving on at that rate", clock.anchor, {position: 2100, wallTime: 6010, rate: 20});
+        eq("a playing clock moves on at its rate from where that last changed, up to the end", clock.motion, {position: 2100, wallTime: 6010, rate: 20, end: 100000});
         clock.seek(5000, 6020);
         eq("seeking moves the position", clock.position(6020), 5000);
         eq("and keeps playing from there", clock.position(6030), 5200);
         eq("the position never passes the end", clock.position(1e9), 100000);
         clock.seek(0, 6030);
         eq("nor goes before the start", clock.position(6030), 1000);
+        """)
+
+
+def test_replay_clock_glides_to_a_stop(assert_js):
+    """A pause can land a little ahead, so that what moves along with the clock by itself stops there instead of jumping back."""
+    assert_js("""
+        import { ReplayClock } from "/js/replay-utils.js";
+        const clock = new ReplayClock(1000, 100000, 10);
+        clock.play(0);
+        clock.pause(100, 5);
+        eq("the clock pauses where it would be a little later", clock.position(100), 2050);
+        eq("its motion runs on as it was, up to there", clock.motion, {position: 1000, wallTime: 0, rate: 10, end: 2050});
+        eq("it is gliding until it gets there", [clock.gliding(100), clock.gliding(104.9)], [true, true]);
+        eq("and no longer after", [clock.gliding(105), clock.gliding(200)], [false, false]);
+        clock.setRate(20, 102);
+        eq("a new rate does not change a glide", clock.motion, {position: 1000, wallTime: 0, rate: 10, end: 2050});
+        clock.seek(3000, 103);
+        eq("seeking stops it", [clock.motion, clock.gliding(103)], [{position: 3000, wallTime: null, rate: 0, end: 3000}, false]);
+        clock.play(200);
+        clock.pause(210, 5);
+        clock.play(212);
+        eq("so does resuming", clock.motion, {position: 3300, wallTime: 212, rate: 20, end: 100000});
+        clock.pause(220);
+        eq("a pause without a glide stops right there", [clock.position(220), clock.gliding(220)], [3460, false]);
+        clock.pause(230, 5);
+        eq("pausing a paused clock leaves it where it is", clock.position(230), 3460);
         """)
