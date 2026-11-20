@@ -938,7 +938,7 @@ function exportCSV(elementId, datasetName) {
 // extra columns would spill over the plot (see #2513).
 //
 // While replaying, the export also shows the replay ruler at the given belief time
-// (on screen it is drawn outside the option, see drawReplayRuler).
+// (on screen it is laid over the chart, see drawReplayRuler).
 //
 // Returns the option together with the canvas size the export should use.
 // (Exported for the JavaScript tests, which check the legend never covers a plot.)
@@ -1044,7 +1044,7 @@ function replayRulerExportSeries(lastOption, replayTime) {
         animation: false,
         symbol: "none",
         label: { show: false },
-        data: [{ xAxis: replayTime, lineStyle: { color: REPLAY_RULER_COLOR, width: 1.5, type: "solid" } }],
+        data: [{ xAxis: replayTime, lineStyle: { color: REPLAY_RULER_COLOR, width: REPLAY_RULER_WIDTH, type: "solid" } }],
       },
     });
   });
@@ -1061,7 +1061,7 @@ function exportSVG(elementId, datasetName) {
     instance.lastOption,
     instance.chart.getWidth(),
     instance.chart.getHeight(),
-    instance.replayTime
+    replayRulerTime(instance)
   );
   const svgChart = echarts.init(null, null, {
     renderer: "svg",
@@ -1088,7 +1088,7 @@ function exportPNG(elementId, datasetName) {
     instance.lastOption,
     instance.chart.getWidth(),
     instance.chart.getHeight(),
-    instance.replayTime
+    replayRulerTime(instance)
   );
   const holder = document.createElement("div");
   holder.style.width = exported.width + "px";
@@ -2493,7 +2493,7 @@ export function renderFastChart(elementId, data, options) {
   let instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) {
     const chart = echarts.init(container, null, { renderer: "canvas" });
-    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayTime: null };
+    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayMotion: null };
     instance._lastWidth = container.clientWidth;
     // Re-render on resize (debounced), so centered titles stay centered — but ONLY when
     // the WIDTH changed. A height-only resize (mobile browsers fire one when the address
@@ -2563,40 +2563,65 @@ export function renderFastChart(elementId, data, options) {
 /* ============================== replay ruler ============================== */
 
 const REPLAY_RULER_COLOR = "#555";
-// Above the series (z 2), so the ruler stays visible inside bars and filled areas,
+const REPLAY_RULER_WIDTH = 1.5;
+// In exports, the ruler is a markLine above the series (z 2), so it stays visible inside bars and filled areas,
 // at the default z of a markLine, where the ruler was drawn when it was one (as the Vega-Lite chart draws its ruler last).
 const REPLAY_RULER_Z = 5;
 
-// Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, or clear it.
-// These are plain zrender elements, kept out of the chart option, so moving the ruler never re-renders the chart:
-// it only repaints the canvas, which takes about a millisecond even for tens of thousands of points.
+// The replay's belief time at the given wall time, following the ruler's motion, or null when not replaying.
+function replayRulerTime(instance, now = performance.now()) {
+  const motion = instance.replayMotion;
+  if (!motion) return null;
+  return Math.min(motion.end, motion.time + (now - motion.wallTime) * motion.rate);
+}
+
+// Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, above the data, or clear it.
+// The rules are HTML elements laid over the chart, moved by a CSS transform animation,
+// which the browser runs off the main thread: so the ruler keeps moving at a steady speed while the chart redraws its data,
+// which can block the main thread for a hundred milliseconds or more on a crowded chart.
+// Each rule sits in a lane the size of its subplot, which hides it outside the subplot (also when zoomed in).
 function drawReplayRuler(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
-  const zr = chart.getZr();
   if (instance._replayRuler) {
-    zr.remove(instance._replayRuler);
+    instance._replayRuler.remove();
     instance._replayRuler = null;
   }
-  const time = instance.replayTime;
-  if (time == null || !instance.lastOption) return;
-  const group = new echarts.graphic.Group({ silent: true });
+  const motion = instance.replayMotion;
+  if (!motion || !instance.lastOption) return;
+  const now = performance.now();
+  const time = replayRulerTime(instance, now);
+  const holder = document.createElement("div");
+  holder.className = "replay-ruler";
+  holder.style.cssText = "position: absolute; inset: 0; pointer-events: none; z-index: 1;";
   const model = chart.getModel();
   [].concat(instance.lastOption.xAxis || []).forEach((xAxis, i) => {
     if (!xAxis || xAxis.type !== "time") return;
     const gridModel = model.getComponent("grid", xAxis.gridIndex || 0);
     const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
-    const x = chart.convertToPixel({ xAxisIndex: i }, time);
-    if (!rect || !isFinite(x) || x < rect.x || x > rect.x + rect.width) return;
-    group.add(new echarts.graphic.Line({
-      shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
-      style: { stroke: REPLAY_RULER_COLOR, lineWidth: 1.5 },
-      silent: true,
-      z: REPLAY_RULER_Z,
-    }));
+    // A time axis maps time to pixels linearly, so the ruler moves at a constant pixel speed, too.
+    const x = (t) => chart.convertToPixel({ xAxisIndex: i }, t) - rect.x - REPLAY_RULER_WIDTH / 2;
+    if (!rect || !isFinite(x(time))) return;
+    const lane = document.createElement("div");
+    lane.style.cssText = `position: absolute; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.width}px; height: ${rect.height}px; overflow: hidden;`;
+    const rule = document.createElement("div");
+    rule.style.cssText = `position: absolute; left: 0; top: 0; width: ${REPLAY_RULER_WIDTH}px; height: 100%; background: ${REPLAY_RULER_COLOR}; will-change: transform;`;
+    rule.style.transform = `translateX(${x(time)}px)`;
+    if (motion.rate > 0 && time < motion.end && typeof rule.animate === "function") {
+      const animation = rule.animate(
+        [{ transform: `translateX(${x(time)}px)` }, { transform: `translateX(${x(motion.end)}px)` }],
+        { duration: (motion.end - time) / motion.rate, easing: "linear", fill: "forwards" }
+      );
+      // Start from the moment the position was read, rather than from the next frame,
+      // which comes late exactly when the chart is busy redrawing.
+      animation.startTime = now;
+    }
+    lane.appendChild(rule);
+    holder.appendChild(lane);
   });
-  zr.add(group);
-  instance._replayRuler = group;
+  // ECharts' own root, positioned relative to the chart, whose pixel coordinates the lanes use
+  chart.getZr().painter.getViewportRoot().appendChild(holder);
+  instance._replayRuler = holder;
 }
 
 // Redraw the replay ruler now, and whenever zooming or panning moves the time axes.
@@ -3234,13 +3259,21 @@ export function wireAnnotationHover(instance) {
 
 /**
  * Set (or clear, with null) the replay belief time, shown as a vertical ruler.
- * Moving the ruler is cheap: it repaints the canvas without re-rendering the chart,
- * so it can follow the replay on every animation frame.
+ *
+ * While the replay plays, pass its rate and end: the ruler then moves on by itself, at that rate, until the end,
+ * so this needs calling only when the replay starts, pauses, resumes, seeks or changes speed, not on every frame.
+ *
+ * @param {string} elementId          The chart's element id.
+ * @param {?number} beliefTimeMs      The replay's belief time, in ms, or null to clear the ruler.
+ * @param {Object} motion             How the ruler moves on from there:
+ * @param {number} motion.rate        Belief time passing per ms of wall time (0 while paused).
+ * @param {number} motion.end         The belief time at which the ruler stops, in ms.
+ * @param {number} motion.now         The wall time at which the belief time was read, in ms, such as performance.now().
  */
-export function setFastChartReplayTime(elementId, beliefTimeMs) {
+export function setFastChartReplayTime(elementId, beliefTimeMs, { rate = 0, end = Infinity, now = performance.now() } = {}) {
   const instance = instances[elementId];
   if (instance) {
-    instance.replayTime = beliefTimeMs;
+    instance.replayMotion = beliefTimeMs == null ? null : { time: beliefTimeMs, rate: rate, end: end, wallTime: now };
     drawReplayRuler(instance);
   }
 }

@@ -764,9 +764,10 @@ def test_image_exports_show_the_replay_ruler(assert_js):
         """)
 
 
-def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
-    """The replay ruler follows the replay on every frame, so moving it must not re-render the chart.
+def test_replay_ruler_moves_by_itself(assert_js, echarts_available):
+    """The replay ruler moves at the replay's rate by itself, without re-rendering the chart.
 
+    It is an animated overlay, which the browser keeps moving while the chart redraws its data.
     It is drawn in every time-axis subplot, above the data,
     and has to survive re-renders (also without visible data) and follow zooming.
     """
@@ -784,8 +785,9 @@ def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
             source: {id: 1, name: "Meter"},
         });
         const rows = [row(1, 1), row(1, 2), row(2, 1), row(2, 2)];
-        const rulers = (chart) => chart.getZr().storage.getDisplayList(true)
-            .filter((el) => el.type === "line" && el.style.stroke === "#555");
+        const rulers = () => [...container.querySelectorAll(".replay-ruler > div > div")];
+        // Where a rule's middle is, in chart pixels, as currently drawn (also mid-animation)
+        const rulerX = (rule) => rule.parentElement.offsetLeft + new DOMMatrix(getComputedStyle(rule).transform).m41 + rule.offsetWidth / 2;
         const near = (a, b) => Math.abs(a - b) < 0.5;
 
         for (const chartType of ["line", "bar_chart"]) {
@@ -800,30 +802,50 @@ def test_replay_ruler_moves_without_re_rendering(assert_js, echarts_available):
             const setOption = chart.setOption.bind(chart);
             chart.setOption = (...args) => { setOptionCalls++; return setOption(...args); };
 
-            eq(`${chartType}: no ruler before replaying`, rulers(chart).length, 0);
+            eq(`${chartType}: no ruler before replaying`, rulers().length, 0);
             const time = start + 6 * hour;
             setFastChartReplayTime(container.id, time);
-            eq(`${chartType}: one ruler per subplot`, rulers(chart).length, 2);
-            check("at the replay time", rulers(chart).every((line, i) =>
-                near(line.shape.x1, chart.convertToPixel({xAxisIndex: i}, time))), rulers(chart).map((l) => l.shape.x1));
-            check("above the data", rulers(chart).every((line) => line.zlevel === 0 && line.z > 2));
+            eq(`${chartType}: one ruler per subplot`, rulers().length, 2);
+            check("at the replay time", rulers().every((rule, i) => near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time))),
+                  rulers().map(rulerX));
+            const holder = container.querySelector(".replay-ruler");
+            check("above the data", [...holder.parentElement.querySelectorAll("canvas")].every((canvas) =>
+                canvas.parentElement === holder.parentElement && getComputedStyle(canvas).zIndex === "auto")
+                && getComputedStyle(holder).zIndex === "1");
+            check("standing still while paused", rulers().every((rule) => rule.getAnimations().length === 0));
+
+            // Played at 1000 ms of belief time per ms, from a moment ago
+            const now = performance.now() - 50;
+            setFastChartReplayTime(container.id, time, {rate: 1000, end: time + 4 * hour, now});
+            eq("setting the replay time leaves the chart option alone", setOptionCalls, 0);
+            const animations = rulers().map((rule) => rule.getAnimations()[0]);
+            check("while playing, each ruler moves by itself", animations.every((a) => a && a.effect.getTiming().easing === "linear"));
+            check("starting right away, rather than at the next frame, which comes late while the chart is busy",
+                  animations.every((a) => !a.pending && a.startTime !== null));
+            // Show where the ruler is 1.8 s after the replay time was read
+            animations.forEach((a) => { a.pause(); a.currentTime = now + 1800 - a.startTime; });
+            check("at the replay's rate, from when the replay time was read", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time + 1800 * 1000))), rulers().map(rulerX));
+            animations.forEach((a) => { a.currentTime = 1e9; });
+            check("until the end", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time + 4 * hour))), rulers().map(rulerX));
             setFastChartReplayTime(container.id, time + hour);
-            eq("moving it leaves the chart option alone", setOptionCalls, 0);
-            check("but moves the ruler", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)));
 
             renderFastChart(container.id, [], opts);
-            eq("a re-render without visible data keeps the ruler, once per subplot", rulers(chart).length, 2);
+            eq("a re-render without visible data keeps the ruler, once per subplot", rulers().length, 2);
             renderFastChart(container.id, rows, opts);
-            eq("so does one with data", rulers(chart).length, 2);
+            eq("so does one with data", rulers().length, 2);
 
             chart.dispatchAction({type: "dataZoom", startValue: start + 5 * hour, endValue: start + 9 * hour});
-            check("zooming moves the ruler along", near(rulers(chart)[0].shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)),
-                  [rulers(chart)[0]?.shape.x1, chart.convertToPixel({xAxisIndex: 0}, time + hour)]);
+            check("zooming moves the ruler along", near(rulerX(rulers()[0]), chart.convertToPixel({xAxisIndex: 0}, time + hour)),
+                  [rulerX(rulers()[0]), chart.convertToPixel({xAxisIndex: 0}, time + hour)]);
             setFastChartReplayTime(container.id, start + 12 * hour);
-            eq("a ruler outside the zoomed range is not drawn", rulers(chart).length, 0);
+            const outside = rulers()[0];
+            check("a ruler outside the zoomed range is clipped by its subplot",
+                  getComputedStyle(outside.parentElement).overflow === "hidden" && rulerX(outside) > outside.parentElement.offsetWidth);
 
             setFastChartReplayTime(container.id, null);
-            eq("stopping replay clears the ruler", rulers(chart).length, 0);
+            eq("stopping replay clears the ruler", container.querySelectorAll(".replay-ruler").length, 0);
             disposeFastChart(container.id);
         }
         container.remove();
