@@ -62,9 +62,11 @@ def refresh_auth_token(args):
                     nullable: true
                     description: Access-token lifetime in seconds, or null if unlimited.
         400:
-          description: Invalid request.
+          description: The JSON in the request body cannot be parsed.
         401:
           description: Invalid, expired or revoked refresh token. Authenticate again.
+        422:
+          description: UNPROCESSABLE_ENTITY
       tags:
         - Auth
     """
@@ -102,9 +104,11 @@ def revoke_refresh_token(args):
                   revoked:
                     type: boolean
         400:
-          description: Invalid request.
+          description: The JSON in the request body cannot be parsed.
         401:
           description: Invalid, expired or revoked refresh token.
+        422:
+          description: UNPROCESSABLE_ENTITY
       tags:
         - Auth
     """

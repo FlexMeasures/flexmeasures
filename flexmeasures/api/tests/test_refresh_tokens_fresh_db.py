@@ -7,9 +7,11 @@ import time
 
 import pytest
 from flask import g, url_for
-from sqlalchemy import select
+from sqlalchemy import event, select
 
+from flexmeasures.data.models.refresh_tokens import RefreshTokenTracker
 from flexmeasures.data.models.user import User
+from flexmeasures.data.services.users import delete_user
 
 
 @pytest.fixture(autouse=True)
@@ -123,6 +125,17 @@ def test_revoke_refresh_token(client, token_user):
     assert refresh(client, pair["refresh-token"]).status_code == 401
 
 
+def test_revocation_is_committed_by_the_revoking_request(client, fresh_db, token_user):
+    """The tests share one database session, so without the rollback here, the next request would commit a pending revocation."""
+    pair = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    response = client.post(
+        "/api/revokeRefreshToken", json={"refresh-token": pair["refresh-token"]}
+    )
+    assert response.status_code == 200
+    fresh_db.session.rollback()
+    assert refresh(client, pair["refresh-token"]).status_code == 401
+
+
 @pytest.mark.parametrize("include_refresh_token", [False, True])
 def test_disabled_user_cannot_obtain_tokens(
     client, fresh_db, token_user, include_refresh_token
@@ -143,12 +156,68 @@ def test_disabled_user_cannot_refresh(client, fresh_db, token_user):
     assert refresh(client, pair["refresh-token"]).status_code == 401
 
 
+def test_user_disabled_outside_the_orm_cannot_refresh(client, fresh_db, token_user):
+    """A bulk update skips the listener that revokes the families, so the exchange itself has to refuse an inactive user."""
+    pair = assert_pair(login(client, include_refresh_token=True), token_user.id)
+    fresh_db.session.execute(
+        User.__table__.update().where(User.id == token_user.id).values(active=False)
+    )
+    fresh_db.session.commit()
+    assert refresh(client, pair["refresh-token"]).status_code == 401
+
+
+@pytest.mark.parametrize("families", ["not loaded", "loaded", "modified"])
+def test_deleting_a_user_locks_the_user_before_the_families(
+    app, client, fresh_db, token_user, families
+):
+    """Refreshing locks the user before the family, so deleting has to lock in that order as well, or the two can deadlock."""
+    assert_pair(login(client, include_refresh_token=True), token_user.id)
+    if families != "not loaded":
+        assert len(token_user.refresh_trackers) == 1
+    if families == "modified":
+        token_user.refresh_trackers[0].name = "renamed"
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(fresh_db.engine, "before_cursor_execute", record)
+    try:
+        with app.test_request_context():
+            delete_user(token_user)
+            fresh_db.session.commit()
+    finally:
+        event.remove(fresh_db.engine, "before_cursor_execute", record)
+    first_write = next(
+        i for i, s in enumerate(statements) if s.startswith(("DELETE", "UPDATE"))
+    )
+    assert any(
+        "FROM fm_user" in s and "FOR UPDATE" in s for s in statements[:first_write]
+    )
+    assert any(s.startswith("DELETE FROM fm_user") for s in statements)
+    assert not fresh_db.session.scalars(select(RefreshTokenTracker)).all()
+
+
 @pytest.mark.parametrize("path", ["/api/refreshAuthToken", "/api/revokeRefreshToken"])
 @pytest.mark.parametrize(
-    "payload", [{}, {"refresh-token": None}, {"refresh-token": 12}]
+    "payload",
+    [
+        {},
+        {"refresh-token": None},
+        {"refresh-token": 12},
+        {"refresh-token": ""},
+        {"refresh-token": "token", "refresh_token": "token"},
+    ],
 )
 def test_malformed_refresh_requests(client, token_user, path, payload):
-    assert client.post(path, json=payload).status_code in (400, 422)
+    assert client.post(path, json=payload).status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/api/refreshAuthToken", "/api/revokeRefreshToken"])
+def test_refresh_request_with_unparsable_json(client, token_user, path):
+    """Only JSON that cannot be parsed is a 400, whereas a body that fails validation is a 422."""
+    response = client.post(path, data="{", content_type="application/json")
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize("path", ["/api/refreshAuthToken", "/api/revokeRefreshToken"])
