@@ -22,13 +22,11 @@ def token_response(user, refresh_token: str) -> dict:
         access_token, return_timestamp=True
     )
     max_age = current_app.config["SECURITY_TOKEN_MAX_AGE"].total_seconds()
-    deadlines = []
-    if max_age:
-        deadlines.append(issued_at.timestamp() + max_age)
+    deadlines = [issued_at.timestamp() + max_age]
+    # Flask-Security uses a zero exp value to mean no additional token deadline.
     if data.get("exp"):
         deadlines.append(data["exp"])
-    # None explicitly denotes a deployment configured with non-expiring tokens.
-    expires_in = max(0, int(min(deadlines) - time.time())) if deadlines else None
+    expires_in = max(0, int(min(deadlines) - time.time()))
     return {
         "auth_token": access_token,
         "user_id": user.id,
