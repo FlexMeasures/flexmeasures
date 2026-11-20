@@ -176,6 +176,17 @@ export class ReplayClock {
     return Math.min(this.end, this.anchorPosition + (now - this.anchorWallTime) * this.rate);
   }
 
+  /**
+   * Where the clock was last anchored, and how it moves on from there.
+   * The anchor changes only when the clock is started, paused, sought or set to another rate,
+   * so whatever moves along with the clock by itself needs to hear about it only then.
+   *
+   * @return {{position: number, wallTime: ?number, rate: number}} The belief time at the wall time, and the rate (0 while paused).
+   */
+  get anchor() {
+    return { position: this.anchorPosition, wallTime: this.anchorWallTime, rate: this.playing ? this.rate : 0 };
+  }
+
   play(now) {
     if (!this.playing) this.anchorWallTime = now;
   }

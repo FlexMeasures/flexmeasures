@@ -109,11 +109,13 @@ def test_replay_clock_runs_at_a_constant_rate(assert_js):
         eq("however irregularly it is read", [clock.position(51), clock.position(150), clock.position(70)], [1010, 2000, 1200]);
         clock.pause(150);
         eq("pausing holds the position", clock.position(5000), 2000);
+        eq("a paused clock is anchored where it stopped, without moving on", clock.anchor, {position: 2000, wallTime: null, rate: 0});
         clock.play(6000);
         eq("resuming continues from there", clock.position(6010), 2100);
         clock.setRate(20, 6010);
         eq("changing the rate does not move the position", clock.position(6010), 2100);
         eq("and applies from then on", clock.position(6020), 2300);
+        eq("a playing clock is anchored where its rate last changed, moving on at that rate", clock.anchor, {position: 2100, wallTime: 6010, rate: 20});
         clock.seek(5000, 6020);
         eq("seeking moves the position", clock.position(6020), 5000);
         eq("and keeps playing from there", clock.position(6030), 5200);
