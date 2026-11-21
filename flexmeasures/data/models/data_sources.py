@@ -717,13 +717,35 @@ def source_priorities(sources) -> dict:
     return {source: rank for rank, source in enumerate(priority_order)}
 
 
+def attributes_variant(source) -> bytes:
+    """Hash what a source's attributes say about which data it records, leaving out the members it says it missed.
+
+    Sources sharing a name, type, model and version but recording different attributes are distinct sources,
+    whose data may have to coexist, as when a scheduler records its parameters in its source's attributes.
+    The members a partial aggregate names as missing are the exception (see `DataSource.missing_members`):
+    such a partial aggregate is meant to be replaced by the complete one, so it should end up in the same group.
+    """
+    attributes = deepcopy(dict(source.attributes or {}))
+    data_generator = attributes.get("data_generator")
+    if isinstance(data_generator, dict):
+        config = data_generator.get("config")
+        if isinstance(config, dict):
+            config.pop("missing-members", None)
+            if not config:
+                del data_generator["config"]
+        if not data_generator:
+            del attributes["data_generator"]
+    return DataSource.hash_attributes(attributes)
+
+
 def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
     one_deterministic_belief_per_event: bool = False,
 ) -> tb.BeliefsDataFrame:
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
-    Sources are grouped by (name, type, model); within each group, only data from
+    Sources are grouped by (name, type, model, attributes), where the members a partial aggregate names as missing
+    do not count towards the attributes (see `attributes_variant`); within each group, only data from
     the latest version (breaking ties in favour of a source naming no missing members, and then by highest id) is kept, per event or per belief.
     Probabilistic beliefs are kept intact.
 
@@ -740,12 +762,12 @@ def keep_latest_version(
     # Sanitize BeliefsDataFrame by removing duplicate indices
     bdf = bdf.loc[~bdf.index.duplicated(keep="first"), :]
 
-    # Group unique sources by (name, type, model)
+    # Group unique sources by (name, type, model, attributes)
     source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
     group_keys: dict = {}
     group_per_source = np.empty(len(unique_sources), dtype=np.int64)
     for i, source in enumerate(unique_sources):
-        key = (source.name, source.type, source.model)
+        key = (source.name, source.type, source.model, attributes_variant(source))
         group_per_source[i] = group_keys.setdefault(key, len(group_keys))
     if len(group_keys) == len(unique_sources):
         # Every source is the sole member of its group, so nothing can be dropped

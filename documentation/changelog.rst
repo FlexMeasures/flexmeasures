@@ -24,6 +24,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
+* Fix ``get_data_source()`` raising ``MultipleResultsFound`` when a source with the same name, model, version and type has attributes, and stop ``keep_latest_version()`` from hiding the beliefs of sources that differ only by their attributes [see `PR #2867 <https://www.github.com/FlexMeasures/flexmeasures/pull/2867>`_]
 
 
 v1.1.1 | November 11, 2026

@@ -170,6 +170,10 @@ def get_data_source(
     naming none asks for a source belonging to none, which is what a script the host runs for everyone records under.
     Leaving it out of the lookup would both hand a script another organisation's source and,
     where two organisations run the same script, find two sources where one was expected.
+
+    The source it looks for, and creates, has no attributes.
+    A sibling recording attributes under the same name, model, version and type is a different source,
+    so leaving the attributes out of the lookup would find several sources where one was expected.
     """
 
     # Imported here to avoid a circular import at module load time.
@@ -183,6 +187,7 @@ def get_data_source(
         func.coalesce(DataSource.version, "") == (data_source_version or ""),
         DataSource.type == data_source_type,
         DataSource.account_id == (account.id if account is not None else None),
+        DataSource.attributes_hash.is_(None),
     )
     data_source = db.session.execute(query).scalar_one_or_none()
     if data_source is None:

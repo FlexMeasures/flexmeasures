@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.data_sources import (
     DATA_SOURCE_UNIQUE_INDEX,
+    attributes_variant,
     keep_latest_version,
     DataSource,
 )
@@ -300,6 +301,77 @@ def test_keep_latest_version_prefers_a_complete_aggregate_of_the_same_belief_tim
         assert kept["event_value"].values == pytest.approx([0.12])
 
 
+def test_keep_latest_version_keeps_sources_differing_only_by_attributes():
+    """Sources that share a name, type, model and version, but record different attributes, are not versions of one another.
+
+    Each keeps its data, rather than the one with the highest id hiding the others.
+    Versions are still compared within one set of attributes, and a partial aggregate of one still gives way to its complete aggregate.
+    """
+    sensor = tb.Sensor("schedule", event_resolution=timedelta(hours=1))
+
+    def scheduler(id: int, version: str, attributes: dict | None = None):
+        return DataSource(
+            id=id,
+            name="Seita",
+            model="CommunityScheduler",
+            type="scheduler",
+            version=version,
+            attributes=attributes,
+        )
+
+    plain = scheduler(1, "2.4.0")
+    run_a = scheduler(2, "2.4.0", {"data_generator": {"parameters": {"run": "a"}}})
+    run_b = scheduler(3, "2.4.0", {"data_generator": {"parameters": {"run": "b"}}})
+    run_a_old = scheduler(4, "2.3.0", {"data_generator": {"parameters": {"run": "a"}}})
+    run_b_partial = scheduler(
+        5,
+        "2.4.0",
+        {
+            "data_generator": {
+                "parameters": {"run": "b"},
+                "config": {"missing-members": [3]},
+            }
+        },
+    )
+    bdf = tb.BeliefsDataFrame(
+        [
+            tb.TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start="2022-12-01T23:30+00",
+                belief_horizon="PT0H",
+                event_value=value,
+            )
+            for value, source in enumerate(
+                (plain, run_a, run_b, run_a_old, run_b_partial)
+            )
+        ]
+    )
+    for one_deterministic in (False, True):
+        kept = keep_latest_version(
+            bdf, one_deterministic_belief_per_event=one_deterministic
+        )
+        assert set(kept.sources) == {plain, run_a, run_b}
+
+
+def test_attributes_variant_leaves_out_only_the_missing_members():
+    complete = DataSource(name="Seita", type="reporter")
+    partial = DataSource(
+        name="Seita",
+        type="reporter",
+        attributes={"data_generator": {"config": {"missing-members": [3]}}},
+    )
+    other_config = DataSource(
+        name="Seita",
+        type="reporter",
+        attributes={"data_generator": {"config": {"resolved-members": [1, 2]}}},
+    )
+    assert attributes_variant(partial) == attributes_variant(complete)
+    assert attributes_variant(other_config) != attributes_variant(complete)
+    # Working out the variant leaves the source's own attributes alone
+    assert partial.missing_members == [3]
+
+
 def test_keep_latest_version_preserves_probabilistic_splits():
     sensor = tb.Sensor("X", event_resolution=timedelta(hours=1))
     s1v1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
@@ -442,6 +514,43 @@ def test_get_data_source_finds_a_source_with_an_empty_model_and_version(db, app)
     db.session.flush()
 
     assert get_data_source("test-script-source").id == existing.id
+
+
+def test_get_data_source_takes_the_source_without_attributes(db, app):
+    """A sibling recording attributes under the same name, model, version and type is a different source.
+
+    Finding it as well would leave two sources where one was expected.
+    """
+    from flexmeasures.data.utils import get_data_source
+
+    sibling = DataSource(
+        name="test-script-source",
+        type="scheduler",
+        model="CommunityScheduler",
+        version="2.4.0",
+        attributes={"data_generator": {"parameters": {"run": "a"}}},
+    )
+    db.session.add(sibling)
+    db.session.flush()
+
+    # Only the sibling exists, so a source without attributes is created next to it
+    created = get_data_source(
+        "test-script-source",
+        data_source_model="CommunityScheduler",
+        data_source_version="2.4.0",
+        data_source_type="scheduler",
+    )
+    assert created.id not in (None, sibling.id)
+    assert created.attributes_hash is None
+
+    # Now both exist, and the one without attributes is found
+    found = get_data_source(
+        "test-script-source",
+        data_source_model="CommunityScheduler",
+        data_source_version="2.4.0",
+        data_source_type="scheduler",
+    )
+    assert found.id == created.id
 
 
 def test_get_or_create_source_finds_a_source_without_a_model_and_version_when_asked_for_empty_ones(
@@ -707,7 +816,13 @@ def test_keep_latest_version_equivalence():
 
         def group_key(index_tuple):
             source = index_tuple[source_level]
-            key = (index_tuple[event_level], source.name, source.type, source.model)
+            key = (
+                index_tuple[event_level],
+                source.name,
+                source.type,
+                source.model,
+                attributes_variant(source),
+            )
             if not one_deterministic_belief_per_event:
                 key += (index_tuple[belief_level],)
             return key
@@ -745,7 +860,7 @@ def test_keep_latest_version_equivalence():
         )
         for i in range(6)
     ]
-    # a partial aggregate of each, which ranks behind it despite its higher id
+    # a sibling of each recording other attributes, which is a different source
     sources += [
         DataSource(
             id=source.id + 6 if source.id is not None else None,
@@ -753,7 +868,24 @@ def test_keep_latest_version_equivalence():
             model=source.model,
             type=source.type,
             version=source.version,
-            attributes={"data_generator": {"config": {"missing-members": [3]}}},
+            attributes={"data_generator": {"parameters": {"run": "b"}}},
+        )
+        for source in sources
+    ]
+    # a partial aggregate of each, which ranks behind it despite its higher id
+    sources += [
+        DataSource(
+            id=source.id + 12 if source.id is not None else None,
+            name=source.name,
+            model=source.model,
+            type=source.type,
+            version=source.version,
+            attributes={
+                "data_generator": {
+                    **(source.attributes or {}).get("data_generator", {}),
+                    "config": {"missing-members": [3]},
+                }
+            },
         )
         for source in sources
     ]
