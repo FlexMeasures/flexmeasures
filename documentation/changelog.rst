@@ -14,6 +14,8 @@ New features
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page, hosts can have the admins and consultants of each organisation emailed, too, and admins can switch an automation's monitoring off [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_, `PR #2702 <https://www.github.com/FlexMeasures/flexmeasures/pull/2702>`_ and `PR #2703 <https://www.github.com/FlexMeasures/flexmeasures/pull/2703>`_]
 * Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as soon as new data becomes known, the replay speed can be set, the ``n`` and ``b`` keys step ahead and back by a step of your choice, and the ``r`` key rewinds [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
 
+* Sensor status responses now also name their fields in kebab case, with the snake case spellings kept as deprecated aliases, and the status page reads the new names [see `PR #2773 <https://www.github.com/FlexMeasures/flexmeasures/pull/2773>`_]
+
 Infrastructure / Support
 -------------------------
 * ``StorageScheduler`` now also stores a ``commodity_costs`` breakdown in the job's ``scheduler_info``, for schedules with several commodities or a commodity other than electricity [see `PR #2448 <https://www.github.com/FlexMeasures/flexmeasures/pull/2448>`_]

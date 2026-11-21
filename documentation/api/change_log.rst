@@ -6,10 +6,11 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
 v3.0-35 | November xx, 2026
-""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""
 
 - ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` now accept ``monitored``, which says whether ``flexmeasures monitor automations`` reports the automation's failed runs (``true`` by default), and the automation endpoints return it. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation or switch monitoring off or on; others get a ``403``.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
+- ``GET /api/v3_0/sensors/<id>/status`` now also returns the kebab-case fields ``staleness-since``, ``source-type``, ``asset-id`` and ``asset-name``, alongside the existing snake_case fields, which are deprecated: they keep their values for now and will be removed in a future API version. New clients should read the kebab-case fields.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""
