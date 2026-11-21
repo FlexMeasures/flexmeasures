@@ -8,6 +8,10 @@ FlexMeasures Changelog
 v1.0.3 | November xx, 2026
 ============================
 
+Infrastructure / Support
+-------------------------
+* Require SQLAlchemy below 2.1, which v1.0 does not support (for instance, ``flexmeasures delete beliefs`` fails on it); upgrade to v1.1 to use SQLAlchemy 2.1 [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_ and `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
+
 Bugfixes
 -----------
 * Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]

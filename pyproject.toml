@@ -67,8 +67,8 @@ dependencies = [
     # 3.5.5: got rid of BlockManager deprecation warnings
     "timely-beliefs[forecast]>=3.5.5",
     "python-dotenv>=1.2.1",
-    # see GH#607 for issue on this pin
-    "sqlalchemy>=2.0",
+    # see GH#607 for issue on this pin; FlexMeasures supports SQLAlchemy 2.1 only from v1.1.0 (see PR #2596)
+    "sqlalchemy>=2.0,<2.1",
     "flask-sslify>=0.1.5",
     "flask-json>=0.4.0",
     "flask-migrate>=4.1.0",
