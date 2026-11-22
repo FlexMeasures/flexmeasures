@@ -306,7 +306,8 @@ def test_a_schedule_run_records_a_failed_job(
 ):
     """A schedule run whose job fails is failed, with the job's error, and over once nothing of it runs any more.
 
-    A failed device job of a sequential schedule leaves its wrap-up job waiting for good, which must not keep the run going.
+    A failed device job of a sequential schedule makes its wrap-up job fail, too, reporting on it;
+    the run keeps the device job's error rather than that report.
     """
     from flexmeasures.data.services import scheduling
     from flexmeasures.utils.job_utils import work_on_rq
@@ -331,6 +332,98 @@ def test_a_schedule_run_records_a_failed_job(
     assert run.last_error_type == "ValueError"
     assert run.last_error_message == "The database is read-only today."
     assert run.execution_completed_at is not None
+    assert {intent.status for intent in run.job_intents} == {"failed"}
+
+
+def test_a_sequential_schedule_run_records_the_devices_it_could_not_schedule(
+    fresh_db,
+    app,
+    add_charging_station_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A sequential schedule run with an infeasible device records every job of its chain as failed, and ends.
+
+    The devices after the infeasible one are never scheduled, so their jobs never run to record their own outcome.
+    The run should record them as failed all the same, rather than leave them queued for good,
+    and keep the infeasible device's error as its own.
+    """
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    # A usage above the station's power capacity cannot be met, which stays a hard constraint (see PR #2252)
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    infeasible_sensor = charging_station.sensors[0]
+    next_sensor = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ].sensors[0]
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    parameters = {
+        "start": "2015-01-02T00:00:00+01:00",
+        "duration": "PT24H",
+        "sequential": True,
+        "flex-context": {
+            "consumption-price": {"sensor": price_sensor_id},
+            "production-price": {"sensor": price_sensor_id},
+            "site-power-capacity": "1 TW",
+        },
+        "flex-model": [
+            {
+                "sensor": infeasible_sensor.id,
+                "soc-min": 0,
+                "soc-max": 40,
+                "power-capacity": "1 MW",
+                "soc-usage": ["10 MW"],
+            },
+            {"sensor": next_sensor.id, "soc-min": 0, "soc-max": 40},
+        ],
+    }
+    automation = build_schedule_automation(
+        charging_station.parent_asset,
+        name="Nightly charging schedules",
+        cronstr="0 0 * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=parameters,
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    run_id = run.id
+    run_automation(automation, automation_run=run)
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    intents = {intent.logical_job_key: intent for intent in run.job_intents}
+    assert {key: intent.status for key, intent in intents.items()} == {
+        f"device-{infeasible_sensor.id}": "failed",
+        f"device-{next_sensor.id}": "failed",
+        "wrap-up": "failed",
+    }
+    assert intents[f"device-{infeasible_sensor.id}"].last_error_type == (
+        "InfeasibleProblemException"
+    )
+    # The next device was never scheduled, because of the infeasible one
+    never_scheduled = intents[f"device-{next_sensor.id}"]
+    assert never_scheduled.last_error_type == "UpstreamSchedulingFailure"
+    assert f"sensor {infeasible_sensor.id}" in never_scheduled.last_error_message
+    assert never_scheduled.finished_at is not None
+
+    assert run.execution_state == "failed"
+    assert run.execution_completed_at is not None
+    assert run.last_error_type == "InfeasibleProblemException"
 
 
 def test_a_failed_schedule_run_is_reported_by_monitoring(
