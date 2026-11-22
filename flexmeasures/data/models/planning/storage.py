@@ -1284,12 +1284,19 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            # The SoC breach prices of this device (those of its priority, if it names one).
+            soc_minima_breach_price = self._soc_breach_price(
+                flex_model[d], "soc_minima_breach_price"
+            )
+            soc_maxima_breach_price = self._soc_breach_price(
+                flex_model[d], "soc_maxima_breach_price"
+            )
+
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
+                soc_minima_breach_price is not None
                 and soc_minima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1352,11 +1359,10 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima[d] = None
 
             if (
-                self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_maxima_breach_price is not None
                 and soc_maxima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1424,14 +1430,12 @@ class MetaStorageScheduler(Scheduler):
             # prices are available, which is the case whenever SoC relaxation is on, since
             # the two default prices are filled in as a pair.
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
-                and self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_minima_breach_price is not None
+                and soc_maxima_breach_price is not None
                 and soc_targets[d] is not None
                 and soc_at_start[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_target_shortage_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=soc_minima_breach_price,
@@ -1953,6 +1957,7 @@ class MetaStorageScheduler(Scheduler):
         self.device_inventory = DeviceInventory.from_flex_config(
             self.flex_model, self.flex_context, sensor=self.sensor
         )
+        self._validate_priorities()
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -2137,6 +2142,44 @@ class MetaStorageScheduler(Scheduler):
             ):
                 return True
         return False
+
+    def _soc_breach_price(self, flex_model_d: dict, field: str):
+        """The breach price of a device's SoC constraints, for the given field (e.g. "soc_minima_breach_price").
+
+        A device naming a priority in its flex-model gets the breach price set for that priority in the flex-context's ``priorities``,
+        and otherwise (or if its priority leaves that price out) the one set at the top level of the flex-context.
+        """
+        priority = flex_model_d.get("priority")
+        if priority is not None:
+            for priority_context in self.flex_context.get("priorities", []) or []:
+                if priority_context["priority"] != priority:
+                    continue
+                if priority_context.get(field) is not None:
+                    return priority_context[field]
+                break
+        return self.flex_context.get(field)
+
+    def _validate_priorities(self):
+        """Check that each priority named in the flex-model is listed in the flex-context's ``priorities``.
+
+        A misspelled priority would otherwise silently fall back to the top-level breach prices.
+        """
+        known_priorities = {
+            priority_context["priority"]
+            for priority_context in self.flex_context.get("priorities", []) or []
+        }
+        for flex_model_d in self.device_inventory.device_flex_models:
+            priority = flex_model_d.get("priority")
+            if priority is not None and priority not in known_priorities:
+                listed = (
+                    f"Listed priorities: {sorted(known_priorities)}."
+                    if known_priorities
+                    else "The flex-context lists no `priorities`."
+                )
+                raise ValidationError(
+                    f"The flex-model names priority '{priority}', which is not listed in the flex-context's `priorities`. {listed}",
+                    field_name="priority",
+                )
 
     def _soc_relaxation_applies_to(
         self, stock_key, sensor_d: Sensor | None = None

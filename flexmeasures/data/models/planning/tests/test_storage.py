@@ -6,6 +6,7 @@ import pytest
 
 import numpy as np
 import pandas as pd
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning import Scheduler
@@ -3026,3 +3027,126 @@ def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
     )
     np.testing.assert_allclose(schedule_a.sum(), 2.0, atol=1e-3)
     np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)
+
+
+def _schedule_two_evs_on_a_tight_site(
+    db,
+    charge_point,
+    soc_field: str,
+    device_priorities: list[str | None],
+    **flex_context,
+):
+    """Schedule two EVs on two connectors (1 kW each) of a site with 1.25 kW, each needing 3 kWh within 4 hours.
+
+    Together they can only get 5 kWh, so they fall short by 1 kWh.
+
+    :returns: The energy charged per EV (in kWh), and the costs per commitment.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    connectors = [
+        _evse_power_sensor(
+            db,
+            charge_point,
+            resolution,
+            # The db fixture outlives a single test case, so each case gets its own sensors.
+            name=f"fleet EV {ev} power ({soc_field}, priorities {device_priorities})",
+        )
+        for ev in ("A", "B")
+    ]
+    flex_model = []
+    for connector, priority in zip(connectors, device_priorities):
+        flex_model_d = {
+            "sensor": connector.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            soc_field: [{"datetime": end.isoformat(), "value": "3 kWh"}],
+            "power-capacity": "1 kW",
+            "production-capacity": "0 kW",
+        }
+        if priority is not None:
+            flex_model_d["priority"] = priority
+        flex_model.append(flex_model_d)
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1.25 kW",
+            "soc-minima-breach-price": "1000 EUR/kWh",
+            "soc-maxima-breach-price": "1000 EUR/kWh",
+            **flex_context,
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    charged = [
+        _storage_schedule_for_sensor(results, connector).sum()
+        for connector in connectors
+    ]
+    costs = next(r for r in results if r.get("name") == "commitment_costs")
+    return charged, costs["data"]
+
+
+@pytest.mark.parametrize("soc_field", ["soc-minima", "soc-targets"])
+@pytest.mark.parametrize(
+    "priorities, expected_charged",
+    [
+        # The EV with the high priority gets all it needs, so the other one takes the whole shortfall.
+        (["high", None], [3, 2]),
+        ([None, "high"], [2, 3]),
+        # Likewise, the EV with the low priority takes the whole shortfall.
+        (["low", None], [2, 3]),
+        # Two EVs with the same priority are both priced like that priority (one of them takes the whole shortfall, either one).
+        (["high", "high"], None),
+    ],
+)
+def test_soc_breach_priorities_decide_which_ev_falls_short(
+    db, charge_point, soc_field, priorities, expected_charged
+):
+    """A priority overrides the SoC breach prices of the devices naming it, so an unavoidable shortfall lands on the EV with the lowest breach price."""
+    charged, costs = _schedule_two_evs_on_a_tight_site(
+        db,
+        charge_point,
+        soc_field,
+        priorities,
+        priorities=[
+            {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"},
+            {"priority": "low", "soc-minima-breach-price": "900 EUR/kWh"},
+        ],
+    )
+
+    # The site is used to the full, so the EVs fall short by 1 kWh together.
+    assert sum(charged) == pytest.approx(5, abs=1e-3)
+    if expected_charged is not None:
+        assert charged == pytest.approx(expected_charged, abs=1e-3)
+
+    # The shortfall of 1 kWh is priced at the breach price of the EV taking it (in EUR/kWh).
+    shortfall_price = {
+        ("high", None): 1000,
+        (None, "high"): 1000,
+        ("low", None): 900,
+        ("high", "high"): 1500,
+    }[tuple(priorities)]
+    commitment = f"any {soc_field.replace('-', ' ')}"
+    assert costs[commitment] == pytest.approx(shortfall_price, abs=1e-3)
+
+
+def test_soc_breach_priority_must_be_listed(db, charge_point):
+    """A misspelled priority would silently fall back to the top-level breach prices, so it is rejected."""
+    with pytest.raises(ValidationError, match="not listed"):
+        _schedule_two_evs_on_a_tight_site(
+            db,
+            charge_point,
+            "soc-minima",
+            ["hihg", None],
+            priorities=[
+                {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
+            ],
+        )
