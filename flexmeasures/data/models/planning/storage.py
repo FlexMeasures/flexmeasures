@@ -1284,12 +1284,22 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            # A SoC breach price set in the device's commodity context takes precedence over one at the top level.
+            soc_minima_breach_price = self._soc_breach_price(
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                "soc_minima_breach_price",
+            )
+            soc_maxima_breach_price = self._soc_breach_price(
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                "soc_maxima_breach_price",
+            )
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
+                soc_minima_breach_price is not None
                 and soc_minima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1352,11 +1362,10 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima[d] = None
 
             if (
-                self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_maxima_breach_price is not None
                 and soc_maxima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1424,14 +1433,12 @@ class MetaStorageScheduler(Scheduler):
             # prices are available, which is the case whenever SoC relaxation is on, since
             # the two default prices are filled in as a pair.
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
-                and self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_minima_breach_price is not None
+                and soc_maxima_breach_price is not None
                 and soc_targets[d] is not None
                 and soc_at_start[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_target_shortage_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=soc_minima_breach_price,
@@ -2137,6 +2144,26 @@ class MetaStorageScheduler(Scheduler):
             ):
                 return True
         return False
+
+    def _soc_breach_price(
+        self, commodity_contexts: dict[str, dict], commodity: str, field: str
+    ):
+        """Look up a SoC breach price for a device of the given commodity.
+
+        A price set in the device's commodity context takes precedence,
+        so that each entry of a multi-commodity flex-context can price the SoC constraints of its own devices.
+        Otherwise, the top-level flex-context's price applies,
+        which is also where the flex-context schema fills in the default breach prices.
+
+        :param commodity_contexts:  The commodity contexts, as returned by `_get_commodity_contexts`.
+        :param commodity:           The commodity of the device.
+        :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
+        :returns:                   The breach price, or None if neither context sets one.
+        """
+        price = commodity_contexts.get(commodity, {}).get(field)
+        if price is None:
+            price = self.flex_context.get(field)
+        return price
 
     def _soc_relaxation_applies_to(
         self, stock_key, sensor_d: Sensor | None = None

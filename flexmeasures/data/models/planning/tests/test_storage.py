@@ -3100,3 +3100,38 @@ def test_list_flex_context_takes_precedence_over_stored_flex_context(
         ],
     )
     assert sum(charged) == pytest.approx(expected_charged, abs=1e-3)
+
+
+@pytest.mark.parametrize("form", ["dict", "commodities", "list"])
+def test_soc_breach_price_in_a_commodity_context(db, charge_point, form):
+    """A SoC breach price set in a commodity context prices the SoC constraints of that commodity's devices.
+
+    Two EVs on a site with 1.25 kW each need 3 kWh within 4 hours, so they fall short by 1 kWh together.
+    The breach price is set apart from the default one (1000 EUR/kWh), so that the reported costs show which price applied.
+    """
+    electricity_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-power-capacity": "1.25 kW",
+        "soc-minima-breach-price": "777 EUR/kWh",
+    }
+    if form == "dict":
+        flex_context = electricity_context
+    elif form == "commodities":
+        # This is what a list passed to the API becomes.
+        flex_context = {
+            "commodities": [{"commodity": "electricity", **electricity_context}]
+        }
+    else:
+        flex_context = [{"commodity": "electricity", **electricity_context}]
+
+    charged, costs = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"SoC breach price in the {form} form",
+        flex_context=flex_context,
+        **{"soc-minima": "3 kWh"},
+    )
+
+    assert sum(charged) == pytest.approx(5, abs=1e-3)
+    assert costs["any soc minima"] == pytest.approx(777, rel=1e-3)
