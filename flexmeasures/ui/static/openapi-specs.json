@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -8155,6 +8155,15 @@
             "minimum": 0.0,
             "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
             "example": 0.5
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Name of the priority this device belongs to.\nIts SoC constraints are then priced using the breach prices set for this priority in the flex-context's <code>priorities</code> field, rather than the top-level <code>soc-minima-breach-price</code> and <code>soc-maxima-breach-price</code>.\nThe name must be listed in the flex-context's <code>priorities</code>.\n",
+            "example": "high"
           },
           "sensor": {
             "type": "integer",

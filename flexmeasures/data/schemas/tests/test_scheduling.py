@@ -740,6 +740,103 @@ def test_flex_context_schema_fills_default_breach_prices_per_field():
     # see test_explicit_device_breach_price_is_not_overwritten.
 
 
+def test_flex_context_schema_loads_priorities():
+    """Breach prices per priority are converted like the top-level ones, and share their currency."""
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "priorities": [
+                {"priority": "high", "soc-minima-breach-price": "1.5 EUR/kWh"},
+                {"priority": "low", "soc-maxima-breach-price": "0.9 kEUR/MWh"},
+            ],
+        }
+    )
+
+    high, low = loaded_flex_context["priorities"]
+    assert high["priority"] == "high"
+    assert high["soc_minima_breach_price"].to("EUR/MWh").magnitude == pytest.approx(
+        1500
+    )
+    assert "soc_maxima_breach_price" not in high
+    assert low["soc_maxima_breach_price"].to("EUR/MWh").magnitude == pytest.approx(900)
+    assert loaded_flex_context["shared_currency_unit"] == "EUR"
+
+
+@pytest.mark.parametrize(
+    "priorities, error",
+    [
+        # A device's breach prices must be unambiguous.
+        (
+            [
+                {"priority": "high", "soc-minima-breach-price": "2 EUR/kWh"},
+                {"priority": "high", "soc-minima-breach-price": "3 EUR/kWh"},
+            ],
+            "Duplicate",
+        ),
+        ([{"priority": " ", "soc-minima-breach-price": "2 EUR/kWh"}], "non-empty"),
+        ([{"soc-minima-breach-price": "2 EUR/kWh"}], "Missing data"),
+        ([{"priority": "high"}], "sets no breach price"),
+        # All prices share a currency.
+        (
+            [{"priority": "high", "soc-minima-breach-price": "2 KRW/kWh"}],
+            "same currency",
+        ),
+        ([{"priority": "high", "soc-minima-breach-price": "2 EUR"}], "Invalid unit"),
+        (
+            [{"priority": "high", "soc-minima-breach-price": "-2 EUR/kWh"}],
+            "greater than or equal to 0",
+        ),
+        # Only the SoC breach prices can be set per priority.
+        (
+            [
+                {
+                    "priority": "high",
+                    "soc-minima-breach-price": "2 EUR/kWh",
+                    "site-power-capacity": "1 MW",
+                }
+            ],
+            "Unknown field",
+        ),
+    ],
+)
+def test_flex_context_schema_rejects_invalid_priorities(priorities, error):
+    with pytest.raises(ValidationError, match=error):
+        FlexContextSchema().load(
+            {"consumption-price": "1 EUR/MWh", "priorities": priorities}
+        )
+
+
+def test_db_flex_context_schema_rejects_time_series_in_priorities():
+    with pytest.raises(ValidationError, match="time series specification"):
+        DBFlexContextSchema().load(
+            {
+                "priorities": [
+                    {
+                        "priority": "high",
+                        "soc-minima-breach-price": [
+                            {
+                                "start": "2026-01-01T00:00+01",
+                                "end": "2026-01-02T00:00+01",
+                                "value": "2 EUR/kWh",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+
+@pytest.mark.parametrize("blank_name", ["", "   "])
+def test_flex_model_rejects_blank_priority(blank_name):
+    """Both the scheduling schema and the db-stored one reject a blank priority name."""
+    with pytest.raises(ValidationError, match="non-empty"):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load({"power-capacity": "20 kW", "priority": blank_name})
+    with pytest.raises(ValidationError, match="non-empty"):
+        DBStorageFlexModelSchema().load({"priority": blank_name})
+
+
 def test_db_flex_context_schema_fills_no_default_breach_prices():
     """Validating a stored flex-context does not bake in the default breach prices implied by the relax flags."""
     loaded_flex_context = DBFlexContextSchema().load({})

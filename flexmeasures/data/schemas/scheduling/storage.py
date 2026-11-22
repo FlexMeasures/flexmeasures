@@ -82,6 +82,15 @@ def _validate_coupling_name(coupling: str | None):
         )
 
 
+def _validate_priority_name(priority: str | None):
+    """Reject blank priority names, which would be easy to mistype and hard to spot."""
+    if priority is not None and not priority.strip():
+        raise ValidationError(
+            "The `priority` field, when provided, must be a non-empty (non-whitespace) name.",
+            field_name="priority",
+        )
+
+
 def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
     """Validate a flex-model entry that declares an inflexible device.
 
@@ -520,6 +529,12 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Range(min=0, min_inclusive=False),
         metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
     )
+    priority = fields.Str(
+        data_key="priority",
+        required=False,
+        load_default=None,
+        metadata=metadata.PRIORITY.to_dict(),
+    )
 
     def __init__(
         self,
@@ -655,6 +670,10 @@ class StorageFlexModelSchema(Schema):
     @validates("coupling")
     def validate_coupling(self, coupling: str | None, **kwargs):
         _validate_coupling_name(coupling)
+
+    @validates("priority")
+    def validate_priority(self, priority: str | None, **kwargs):
+        _validate_priority_name(priority)
 
     @validates_schema
     def validate_coupling_direction_is_unambiguous(self, data: dict, **kwargs):
@@ -892,6 +911,12 @@ class DBStorageFlexModelSchema(Schema):
         validate=validate.Range(min=0, min_inclusive=False),
         metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
     )
+    priority = fields.Str(
+        data_key="priority",
+        required=False,
+        load_default=None,
+        metadata=metadata.PRIORITY.to_dict(),
+    )
 
     mapped_schema_keys: dict
 
@@ -920,6 +945,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates("coupling")
     def validate_coupling(self, coupling: str | None, **kwargs):
         _validate_coupling_name(coupling)
+
+    @validates("priority")
+    def validate_priority(self, priority: str | None, **kwargs):
+        _validate_priority_name(priority)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
