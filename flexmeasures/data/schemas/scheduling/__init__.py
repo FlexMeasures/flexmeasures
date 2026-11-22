@@ -1348,6 +1348,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "priorities": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRIORITIES.description),
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
     "aggregate-power": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),

@@ -140,7 +140,6 @@ def test_ui_flexcontext_schema():
         "inflexible-device-sensors",  # deprecated; the UI only offers inflexible-consumption/inflexible-production
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
         "commodities",  # internal field; the UI manages it through the commodity tab bar
-        "priorities",  # not yet editable in the UI; set it through the API
     ]
 
     schema_keys = []
