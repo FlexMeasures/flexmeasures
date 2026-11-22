@@ -22,7 +22,7 @@ from flexmeasures.data.schemas.scheduling.config import (
     strip_momentary_flex_fields,
 )
 from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
-from flexmeasures.utils.coding_utils import deprecated, merge_or_append
+from flexmeasures.utils.coding_utils import deprecated
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
 
@@ -459,13 +459,14 @@ class Scheduler(DataGenerator):
         if isinstance(self.flex_context, dict):
             self.flex_context = {**db_flex_context, **self.flex_context}
         elif isinstance(self.flex_context, list):
-            # Currently, db_flex_context is always a dict describing only electricity
-            merge_or_append(
-                db_flex_context,
-                self.flex_context,
-                match_key="commodity",
-                match_value="electricity",
-            )
+            # Currently, db_flex_context is always a dict describing only electricity,
+            # so it is merged into the passed electricity context, whose own fields take precedence.
+            for i, context in enumerate(self.flex_context):
+                if context.get("commodity", "electricity") == "electricity":
+                    self.flex_context[i] = {**db_flex_context, **context}
+                    break
+            else:
+                self.flex_context.append(db_flex_context)
 
         # Merge the passed flex_model with the db_flex_model by matching asset IDs
         db_flex_model = asset.get_flex_model()

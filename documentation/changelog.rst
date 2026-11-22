@@ -26,6 +26,7 @@ Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 * Running a forecast no longer mutes all warnings for the rest of the process (for instance, in a worker); only warnings raised while fitting the model are muted [see `PR #2890 <https://www.github.com/FlexMeasures/flexmeasures/pull/2890>`_]
+* A ``soc-minima-breach-price`` or ``soc-maxima-breach-price`` set in a commodity context of the flex-context now prices the SoC constraints of that commodity's devices, instead of being replaced by the top-level price (or ignored, in a flex-context passed as a list, as ``flexmeasures add schedule --flex-context`` does); and in a flex-context passed as a list, the fields passed for electricity now override those stored on the asset, rather than the other way round [see `PR #2891 <https://www.github.com/FlexMeasures/flexmeasures/pull/2891>`_]
 
 
 v1.1.1 | November 11, 2026

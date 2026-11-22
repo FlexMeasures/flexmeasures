@@ -3150,3 +3150,112 @@ def test_soc_breach_priority_must_be_listed(db, charge_point):
                 {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
             ],
         )
+
+
+def _schedule_two_evs(db, charge_point, name: str, flex_context, **flex_model):
+    """Schedule two EVs on two connectors (1 kW each) of the charge point, for 4 hours.
+
+    :returns: The energy charged per EV (in kWh), and the costs per commitment.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    connectors = [
+        _evse_power_sensor(db, charge_point, resolution, name=f"EV {ev} ({name})")
+        for ev in ("A", "B")
+    ]
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": connector.id,
+                "soc-at-start": "0 kWh",
+                "soc-min": "0 kWh",
+                "soc-max": "100 kWh",
+                "power-capacity": "1 kW",
+                "production-capacity": "0 kW",
+                **{
+                    key: [{"datetime": end.isoformat(), "value": value}]
+                    for key, value in flex_model.items()
+                },
+            }
+            for connector in connectors
+        ],
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    charged = [
+        _storage_schedule_for_sensor(results, connector).sum()
+        for connector in connectors
+    ]
+    costs = next(r for r in results if r.get("name") == "commitment_costs")
+    return charged, costs["data"]
+
+
+@pytest.mark.parametrize(
+    "passed_site_power_capacity, expected_charged",
+    [
+        # The passed site capacity overrides the 1 MVA stored on the charge point.
+        ({"site-power-capacity": "1.25 kW"}, 5),
+        # Without a passed site capacity, the stored one still applies, so only the EVs' own capacities limit them.
+        ({}, 8),
+    ],
+)
+def test_list_flex_context_takes_precedence_over_stored_flex_context(
+    db, charge_point, passed_site_power_capacity, expected_charged
+):
+    """In a flex-context passed as a list, the electricity context's fields override those stored on the asset, like they do in a flex-context passed as a dict."""
+    charged, _ = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"passed {passed_site_power_capacity}",
+        flex_context=[
+            {
+                "commodity": "electricity",
+                # Charging pays, so the EVs charge as much as they can.
+                "consumption-price": "-100 EUR/MWh",
+                "production-price": "-100 EUR/MWh",
+                **passed_site_power_capacity,
+            }
+        ],
+    )
+    assert sum(charged) == pytest.approx(expected_charged, abs=1e-3)
+
+
+@pytest.mark.parametrize("form", ["dict", "commodities", "list"])
+def test_soc_breach_price_in_a_commodity_context(db, charge_point, form):
+    """A SoC breach price set in a commodity context prices the SoC constraints of that commodity's devices.
+
+    Two EVs on a site with 1.25 kW each need 3 kWh within 4 hours, so they fall short by 1 kWh together.
+    The breach price is set apart from the default one (1000 EUR/kWh), so that the reported costs show which price applied.
+    """
+    electricity_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-power-capacity": "1.25 kW",
+        "soc-minima-breach-price": "777 EUR/kWh",
+    }
+    if form == "dict":
+        flex_context = electricity_context
+    elif form == "commodities":
+        # This is what a list passed to the API becomes.
+        flex_context = {
+            "commodities": [{"commodity": "electricity", **electricity_context}]
+        }
+    else:
+        flex_context = [{"commodity": "electricity", **electricity_context}]
+
+    charged, costs = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"SoC breach price in the {form} form",
+        flex_context=flex_context,
+        **{"soc-minima": "3 kWh"},
+    )
+
+    assert sum(charged) == pytest.approx(5, abs=1e-3)
+    assert costs["any soc minima"] == pytest.approx(777, rel=1e-3)

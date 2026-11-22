@@ -1284,14 +1284,19 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
-            # The SoC breach prices of this device (those of its priority, if it names one).
+            # The SoC breach prices of this device (those of its priority, if it names one, or else those of its commodity).
             soc_minima_breach_price = self._soc_breach_price(
-                flex_model[d], "soc_minima_breach_price"
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                flex_model[d],
+                "soc_minima_breach_price",
             )
             soc_maxima_breach_price = self._soc_breach_price(
-                flex_model[d], "soc_maxima_breach_price"
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                flex_model[d],
+                "soc_maxima_breach_price",
             )
-
             if (
                 soc_minima_breach_price is not None
                 and soc_minima[d] is not None
@@ -2143,11 +2148,26 @@ class MetaStorageScheduler(Scheduler):
                 return True
         return False
 
-    def _soc_breach_price(self, flex_model_d: dict, field: str):
-        """The breach price of a device's SoC constraints, for the given field (e.g. "soc_minima_breach_price").
+    def _soc_breach_price(
+        self,
+        commodity_contexts: dict[str, dict],
+        commodity: str,
+        flex_model_d: dict,
+        field: str,
+    ):
+        """Look up a SoC breach price for a device.
 
-        A device naming a priority in its flex-model gets the breach price set for that priority in the flex-context's ``priorities``,
-        and otherwise (or if its priority leaves that price out) the one set at the top level of the flex-context.
+        In order of precedence, the price comes from:
+
+        1. the device's priority, if its flex-model names one, and that priority sets the price,
+        2. the device's commodity context, so that each entry of a multi-commodity flex-context can price the SoC constraints of its own devices,
+        3. the top-level flex-context, which is also where the flex-context schema fills in the default breach prices.
+
+        :param commodity_contexts:  The commodity contexts, as returned by `_get_commodity_contexts`.
+        :param commodity:           The commodity of the device.
+        :param flex_model_d:        The flex-model of the device.
+        :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
+        :returns:                   The breach price, or None if none of these sets one.
         """
         priority = flex_model_d.get("priority")
         if priority is not None:
@@ -2157,7 +2177,10 @@ class MetaStorageScheduler(Scheduler):
                 if priority_context.get(field) is not None:
                     return priority_context[field]
                 break
-        return self.flex_context.get(field)
+        price = commodity_contexts.get(commodity, {}).get(field)
+        if price is None:
+            price = self.flex_context.get(field)
+        return price
 
     def _validate_priorities(self):
         """Check that each priority named in the flex-model is listed in the flex-context's ``priorities``.
