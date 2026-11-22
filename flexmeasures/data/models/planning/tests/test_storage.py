@@ -3026,3 +3026,77 @@ def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
     )
     np.testing.assert_allclose(schedule_a.sum(), 2.0, atol=1e-3)
     np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)
+
+
+def _schedule_two_evs(db, charge_point, name: str, flex_context, **flex_model):
+    """Schedule two EVs on two connectors (1 kW each) of the charge point, for 4 hours.
+
+    :returns: The energy charged per EV (in kWh), and the costs per commitment.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    connectors = [
+        _evse_power_sensor(db, charge_point, resolution, name=f"EV {ev} ({name})")
+        for ev in ("A", "B")
+    ]
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": connector.id,
+                "soc-at-start": "0 kWh",
+                "soc-min": "0 kWh",
+                "soc-max": "100 kWh",
+                "power-capacity": "1 kW",
+                "production-capacity": "0 kW",
+                **{
+                    key: [{"datetime": end.isoformat(), "value": value}]
+                    for key, value in flex_model.items()
+                },
+            }
+            for connector in connectors
+        ],
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    charged = [
+        _storage_schedule_for_sensor(results, connector).sum()
+        for connector in connectors
+    ]
+    costs = next(r for r in results if r.get("name") == "commitment_costs")
+    return charged, costs["data"]
+
+
+@pytest.mark.parametrize(
+    "passed_site_power_capacity, expected_charged",
+    [
+        # The passed site capacity overrides the 1 MVA stored on the charge point.
+        ({"site-power-capacity": "1.25 kW"}, 5),
+        # Without a passed site capacity, the stored one still applies, so only the EVs' own capacities limit them.
+        ({}, 8),
+    ],
+)
+def test_list_flex_context_takes_precedence_over_stored_flex_context(
+    db, charge_point, passed_site_power_capacity, expected_charged
+):
+    """In a flex-context passed as a list, the electricity context's fields override those stored on the asset, like they do in a flex-context passed as a dict."""
+    charged, _ = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"passed {passed_site_power_capacity}",
+        flex_context=[
+            {
+                "commodity": "electricity",
+                # Charging pays, so the EVs charge as much as they can.
+                "consumption-price": "-100 EUR/MWh",
+                "production-price": "-100 EUR/MWh",
+                **passed_site_power_capacity,
+            }
+        ],
+    )
+    assert sum(charged) == pytest.approx(expected_charged, abs=1e-3)
