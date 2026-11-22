@@ -406,6 +406,25 @@ class SharedSchema(Schema):
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
+    priorities = fields.Nested(
+        PrioritySchema,
+        data_key="priorities",
+        required=False,
+        many=True,
+        metadata=metadata.PRIORITIES.to_dict(),
+    )
+
+    @validates("priorities")
+    def validate_priorities_unique(self, priorities: list[dict], **kwargs):
+        """Validate that each priority is listed at most once, so a device's breach prices are unambiguous."""
+        names = [
+            priority["priority"] for priority in priorities if "priority" in priority
+        ]
+        duplicates = {name for name in names if names.count(name) > 1}
+        if duplicates:
+            raise ValidationError(
+                f"Each priority may only be listed once in `priorities`. Duplicate(s): {sorted(duplicates)}."
+            )
 
     # Relaxation fields
     relax_constraints = fields.Bool(
@@ -951,26 +970,6 @@ class FlexContextSchema(SharedSchema):
             description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
         ),
     )
-
-    priorities = fields.Nested(
-        PrioritySchema,
-        data_key="priorities",
-        required=False,
-        many=True,
-        metadata=metadata.PRIORITIES.to_dict(),
-    )
-
-    @validates("priorities")
-    def validate_priorities_unique(self, priorities: list[dict], **kwargs):
-        """Validate that each priority is listed at most once, so a device's breach prices are unambiguous."""
-        names = [
-            priority["priority"] for priority in priorities if "priority" in priority
-        ]
-        duplicates = {name for name in names if names.count(name) > 1}
-        if duplicates:
-            raise ValidationError(
-                f"Each priority may only be listed once in `priorities`. Duplicate(s): {sorted(duplicates)}."
-            )
 
     # Energy commitments
     # todo: deprecated since flexmeasures==0.23

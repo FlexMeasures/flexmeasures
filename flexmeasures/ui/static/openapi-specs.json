@@ -5883,6 +5883,27 @@
           }
         }
       },
+      "Priority": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "type": "string",
+            "description": "Name of the priority, as referred to by the flex-model's ``priority`` field."
+          },
+          "soc-minima-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of ``soc-minima`` constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with ``soc-maxima-breach-price``, it also prices ``soc-targets``: falling short of a target is priced like a ``soc-minima`` breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\nIn a multi-commodity flex-context, each commodity context can set its own price for the devices of its commodity; otherwise, the top-level price applies. [#penalty_field]_ [#breach_field]_\n",
+            "example": "120 EUR/kWh"
+          },
+          "soc-maxima-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of ``soc-maxima`` constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with ``soc-minima-breach-price``, it also prices ``soc-targets``: overshooting a target is priced like a ``soc-maxima`` breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an **internal nudge** to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\nIn a multi-commodity flex-context, each commodity context can set its own price for the devices of its commodity; otherwise, the top-level price applies. [#penalty_field]_ [#breach_field]_\n",
+            "example": "120 EUR/kWh"
+          }
+        },
+        "required": [
+          "priority"
+        ],
+        "additionalProperties": false
+      },
       "GroupReference": {
         "type": "object",
         "properties": {
@@ -6125,6 +6146,23 @@
             "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with <code>soc-minima-breach-price</code>, it also prices <code>soc-targets</code>: overshooting a target is priced like a <code>soc-maxima</code> breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\nIn a multi-commodity flex-context, each commodity context can set its own price for the devices of its commodity; otherwise, the top-level price applies.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "priorities": {
+            "description": "Breach prices per priority, overriding the <code>soc-minima-breach-price</code> and <code>soc-maxima-breach-price</code> for the devices that name that priority in their flex-model (see the flex-model's <code>priority</code> field).\nEach entry names a <code>priority</code> and sets one or both of the SoC breach prices; a breach price an entry leaves out falls back to the one set in the same context.\nIn a multi-commodity flex-context, each commodity context lists the priorities of its own devices.\nUse this to decide who gives way when not all SoC constraints can be met.\nFor example, give the EVs of one fleet a lower <code>soc-minima-breach-price</code>, so an unavoidable shortfall lands on them first, or rank individual EVs with slightly different prices, so a shortfall lands on one EV rather than being spread over several.\nPriority names must be unique, and the prices must use the same currency as the other price settings.\n",
+            "example": [
+              {
+                "priority": "high",
+                "soc-minima-breach-price": "1500 EUR/kWh"
+              },
+              {
+                "priority": "low",
+                "soc-minima-breach-price": "900 EUR/kWh"
+              }
+            ],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Priority"
+            }
           },
           "relax-constraints": {
             "type": "boolean",
@@ -8162,7 +8200,7 @@
               "null"
             ],
             "default": null,
-            "description": "Name of the priority this device belongs to.\nIts SoC constraints are then priced using the breach prices set for this priority in the flex-context's <code>priorities</code> field, rather than the top-level <code>soc-minima-breach-price</code> and <code>soc-maxima-breach-price</code>.\nThe name must be listed in the flex-context's <code>priorities</code>.\n",
+            "description": "Name of the priority this device belongs to.\nIts SoC constraints are then priced using the breach prices set for this priority in the flex-context's <code>priorities</code> field, rather than the flex-context's own <code>soc-minima-breach-price</code> and <code>soc-maxima-breach-price</code>.\nIn a multi-commodity flex-context, the priority is looked up in the context of the device's commodity, where the name must be listed in <code>priorities</code>.\n",
             "example": "high"
           },
           "sensor": {

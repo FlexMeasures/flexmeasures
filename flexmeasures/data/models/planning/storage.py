@@ -2159,7 +2159,7 @@ class MetaStorageScheduler(Scheduler):
 
         In order of precedence, the price comes from:
 
-        1. the device's priority, if its flex-model names one, and that priority sets the price,
+        1. the device's priority, if its flex-model names one, and the ``priorities`` of the device's commodity context set the price for it,
         2. the device's commodity context, so that each entry of a multi-commodity flex-context can price the SoC constraints of its own devices,
         3. the top-level flex-context, which is also where the flex-context schema fills in the default breach prices.
 
@@ -2169,38 +2169,45 @@ class MetaStorageScheduler(Scheduler):
         :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
         :returns:                   The breach price, or None if none of these sets one.
         """
+        commodity_context = commodity_contexts.get(commodity, {})
         priority = flex_model_d.get("priority")
         if priority is not None:
-            for priority_context in self.flex_context.get("priorities", []) or []:
+            for priority_context in commodity_context.get("priorities", []) or []:
                 if priority_context["priority"] != priority:
                     continue
                 if priority_context.get(field) is not None:
                     return priority_context[field]
                 break
-        price = commodity_contexts.get(commodity, {}).get(field)
+        price = commodity_context.get(field)
         if price is None:
             price = self.flex_context.get(field)
         return price
 
     def _validate_priorities(self):
-        """Check that each priority named in the flex-model is listed in the flex-context's ``priorities``.
+        """Check that each priority named in the flex-model is listed in the ``priorities`` of the device's commodity context.
 
-        A misspelled priority would otherwise silently fall back to the top-level breach prices.
+        A misspelled priority would otherwise silently fall back to the breach prices of the commodity context.
         """
-        known_priorities = {
-            priority_context["priority"]
-            for priority_context in self.flex_context.get("priorities", []) or []
-        }
-        for flex_model_d in self.device_inventory.device_flex_models:
-            priority = flex_model_d.get("priority")
-            if priority is not None and priority not in known_priorities:
+        commodity_contexts = self._get_commodity_contexts()
+        for device in self.device_inventory.devices:
+            priority = (device.flex_model or {}).get("priority")
+            if priority is None:
+                continue
+            known_priorities = {
+                priority_context["priority"]
+                for priority_context in commodity_contexts.get(
+                    device.commodity, {}
+                ).get("priorities", [])
+                or []
+            }
+            if priority not in known_priorities:
                 listed = (
                     f"Listed priorities: {sorted(known_priorities)}."
                     if known_priorities
-                    else "The flex-context lists no `priorities`."
+                    else "It lists no `priorities`."
                 )
                 raise ValidationError(
-                    f"The flex-model names priority '{priority}', which is not listed in the flex-context's `priorities`. {listed}",
+                    f"The flex-model names priority '{priority}', which is not listed in the `priorities` of the flex-context for {device.commodity}. {listed}",
                     field_name="priority",
                 )
 

@@ -195,7 +195,8 @@ In a multi-commodity flex-context, each commodity context can set its own price 
 )
 PRIORITIES = MetaData(
     description="""Breach prices per priority, overriding the ``soc-minima-breach-price`` and ``soc-maxima-breach-price`` for the devices that name that priority in their flex-model (see the flex-model's ``priority`` field).
-Each entry names a ``priority`` and sets one or both of the SoC breach prices; a breach price an entry leaves out falls back to the one set at the top level of the flex-context.
+Each entry names a ``priority`` and sets one or both of the SoC breach prices; a breach price an entry leaves out falls back to the one set in the same context.
+In a multi-commodity flex-context, each commodity context lists the priorities of its own devices.
 Use this to decide who gives way when not all SoC constraints can be met.
 For example, give the EVs of one fleet a lower ``soc-minima-breach-price``, so an unavoidable shortfall lands on them first, or rank individual EVs with slightly different prices, so a shortfall lands on one EV rather than being spread over several.
 Priority names must be unique, and the prices must use the same currency as the other price settings.
@@ -478,8 +479,8 @@ Declaring operation modes introduces binary decision variables into the optimiza
 )
 PRIORITY = MetaData(
     description="""Name of the priority this device belongs to.
-Its SoC constraints are then priced using the breach prices set for this priority in the flex-context's ``priorities`` field, rather than the top-level ``soc-minima-breach-price`` and ``soc-maxima-breach-price``.
-The name must be listed in the flex-context's ``priorities``.
+Its SoC constraints are then priced using the breach prices set for this priority in the flex-context's ``priorities`` field, rather than the flex-context's own ``soc-minima-breach-price`` and ``soc-maxima-breach-price``.
+In a multi-commodity flex-context, the priority is looked up in the context of the device's commodity, where the name must be listed in ``priorities``.
 """,
     example="high",
 )

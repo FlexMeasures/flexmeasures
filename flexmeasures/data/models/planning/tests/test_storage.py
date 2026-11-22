@@ -3029,11 +3029,30 @@ def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
     np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)
 
 
+def _in_form(
+    form: str, electricity_context: dict, top_level_context: dict | None = None
+) -> dict | list[dict]:
+    """Put an electricity flex-context in the given form: a "dict", a dict with "commodities" (what a list passed to the API becomes), or a "list".
+
+    In the "commodities" form, the top-level context (if any) sits next to the commodities.
+    """
+    if form == "dict":
+        return electricity_context
+    if form == "commodities":
+        return {
+            **(top_level_context or {}),
+            "commodities": [{"commodity": "electricity", **electricity_context}],
+        }
+    return [{"commodity": "electricity", **electricity_context}]
+
+
 def _schedule_two_evs_on_a_tight_site(
     db,
     charge_point,
     soc_field: str,
     device_priorities: list[str | None],
+    form: str = "dict",
+    top_level_flex_context: dict | None = None,
     **flex_context,
 ):
     """Schedule two EVs on two connectors (1 kW each) of a site with 1.25 kW, each needing 3 kWh within 4 hours.
@@ -3051,7 +3070,7 @@ def _schedule_two_evs_on_a_tight_site(
             charge_point,
             resolution,
             # The db fixture outlives a single test case, so each case gets its own sensors.
-            name=f"fleet EV {ev} power ({soc_field}, priorities {device_priorities})",
+            name=f"fleet EV {ev} power ({soc_field}, priorities {device_priorities}, {form} form{', with top-level context' if top_level_flex_context else ''})",
         )
         for ev in ("A", "B")
     ]
@@ -3075,14 +3094,18 @@ def _schedule_two_evs_on_a_tight_site(
         end=end,
         resolution=resolution,
         flex_model=flex_model,
-        flex_context={
-            "consumption-price": "100 EUR/MWh",
-            "production-price": "0 EUR/MWh",
-            "site-power-capacity": "1.25 kW",
-            "soc-minima-breach-price": "1000 EUR/kWh",
-            "soc-maxima-breach-price": "1000 EUR/kWh",
-            **flex_context,
-        },
+        flex_context=_in_form(
+            form,
+            {
+                "consumption-price": "100 EUR/MWh",
+                "production-price": "0 EUR/MWh",
+                "site-power-capacity": "1.25 kW",
+                "soc-minima-breach-price": "1000 EUR/kWh",
+                "soc-maxima-breach-price": "1000 EUR/kWh",
+                **flex_context,
+            },
+            top_level_flex_context,
+        ),
         return_multiple=True,
     )
     results = scheduler.compute()
@@ -3094,6 +3117,7 @@ def _schedule_two_evs_on_a_tight_site(
     return charged, costs["data"]
 
 
+@pytest.mark.parametrize("form", ["dict", "commodities", "list"])
 @pytest.mark.parametrize("soc_field", ["soc-minima", "soc-targets"])
 @pytest.mark.parametrize(
     "priorities, expected_charged",
@@ -3108,14 +3132,18 @@ def _schedule_two_evs_on_a_tight_site(
     ],
 )
 def test_soc_breach_priorities_decide_which_ev_falls_short(
-    db, charge_point, soc_field, priorities, expected_charged
+    db, charge_point, form, soc_field, priorities, expected_charged
 ):
-    """A priority overrides the SoC breach prices of the devices naming it, so an unavoidable shortfall lands on the EV with the lowest breach price."""
+    """A priority overrides the SoC breach prices of the devices naming it, so an unavoidable shortfall lands on the EV with the lowest breach price.
+
+    The priorities are listed in the electricity context, which is the top level of a flex-context in the dict form.
+    """
     charged, costs = _schedule_two_evs_on_a_tight_site(
         db,
         charge_point,
         soc_field,
         priorities,
+        form=form,
         priorities=[
             {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"},
             {"priority": "low", "soc-minima-breach-price": "900 EUR/kWh"},
@@ -3149,6 +3177,25 @@ def test_soc_breach_priority_must_be_listed(db, charge_point):
             priorities=[
                 {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
             ],
+        )
+
+
+def test_soc_breach_priority_must_be_listed_in_the_devices_commodity_context(
+    db, charge_point
+):
+    """Priorities listed at the top level do not count for devices whose commodity has its own context, just like the other top-level fields."""
+    with pytest.raises(ValidationError, match="not listed"):
+        _schedule_two_evs_on_a_tight_site(
+            db,
+            charge_point,
+            "soc-minima",
+            ["high", None],
+            form="commodities",
+            top_level_flex_context={
+                "priorities": [
+                    {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
+                ]
+            },
         )
 
 

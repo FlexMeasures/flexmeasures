@@ -762,6 +762,62 @@ def test_flex_context_schema_loads_priorities():
     assert loaded_flex_context["shared_currency_unit"] == "EUR"
 
 
+def test_commodity_context_loads_priorities():
+    """A commodity context lists its own priorities, for the devices of its commodity."""
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "commodities": [
+                {
+                    "commodity": "electricity",
+                    "consumption-price": "1 EUR/MWh",
+                    "priorities": [
+                        {"priority": "high", "soc-minima-breach-price": "1.5 EUR/kWh"}
+                    ],
+                }
+            ],
+        }
+    )
+
+    (electricity_context,) = loaded_flex_context["commodity_contexts"]
+    (high,) = electricity_context["priorities"]
+    assert high["priority"] == "high"
+    assert high["soc_minima_breach_price"].to("EUR/MWh").magnitude == pytest.approx(
+        1500
+    )
+
+
+@pytest.mark.parametrize(
+    "priorities, error",
+    [
+        (
+            [
+                {"priority": "high", "soc-minima-breach-price": "2 EUR/kWh"},
+                {"priority": "high", "soc-minima-breach-price": "3 EUR/kWh"},
+            ],
+            "may only be listed once",
+        ),
+        (
+            [{"priority": "high", "soc-minima-breach-price": "2 USD/kWh"}],
+            "same currency",
+        ),
+    ],
+)
+def test_commodity_context_rejects_invalid_priorities(priorities, error):
+    """A commodity context's priorities are validated like those at the top level."""
+    with pytest.raises(ValidationError, match=error):
+        FlexContextSchema().load(
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "1 EUR/MWh",
+                        "priorities": priorities,
+                    }
+                ],
+            }
+        )
+
+
 @pytest.mark.parametrize(
     "priorities, error",
     [
