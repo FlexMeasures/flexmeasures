@@ -178,13 +178,7 @@
                 <input class="form-check-input" type="checkbox" role="switch" id="fullBeliefInfoToggle">
                 <label class="form-check-label" for="fullBeliefInfoToggle">Full belief info</label>
             </div>
-            <div class="replay-container">
-                <div id="replay" data-bs-toggle="tooltip" data-bs-html="true" data-bs-custom-class="replay-tooltip"
-                    data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
-                    class="stopped">
-                </div>
-                <div id="replay-time"></div>
-            </div>
+            {% include "includes/replay_controls.html" %}
         </div>
 
         <div id="chartInfoNote" class="text-center text-muted fst-italic my-2" style="display: none;">

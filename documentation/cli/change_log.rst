@@ -4,6 +4,12 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.2.0 | December xx, 2026
+=================================
+
+* Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation. With ``--notify-users``, the admins and consultants of each asset's organisation also receive a digest of the automations they can see.
+* Add ``flexmeasures add automation --unmonitored`` and ``flexmeasures edit automation --monitored/--unmonitored`` to keep an automation's failed runs out of ``flexmeasures monitor automations``, or to report them again. ``flexmeasures show automations`` shows whether each automation is monitored.
+
 since v1.1.0 | November 05, 2026
 =================================
 

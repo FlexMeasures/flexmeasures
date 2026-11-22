@@ -11,6 +11,8 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page, hosts can have the admins and consultants of each organisation emailed, too, and admins can switch an automation's monitoring off [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_, `PR #2702 <https://www.github.com/FlexMeasures/flexmeasures/pull/2702>`_ and `PR #2703 <https://www.github.com/FlexMeasures/flexmeasures/pull/2703>`_]
+* Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as soon as new data becomes known, the replay speed can be set, the ``n`` and ``b`` keys step ahead and back by a step of your choice, and the ``r`` key rewinds [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
 
 Infrastructure / Support
 -------------------------
@@ -23,6 +25,7 @@ Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 * Fix ``get_data_source()`` raising ``MultipleResultsFound`` when a source with the same name, model, version and type has attributes, and stop ``keep_latest_version()`` from hiding the beliefs of sources that differ only by their attributes [see `PR #2867 <https://www.github.com/FlexMeasures/flexmeasures/pull/2867>`_]
+* Running a forecast no longer mutes all warnings for the rest of the process (for instance, in a worker); only warnings raised while fitting the model are muted [see `PR #2890 <https://www.github.com/FlexMeasures/flexmeasures/pull/2890>`_]
 
 
 v1.1.1 | November 11, 2026

@@ -2024,6 +2024,7 @@ def create_automation(
     source: DataSource | None = None,
     origin: str = "API",
     check_permissions: bool = False,
+    monitored: bool = True,
 ) -> tuple[Automation, list[str]]:
     """Create an automation through its registered handler, without committing."""
     from flask_security import current_user
@@ -2047,6 +2048,8 @@ def create_automation(
         origin=origin,
         check_permissions=check_permissions,
     )
+    # Set here rather than by the handler, so that no handler, a plugin's included, needs to know about monitoring.
+    automation.monitored = monitored
     if check_permissions:
         if current_user.is_anonymous:
             from werkzeug.exceptions import Unauthorized
@@ -2235,15 +2238,34 @@ def _create_builtin_automation(
     return automation, warnings
 
 
+def user_may_change_monitoring(user, asset) -> bool:
+    """Tell whether the user may switch the monitoring of the asset's automations on or off.
+
+    Switching it off silences the digest for whoever receives it, so it is up to admins:
+    the host's admins, and the account-admins of the organisation owning the asset.
+    Members and consultants may not, although they may manage the automations otherwise.
+    """
+    from flexmeasures.auth.policy import ACCOUNT_ADMIN_ROLE, user_has_admin_access
+
+    if user_has_admin_access(user, "update"):
+        return True
+    return (
+        asset.account_id is not None
+        and user.account_id == asset.account_id
+        and user.has_role(ACCOUNT_ADMIN_ROLE)
+    )
+
+
 def update_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    monitored: bool | None = None,
     origin: str = "API",
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+    """Update an automation's name, cron string, timezone, activation status and/or monitoring (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
@@ -2272,6 +2294,13 @@ def update_automation(
         if active:
             reset_cursor = True
         automation.active = active
+    if monitored is not None and monitored != automation.monitored:
+        changes.append(
+            "monitoring switched on" if monitored else "monitoring switched off"
+        )
+        automation.monitored = monitored
+        if monitored:
+            automation.monitoring_resumed_at = server_now()
     if reset_cursor:
         # A new revision keeps the durable runs of the old and the new schedule apart,
         # even where they fall on the same scheduled UTC time.

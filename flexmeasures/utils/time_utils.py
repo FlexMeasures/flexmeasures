@@ -305,6 +305,19 @@ def duration_isoformat(duration: timedelta):
     return re.sub("%P", repl, "P%P")
 
 
+def exact_duration_str(duration: timedelta) -> str:
+    """Say how long a duration is in whole hours or minutes, exactly, which a rounded duration such as humanize's would not.
+
+    For example, 6 hours is "6 hours" and 90 minutes is "90 minutes".
+    Seconds are left out.
+    """
+    minutes = int(duration.total_seconds() // 60)
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return "1 hour" if hours == 1 else f"{hours} hours"
+    return "1 minute" if minutes == 1 else f"{minutes} minutes"
+
+
 def determine_minimum_resampling_resolution(
     event_resolutions: list[timedelta],
     fallback_resolution: timedelta = timedelta(0),
