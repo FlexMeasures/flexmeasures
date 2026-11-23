@@ -111,10 +111,21 @@ v1.0.3 | November 23, 2026
 .. warning:: This is a security release, which fixes 12 security advisories (linked under *Bugfixes*). We recommend that all hosts upgrade.
              Some fixes change what API clients and users may do: read the :ref:`breaking and behaviour changes <v1.0.3-behaviour-changes>` before upgrading.
 
+.. important:: **What to do**
+
+   1. *Before upgrading,* check these settings:
+
+      - With ``SECURITY_TWO_FACTOR = True``, scripts that log in with email and password (such as ``flexmeasures-client``) get ``401``. Set ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA = True`` to keep them working for now.
+      - Behind a reverse proxy, set ``FLEXMEASURES_TRUSTED_PROXIES`` (usually ``1``).
+      - If monitoring calls the task-check endpoint, set ``FLEXMEASURES_TASK_CHECK_AUTH_TOKEN``.
+      - If another site shows FlexMeasures pages in a frame, allow it in ``FLEXMEASURES_SECURITY_HEADERS``.
+
+   2. Upgrade.
+   3. Tell your API users: send tokens in the ``Authorization`` header (``?auth_token=`` gives ``400``), and expect ``401`` for an unknown email address and ``429`` after repeated failed logins.
+   4. *After upgrading,* run the "Checking whether this was used against you" steps of every advisory linked below.
+
 .. note:: These fixes prevent misuse from now on, but do not undo what happened before the upgrade.
           Data stored before upgrading stays as it is, such as flex-contexts naming other organisations' sensors, assets linked to other organisations' assets, and stored forecast configurations.
-
-.. note:: Most advisories describe how to check whether the issue was used against your server. Do these checks after upgrading.
 
 .. _v1.0.3-behaviour-changes:
 
