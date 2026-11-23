@@ -952,34 +952,28 @@
                     },
                     "response": {
                       "type": "array",
-                      "description": "Per-slot recourse rules (only present when the schedule was triggered with the\nflex-model field <code>include-response</code> set to true). Each object corresponds to one\nschedule value and describes how the device should respond locally to deviations\nof its commodity's main meter from the reference forecast, following\n<code>setpoint(m) = clip(p + gain * (m - reference), band[0], band[1])</code>,\nwhere <code>p</code> is the scheduled value. Values share the schedule's unit and sign\nconvention; a band side of null means unconstrained.\n",
+                      "description": "Per-slot response rules, only present when the schedule was triggered with the flex-context field <code>reference-sensor</code>.\nEach object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,\nfollowing <code>setpoint = clip(p + gain * (m_uncontrolled - reference), band)</code>.\nHere <code>p</code> is the scheduled value, and <code>m_uncontrolled</code> is the measured power at the connection minus the realised power of the responding devices.\nValues share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.\n",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "reference-sensor": {
-                            "type": "integer",
-                            "nullable": true,
-                            "description": "ID of the commodity's main-meter sensor (from the flex-context field <code>reference-sensor</code>), if configured."
-                          },
                           "reference": {
                             "type": "number",
-                            "description": "The forecasted net flow of the device's commodity, including the device's own scheduled value."
+                            "description": "The uncontrolled power at the connection the plan assumed for this slot (the inflexible devices' forecasts, without any flexible device's plan)."
                           },
                           "gain": {
                             "type": "number",
-                            "description": "Response gain (0 means follow the plan; -1 means absorb main-meter surprises 1:1)."
+                            "description": "Response gain (0 means follow the plan; -1 means absorb the surprise)."
                           },
                           "band": {
                             "type": "array",
+                            "description": "The power ranges the device may move within during this slot, as [min, max] pairs; a device with gain 0 gets the single range [p, p].",
                             "items": {
-                              "type": "number",
-                              "nullable": true
-                            },
-                            "description": "Feasibility band [min, max] within which deviating this slot is known safe."
-                          },
-                          "retrigger-on-band-exit": {
-                            "type": "boolean",
-                            "description": "Whether a new schedule should be triggered when the meter leaves the band."
+                              "type": "array",
+                              "items": {
+                                "type": "number",
+                                "nullable": true
+                              }
+                            }
                           }
                         }
                       }

@@ -1198,12 +1198,11 @@ def test_trigger_and_get_schedule_with_recourse_response(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """The GET schedule payload gains per-slot "response" objects when the flex-model
-    sets ``include-response``, and stays unchanged otherwise (backward compatibility).
+    """The GET schedule payload gains per-slot "response" objects when the flex-context sets ``reference-sensor``,
+    and is exactly today's payload otherwise.
 
-    The response objects describe the recourse rule
-    ``setpoint(m) = clip(p + gain * (m - reference), band[0], band[1])``
-    in the same unit and sign convention as the schedule values.
+    The response objects describe the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
+    in the same unit and sign convention as the schedule values, with the band as a list of [min, max] ranges.
     """
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     sensor = (
@@ -1213,23 +1212,30 @@ def test_trigger_and_get_schedule_with_recourse_response(
         .one_or_none()
     )
 
-    def trigger_and_get_schedule(include_response: bool) -> dict:
+    def trigger_and_get_schedule(opt_in: bool) -> dict:
         message = message_for_trigger_schedule(resolution="PT1H")
-        if include_response:
-            message["flex-model"]["include-response"] = True
+        message["force_new_job_creation"] = True
         message["flex-context"] = {
             "consumption-price": {"sensor": price_sensor_id},
             "production-price": {"sensor": price_sensor_id},
             "site-power-capacity": "1 TW",  # big enough to avoid infeasibilities
-            # Stand-in for the site's main-meter sensor
-            "reference-sensor": sensor.id,
         }
+        if opt_in:
+            message["flex-model"]["response"] = {
+                "directions": ["consumption-up", "consumption-down"],
+                "response-time": "PT1M",
+            }
+            # The battery's own power sensor stands in for the connection's meter.
+            message["flex-context"]["reference-sensor"] = {"sensor": sensor.id}
+            message["flex-context"]["response-order"] = [{"sensor": sensor.id}]
         with app.test_client() as client:
             trigger_schedule_response = client.post(
                 url_for("SensorAPI:trigger_schedule", id=sensor.id),
                 json=message,
             )
-            assert trigger_schedule_response.status_code == 202
+            assert (
+                trigger_schedule_response.status_code == 202
+            ), trigger_schedule_response.json
             job_id = trigger_schedule_response.json["schedule"]
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
         assert (
@@ -1242,27 +1248,33 @@ def test_trigger_and_get_schedule_with_recourse_response(
             get_schedule_response = client.get(
                 url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
             )
-        assert get_schedule_response.status_code == 200
+        assert get_schedule_response.status_code == 200, get_schedule_response.json
         return get_schedule_response.json
 
-    # Backwards compatibility: without the opt-in, the payload is unchanged.
-    schedule = trigger_and_get_schedule(include_response=False)
-    assert "response" not in schedule
+    # Without the opt-in, the payload is today's payload.
+    schedule_without = trigger_and_get_schedule(opt_in=False)
+    assert "response" not in schedule_without
 
-    # With the opt-in, one response object accompanies each schedule value.
-    schedule = trigger_and_get_schedule(include_response=True)
-    response_objects = schedule["response"]
+    # With the opt-in, one response object accompanies each schedule value, and nothing else changes.
+    schedule = trigger_and_get_schedule(opt_in=True)
+    response_objects = schedule.pop("response")
+    assert set(schedule.keys()) == set(schedule_without.keys())
+    assert schedule["values"] == schedule_without["values"]
     assert len(response_objects) == len(schedule["values"])
     for value, response_object in zip(schedule["values"], response_objects):
-        assert response_object["retrigger-on-band-exit"] is True
-        assert response_object["reference-sensor"] == sensor.id
+        assert set(response_object.keys()) == {"reference", "gain", "band"}
         assert response_object["gain"] in (0, -1)
-        band_min, band_max = response_object["band"]
-        # The band is bounded by the device's power capacity (2 MW), so both sides
-        # are finite, and the scheduled value lies within the band.
-        assert band_min is not None and band_max is not None
-        assert band_min - 1e-6 <= value <= band_max + 1e-6
-        # The battery is the only device of its commodity here, so the reference
-        # (net commodity flow, including the device's own planned power) equals
-        # the scheduled value.
-        assert response_object["reference"] == pytest.approx(value, abs=1e-6)
+        # Nothing uncontrolled is scheduled alongside the battery, so the reference is 0 (not null).
+        assert response_object["reference"] == 0
+        band = response_object["band"]
+        assert len(band) >= 1
+        for lower, upper in band:
+            # The band is bounded by the device's power capacity, so both sides are finite.
+            assert lower is not None and upper is not None
+            assert lower <= upper
+        # The scheduled value lies within the band, which is just the plan when the gain is 0.
+        # The band keeps the plan's full precision, whereas the served values are rounded.
+        assert any(lower - 1e-6 <= value <= upper + 1e-6 for lower, upper in band)
+        if response_object["gain"] == 0:
+            assert len(band) == 1 and band[0][0] == band[0][1]
+            assert band[0][0] == pytest.approx(value, abs=1e-6)
