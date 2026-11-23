@@ -9,7 +9,7 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
 .. note:: 
     Currently, FlexMeasures comes with the following reporters:
-        - `PandasReporter`: applies arbitrary `Pandas <https://pandas.pydata.org>`_ methods to sensor data. 
+        - `PandasReporter`: applies `Pandas <https://pandas.pydata.org>`_ methods to sensor data (pure transformations only: no file output or expression evaluation).
         - `AggregatorReporter`: combines data from multiple sensors into one using any of the methods supported by the Pandas `aggregate` function (e.g. sum, average, max, min...).
         - `ProfitOrLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
@@ -69,7 +69,7 @@ Run the command below to show the values for our newly-created `grid connection 
     │                                                            │
     │                                                            │ 499.0kW
     └────────────────────────────────────────────────────────────┘
-                       06:00           12:00           18:00
+        00:00         06:00           12:00          18:00
               ██ grid connection capacity (toy-building)
 
 

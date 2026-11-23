@@ -28,7 +28,11 @@ class FailingScheduler(Scheduler):
 
 
 def test_requeue_failing_job(
-    fresh_db, app, add_charging_station_assets_fresh_db, setup_fresh_test_data
+    fresh_db,
+    app,
+    add_charging_station_assets_fresh_db,
+    setup_fresh_test_data,
+    monkeypatch,
 ):
     """
     Testing that failing jobs are requeued.
@@ -55,8 +59,11 @@ def test_requeue_failing_job(
     )
     assert isinstance(scheduler, FailingScheduler)
 
-    # assigning scheduler to the sensor "Test charging station"
-    charging_station.attributes["custom-scheduler"] = custom_scheduler
+    # assigning scheduler to the sensor "Test charging station", which attributes may only do by a registered name
+    monkeypatch.setitem(
+        app.data_generators["scheduler"], "FailingScheduler", FailingScheduler
+    )
+    charging_station.attributes["custom-scheduler"] = "FailingScheduler"
 
     # clean queue
     app.queues["scheduling"].empty()
