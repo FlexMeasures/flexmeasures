@@ -330,7 +330,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
         <ul class="nav nav-tabs" role="tablist">
           {% for type_id, display_name in automation_types.items() %}
-          <li class="nav-item" role="presentation">
+          {# A plugin type's tab starts hidden; the script shows it once the listing holds an automation of that type. #}
+          <li class="nav-item{% if type_id not in always_shown_automation_types %} d-none{% endif %}" role="presentation">
             <button class="nav-link{% if loop.first %} active{% endif %}" id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
           </li>
           {% endfor %}
@@ -364,6 +365,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // Switching monitoring off silences the digest for whoever receives it, so only admins may, and the forms leave the field out for everyone else.
   const userCanChangeMonitoring = {{ user_can_change_monitoring | tojson }};
   const automationTypes = {{ automation_types | tojson }};
+  // The types whose tab shows even while it lists nothing; any other type's tab shows only while the listing holds one of its automations.
+  const alwaysShownAutomationTypes = new Set({{ always_shown_automation_types | tojson }});
   const automationsById = new Map();
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
   const automationDetailsById = new Map();
@@ -899,7 +902,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  /* Show the tab of each type that is always shown or that the listing holds, and hide the rest.
+     The monitoring filter does not count here: filtering a tab empty should not take the tab away.
+     When the tab in front gets hidden, as narrowing the scope can do, the first tab still shown takes its place. */
+  function showTabsInUse() {
+    const typesListed = new Set(lastListedAutomations.map(automation => automation.type));
+    for (const automationType of AUTOMATION_TYPES) {
+      const shown = alwaysShownAutomationTypes.has(automationType) || typesListed.has(automationType);
+      document.getElementById(`${automationType}-tab`)?.closest(".nav-item").classList.toggle("d-none", !shown);
+    }
+    const activeTab = document.querySelector('button[data-bs-toggle="tab"].active');
+    if (activeTab && activeTab.closest(".nav-item").classList.contains("d-none")) {
+      const firstShownTab = document.querySelector('.nav-item:not(.d-none) > button[data-bs-toggle="tab"]');
+      if (firstShownTab) {
+        bootstrap.Tab.getOrCreateInstance(firstShownTab).show();
+      }
+    }
+  }
+
   function renderAutomationsTables({ rebuild = false } = {}) {
+    showTabsInUse();
     for (const automationType of AUTOMATION_TYPES) {
       $(`#automationsTable-${automationType}`).show();
       const ofThisType = lastListedAutomations.filter(

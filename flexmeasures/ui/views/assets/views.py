@@ -279,9 +279,11 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
-        # The page's tabs cover every type it can come to list, rather than the types its current scope holds:
+        # The page holds a tab for every type it can come to list, rather than the types its current scope holds:
         # the scope is widened on the page itself, which refreshes the listing without rendering the tabs again,
         # and an automation of a type without a tab would have nowhere to be listed.
+        # The page then hides each plugin type's tab while the listing has none of that type,
+        # so a server with many plugins does not crowd every asset with tabs it has no use for.
         assets_it_can_list = [asset] + get_readable_offspring(asset)
         registered_types = get_automation_types()
 
@@ -299,6 +301,12 @@ class AssetCrudUI(FlaskView):
                 for automation in asset_it_can_list.automations
                 if automation.type not in registered_types
             },
+            # The built-in types keep their tab even when empty, as that is where their empty-table hint says how to create one.
+            always_shown_automation_types=[
+                type_id
+                for type_id, handler in registered_types.items()
+                if handler.generator_class is None
+            ],
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
