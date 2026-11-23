@@ -174,6 +174,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(flexmeasures_env)
     )
+    # Flask's own default (no limit) is replaced below, unless the host sets a limit (see resolve_max_content_length)
+    app.config.pop("MAX_CONTENT_LENGTH", None)
 
     # Now, potentially overwrite those from config file or environment variables
 
@@ -202,6 +204,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     normalize_trusted_hosts(app)
     pin_database_driver(app)
     normalize_security_durations(app)
+    resolve_cookie_security(app)
+    resolve_max_content_length(app)
     check_rate_limit_settings(app)
 
     # Check for missing values.
@@ -418,6 +422,34 @@ def normalize_security_durations(app: Flask) -> None:
         if value is None:
             continue
         app.config[setting] = parse_duration_setting(setting, value)
+
+
+COOKIE_SECURITY_SETTINGS = ("SESSION_COOKIE_SECURE", "REMEMBER_COOKIE_SECURE")
+
+
+def resolve_cookie_security(app: Flask) -> None:
+    """Mark the login cookies Secure (sent over HTTPS only) when FLEXMEASURES_FORCE_HTTPS is on.
+
+    A value the host set explicitly (True or False) is kept.
+    """
+    force_https = bool(app.config.get("FLEXMEASURES_FORCE_HTTPS", False))
+    for setting in COOKIE_SECURITY_SETTINGS:
+        if app.config.get(setting) is None:
+            app.config[setting] = force_https
+
+
+def resolve_max_content_length(app: Flask) -> None:
+    """Limit every request body to the sensor data ingestion limit, unless the host set MAX_CONTENT_LENGTH.
+
+    So one setting (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES) limits all request bodies by default.
+    A host may still set MAX_CONTENT_LENGTH itself, also to None (no limit).
+    """
+    if "MAX_CONTENT_LENGTH" in app.config:
+        return
+    ingestion_limit = app.config.get("FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES")
+    app.config["MAX_CONTENT_LENGTH"] = (
+        int(ingestion_limit) if ingestion_limit is not None else None
+    )
 
 
 def check_rate_limit_settings(app: Flask) -> None:

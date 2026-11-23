@@ -13,6 +13,7 @@ New features
 -------------
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page, hosts can have the admins and consultants of each organisation emailed, too, and admins can switch an automation's monitoring off [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_, `PR #2702 <https://www.github.com/FlexMeasures/flexmeasures/pull/2702>`_ and `PR #2703 <https://www.github.com/FlexMeasures/flexmeasures/pull/2703>`_]
 * Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as soon as new data becomes known, the replay speed can be set, the ``n`` and ``b`` keys step ahead and back by a step of your choice, and the ``r`` key rewinds [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
+* ``flexmeasures show beliefs`` labels the time axis of its plot in local time: the timezone given with ``--timezone``, or else that of the first sensor with data, instead of UTC [see `PR #2893 <https://www.github.com/FlexMeasures/flexmeasures/pull/2893>`_]
 
 Infrastructure / Support
 -------------------------
@@ -20,12 +21,163 @@ Infrastructure / Support
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]
 * Correct the security and hosting documentation, which still said that FlexMeasures forces HTTPS in production mode and uses two-factor authentication (both opt-in settings since v0.20 and v0.27 respectively), described outdated password hashing and token internals, and showed Docker commands that the shell splits apart [see `PR #2842 <https://www.github.com/FlexMeasures/flexmeasures/pull/2842>`_]
 * Show a complete, tested example of a plugin automation type in the plugin docs, including how to enable it and try out one run, and correct which rules plugin schemas need to follow [see `PR #2705 <https://www.github.com/FlexMeasures/flexmeasures/pull/2705>`_]
+* The ``latest`` tag of the FlexMeasures Docker image always points to the newest release, also when a patch release for an older version is published at the same time [see `PR #2895 <https://www.github.com/FlexMeasures/flexmeasures/pull/2895>`_]
 
 Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 * Running a forecast no longer mutes all warnings for the rest of the process (for instance, in a worker); only warnings raised while fitting the model are muted [see `PR #2890 <https://www.github.com/FlexMeasures/flexmeasures/pull/2890>`_]
 * A ``soc-minima-breach-price`` or ``soc-maxima-breach-price`` set in a commodity context of the flex-context now prices the SoC constraints of that commodity's devices, instead of being replaced by the top-level price (or ignored, in a flex-context passed as a list, as ``flexmeasures add schedule --flex-context`` does); and in a flex-context passed as a list, the fields passed for electricity now override those stored on the asset, rather than the other way round [see `PR #2891 <https://www.github.com/FlexMeasures/flexmeasures/pull/2891>`_]
+* Saving from the UI's flex-context editor no longer deletes the fields it does not edit, such as ``relax-constraints`` set through the API; in a commodity tab, such fields are now also shown as uneditable [see `PR #2892 <https://www.github.com/FlexMeasures/flexmeasures/pull/2892>`_]
+
+
+v1.1.2 | November 23, 2026
+============================
+
+.. warning:: This is a security release, which fixes 13 security advisories (linked under *Bugfixes*). We recommend that all hosts upgrade.
+             Some fixes change what API clients and users may do: read the :ref:`breaking and behaviour changes <v1.1.2-behaviour-changes>` before upgrading.
+
+.. important:: **What to do**
+
+   1. *Before upgrading,* check these settings:
+
+      - With ``SECURITY_TWO_FACTOR = True``, scripts that log in with email and password (such as ``flexmeasures-client``) get ``401``. Set ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA = True`` to keep them working for now.
+      - Behind a reverse proxy, set ``FLEXMEASURES_TRUSTED_PROXIES`` (usually ``1``).
+      - If monitoring calls the task-check endpoint, set ``FLEXMEASURES_TASK_CHECK_AUTH_TOKEN``.
+      - If another site shows FlexMeasures pages in a frame, allow it in ``FLEXMEASURES_SECURITY_HEADERS``.
+      - If report configurations use ``eval``, ``query``, ``pipe`` or other methods outside the new allow-list, they are refused; trusted ones can go in ``FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS``.
+
+   2. Upgrade, and run ``flexmeasures db upgrade``.
+   3. Tell your API users: send tokens in the ``Authorization`` header (``?auth_token=`` gives ``400``), and expect ``401`` for an unknown email address and ``429`` after repeated failed logins.
+   4. *After upgrading,* run the "Checking whether this was used against you" steps of every advisory linked below.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             A data migration records which user each existing automation runs as, so that its runs are checked against that user's permissions.
+
+.. note:: These fixes prevent misuse from now on, but do not undo what happened before the upgrade.
+          Data stored before upgrading stays as it is, such as flex-contexts naming other organisations' sensors, assets linked to other organisations' assets, and stored forecast and report configurations.
+
+.. _v1.1.2-behaviour-changes:
+
+Breaking and behaviour changes
+--------------------------------
+* So that a password alone no longer gets around two-factor authentication, servers with ``SECURITY_TWO_FACTOR`` refuse API tokens to users who log in with a second factor (which FlexMeasures sets up for every user) and who send only their email address and password (``401``). This affects scripts that log in with a password, such as those using ``flexmeasures-client``. To keep them working for now, set ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA = True`` [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* So that a browser session left open cannot be turned into an API token, ``/api/requestAuthToken`` asks for the password also from logged-in users, and gives deactivated users no token (``401``) [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* So that nobody can find out which email addresses have an account, ``/api/requestAuthToken`` answers an unknown email address with ``401`` (like a wrong password) instead of ``404``, and the login and "forgot password" forms answer the same for every email address [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+* To stop password guessing, logins and token requests are refused for a while (``429``) after repeated failures for the same email address. Behind a reverse proxy, set ``FLEXMEASURES_TRUSTED_PROXIES`` (see :ref:`trusted_proxies_config`), or all clients share one count. The limits can be tuned (see :ref:`rate-limiting-config`) [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+* API tokens in the URL end up in logs and browser histories, so ``?auth_token=`` is refused (``400``); send tokens in the ``Authorization`` header
+* New passwords need at least 12 characters (``SECURITY_PASSWORD_LENGTH_MIN``); existing passwords keep working
+* To limit what a stolen login cookie is worth, "remember me" lasts two weeks instead of a year (``REMEMBER_COOKIE_DURATION``)
+* Against clickjacking, other sites can no longer show FlexMeasures pages in a frame; to allow a site you trust, see ``FLEXMEASURES_SECURITY_HEADERS``
+* For privacy, Sentry no longer receives email addresses, usernames or IP addresses; to send them again, add ``"send_default_pii": True`` to ``FLEXMEASURES_SENTRY_CONFIG``
+* An empty ``FLEXMEASURES_TASK_CHECK_AUTH_TOKEN`` no longer lets every caller of the task-check endpoint in; configure a token if your monitoring uses it
+* So that account-admins cannot take over more privileged accounts, they can no longer change the email address, active status or password of admins in their organisation. Email changes are mailed to the previous address, so changing one needs working outgoing mail [see `GHSA-xwr3-cmv2-g775 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xwr3-cmv2-g775>`_]
+* Only admins can change an organisation's account roles, the ``consultant`` role can only be given in organisations with the ``Consultancy`` account role, and plain members can no longer edit their organisation [see `GHSA-rc69-6phf-5h43 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-rc69-6phf-5h43>`_]
+* So that schedules cannot read or overwrite other organisations' data, storing a flex-context or flex-model, or triggering a schedule, requires access to the sensors it names (``403``); users other than admins can no longer name public sensors as schedule outputs [see `GHSA-x98q-2gvh-7792 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-x98q-2gvh-7792>`_]
+* An asset can only get a parent asset in another organisation if the user may add assets there (``422``, or ``403`` when copying); existing links stay [see `GHSA-qx35-pwfp-h964 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-qx35-pwfp-h964>`_]
+* The forecast trigger and forecast automations refuse settings meant for the CLI, which could write files on the server (``model-save-dir``, ``output-path``) or overload it (``model-params`` beyond set bounds) (``422``) [see `GHSA-276c-54vm-4px2 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-276c-54vm-4px2>`_]
+* So that one organisation cannot tie up the workers all organisations share, automations that users other than admins set up through the API may not run more often than ``FLEXMEASURES_AUTOMATION_MIN_INTERVAL`` allows (by default hourly for forecasting, every minute for ingestion and every 15 minutes for other types), and count against the trigger rate limit; existing automations keep their schedule
+* The task dashboard (``/tasks``) is for admins only, in every mode; admin-readers may only look
+
+Bugfixes
+-----------
+* ``PandasReporter`` configurations could write files on the worker and run code; they are now limited to a list of pandas transformations [see `GHSA-82g5-rfpw-mfv3 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-82g5-rfpw-mfv3>`_]
+* The ``custom-scheduler`` attribute could make FlexMeasures import modules or run files; it now only takes the name of a registered scheduler (see :ref:`plugin_customization`). Also, ``flexmeasures delete sensor`` no longer fails for every sensor when one automation cannot be resolved [see `GHSA-5x23-phrv-wr56 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-5x23-phrv-wr56>`_]
+* Asset, organisation and group names could run script on the dashboard map [see `GHSA-4p5x-7hf4-mhwj <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-4p5x-7hf4-mhwj>`_]
+* Names and annotations could run script when a chart URL was opened in the browser [see `GHSA-jfmf-jvvq-p7wf <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-jfmf-jvvq-p7wf>`_]
+* Schedules, forecasts, reports and automations could read from or record on other organisations' sensors [see `GHSA-x98q-2gvh-7792 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-x98q-2gvh-7792>`_]
+* The forecast trigger and forecast automations accepted settings meant for the CLI only [see `GHSA-276c-54vm-4px2 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-276c-54vm-4px2>`_]
+* Members could change their organisation's account roles [see `GHSA-rc69-6phf-5h43 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-rc69-6phf-5h43>`_]
+* Account-admins and consultants could take over the accounts of more privileged users [see `GHSA-xwr3-cmv2-g775 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xwr3-cmv2-g775>`_]
+* ``/api/requestAuthToken`` issued tokens without the second factor, and to logged-in sessions without the password [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* Assets could be linked, copied and deleted across organisations without the permissions for it, and asset pages showed parts of other organisations' assets [see `GHSA-qx35-pwfp-h964 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-qx35-pwfp-h964>`_]
+* Making an asset its own ancestor made requests loop forever [see `GHSA-2v6m-mrjj-2hhq <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-2v6m-mrjj-2hhq>`_]
+* The schedule status endpoint showed jobs without checking access to their asset or sensor, and admin-readers could requeue jobs on the task dashboard [see `GHSA-9fqh-j9m7-pv7h <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-9fqh-j9m7-pv7h>`_]
+* Passwords could be guessed without limit, and login, token and password recovery requests revealed which email addresses have an account [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+
+Infrastructure / Support
+-------------------------
+* Every response carries security headers against content sniffing, framing and leaking URLs (``FLEXMEASURES_SECURITY_HEADERS``)
+* Login cookies are ``SameSite=Lax`` and ``HttpOnly``, and ``Secure`` when ``FLEXMEASURES_FORCE_HTTPS`` is on
+* So that large uploads cannot exhaust a server's memory, request bodies are limited to ``FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES`` (3.1 MB by default; ``413`` above it)
+* To help notice attacks, logins, failed logins and token requests are logged, with the client's address (behind a proxy, with ``FLEXMEASURES_TRUSTED_PROXIES``)
+* Requests can no longer add fake lines to the logs
+* Text that users typed is escaped wherever pages show it, including the audit log and the tables of users, assets and organisations
+* The task-check endpoint no longer reveals the server's mode
+* Data sources of automations on public assets no longer reveal their configuration to every user, nor can other users' automations use them
+* ``"send_default_pii": True`` in ``FLEXMEASURES_SENTRY_CONFIG`` no longer fails with a ``TypeError``
+
+
+v1.0.3 | November 23, 2026
+============================
+
+.. warning:: This is a security release, which fixes 12 security advisories (linked under *Bugfixes*). We recommend that all hosts upgrade.
+             Some fixes change what API clients and users may do: read the :ref:`breaking and behaviour changes <v1.0.3-behaviour-changes>` before upgrading.
+
+.. important:: **What to do**
+
+   1. *Before upgrading,* check these settings:
+
+      - With ``SECURITY_TWO_FACTOR = True``, scripts that log in with email and password (such as ``flexmeasures-client``) get ``401``. Set ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA = True`` to keep them working for now.
+      - Behind a reverse proxy, set ``FLEXMEASURES_TRUSTED_PROXIES`` (usually ``1``).
+      - If monitoring calls the task-check endpoint, set ``FLEXMEASURES_TASK_CHECK_AUTH_TOKEN``.
+      - If another site shows FlexMeasures pages in a frame, allow it in ``FLEXMEASURES_SECURITY_HEADERS``.
+
+   2. Upgrade.
+   3. Tell your API users: send tokens in the ``Authorization`` header (``?auth_token=`` gives ``400``), and expect ``401`` for an unknown email address and ``429`` after repeated failed logins.
+   4. *After upgrading,* run the "Checking whether this was used against you" steps of every advisory linked below.
+
+.. note:: These fixes prevent misuse from now on, but do not undo what happened before the upgrade.
+          Data stored before upgrading stays as it is, such as flex-contexts naming other organisations' sensors, assets linked to other organisations' assets, and stored forecast configurations.
+
+.. _v1.0.3-behaviour-changes:
+
+Breaking and behaviour changes
+--------------------------------
+* So that a password alone no longer gets around two-factor authentication, servers with ``SECURITY_TWO_FACTOR`` refuse API tokens to users who log in with a second factor (which FlexMeasures sets up for every user) and who send only their email address and password (``401``). This affects scripts that log in with a password, such as those using ``flexmeasures-client``. To keep them working for now, set ``FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA = True`` [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* So that a browser session left open cannot be turned into an API token, ``/api/requestAuthToken`` asks for the password also from logged-in users, and gives deactivated users no token (``401``) [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* So that nobody can find out which email addresses have an account, ``/api/requestAuthToken`` answers an unknown email address with ``401`` (like a wrong password) instead of ``404``, and the login and "forgot password" forms answer the same for every email address [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+* To stop password guessing, logins and token requests are refused for a while (``429``) after repeated failures for the same email address. Behind a reverse proxy, set ``FLEXMEASURES_TRUSTED_PROXIES`` (see :ref:`trusted_proxies_config`), or all clients share one count. The limits can be tuned (see :ref:`rate-limiting-config`) [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+* API tokens in the URL end up in logs and browser histories, so ``?auth_token=`` is refused (``400``); send tokens in the ``Authorization`` header
+* New passwords need at least 12 characters (``SECURITY_PASSWORD_LENGTH_MIN``); existing passwords keep working
+* To limit what a stolen login cookie is worth, "remember me" lasts two weeks instead of a year (``REMEMBER_COOKIE_DURATION``)
+* Against clickjacking, other sites can no longer show FlexMeasures pages in a frame; to allow a site you trust, see ``FLEXMEASURES_SECURITY_HEADERS``
+* For privacy, Sentry no longer receives email addresses, usernames or IP addresses; to send them again, add ``"send_default_pii": True`` to ``FLEXMEASURES_SENTRY_CONFIG``
+* An empty ``FLEXMEASURES_TASK_CHECK_AUTH_TOKEN`` no longer lets every caller of the task-check endpoint in; configure a token if your monitoring uses it
+* So that account-admins cannot take over more privileged accounts, they can no longer change the email address, active status or password of admins in their organisation. Email changes are mailed to the previous address, so changing one needs working outgoing mail [see `GHSA-xwr3-cmv2-g775 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xwr3-cmv2-g775>`_]
+* Only admins can change an organisation's account roles, the ``consultant`` role can only be given in organisations with the ``Consultancy`` account role, and plain members can no longer edit their organisation [see `GHSA-rc69-6phf-5h43 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-rc69-6phf-5h43>`_]
+* So that schedules cannot read or overwrite other organisations' data, storing a flex-context or flex-model, or triggering a schedule, requires access to the sensors it names (``403``); users other than admins can no longer name public sensors as schedule outputs [see `GHSA-x98q-2gvh-7792 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-x98q-2gvh-7792>`_]
+* An asset can only get a parent asset in another organisation if the user may add assets there (``422``, or ``403`` when copying); existing links stay [see `GHSA-qx35-pwfp-h964 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-qx35-pwfp-h964>`_]
+* The forecast trigger refuses settings meant for the CLI, which could write files on the server (``model-save-dir``, ``output-path``) or overload it (``model-params`` beyond set bounds) (``422``) [see `GHSA-276c-54vm-4px2 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-276c-54vm-4px2>`_]
+* The task dashboard (``/tasks``) is for admins only, in every mode; admin-readers may only look
+
+Bugfixes
+-----------
+* The ``custom-scheduler`` attribute could make FlexMeasures import modules or run files; it now only takes the name of a registered scheduler (see :ref:`plugin_customization`). [see `GHSA-5x23-phrv-wr56 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-5x23-phrv-wr56>`_]
+* Asset, organisation and group names could run script on the dashboard map [see `GHSA-4p5x-7hf4-mhwj <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-4p5x-7hf4-mhwj>`_]
+* Names and annotations could run script when a chart URL was opened in the browser [see `GHSA-jfmf-jvvq-p7wf <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-jfmf-jvvq-p7wf>`_]
+* Schedules and forecasts could read from or record on other organisations' sensors [see `GHSA-x98q-2gvh-7792 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-x98q-2gvh-7792>`_]
+* The forecast trigger accepted settings meant for the CLI only [see `GHSA-276c-54vm-4px2 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-276c-54vm-4px2>`_]
+* Members could change their organisation's account roles [see `GHSA-rc69-6phf-5h43 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-rc69-6phf-5h43>`_]
+* Account-admins and consultants could take over the accounts of more privileged users [see `GHSA-xwr3-cmv2-g775 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-xwr3-cmv2-g775>`_]
+* ``/api/requestAuthToken`` issued tokens without the second factor, and to logged-in sessions without the password [see `GHSA-fpjm-9386-7qfc <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-fpjm-9386-7qfc>`_]
+* Assets could be linked, copied and deleted across organisations without the permissions for it, and asset pages showed parts of other organisations' assets [see `GHSA-qx35-pwfp-h964 <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-qx35-pwfp-h964>`_]
+* Making an asset its own ancestor made requests loop forever [see `GHSA-2v6m-mrjj-2hhq <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-2v6m-mrjj-2hhq>`_]
+* The schedule status endpoint showed jobs without checking access to their asset or sensor, and admin-readers could requeue jobs on the task dashboard [see `GHSA-9fqh-j9m7-pv7h <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-9fqh-j9m7-pv7h>`_]
+* Passwords could be guessed without limit, and login, token and password recovery requests revealed which email addresses have an account [see `GHSA-c389-q948-63qp <https://github.com/FlexMeasures/flexmeasures/security/advisories/GHSA-c389-q948-63qp>`_]
+* Apply storage losses to the starting stock of a state of charge shared by several devices, so its scheduled state of charge no longer drifts above the one the scheduler planned with [see `PR #2838 <https://www.github.com/FlexMeasures/flexmeasures/pull/2838>`_]
+
+Infrastructure / Support
+-------------------------
+* Require SQLAlchemy below 2.1, which v1.0 does not support (for instance, ``flexmeasures delete beliefs`` fails on it); upgrade to v1.1 to use SQLAlchemy 2.1 [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_ and `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
+* Every response carries security headers against content sniffing, framing and leaking URLs (``FLEXMEASURES_SECURITY_HEADERS``)
+* Login cookies are ``SameSite=Lax`` and ``HttpOnly``, and ``Secure`` when ``FLEXMEASURES_FORCE_HTTPS`` is on
+* So that large uploads cannot exhaust a server's memory, request bodies are limited to ``FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES`` (3.1 MB by default; ``413`` above it)
+* To help notice attacks, logins, failed logins and token requests are logged, with the client's address (behind a proxy, with ``FLEXMEASURES_TRUSTED_PROXIES``)
+* Requests can no longer add fake lines to the logs
+* Text that users typed is escaped wherever pages show it, including the asset tree, the audit log and the tables of users, assets and organisations
+* The task-check endpoint no longer reveals the server's mode
+* ``"send_default_pii": True`` in ``FLEXMEASURES_SENTRY_CONFIG`` no longer fails with a ``TypeError``
 
 
 v1.1.1 | November 11, 2026
