@@ -28,6 +28,14 @@ Bugfixes
 * Running a forecast no longer mutes all warnings for the rest of the process (for instance, in a worker); only warnings raised while fitting the model are muted [see `PR #2890 <https://www.github.com/FlexMeasures/flexmeasures/pull/2890>`_]
 
 
+v1.1.3 | November xx, 2026
+============================
+
+Bugfixes
+-----------
+* Creating a second FlexMeasures app in the same process, as the documentation build does and as some scripts and test suites do, failed since v1.1.2 with "The setup method 'before_request' can no longer be called on the blueprint 'rq_dashboard'" [see `PR #2896 <https://www.github.com/FlexMeasures/flexmeasures/pull/2896>`_]
+
+
 v1.1.2 | November 23, 2026
 ============================
 
