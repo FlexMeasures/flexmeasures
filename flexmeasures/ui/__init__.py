@@ -113,6 +113,26 @@ def _tolerate_non_json_job_data():
     rq_dashboard.web.json = TolerantJson()
 
 
+@login_required
+@roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
+def rq_dashboard_admin_auth():
+    """Allow only admins to use the task dashboard, and admin-readers only to look."""
+
+    # Requeueing runs jobs again (which write data), so it is not done on GET (or HEAD, which Flask routes to the same view),
+    # which a link or an image could trigger. The dashboard's own buttons use POST.
+    if request.method in ("GET", "HEAD") and "/requeue" in request.path:
+        raise MethodNotAllowed(
+            valid_methods=["POST"],
+            description="Requeueing jobs is only possible with POST.",
+        )
+    if current_user.has_role(ADMIN_READER_ROLE) and (request.method != "GET"):
+        raise Forbidden(
+            f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Requeueing, editing or deleting is forbidden."
+        )
+
+    return
+
+
 def register_rq_dashboard(app):
     _tolerate_non_json_job_data()
     app.config.update(
@@ -128,28 +148,15 @@ def register_rq_dashboard(app):
         ]
     )
 
-    @login_required
-    @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
-    def basic_admin_auth():
-        """Ensure basic admin authorization."""
-
-        # Requeueing runs jobs again (which write data), so it is not done on GET (or HEAD, which Flask routes to the same view),
-        # which a link or an image could trigger. The dashboard's own buttons use POST.
-        if request.method in ("GET", "HEAD") and "/requeue" in request.path:
-            raise MethodNotAllowed(
-                valid_methods=["POST"],
-                description="Requeueing jobs is only possible with POST.",
-            )
-        if current_user.has_role(ADMIN_READER_ROLE) and (request.method != "GET"):
-            raise Forbidden(
-                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Requeueing, editing or deleting is forbidden."
-            )
-
-        return
-
     # Only admins (and admin-readers, to look) may use the dashboard, in every mode and environment:
     # it shows the arguments, results and errors of every account's jobs, and can delete them.
-    rq_dashboard.blueprint.before_request(basic_admin_auth)
+    # The blueprint is shared by every app created in the same process (the documentation build creates one per API page),
+    # and Flask refuses new hooks on a blueprint that is already registered, so the hook is added only once.
+    # It is added before the first registration, so no app serves the dashboard without it.
+    if rq_dashboard_admin_auth not in rq_dashboard.blueprint.before_request_funcs.get(
+        None, []
+    ):
+        rq_dashboard.blueprint.before_request(rq_dashboard_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
