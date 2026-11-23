@@ -1,6 +1,6 @@
 import os
 import warnings
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select
@@ -373,15 +373,58 @@ def test_plot_beliefs_rejects_an_unknown_timezone(app, db, amsterdam_sensor, tmp
     assert not filepath.exists()
 
 
-def test_plot_beliefs_warns_that_the_timezone_needs_a_file(app, db, amsterdam_sensor):
-    result = show_beliefs(app, [amsterdam_sensor], "--timezone", "Asia/Tokyo")
+@pytest.mark.parametrize(
+    "timezone_options, expected_labels",
+    [
+        # Without the option, the plot uses the sensor's timezone (this used to be UTC).
+        ([], ["12:00", "14:00", "16:00"]),
+        # An explicit timezone is used (this used to be UTC, too).
+        (["--timezone", "America/New_York"], ["06:00", "08:00", "10:00"]),
+    ],
+)
+def test_plot_beliefs_labels_the_time_axis_in_the_requested_timezone(
+    app, db, setup_sources, amsterdam_sensor, timezone_options, expected_labels
+):
+    """The plot labels its time axis in local time, without UTC offsets.
+
+    The sensor gets beliefs for the five hours before its one belief, so the plot spans six hours, starting at 2021-03-28 10:00 UTC.
+    """
+    db.session.add_all(
+        TimedBelief(
+            sensor=amsterdam_sensor,
+            source=setup_sources["ENTSO-E"],
+            event_value=hour,
+            event_start=datetime(2021, 3, 28, 10 + hour, tzinfo=timezone.utc),
+            belief_horizon=timedelta(0),
+        )
+        for hour in range(5)
+    )
+    db.session.commit()
+
+    from flexmeasures.cli.data_show import plot_beliefs
+
+    result = app.test_cli_runner().invoke(
+        plot_beliefs,
+        [
+            "--sensor",
+            str(amsterdam_sensor.id),
+            "--start",
+            "2021-03-28T10:00+00",
+            "--duration",
+            "PT6H",
+            *timezone_options,
+        ],
+    )
 
     check_command_ran_without_error(result)
-    assert "--timezone only applies to the file written with --to-file" in result.output
+    # The x-axis labels are on the line below the plot's bottom border.
+    lines = result.output.splitlines()
+    bottom_border = next(i for i, line in enumerate(lines) if line.startswith("└"))
+    assert lines[bottom_border + 1].split() == expected_labels
 
 
 def test_plot_beliefs_plots_without_timezone_warnings(app, db, amsterdam_sensor):
-    """uniplot cannot represent timezones, and numpy warns about each timezone-aware timestamp series it is given."""
+    """uniplot gets a timezone-aware index, about which numpy used to warn for each series, before uniplot 0.25.0."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = show_beliefs(app, [amsterdam_sensor])

@@ -69,7 +69,7 @@ Run the command below to show the values for our newly-created `grid connection 
     │                                                            │
     │                                                            │ 499.0kW
     └────────────────────────────────────────────────────────────┘
-                       06:00           12:00           18:00
+        00:00         06:00           12:00          18:00
               ██ grid connection capacity (toy-building)
 
 
