@@ -199,6 +199,7 @@ Each entry names a ``priority`` and sets one or both of the SoC breach prices; a
 In a multi-commodity flex-context, each commodity context lists the priorities of its own devices.
 Use this to decide who gives way when not all SoC constraints can be met.
 For example, give the EVs of one fleet a lower ``soc-minima-breach-price``, so an unavoidable shortfall lands on them first, or rank individual EVs with slightly different prices, so a shortfall lands on one EV rather than being spread over several.
+Devices that share a priority are priced alike, so how a shortfall is divided among them is not defined: it may land on any one of them, or be spread over several, and is not guaranteed to be fair.
 Priority names must be unique, and the prices must use the same currency as the other price settings.
 """,
     example=[
@@ -481,6 +482,7 @@ PRIORITY = MetaData(
     description="""Name of the priority this device belongs to.
 Its SoC constraints are then priced using the breach prices set for this priority in the flex-context's ``priorities`` field, rather than the flex-context's own ``soc-minima-breach-price`` and ``soc-maxima-breach-price``.
 In a multi-commodity flex-context, the priority is looked up in the context of the device's commodity, where the name must be listed in ``priorities``.
+Devices that share a priority are priced alike, so no fair division of a shortfall among them is guaranteed.
 """,
     example="high",
 )
