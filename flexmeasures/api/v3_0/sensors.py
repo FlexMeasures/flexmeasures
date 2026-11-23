@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+import math
 
 import isodate
+import pandas as pd
 from datetime import datetime, timedelta
 
 from flexmeasures.data.services.sensors import (
@@ -106,6 +108,70 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+def _build_recourse_response(
+    recourse_meta: dict,
+    schedule_index: pd.DatetimeIndex,
+    resolution: timedelta,
+    to_unit: str,
+    sign: int,
+) -> list[dict]:
+    """Serialize per-slot recourse rules (stored in the job meta) for the schedule response.
+
+    Aligns the rule slots (stored at the scheduling resolution) with the served schedule
+    window and resolution (rules are piecewise constant), converts power values from the
+    stored unit to the requested unit, and applies the requested sign convention.
+    Non-finite values (e.g. an unconstrained band side) are serialized as null.
+
+    :param recourse_meta:  Recourse rules of one device, as stored in the job meta.
+    :param schedule_index: DatetimeIndex of the served schedule values.
+    :param resolution:     Event resolution of the served schedule values.
+    :param to_unit:        Unit of the served schedule values.
+    :param sign:           Sign multiplier applied to power values (1 or -1).
+    :returns:              One response object per served schedule value.
+    """
+    rule_index = pd.date_range(
+        start=pd.Timestamp(recourse_meta["start"]),
+        periods=len(recourse_meta["gain"]),
+        freq=pd.Timedelta(isodate.parse_duration(recourse_meta["resolution"])),
+    )
+    df = pd.DataFrame(
+        {
+            "gain": recourse_meta["gain"],
+            "band_min": recourse_meta["band_min"],
+            "band_max": recourse_meta["band_max"],
+            "reference": recourse_meta["reference"],
+        },
+        index=rule_index,
+    )
+    df = df.reindex(schedule_index.tz_convert(df.index.tz), method="ffill")
+    from_unit = recourse_meta.get("unit", "MW")
+    for column in ("band_min", "band_max", "reference"):
+        df[column] = convert_units(
+            df[column],
+            from_unit=from_unit,
+            to_unit=to_unit,
+            event_resolution=resolution,
+        )
+
+    def clean(value: float) -> float | None:
+        return float(value) if math.isfinite(value) else None
+
+    reference_sensor_id = recourse_meta.get("reference-sensor")
+    response_objects = []
+    for _, row in df.iterrows():
+        band = sorted([sign * row["band_min"], sign * row["band_max"]])
+        response_objects.append(
+            {
+                "reference-sensor": reference_sensor_id,
+                "reference": clean(sign * row["reference"]),
+                "gain": clean(row["gain"]),
+                "band": [clean(band[0]), clean(band[1])],
+                "retrigger-on-band-exit": True,
+            }
+        )
+    return response_objects
 
 
 def sensor_search_term_filter(term: str):
@@ -1286,6 +1352,39 @@ class SensorAPI(FlaskView):
                         type: string
                         description: Unit of the schedule's values.
 
+                      response:
+                        type: array
+                        description: |
+                          Per-slot recourse rules (only present when the schedule was triggered with the
+                          flex-model field ``include-response`` set to true). Each object corresponds to one
+                          schedule value and describes how the device should respond locally to deviations
+                          of its commodity's main meter from the reference forecast, following
+                          ``setpoint(m) = clip(p + gain * (m - reference), band[0], band[1])``,
+                          where ``p`` is the scheduled value. Values share the schedule's unit and sign
+                          convention; a band side of null means unconstrained.
+                        items:
+                          type: object
+                          properties:
+                            reference-sensor:
+                              type: integer
+                              nullable: true
+                              description: ID of the commodity's main-meter sensor (from the flex-context field ``reference-sensor``), if configured.
+                            reference:
+                              type: number
+                              description: The forecasted net flow of the device's commodity, including the device's own scheduled value.
+                            gain:
+                              type: number
+                              description: Response gain (0 means follow the plan; -1 means absorb main-meter surprises 1:1).
+                            band:
+                              type: array
+                              items:
+                                type: number
+                                nullable: true
+                              description: Feasibility band [min, max] within which deviating this slot is known safe.
+                            retrigger-on-band-exit:
+                              type: boolean
+                              description: Whether a new schedule should be triggered when the meter leaves the band.
+
                       status:
                         type: string
                         enum: ["PROCESSED"]
@@ -1470,6 +1569,29 @@ class SensorAPI(FlaskView):
             duration=duration_isoformat(duration),
             unit=unit,
         )
+
+        # Optionally add per-slot recourse rules (opt-in via the flex-model field
+        # `include-response`), aligned with the served schedule values.
+        recourse_meta = (job.meta or {}).get("recourse_rules", {}).get(sensor.id)
+        if recourse_meta is not None:
+            response_sign = 1
+            if sensor.measures_power:
+                db_consumption_is_positive = sensor.get_attribute(
+                    "consumption_is_positive", False
+                )
+                # Stored rule values are consumption-positive (scheduler convention).
+                if sign_convention == ScheduleSignConvention.PRODUCTION_POSITIVE or (
+                    sign_convention == ScheduleSignConvention.WYSIWYG
+                    and not db_consumption_is_positive
+                ):
+                    response_sign = -1
+            response["response"] = _build_recourse_response(
+                recourse_meta,
+                schedule_index=consumption_schedule.index,
+                resolution=resolution,
+                to_unit=unit,
+                sign=response_sign,
+            )
 
         d, s = request_processed(scheduler_info_msg)
         response_body = dict(

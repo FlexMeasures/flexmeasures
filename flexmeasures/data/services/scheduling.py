@@ -1104,6 +1104,7 @@ def make_schedule(  # noqa: C901
     to_save = []
     # On a dry run, nothing is saved, so the outputs say what was computed, and that none of it was saved.
     dry_run_outputs = []
+    recourse_rules: dict = {}
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1118,6 +1119,25 @@ def make_schedule(  # noqa: C901
         if rq_job and result.get("name") == "commodity_costs":
             rq_job.meta["scheduler_info"]["commodity_costs"] = result["data"]
             rq_job.save_meta()
+            continue
+        if result.get("name") == "recourse_rule":
+            # Recourse rules (SeitaBV/ems#231) are not stored as sensor data;
+            # they are kept in the job meta, so the schedule-serving API can
+            # include them in its response.
+            df = result["data"]
+            reference_sensor = result.get("reference_sensor")
+            recourse_rules[result["sensor"].id] = {
+                "start": df.index[0].isoformat(),
+                "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
+                "unit": result.get("unit", "MW"),
+                "reference-sensor": (
+                    reference_sensor.id if reference_sensor is not None else None
+                ),
+                "gain": df["gain"].tolist(),
+                "band_min": df["band_min"].tolist(),
+                "band_max": df["band_max"].tolist(),
+                "reference": df["reference"].tolist(),
+            }
             continue
         if "sensor" not in result:
             continue
@@ -1178,6 +1198,10 @@ def make_schedule(  # noqa: C901
     scheduling_result_dict["num-beliefs"] = sum(
         output["num-computed-beliefs"] for output in outputs
     )
+
+    if rq_job and recourse_rules:
+        rq_job.meta["recourse_rules"] = recourse_rules
+        rq_job.save_meta()
 
     if not dry_run:
         scheduler.persist_flex_model()
