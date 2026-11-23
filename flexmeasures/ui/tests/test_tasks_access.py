@@ -22,6 +22,7 @@ class RecordingBlueprint:
 
     def __init__(self):
         self.guards = []
+        self.before_request_funcs = {None: self.guards}
 
     def before_request(self, guard):
         self.guards.append(guard)
@@ -73,3 +74,18 @@ def test_rq_dashboard_admits_only_admins(
 def test_rq_dashboard_refuses_non_admins(client, as_prosumer_user1):
     response = client.get("/tasks/")
     assert response.status_code == 403
+
+
+def test_rq_dashboard_guard_survives_another_app(app):
+    """Creating another app in the same process, as the documentation build does once per API page, works and keeps one guard.
+
+    The test app has registered the dashboard's blueprint already, and Flask refuses new hooks on a registered blueprint.
+    """
+    host_app = SimpleNamespace(
+        config={}, register_blueprint=lambda *args, **kwargs: None
+    )
+    register_rq_dashboard(host_app)
+    register_rq_dashboard(host_app)
+
+    guards = rq_dashboard.blueprint.before_request_funcs.get(None, [])
+    assert [guard.__name__ for guard in guards].count("rq_dashboard_admin_auth") == 1
