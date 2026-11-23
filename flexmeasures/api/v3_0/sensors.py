@@ -50,8 +50,14 @@ from flexmeasures.api.common.utils.deprecation_utils import (
     _add_headers as add_deprecation_header,
 )
 from flexmeasures.auth.policy import check_access
+from flexmeasures.api.v3_0.jobs import check_job_read_access
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
+from flexmeasures.auth.loaders import (
+    flex_context_loader,
+    flex_context_output_loader,
+    flex_model_loader,
+    flex_model_output_loader,
+)
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
@@ -97,6 +103,10 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
+from flexmeasures.data.services.data_generators import (
+    annotation_sources,
+    check_annotation_source_access,
+)
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecastingTriggerSchema,
 )
@@ -140,8 +150,28 @@ def _regressor_sensor(regressor: Sensor | SensorReference) -> Sensor:
     return regressor.sensor if isinstance(regressor, SensorReference) else regressor
 
 
+def _requested_sensor_id(regressor) -> int | None:
+    """Return the sensor id a regressor in the request JSON refers to, as an int.
+
+    The config schema accepts ids as ints or digit strings, alone or as ``{"sensor": <id>}``,
+    so all of these must be matched to the deserialized sensors.
+    """
+    if isinstance(regressor, dict):
+        regressor = regressor.get("sensor")
+    if isinstance(regressor, bool):
+        return None
+    if isinstance(regressor, int):
+        return regressor
+    if isinstance(regressor, str) and regressor.strip().isdigit():
+        return int(regressor.strip())
+    return None
+
+
 def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     """Extract regressor sensors from the forecasting config for permission checking.
+
+    The request JSON is only used to report each sensor under the field it was named in.
+    Every sensor in the deserialized config is returned, also one that cannot be matched to the request.
 
     :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
                     which already contains resolved Sensor objects for regressor fields.
@@ -156,17 +186,22 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
         for regressor_list in [
             config.get("future_regressors", []),
             config.get("past_regressors", []),
+            config.get("regressors", []),
         ]
         for sensor in [_regressor_sensor(regressor) for regressor in regressor_list]
     }
     request_config = (request.get_json(silent=True) or {}).get("config", {})
+    if not isinstance(request_config, dict):
+        request_config = {}
 
     regressors_by_field = {}
     for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
         if request_config:
+            requested = request_config.get(request_field_name, [])
+            if not isinstance(requested, list):
+                requested = [requested]
             field_sensor_ids = [
-                regressor.get("sensor") if isinstance(regressor, dict) else regressor
-                for regressor in request_config.get(request_field_name, [])
+                _requested_sensor_id(regressor) for regressor in requested
             ]
             field_sensors = [
                 sensors_by_id[sensor_id]
@@ -180,6 +215,19 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
             ]
         if field_sensors:
             regressors_by_field[field_info["label"]] = field_sensors
+
+    # Any deserialized regressor that was not matched to the request above is checked, too.
+    matched_ids = {
+        sensor.id for sensors in regressors_by_field.values() for sensor in sensors
+    }
+    unmatched = [
+        sensor
+        for sensor_id, sensor in sensors_by_id.items()
+        if sensor_id not in matched_ids
+    ]
+    if unmatched:
+        label = REGRESSOR_CONFIG_FIELDS["regressors"]["label"]
+        regressors_by_field[label] = regressors_by_field.get(label, []) + unmatched
     return regressors_by_field
 
 
@@ -892,6 +940,19 @@ class SensorAPI(FlaskView):
         ctx_loader=flex_context_loader,
         pass_ctx_to_loader=True,
     )
+    # The scheduler records results on output sensors, which takes more than read access.
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_output_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_output_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         sensor: Sensor,
@@ -1351,6 +1412,8 @@ class SensorAPI(FlaskView):
             job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
+        # The sensor in the URL is not enough: the job itself must concern something the user may read
+        check_job_read_access(job)
 
         if (
             not current_app.config.get("FLEXMEASURES_FALLBACK_REDIRECT")
@@ -2194,8 +2257,10 @@ class SensorAPI(FlaskView):
             # The API always queues a job, whose results only make sense when they are recorded,
             # so dry runs are supported on the CLI only.
             # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            # Server paths to write models and outputs to are for the CLI only, too:
+            # excluded fields are refused as unknown, before the schema creates any directory.
             exclude=EXCLUDED_FORECASTING_FIELDS
-            + ["dry_run"],
+            + ["dry_run", "model_save_dir", "output_path"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
@@ -2306,6 +2371,9 @@ class SensorAPI(FlaskView):
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
+
+        # Annotations used as regressors must be readable by the caller, too.
+        check_annotation_source_access(annotation_sources(forecaster))
 
         forecaster.set_job_trigger("API")
 

@@ -92,6 +92,13 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    monitored = fields.Bool(
+        load_default=True,
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -165,6 +172,12 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    monitored = fields.Bool(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(
         keys=fields.Str(),
         metadata={
@@ -276,6 +289,12 @@ class AutomationSchema(ma.SQLAlchemySchema):
             " Null for an automation set up through the CLI, which is trusted, so that its runs check nobody's access."
             " The name is null if that user no longer exists.",
             "example": {"id": 2, "name": "toy-user"},
+        },
+    )
+    monitored = ma.auto_field(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
         },
     )
 

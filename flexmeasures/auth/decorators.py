@@ -225,7 +225,11 @@ def _check_access_for_context(context, permission: str):
                         exc,
                         "api_message",
                         f"You cannot be authorized for the '{label}' field "
-                        "because it references a sensor you cannot read.",
+                        + (
+                            "because it references a sensor you cannot read."
+                            if permission == "read"
+                            else "because it references a sensor you cannot record data on."
+                        ),
                     )
                     raise
         return

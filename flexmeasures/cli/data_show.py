@@ -535,6 +535,7 @@ def list_automations(
                         else f"{automation.type} (plugin unavailable)"
                     ),
                     "yes" if automation.active else "no",
+                    "yes" if automation.monitored else "no",
                     automation.cronstr,
                     automation.timezone,
                     _runs_as(automation),
@@ -547,6 +548,7 @@ def list_automations(
                 "Name",
                 "Type",
                 "Active",
+                "Monitored",
                 "Cron",
                 "Timezone",
                 "Runs as",
@@ -579,6 +581,7 @@ def _show_automation(automation: Automation):
                 ("Asset", f"{automation.asset.name} (ID: {automation.asset_id})"),
                 ("Type", automation.type),
                 ("Active", "yes" if automation.active else "no"),
+                ("Monitored", "yes" if automation.monitored else "no"),
                 (
                     "Recurrence",
                     f"{automation.cronstr} ({describe_cronstr(automation.cronstr)})",
@@ -991,7 +994,7 @@ def chart(
     "timezone",
     type=TimezoneField(),
     required=False,
-    help="Timezone of the data, when exported with --to-file (the terminal plot shows UTC). If not set, defaults to the timezone of the first non-empty sensor.",
+    help="Timezone of the plot, and of the data exported with --to-file. If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -1095,7 +1098,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    df.index = df.index.tz_convert(get_export_timezone(timezone, filepath, sensors))
+    df.index = df.index.tz_convert(timezone or sensors[0].timezone)
 
     # Build title
     if len(sensors) == 1:
@@ -1111,8 +1114,8 @@ def plot_beliefs(
 
     uniplot.plot(
         ys=[df[col] for col in df.columns],
-        # uniplot shows UTC whatever the timezone, and warns about a timezone-aware index, so it gets UTC without one.
-        xs=[df.index.tz_convert(None) for _ in df.columns],
+        # uniplot labels the axis in the timezone of the index.
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
@@ -1127,26 +1130,6 @@ def plot_beliefs(
         )
         df.to_csv(filepath)
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
-
-
-def get_export_timezone(
-    timezone: str | None, filepath: str | None, sensors: list[Sensor]
-) -> str:
-    """Find the timezone to export beliefs in, warning when one was given without a file to export to.
-
-    :param timezone:    The timezone given with --timezone, if any.
-    :param filepath:    The file given with --to-file, if any.
-    :param sensors:     The sensors with data, the first of which gives the default timezone.
-    :returns:           The given timezone, or else the timezone of the first sensor.
-    """
-    if timezone is not None and filepath is None:
-        click.secho(
-            "--timezone only applies to the file written with --to-file, as the plot shows UTC.",
-            **MsgStyle.WARN,
-        )
-    if timezone is None:
-        return sensors[0].timezone
-    return timezone
 
 
 def find_duplicates(_list: list, attr: str | None = None) -> list:

@@ -264,11 +264,12 @@ def test_an_exhausted_account_budget_does_not_lock_out_the_ui(
             assert client.get(url_for("SensorAPI:index")).status_code == 200
 
 
-@pytest.mark.parametrize("token_in", ["header", "query", "json"])
+# A token in the query string is refused before it counts (see test_auth_token_in_url_is_refused).
+@pytest.mark.parametrize("token_in", ["header", "json"])
 def test_a_token_counts_against_the_account_wherever_it_is_sent(
     app, db, setup_roles_users, undo_new_rows, rate_limiting, token_in
 ):
-    """A token sent in the query string or in a JSON body is an integration's, too, so it spends the account's budget, not the UI's."""
+    """A token sent in a JSON body is an integration's, too, so it spends the account's budget, not the UI's."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
@@ -413,6 +414,51 @@ def test_trigger_rate_limit(
 
     # The rate-limited trigger did no work
     assert len(scheduling_queue) == 1
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_creating_automations_spends_the_trigger_budget(
+    app,
+    db,
+    add_battery_assets,
+    undo_new_rows,
+    rate_limiting,
+    requesting_user,
+):
+    """An automation sets off computation on its own, so creating one counts as a trigger."""
+    from flexmeasures.data.models.automations import Automation
+
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+
+    def post_automation(client, name):
+        return client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+
+    with app.test_client() as client:
+        assert (
+            post_automation(client, "First rate-limited automation").status_code == 201
+        )
+        response = post_automation(client, "Second rate-limited automation")
+
+    assert response.status_code == 429
+    assert (
+        db.session.execute(
+            select(Automation).filter_by(name="Second rate-limited automation")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -832,6 +878,7 @@ def test_trigger_limited_views_are_registered():
         "AssetAPI.trigger_schedule",
         "SensorAPI.trigger_schedule",
         "SensorAPI.trigger_forecast",
+        "AssetAPI.post_automation",
     } <= TRIGGER_LIMITED_VIEWS
 
 

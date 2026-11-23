@@ -17,7 +17,7 @@
     "/api/requestAuthToken": {
       "post": {
         "summary": "Obtain a fresh authentication access token.",
-        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n",
+        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n\nOn servers with two-factor authentication (SECURITY_TWO_FACTOR), users who log in with a second factor\ncannot get a token with their password alone: they log in first (completing the second factor),\nand then call this endpoint from that session. Hosts can allow password-only tokens again with\nFLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA.\n\nThe password is required also when the request comes from a logged-in session. Deactivated users get no token.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -2088,7 +2088,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n- The <strong>plan_id</strong> field can only be edited by admins, and cannot be set to a legacy plan.\n",
+        "description": "This endpoint updates the details for an existing account.\nThe account's account-admins, its consultants and admins may update it; its other users may only read it.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n- The <strong>plan_id</strong> field can only be edited by admins, and cannot be set to a legacy plan.\n- The <strong>account_roles</strong> field can only be changed by admins.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2607,7 +2607,7 @@
       },
       "patch": {
         "summary": "Update a user.",
-        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
+        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.\nChanging another user's email address or active status requires having (or being allowed to add and remove) each of their roles,\nso an account-admin cannot change these fields of an admin. When the email address changes, the previous address is notified.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2924,7 +2924,7 @@
     "/api/v3_0/users/{id}/password-reset": {
       "patch": {
         "summary": "Password reset",
-        "description": "Reset the user's password, and send them instructions on how to reset the password.\nThis endpoint is useful from a security standpoint, in case of worries the password might be compromised.\nIt sets the current password to something random, invalidates cookies and auth tokens,\nand also sends an email for resetting the password to the user.\n\nUsers can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.\n",
+        "description": "Reset the user's password, and send them instructions on how to reset the password.\nThis endpoint is useful from a security standpoint, in case of worries the password might be compromised.\nIt sets the current password to something random, invalidates cookies and auth tokens,\nand also sends an email for resetting the password to the user.\n\nUsers can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.\nResetting another user's password requires having (or being allowed to add and remove) each of their roles.\n",
         "parameters": [
           {
             "in": "path",
@@ -3305,7 +3305,7 @@
     "/api/v3_0/assets/{id}": {
       "delete": {
         "summary": "Delete an asset.",
-        "description": "This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.",
+        "description": "This endpoint deletes an existing asset, as well as its child assets, and all sensors and measurements recorded for them.\nA child asset may belong to another organisation: deleting it then needs permission to delete assets there, too.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3585,6 +3585,7 @@
                       "recurrence-description": "At 06:00",
                       "revision": 1,
                       "active": true,
+                      "monitored": true,
                       "parameters": {
                         "sensor": 2092
                       },
@@ -3669,7 +3670,7 @@
       },
       "patch": {
         "summary": "Update an automation.",
-        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nEvery run of the automation checks the access of the user it runs as (`runs-as`: its creator, at first), who stays the same,\nso the sensors involved are checked against the access of both the user making the change and that user.\nWhen that user's access falls short, the 403 response carries `reason: run-user-lacks-access`.\nSet `run-as-me` to have the automation run as the user making the change from then on, instead;\nthe sensors are then checked against that user's access only, and the switch is written to the asset's audit log.\nUse this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.\nAn automation set up through the CLI runs as nobody, as the CLI is trusted:\nan edit of it is checked against the access of the user making the change only, and its runs stay unchecked.\nA new `config` replaces the current one as a whole, so it has to repeat any setting to keep.\nIt moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
+        "description": "Any subset of the fields can be sent.\n\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nUnless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:\nby default once every 15 minutes, and once an hour for forecasting automations\n(a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).\n\nNew `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.\nEvery run of the automation checks the access of the user it runs as (`runs-as`: its creator, at first), who stays the same,\nso the sensors involved are checked against the access of both the user making the change and that user.\nWhen that user's access falls short, the 403 response carries `reason: run-user-lacks-access`.\nSet `run-as-me` to have the automation run as the user making the change from then on, instead;\nthe sensors are then checked against that user's access only, and the switch is written to the asset's audit log.\nUse this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.\nAn automation set up through the CLI runs as nobody, as the CLI is trusted:\nan edit of it is checked against the access of the user making the change only, and its runs stay unchecked.\nA new `config` replaces the current one as a whole, so it has to repeat any setting to keep.\nIt moves the automation to the data source storing that config, and the old data source is left as it is,\nbecause other automations may share it, and what was computed under it was computed with its config.\nSending a `data-generator` without a `config`, or the other way round, keeps the one left out.\nRuns before and after such a change are kept apart, while which runs are due stays the same.\nA schedule automation's data source follows from the asset, so it accepts new `parameters` only.\n\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3731,6 +3732,12 @@
                   "value": {
                     "run-as-me": true
                   }
+                },
+                "stop-monitoring": {
+                  "summary": "Stop reporting the automation's failed runs",
+                  "value": {
+                    "monitored": false
+                  }
                 }
               }
             }
@@ -3764,7 +3771,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.\nPass `include-child-assets=false` to list only the automations defined on the asset itself.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
+        "description": "The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, whether it is monitored, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.\nPass `include-child-assets=false` to list only the automations defined on the asset itself.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3814,6 +3821,7 @@
                           "recurrence-description": "At 06:00",
                           "revision": 1,
                           "active": true,
+                          "monitored": true,
                           "job-stats": {
                             "finished": 3
                           }
@@ -3845,7 +3853,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n\nUnless you are an admin, the cron expression may not run more often than the minimum interval for the automation's type:\nby default once every 15 minutes, and once an hour for forecasting automations\n(a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).\nCreating an automation counts against the trigger rate limit.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3926,7 +3934,7 @@
             "description": "UNPROCESSABLE_ENTITY"
           },
           "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4750,7 +4758,7 @@
       },
       "post": {
         "summary": "Creates a new asset.",
-        "description": "This endpoint creates a new asset.\n\nTo establish a hierarchical relationship, you can optionally include the <strong>parent_asset_id</strong> in the request body to make the new asset a child of an existing asset.\n",
+        "description": "This endpoint creates a new asset.\n\nTo establish a hierarchical relationship, you can optionally include the <strong>parent_asset_id</strong> in the request body to make the new asset a child of an existing asset.\nThe parent asset may belong to another organisation than the new asset, if you may add assets under the parent asset and create assets in the new asset's organisation.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -6875,6 +6883,12 @@
             "type": "boolean",
             "default": true
           },
+          "monitored": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
+            "example": true
+          },
           "parameters": {
             "type": "object",
             "additionalProperties": {}
@@ -6927,6 +6941,11 @@
           },
           "active": {
             "type": "boolean"
+          },
+          "monitored": {
+            "type": "boolean",
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
+            "example": true
           },
           "parameters": {
             "type": "object",

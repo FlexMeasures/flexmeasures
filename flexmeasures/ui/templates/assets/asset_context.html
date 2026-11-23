@@ -323,7 +323,7 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
+        extractApiErrorMessage, escapeHtml, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
     const {
@@ -545,7 +545,7 @@
             }
 
             const errorMessage = extractApiErrorMessage(errorData, response.statusText);
-            showToast(`Failed to update the flex context <div>${errorMessage}</div>`, "error");
+            showToast(`Failed to update the flex context <div>${escapeHtml(errorMessage)}</div>`, "error");
         } else {
             showToast("Flex context updated successfully", "success");
         }
@@ -859,6 +859,19 @@
         // The inherited value, read-only
         const valueContainer = document.createElement('div');
         valueContainer.className = 'pb-2';
+        if (info.hidden) {
+            // Set on an ancestor in another organisation, which this user may not see; scheduling still uses it.
+            const note = document.createElement('span');
+            note.className = 'fw-light text-muted';
+            note.textContent = 'Inherited, not visible to you';
+            valueContainer.appendChild(note);
+            card.appendChild(valueContainer);
+            const source = document.createElement('small');
+            source.className = 'text-muted';
+            source.textContent = `from ${info.asset_name}`;
+            card.appendChild(source);
+            return card;
+        }
         if (Array.isArray(fieldValue)) {
             for (const entry of fieldValue) {
                 const item = convertHtmlToElement(await renderSensor(entrySensorId(entry)));
@@ -1598,7 +1611,9 @@ Make sure that the sensor data will be available consistently, though, so schedu
         // The inherited fields are kept with their provenance, so unwrap them back into a flex-context first,
         // because a field name is what tells a bare id in the deprecated inflexible-device-sensors field apart from any other number.
         const inheritedValues = Object.fromEntries(
-            Object.entries(inheritedFlexContext).map(([field, info]) => [field, info["value"]])
+            Object.entries(inheritedFlexContext)
+                .filter(([field, info]) => !info.hidden)
+                .map(([field, info]) => [field, info["value"]])
         );
         const referenced = flexConfigSensorIds(getFlexContext()).concat(
             flexConfigSensorIds(inheritedValues)

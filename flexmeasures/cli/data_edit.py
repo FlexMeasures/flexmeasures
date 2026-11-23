@@ -36,6 +36,7 @@ from flexmeasures.data.services.automations import (
     run_user_problem,
     update_automation,
 )
+from flexmeasures.data.services.generic_assets import cross_account_parent_warning
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -145,6 +146,12 @@ def fm_edit_data():
     help="ID of the user to run the automation as from now on: every run checks that user's access to the asset and its sensors."
     " See `flexmeasures show automations` for whom it runs as now.",
 )
+@click.option(
+    "--monitored/--unmonitored",
+    "monitored",
+    default=None,
+    help="Whether `flexmeasures monitor automations` reports the automation's failed runs.",
+)
 def edit_automation(
     automation: Automation,
     name: str | None = None,
@@ -156,6 +163,7 @@ def edit_automation(
     config_file: TextIOBase | None = None,
     source: DataSource | None = None,
     run_as: User | None = None,
+    monitored: bool | None = None,
 ):
     """Edit an automation.
 
@@ -182,6 +190,7 @@ def edit_automation(
             cronstr=cronstr,
             timezone=timezone,
             active=active,
+            monitored=monitored,
             parameters=(
                 _load_yaml_mapping(parameters_file, "--parameters")
                 if parameters_file
@@ -743,6 +752,10 @@ def transfer_ownership(asset: Asset, new_owner: Account):
             transfer_ownership_recursive(child, account)
 
     transfer_ownership_recursive(asset, new_owner)
+    # Its children move along, but its parent stays where it is.
+    warning = cross_account_parent_warning(asset, asset.parent_asset, new_owner.id)
+    if warning:
+        click.secho(warning, **MsgStyle.WARN)
     click.secho(
         f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
@@ -841,6 +854,9 @@ def transfer_parenthood(
             asset.parent_asset_id = new_parent.id
         AssetAuditLog.add_record(asset, audit_log_message)
         click.secho(success_message, **MsgStyle.SUCCESS)
+        warning = cross_account_parent_warning(asset, new_parent, asset.account_id)
+        if warning:
+            click.secho(warning, **MsgStyle.WARN)
         changed += 1
     if changed == 0:
         click.secho("No assets were updated.", **MsgStyle.WARN)

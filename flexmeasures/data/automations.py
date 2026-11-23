@@ -116,6 +116,8 @@ class AutomationHandler:
             check_edited_sensor_access,
         )
         from flexmeasures.data.services.data_generators import (
+            annotation_sources,
+            check_annotation_source_access,
             check_sensor_access,
             resolve_data_generator_sensors,
         )
@@ -163,6 +165,7 @@ class AutomationHandler:
                 check_edited_sensor_access(**sensors, kept_sensor_ids=kept_sensor_ids)
             else:
                 check_sensor_access(**sensors)
+            check_annotation_source_access(annotation_sources(generator))
         validate_output_scope(asset.id, sensors["output_sensors"])
         if source is None:
             from flexmeasures.data.services.data_sources import get_or_create_source

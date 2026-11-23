@@ -55,6 +55,7 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.responses import too_many_requests
 from flexmeasures.data.models.user import Account, Plan
+from flexmeasures.utils.error_utils import escape_for_log
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
@@ -262,7 +263,7 @@ def _requester() -> str:
 
 def _endpoint() -> str:
     """Which endpoint the current request is for, for the logs."""
-    return f"{request.method} {request.path} ({request.endpoint})"
+    return f"{escape_for_log(request.method)} {escape_for_log(request.path)} ({request.endpoint})"
 
 
 def _trigger_set_work_in_motion(response: Response) -> bool:

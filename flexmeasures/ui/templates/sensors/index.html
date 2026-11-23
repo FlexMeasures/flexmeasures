@@ -444,17 +444,7 @@ For the data, note the following:
                       <input class="form-check-input" type="checkbox" role="switch" id="fullBeliefInfoToggle">
                       <label class="form-check-label" for="fullBeliefInfoToggle">Full belief info</label>
                   </div>
-                  <div class="replay-container">
-                      <div
-                         id="replay"
-                         data-bs-toggle="tooltip"
-                         data-bs-html="true"
-                         data-bs-custom-class="replay-tooltip"
-                         data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
-                         class="stopped">
-                      </div>
-                      <div id="replay-time"></div>
-                  </div>
+                  {% include "includes/replay_controls.html" %}
               </div>
           </div>
           <div class="row justify-content-center">
@@ -536,20 +526,22 @@ For the data, note the following:
     });
     const availableUnits = {{ available_units | tojson }};
     
+    // The upload form, with its units dropdown, is only there for users who may upload data to the sensor
     const flexUnitsSelect = document.getElementById('flexUnitsSelect');
-    
-    // Populate the units dropdown
-    availableUnits.forEach(unit => {
-        const option = document.createElement('option');
-        option.value = unit;
-        option.textContent = unit;
-        flexUnitsSelect.appendChild(option);
-    });
+    if (flexUnitsSelect) {
+        // Populate the units dropdown
+        availableUnits.forEach(unit => {
+            const option = document.createElement('option');
+            option.value = unit;
+            option.textContent = unit;
+            flexUnitsSelect.appendChild(option);
+        });
 
-    // Pre-select the current unit
-    const currentUnit = "{{ sensor.unit }}";
-    if (currentUnit) {
-        flexUnitsSelect.value = currentUnit;
+        // Pre-select the current unit
+        const currentUnit = "{{ sensor.unit }}";
+        if (currentUnit) {
+            flexUnitsSelect.value = currentUnit;
+        }
     }
 
 
@@ -805,8 +797,8 @@ For the data, note the following:
     {% if event_starts_after %}
     (function () {
         try {
-            var _start = new Date('{{ event_starts_after }}');
-            var _end   = {% if event_ends_before %}new Date('{{ event_ends_before }}'){% else %}null{% endif %};
+            var _start = new Date({{ event_starts_after | tojson }});
+            var _end   = {% if event_ends_before %}new Date({{ event_ends_before | tojson }}){% else %}null{% endif %};
             syncDeleteInputsWithRange(_start, _end);
         } catch (e) { /* ignore invalid date strings */ }
     })();

@@ -65,9 +65,12 @@ from flexmeasures.data.services.automations import (
     get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
+    automation_min_interval,
+    refuse_too_frequent_cron,
     resolve_automation_sensors,
     run_automation,
     update_automation,
+    user_may_change_monitoring,
 )
 from flexmeasures.data.models.charts import ASSET_CHART_BUILDERS
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -101,9 +104,11 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
+    json_text_response,
 )
 from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
+    invalid_sender,
     unprocessable_entity,
     request_accepted_for_processing,
 )
@@ -113,7 +118,12 @@ from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import set_session_variables
 from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
+from flexmeasures.auth.loaders import (
+    flex_context_loader,
+    flex_context_output_loader,
+    flex_model_loader,
+    flex_model_output_loader,
+)
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -515,6 +525,66 @@ def _may_read(sensor: Sensor) -> bool:
     return True
 
 
+def _refuse_too_frequent_automation(
+    automation_data: dict, automation_type: str
+) -> None:
+    """Refuse a cron expression that runs more often than FLEXMEASURES_AUTOMATION_MIN_INTERVAL allows for this type of automation,
+    unless an admin sets it.
+
+    :raises ValidationError: under the "cron" key.
+    """
+    cronstr = automation_data.get("cronstr")
+    if cronstr is None or user_has_admin_access(current_user, "update"):
+        return
+    refuse_too_frequent_cron(
+        cronstr, automation_min_interval(automation_type), automation_type
+    )
+
+
+def _check_copy_target_access(
+    asset: GenericAsset,
+    account: Account | None,
+    parent_asset: GenericAsset | None,
+) -> None:
+    """Check that the current user may create the copy of an asset where copy_asset will put it.
+
+    The target account and parent are resolved as in copy_asset:
+    if neither is given, the copy goes into the source's account, under the source's parent.
+    """
+    resolved_parent = (
+        parent_asset if account is not None else (parent_asset or asset.parent_asset)
+    )
+    if account is not None:
+        target_account = account
+    elif parent_asset is not None:
+        target_account = parent_asset.owner
+    else:
+        target_account = asset.owner
+
+    # When placing the copy under a parent asset, the parent's edit-assets
+    # permission is sufficient (any account member may add children to an asset),
+    # as long as the copy lands in the parent's account.
+    # Otherwise (a top-level copy, or a copy in another account than its parent's), we check the
+    # target account, which requires account-admin or consultant.
+    # Special case: public copies (no account) require site admin.
+    if resolved_parent is not None:
+        check_access(resolved_parent, "edit-assets")
+        if resolved_parent.account_id == (
+            target_account.id if target_account is not None else None
+        ):
+            return
+    if target_account is not None:
+        check_access(target_account, "edit-assets")
+    elif not running_as_cli() and not user_has_admin_access(current_user, "update"):
+        raise Forbidden("Only site admins may create public assets (account_id=None).")
+
+
+# Switching monitoring off silences the digest for whoever receives it, so it is not up to everyone who manages automations.
+MONITORING_IS_FOR_ADMINS = (
+    "Only admins may switch the monitoring of an automation on or off."
+)
+
+
 class AssetAPI(FlaskView):
     """
     This API view exposes generic assets.
@@ -874,6 +944,7 @@ class AssetAPI(FlaskView):
             This endpoint creates a new asset.
 
             To establish a hierarchical relationship, you can optionally include the **parent_asset_id** in the request body to make the new asset a child of an existing asset.
+            The parent asset may belong to another organisation than the new asset, if you may add assets under the parent asset and create assets in the new asset's organisation.
 
           security:
             - ApiKeyAuth: []
@@ -1143,7 +1214,9 @@ class AssetAPI(FlaskView):
         ---
         delete:
           summary: Delete an asset.
-          description: This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.
+          description: |
+            This endpoint deletes an existing asset, as well as its child assets, and all sensors and measurements recorded for them.
+            A child asset may belong to another organisation: deleting it then needs permission to delete assets there, too.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1166,6 +1239,8 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # Deleting an asset deletes its offspring, too, which may belong to other organisations:
+        # the user needs to be allowed to delete each of them (and any data in the subtree, checked on the asset itself).
         for descendant in asset.offspring:
             check_access(descendant, "edit-assets")
         if asset_contains_data(asset):
@@ -1228,7 +1303,7 @@ class AssetAPI(FlaskView):
             "event_ends_before",
             aliases={"event_starts_after": "start", "event_ends_before": "end"},
         )
-        return json.dumps(asset.chart(**kwargs))
+        return json_text_response(json.dumps(asset.chart(**kwargs)))
 
     @route(
         "/<id>/chart_data", strict_slashes=False
@@ -1279,7 +1354,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = asset.chart_sensors(kwargs.pop("chart_type", None))
-        return asset.chart_data_json(sensors=sensors, **kwargs)
+        return json_text_response(asset.chart_data_json(sensors=sensors, **kwargs))
 
     @route("/<id>/chart_annotations", strict_slashes=False)
     @use_kwargs(
@@ -1378,7 +1453,7 @@ class AssetAPI(FlaskView):
         # Return JSON records
         df = df.reset_index()
         df["source"] = df["source"].astype(str)
-        return df.to_json(orient="records")
+        return json_text_response(df.to_json(orient="records"))
 
     @route("/<id>/auditlog")
     @use_kwargs(
@@ -1519,7 +1594,7 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
-            its type, name, activation status, and its recurrence, both as a cron string
+            its type, name, activation status, whether it is monitored, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
             and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
@@ -1566,6 +1641,7 @@ class AssetAPI(FlaskView):
                             recurrence-description: "At 06:00"
                             revision: 1
                             active: true
+                            monitored: true
                             job-stats:
                               finished: 3
                         redis-connection-err: null
@@ -1682,6 +1758,7 @@ class AssetAPI(FlaskView):
                         recurrence-description: "At 06:00"
                         revision: 1
                         active: true
+                        monitored: true
                         parameters:
                           sensor: 2092
                         source:
@@ -1791,6 +1868,8 @@ class AssetAPI(FlaskView):
         return automation_data, 200
 
     @route("/<id>/automations", methods=["POST"])
+    # An automation sets off computation on its own, again and again, so creating one draws on the trigger budget.
+    @limit_triggers()
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",
@@ -1828,6 +1907,11 @@ class AssetAPI(FlaskView):
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from,
             and permission to record data on the sensors it writes to.
+
+            Unless you are an admin, the cron expression may not run more often than the minimum interval for the automation's type:
+            by default once every 15 minutes, and once an hour for forecasting automations
+            (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
+            Creating an automation counts against the trigger rate limit.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1889,7 +1973,15 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        if automation_data.get("monitored") is False and not user_may_change_monitoring(
+            current_user, asset
+        ):
+            return invalid_sender(message=MONITORING_IS_FOR_ADMINS)
         try:
+            _refuse_too_frequent_automation(
+                automation_data,
+                automation_data.get("automation_type", "forecasting"),
+            )
             automation, warnings = create_automation(
                 asset, origin="API", check_permissions=True, **automation_data
             )
@@ -1935,6 +2027,9 @@ class AssetAPI(FlaskView):
 
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
+            Unless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:
+            by default once every 15 minutes, and once an hour for forecasting automations
+            (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
 
             New `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.
             Every run of the automation checks the access of the user it runs as (`runs-as`: its creator, at first), who stays the same,
@@ -1995,6 +2090,10 @@ class AssetAPI(FlaskView):
                       Every run checks your access from now on, for example because the runs of the user it ran as are refused.
                     value:
                       run-as-me: true
+                  stop-monitoring:
+                    summary: Stop reporting the automation's failed runs
+                    value:
+                      monitored: false
           responses:
             200:
               description: PROCESSED
@@ -2014,7 +2113,21 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
+        monitored = automation_data.get("monitored")
+        if (
+            monitored is not None
+            and monitored != automation.monitored
+            and not user_may_change_monitoring(current_user, asset)
+        ):
+            return invalid_sender(message=MONITORING_IS_FOR_ADMINS)
         try:
+            _refuse_too_frequent_automation(automation_data, automation.type)
+            if automation_data.get("active") and not automation.active:
+                # Activating an automation (e.g. a copy, which starts inactive) holds its cron expression to the same rule
+                _refuse_too_frequent_automation(
+                    {"cronstr": automation_data.get("cronstr", automation.cronstr)},
+                    automation.type,
+                )
             update_automation(
                 automation,
                 origin="API",
@@ -2461,7 +2574,8 @@ class AssetAPI(FlaskView):
                         f"Report output sensor {output_sensor.id} must belong to asset"
                         f" {asset.id} or one of its descendants."
                     )
-            reporter.set_job_trigger("API")
+            # the worker checks the user's access again, against the sensors the report then resolves
+            reporter.set_job_trigger("API", user_id=current_user.id)
             result = reporter.compute(as_job=True, parameters=parameters)
         except ValidationError as exc:
             db.session.rollback()
@@ -2491,6 +2605,19 @@ class AssetAPI(FlaskView):
         "read",
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
+    # The scheduler records results on output sensors, which takes more than read access.
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_output_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_output_loader,
         pass_ctx_to_loader=True,
     )
     def trigger_schedule(
@@ -2977,36 +3104,17 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        # Resolve effective targets for permission checks and fallback behavior.
-        # If neither target is given, use the source asset's account/parent.
-        resolved_account = account or asset.owner
-        resolved_parent = (
-            parent_asset
-            if account is not None
-            else (parent_asset or asset.parent_asset)
-        )
-
-        # When placing the copy under a parent asset, the parent's create-children
-        # permission is sufficient (any account member may add children to an asset).
-        # When creating a top-level asset (no parent), we fall back to the account-level
-        # create-children check, which requires account-admin or consultant.
-        # Special case: public-to-public copies (both None) require site admin.
-        if resolved_parent is not None:
-            check_access(resolved_parent, "edit-assets")
-        elif resolved_account is not None:
-            check_access(resolved_account, "edit-assets")
-        else:
-            # Public asset copy (account_id=None, parent_asset_id=None).
-            # Only site admins may create public assets.
-            if not running_as_cli() and not user_has_admin_access(
-                current_user, "update"
-            ):
-                raise Forbidden(
-                    "Only site admins may create public assets (account_id=None)."
-                )
+        _check_copy_target_access(asset, account, parent_asset)
 
         try:
-            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(
+                asset,
+                account=account,
+                parent_asset=parent_asset,
+                # The copied automations run as the user who copied them,
+                # so their access is checked again before each run.
+                execution_user_id=current_user.id,
+            )
         except ValueError as err:
             return unprocessable_entity(str(err))
         new_asset = asset_copy.asset

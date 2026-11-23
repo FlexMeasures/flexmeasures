@@ -15,7 +15,7 @@ import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, MethodNotAllowed
 
 from flexmeasures.auth import policy as auth_policy
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
@@ -237,32 +237,27 @@ def register_rq_dashboard(app):
     )
 
     @login_required
-    def basic_auth():
-        """Ensure basic authorization."""
-        return
-
-    @login_required
     @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
     def basic_admin_auth():
         """Ensure basic admin authorization."""
 
-        if (
-            current_user.has_role(ADMIN_READER_ROLE)
-            and (request.method != "GET")
-            and ("requeue" not in request.path)
-        ):
+        # Requeueing runs jobs again (which write data), so it is not done on GET (or HEAD, which Flask routes to the same view),
+        # which a link or an image could trigger. The dashboard's own buttons use POST.
+        if request.method in ("GET", "HEAD") and "/requeue" in request.path:
+            raise MethodNotAllowed(
+                valid_methods=["POST"],
+                description="Requeueing jobs is only possible with POST.",
+            )
+        if current_user.has_role(ADMIN_READER_ROLE) and (request.method != "GET"):
             raise Forbidden(
-                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Edition or deletion operations are forbidden."
+                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Requeueing, editing or deleting is forbidden."
             )
 
         return
 
-    # Logged-in users can view queues on the demo server, but only admins can view them on other servers
-    if app.config.get("FLEXMEASURES_ENV") != "documentation":
-        if app.config.get("FLEXMEASURES_MODE", "") == "demo":
-            rq_dashboard.blueprint.before_request(basic_auth)
-        else:
-            rq_dashboard.blueprint.before_request(basic_admin_auth)
+    # Only admins (and admin-readers, to look) may use the dashboard, in every mode and environment:
+    # it shows the arguments, results and errors of every account's jobs, and can delete them.
+    rq_dashboard.blueprint.before_request(basic_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
