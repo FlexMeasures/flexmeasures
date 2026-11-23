@@ -456,6 +456,41 @@ def test_copy_skips_an_automation_whose_generator_is_unavailable(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_copy_asset_api_runs_copied_automations_as_the_copying_user(
+    client,
+    fresh_db,
+    setup_roles_users_fresh_db,
+    automated_site,
+    requesting_user,
+):
+    """Automations copied through the API run as the user who copied them,
+    so that user's access is checked again before each run."""
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.services.automations import run_automation
+
+    response = client.post(
+        url_for("AssetAPI:copy_assets", id=automated_site["site"].id)
+    )
+    assert response.status_code == 201, response.json
+
+    copied_automations = _automations_of(
+        fresh_db, fresh_db.session.get(GenericAsset, response.json["asset"])
+    )
+    assert copied_automations
+    for copied_automation in copied_automations:
+        assert copied_automation.execution_user_id == requesting_user.id
+
+    # Once the copying user is deactivated, the copy no longer runs
+    requesting_user.active = False
+    fresh_db.session.commit()
+    with pytest.raises(Forbidden):
+        run_automation(copied_automations[0])
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_copy_asset_api_reports_skipped_automations(
     client,
     fresh_db,

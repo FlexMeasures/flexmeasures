@@ -1249,7 +1249,7 @@ requires-dist = [
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "timely-beliefs", specifier = ">=4.4.1" },
     { name = "tldextract", specifier = ">=5.3.1" },
-    { name = "uniplot", specifier = ">=0.12.1" },
+    { name = "uniplot", specifier = ">=0.25.0" },
     { name = "urllib3", specifier = ">=2.7.0" },
     { name = "vl-convert-python", specifier = ">=1.9.0.post1" },
     { name = "webargs", specifier = ">=8.7.1" },
@@ -4061,16 +4061,17 @@ wheels = [
 
 [[package]]
 name = "uniplot"
-version = "0.23.2"
+version = "0.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "os_name != 'nt' and platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "os_name == 'nt' or (platform_machine != 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32') or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "readchar" },
+    { name = "tzdata" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/08/d5/2dcb3aa0aec2539564b5c8d98e2d03572332aa31c130cb4e23cb4a0203ab/uniplot-0.23.2.tar.gz", hash = "sha256:0fc57fce77cbeb6b02956c6097132cd81028538de645401e1534eb3699ff637f", size = 44628, upload-time = "2026-07-12T12:29:01.332Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/fb/782ba9eb3c3c5c0021b71d06bc7c102b22420ee587ceaa97f76a43d51d80/uniplot-0.25.0.tar.gz", hash = "sha256:51da654ab9fb0dfc3c0fcad39e10030a5ed2436a58ff476422ca3b60936e7487", size = 59476, upload-time = "2026-11-22T14:40:22.183Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/83/ff68de5ee36109c36ea136a74d45567ee1c9b594e9af7c4fce25c2223654/uniplot-0.23.2-py3-none-any.whl", hash = "sha256:4a2be9d7adbc57adfd364645e5ffc22f859ba7141e88da925676d73db5665b1c", size = 44949, upload-time = "2026-07-12T12:28:59.87Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/b5/ef318b3c312e8597dfb4d615e7efa24906cdda0f1ff70c6dfce57e0881ee/uniplot-0.25.0-py3-none-any.whl", hash = "sha256:4e941cda1e1f567b5ecd6cd9bfe04bdcbe45db3c204bd30c8a39c4f0e71f70fc", size = 58902, upload-time = "2026-11-22T14:40:21.131Z" },
 ]
 
 [[package]]

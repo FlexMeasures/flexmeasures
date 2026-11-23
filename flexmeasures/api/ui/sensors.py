@@ -16,6 +16,7 @@ from flexmeasures.data.schemas import (
     ResolutionField,
     SensorIdField,
 )
+from flexmeasures.api.common.utils.api_utils import json_text_response
 from flexmeasures.api.common.schemas.generic_schemas import (
     EventWindowSchema,
     BeliefTimeFilterSchema,
@@ -198,7 +199,7 @@ class SensorAPI(FlaskView):
         # a request may send both spellings, and only the canonical one is validated.
         if "chart_type" in kwargs:
             session["chart_type"] = kwargs["chart_type"]
-        return json.dumps(sensor.chart(**kwargs))
+        return json_text_response(json.dumps(sensor.chart(**kwargs)))
 
     @route("/<id>/chart_data", strict_slashes=False)
     @use_kwargs(
@@ -223,7 +224,7 @@ class SensorAPI(FlaskView):
         - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))
         - "most-recent-beliefs-only" (legacy alias: "most_recent_beliefs_only"; if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
-        return sensor.search_beliefs(as_json=True, **kwargs)
+        return json_text_response(sensor.search_beliefs(as_json=True, **kwargs))
 
     @route("/<id>/chart_annotations", strict_slashes=False)
     @use_kwargs(
@@ -259,7 +260,7 @@ class SensorAPI(FlaskView):
         # Return JSON records
         df = df.reset_index()
         df["source"] = df["source"].astype(str)
-        return df.to_json(orient="records")
+        return json_text_response(df.to_json(orient="records"))
 
     @route("/<id>", strict_slashes=False)
     @use_kwargs(

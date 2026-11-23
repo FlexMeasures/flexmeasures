@@ -47,10 +47,11 @@
         roles,
     ) {
         this.id = id;
-        this.name = name;
+        // Names are user-defined, and DataTables inserts cells as HTML.
+        this.name = escapeHtml(name);
         this.assets = assets;
         this.users = users;
-        this.roles = roles.map((role) => role.name).join(", ");
+        this.roles = escapeHtml(roles.map((role) => role.name).join(", "));
         this.url = `/accounts/${id}`;
     }
 
