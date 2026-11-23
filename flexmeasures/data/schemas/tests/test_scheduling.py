@@ -2203,3 +2203,53 @@ def test_explicit_device_breach_price_is_not_overwritten():
     # The opposite direction is left alone too:
     # pricing one direction explicitly puts the caller in charge of both, rather than mixing their price with our default.
     assert loaded.get("production_breach_price") is None
+
+
+def test_flex_context_schema_response_rule_fields(db, app, setup_dummy_sensors):
+    """The flex-context fields that opt in to the response rules load as sensor references, a flag and a quantity."""
+    power_sensor = setup_dummy_sensors[3]
+    flex_context = FlexContextSchema().load(
+        {
+            "reference-sensor": {"sensor": power_sensor.id},
+            "response-order": [{"sensor": power_sensor.id}],
+            "retrigger-on-band-exit": False,
+            "reference-at-start": "0.4 kW",
+        }
+    )
+    assert flex_context["reference_sensor"]["sensor"] == power_sensor
+    assert [entry["sensor"] for entry in flex_context["response_order"]] == [
+        power_sensor
+    ]
+    assert flex_context["retrigger_on_band_exit"] is False
+    assert flex_context["reference_at_start"] == ur.Quantity("0.0004 MW")
+
+    # The bare-integer form of the July prototype is no longer accepted.
+    with pytest.raises(ValidationError):
+        FlexContextSchema().load({"reference-sensor": power_sensor.id})
+
+
+@pytest.mark.parametrize(
+    ["response", "fails"],
+    [
+        ({"directions": ["consumption-up"], "response-time": "PT1M"}, False),
+        ({"directions": [], "response-time": "PT0S"}, False),
+        ({"directions": ["sideways"], "response-time": "PT1M"}, True),
+        ({"directions": ["consumption-up"], "response-time": "soon"}, True),
+        ({"directions": ["consumption-up"]}, True),
+    ],
+)
+def test_storage_flex_model_response_field(db, app, response, fails):
+    """A device's response declares a subset of the four directions and an ISO 8601 response time."""
+    schema = StorageFlexModelSchema(
+        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+    )
+    flex_model = {"soc-at-start": "1 MWh", "response": response}
+    if fails:
+        with pytest.raises(ValidationError):
+            schema.load(flex_model)
+        return
+    loaded = schema.load(flex_model)
+    assert loaded["response"]["directions"] == response["directions"]
+    assert loaded["response"]["response_time"] == pd.Timedelta(
+        response["response-time"]
+    )

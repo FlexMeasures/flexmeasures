@@ -17,6 +17,7 @@ from marshmallow.validate import OneOf, ValidationError
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.times import DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.scheduling.groups import (
@@ -308,6 +309,36 @@ class OperationModeSchema(Schema):
             )
 
 
+#: The ways a device can move its power away from its plan, as signed power moves (positive is consumption):
+#: consumption-up and production-down move the power up, consumption-down and production-up move it down,
+#: each within the half-axis its name refers to.
+RESPONSE_DIRECTIONS = (
+    "consumption-up",
+    "consumption-down",
+    "production-up",
+    "production-down",
+)
+
+
+class ResponseSchema(Schema):
+    """How a device can respond locally to a surprise at the connection, see :ref:`response_rules`."""
+
+    directions = fields.List(
+        fields.Str(validate=OneOf(RESPONSE_DIRECTIONS)),
+        required=True,
+        metadata=dict(
+            description="The ways the device can move its power away from the plan, as a subset of consumption-up, consumption-down, production-up and production-down.",
+        ),
+    )
+    response_time = DurationField(
+        data_key="response-time",
+        required=True,
+        metadata=dict(
+            description="The time the device needs to change its power; a device slower than one scheduling step gets no gain.",
+        ),
+    )
+
+
 class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
@@ -422,12 +453,11 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.PREFER_CHARGING_SOONER.to_dict(),
     )
 
-    include_response = fields.Bool(
-        data_key="include-response",
-        load_default=False,
-        metadata=dict(
-            description="Opt-in: also compute per-slot recourse rules (response gain, feasibility band and reference forecast) for each flexible device, served along with the schedule.",
-        ),
+    response = fields.Nested(
+        ResponseSchema,
+        data_key="response",
+        required=False,
+        metadata=metadata.RESPONSE.to_dict(),
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__

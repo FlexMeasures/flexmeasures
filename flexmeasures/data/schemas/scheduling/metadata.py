@@ -65,6 +65,34 @@ Each entry is a sensor reference, optionally with source filters. In the flex-co
 """,
     example=[{"sensor": 3}, {"sensor": 4}],
 )
+REFERENCE_SENSOR = MetaData(
+    description="""Sensor recording the signed net power at the connection (the main meter), with import positive.
+Setting this field opts in to the response rules: the schedule of each flexible device then comes with a per-slot ``response``,
+describing how the device should respond locally to a surprise at the connection, see :ref:`response_rules`.
+The scheduler does not read this sensor's data; it only echoes the sensor, since the client evaluates the response rules locally.
+""",
+    example={"sensor": 2},
+)
+RESPONSE_ORDER = MetaData(
+    description="""The order in which the flexible devices respond to a surprise at the connection, as a list of references to the power sensors of flex-model devices.
+A device not in the list never gets a nonzero gain, and a reference to a sensor that is not a flex-model device is a validation error.
+Only applies when ``reference-sensor`` is set.
+""",
+    example=[{"sensor": 5}, {"sensor": 6}],
+)
+RETRIGGER_ON_BAND_EXIT = MetaData(
+    description="""Whether the client should trigger a new schedule when a device's response leaves its band (defaults to true).
+Only applies when ``reference-sensor`` is set.
+""",
+    example=True,
+)
+REFERENCE_AT_START = MetaData(
+    description="""The uncontrolled power at the connection at the time of triggering, with import positive.
+The response of the first slot uses it as its reference, in place of the forecast (mirroring ``soc-at-start``).
+Only applies when ``reference-sensor`` is set.
+""",
+    example="0.4 kW",
+)
 AGGREGATE_POWER = MetaData(
     description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
 To avoid using the field, use ``aggregate-consumption`` or ``aggregate-production`` instead, which make clear the sign convention.
@@ -461,6 +489,18 @@ Declaring operation modes introduces binary decision variables into the optimiza
         {"consumption-range": ["0 W", "0 W"]},
         {"consumption-range": ["883.7 W", "883.7 W"]},
     ],
+)
+RESPONSE = MetaData(
+    description="""How this device can respond locally to a surprise at the connection (see the flex-context fields ``reference-sensor`` and ``response-order``).
+``directions`` lists the ways the device can move its power away from the plan, as a subset of ``consumption-up``, ``consumption-down``, ``production-up`` and ``production-down``;
+the device's response band only extends in the listed directions, so a device that cannot lower its consumption gets no room to do so.
+``response-time`` is the time the device needs to change its power; a device slower than one scheduling step gets no gain.
+A device in the ``response-order`` without this field is taken to respond in any direction, without delay.
+""",
+    example={
+        "directions": ["consumption-up", "consumption-down"],
+        "response-time": "PT1M",
+    },
 )
 GROUP = MetaData(
     description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.

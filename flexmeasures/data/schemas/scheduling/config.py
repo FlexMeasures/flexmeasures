@@ -7,7 +7,7 @@ from marshmallow import Schema, fields
 #: Flex-config fields which state what was true at one moment, rather than where to look it up.
 #: A recurring automation would carry such a value into every later run, long after the moment it described,
 #: and a data source recording one would be a new source on every run.
-MOMENTARY_FLEX_FIELDS = ("soc-at-start",)
+MOMENTARY_FLEX_FIELDS = ("soc-at-start", "reference-at-start")
 
 #: Keys which mark a value as describing one moment or period, as a time series segment does.
 _MOMENT_KEYS = ("datetime", "start", "end")

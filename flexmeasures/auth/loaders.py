@@ -39,7 +39,9 @@ def _collect_sensor_references(
     if isinstance(data, dict):
         for field, value in data.items():
             field_path = (*label_path, field)
-            if _is_sensor_reference_field(field):
+            # A field named after a sensor holds a bare sensor ID, unless it holds a sensor reference object,
+            # such as the flex-context's `reference-sensor`, whose own `sensor` field is then read below.
+            if _is_sensor_reference_field(field) and not isinstance(value, dict):
                 _add_sensor_reference(sensor_refs, field_path, value)
             elif _is_sensor_reference_list_field(field):
                 for sensor in _listify(value):

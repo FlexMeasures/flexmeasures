@@ -23,6 +23,7 @@ from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
 import timely_beliefs as tb
+import numpy as np
 import pandas as pd
 from sqlalchemy import select
 
@@ -1121,22 +1122,26 @@ def make_schedule(  # noqa: C901
             rq_job.save_meta()
             continue
         if result.get("name") == "recourse_rule":
-            # Recourse rules (SeitaBV/ems#231) are not stored as sensor data;
-            # they are kept in the job meta, so the schedule-serving API can
-            # include them in its response.
+            # Response rules are not stored as sensor data;
+            # they are kept in the job meta, so the schedule-serving API can include them in its response.
+            # An unbounded range side (infinite) is kept as None, since the meta has to serialize.
             df = result["data"]
-            reference_sensor = result.get("reference_sensor")
             recourse_rules[result["sensor"].id] = {
                 "start": df.index[0].isoformat(),
                 "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
                 "unit": result.get("unit", "MW"),
-                "reference-sensor": (
-                    reference_sensor.id if reference_sensor is not None else None
-                ),
                 "gain": df["gain"].tolist(),
-                "band_min": df["band_min"].tolist(),
-                "band_max": df["band_max"].tolist(),
                 "reference": df["reference"].tolist(),
+                "band": [
+                    [
+                        [
+                            float(side) if np.isfinite(side) else None
+                            for side in power_range
+                        ]
+                        for power_range in power_ranges
+                    ]
+                    for power_ranges in df["band"]
+                ],
             }
             continue
         if "sensor" not in result:

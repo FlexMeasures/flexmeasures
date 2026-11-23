@@ -36,7 +36,7 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
-from flexmeasures.data.schemas.units import UnitField
+from flexmeasures.data.schemas.units import QuantityField, UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -387,14 +387,6 @@ class SharedSchema(Schema):
         fields.Nested(InflexibleDeviceSchema),
         data_key="inflexible-production",
         metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
-    )
-
-    reference_sensor = SensorIdField(
-        required=False,
-        data_key="reference-sensor",
-        metadata=dict(
-            description="Sensor recording this commodity's main meter. Used as the explicit reference sensor in recourse rules (see the flex-model field `include-response`).",
-        ),
     )
 
     # Aggregate output sensors
@@ -868,6 +860,33 @@ class FlexContextSchema(SharedSchema):
         metadata=metadata.AGGREGATE_POWER.to_dict(),
     )
 
+    # Response rules (opt-in through reference-sensor), see :ref:`response_rules`.
+    reference_sensor = fields.Nested(
+        OutputSensorReferenceSchema,
+        data_key="reference-sensor",
+        required=False,
+        metadata=metadata.REFERENCE_SENSOR.to_dict(),
+    )
+    response_order = fields.List(
+        fields.Nested(OutputSensorReferenceSchema),
+        data_key="response-order",
+        required=False,
+        metadata=metadata.RESPONSE_ORDER.to_dict(),
+    )
+    retrigger_on_band_exit = fields.Bool(
+        data_key="retrigger-on-band-exit",
+        required=False,
+        metadata=metadata.RETRIGGER_ON_BAND_EXIT.to_dict(),
+    )
+    reference_at_start = QuantityField(
+        to_unit="MW",
+        default_src_unit="MW",
+        return_magnitude=False,
+        data_key="reference-at-start",
+        required=False,
+        metadata=metadata.REFERENCE_AT_START.to_dict(),
+    )
+
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
         self,
@@ -1222,6 +1241,16 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "reference-sensor": {
+        "default": None,
+        "description": rst_to_openapi(metadata.REFERENCE_SENSOR.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "response-order": {
+        "default": [],
+        "description": rst_to_openapi(metadata.RESPONSE_ORDER.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "inflexible-production": {
         "default": [],
         "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
@@ -1525,6 +1554,11 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+    class Meta:
+        # A stored flex-context carries no reading of one moment (see MOMENTARY_FLEX_FIELDS),
+        # and the client decides per trigger whether to be told to retrigger when a response leaves its band.
+        exclude = ("reference_at_start", "retrigger_on_band_exit")
+
     # A stored asset flex-context is only validated here (never scheduled directly),
     # so it should not silently bake in the default breach prices implied by the relax flags.
     # Those defaults are applied at scheduling time instead,

@@ -35,6 +35,7 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import (
+    RESPONSE_DIRECTIONS,
     OperationModeSchema,
     StorageFlexModelSchema,
 )
@@ -99,11 +100,10 @@ class MetaStorageScheduler(Scheduler):
 
     default_resolution = timedelta(minutes=15)
 
-    #: Opt-in flag (v1: set as a class/instance attribute; no API or schema changes).
-    #: When True and ``return_multiple`` is True, ``compute()`` also returns one
-    #: ``"recourse_rule"`` entry per flexible device, containing per-slot values for
-    #: the affine recourse rule ``setpoint(m) = clip(p + gain * (m - reference), band_min, band_max)``,
-    #: where ``m`` is the observed net flow of the device's commodity ("main meter").
+    #: Whether the flex-context opted in to the response rules by setting ``reference-sensor``.
+    #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"recourse_rule"`` entry per flexible device,
+    #: containing per-slot values for the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
+    #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`response_rules`.
     include_response: bool = False
 
     COLUMNS = [
@@ -185,12 +185,13 @@ class MetaStorageScheduler(Scheduler):
 
         device_models = inventory.device_flex_models
 
-        # Opt-in for per-slot recourse rules (flex-model field `include-response`);
-        # any device requesting it enables it for all flexible devices of the schedule.
-        if any(
-            isinstance(fm, dict) and fm.get("include_response") for fm in device_models
-        ):
-            self.include_response = True
+        # The flex-context opts in to the response rules by naming the connection's meter (`reference-sensor`);
+        # each device's `response` field says in which directions, and how fast, it can respond.
+        self.include_response = (
+            isinstance(self.flex_context, dict)
+            and self.flex_context.get("reference_sensor") is not None
+        )
+        self._device_responses = [fm.get("response") for fm in device_models]
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
@@ -1968,6 +1969,27 @@ class MetaStorageScheduler(Scheduler):
         self.device_inventory = DeviceInventory.from_flex_config(
             self.flex_model, self.flex_context, sensor=self.sensor
         )
+        self._validate_response_order()
+
+    def _validate_response_order(self):
+        """Refuse a ``response-order`` entry whose sensor is not the power sensor of a flex-model device."""
+        if not isinstance(self.flex_context, dict):
+            return
+        response_order = self.flex_context.get("response_order") or []
+        device_sensor_ids = {
+            device.sensor_id
+            for device in self.device_inventory.devices
+            if device.sensor_id is not None
+        }
+        unknown_sensor_ids = [
+            entry["sensor"].id
+            for entry in response_order
+            if entry["sensor"].id not in device_sensor_ids
+        ]
+        if unknown_sensor_ids:
+            raise ValidationError(
+                f"The response-order refers to sensor(s) {unknown_sensor_ids}, which are not the power sensors of flex-model devices."
+            )
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -3480,22 +3502,17 @@ class StorageScheduler(MetaStorageScheduler):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Per-slot power bounds for device ``d`` such that its stock constraints stay reachable.
 
-        v1 approach — one-slot deviation analysis: for each slot t we assume the device
-        deviates from its planned power only in slot t, after which it may re-plan
-        freely within its own per-slot power band (``power_lo``/``power_hi``, i.e. its
-        power capacity intersected with the EMS headroom left by the other devices'
-        planned flows). The stock reached at the end of slot t must lie in the
-        backward-propagated "safe set" from which all remaining stock minima, maxima
-        and targets (of the device's stock group) remain reachable. Sustained
-        (multi-slot) simultaneous deviations of several devices may still need tighter
-        bounds; deriving those is left for a v2 (e.g. via extra LP solves).
+        One-slot deviation analysis: for each slot t we assume the device deviates from its planned power only in slot t,
+        after which it may re-plan freely within its own per-slot power band (``power_lo``/``power_hi``).
+        The stock reached at the end of slot t must lie in the backward-propagated "safe set",
+        from which all remaining stock minima, maxima and targets (of the device's stock group) remain reachable.
+        Sustained (multi-slot) simultaneous deviations of several devices may still need tighter bounds;
+        deriving those is left for a later revision (e.g. via extra LP solves).
 
-        Stock bounds live on the first device of the device's stock group; deviations of
-        any group member move the shared stock. Other group members are held to their
-        planned schedules.
+        Stock bounds live on the first device of the device's stock group; deviations of any group member move the shared stock.
+        Other group members are held to their planned schedules.
 
-        Storage-efficiency decay is propagated consistently with
-        ``apply_stock_changes_and_losses`` (``how="linear"``).
+        Storage-efficiency decay is propagated consistently with ``apply_stock_changes_and_losses`` (``how="linear"``).
 
         :returns: (lo, hi) arrays of power bounds in MW (may be ±inf where unconstrained).
         """
@@ -3617,74 +3634,112 @@ class StorageScheduler(MetaStorageScheduler):
         lo = np.where(y_min >= 0, y_min / eta_up_d, y_min * eta_down_d)
         return lo, hi
 
-    def _compute_recourse_rules(  # noqa: C901
+    @staticmethod
+    def _direction_bounds(
+        p: float, directions: set[str], tolerance: float
+    ) -> tuple[float, float]:
+        """The power bounds a device may move within, given its planned power ``p`` and the directions it can respond in.
+
+        ``consumption-up`` and ``production-down`` open the range above ``p``, each on its own half-axis,
+        and ``consumption-down`` and ``production-up`` open the range below ``p``.
+        """
+        lo_dir, hi_dir = p, p
+        if p > tolerance:
+            if "consumption-down" in directions:
+                lo_dir = -np.inf if "production-up" in directions else 0.0
+            if "consumption-up" in directions:
+                hi_dir = np.inf
+        elif p < -tolerance:
+            if "production-down" in directions:
+                hi_dir = np.inf if "consumption-up" in directions else 0.0
+            if "production-up" in directions:
+                lo_dir = -np.inf
+        else:
+            if "consumption-up" in directions:
+                hi_dir = np.inf
+            if "production-up" in directions:
+                lo_dir = -np.inf
+        return lo_dir, hi_dir
+
+    @staticmethod
+    def _response_band(
+        p: float,
+        lo: float,
+        hi: float,
+        modes: list[tuple[float, float]] | None,
+        directions: set[str],
+        tolerance: float,
+    ) -> list[tuple[float, float]]:
+        """The power ranges a device may move within during one slot, given its planned power ``p``.
+
+        Starts from the device's own bounds ``[lo, hi]`` (MW, consumption positive),
+        cut to the directions the device can respond in (see :meth:`_direction_bounds`).
+        The result is then split by the device's operation modes, so that no range spans a hole between two modes.
+        The range holding ``p`` is widened to include ``p`` exactly, against numerical noise in the plan.
+
+        :returns: A sorted list of disjoint (min, max) ranges, one of which contains ``p``.
+        """
+        lo_dir, hi_dir = StorageScheduler._direction_bounds(p, directions, tolerance)
+        lo, hi = max(lo, lo_dir), min(hi, hi_dir)
+
+        candidate_ranges = [(lo, hi)]
+        if modes:
+            candidate_ranges = [
+                (max(mode_lo, lo), min(mode_hi, hi)) for mode_lo, mode_hi in modes
+            ]
+        ranges = sorted(
+            (range_lo, range_hi)
+            for range_lo, range_hi in candidate_ranges
+            if range_lo <= range_hi + tolerance
+        )
+        # Make sure one range holds the planned power, widening the nearest one if the plan sits just outside it.
+        if not any(
+            range_lo - tolerance <= p <= range_hi + tolerance
+            for range_lo, range_hi in ranges
+        ):
+            if not ranges:
+                ranges = [(p, p)]
+            else:
+                nearest = min(
+                    range(len(ranges)),
+                    key=lambda i: min(abs(p - ranges[i][0]), abs(p - ranges[i][1])),
+                )
+                ranges[nearest] = (
+                    min(ranges[nearest][0], p),
+                    max(ranges[nearest][1], p),
+                )
+        ranges = [
+            (
+                (min(range_lo, p), max(range_hi, p))
+                if range_lo - tolerance <= p <= range_hi + tolerance
+                else (range_lo, range_hi)
+            )
+            for range_lo, range_hi in ranges
+        ]
+        # Merge ranges that touch, such as an off mode and a mode starting at zero.
+        merged: list[tuple[float, float]] = []
+        for range_lo, range_hi in ranges:
+            if merged and range_lo <= merged[-1][1] + tolerance:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], range_hi))
+            else:
+                merged.append((range_lo, range_hi))
+        return merged
+
+    def _responsive_slots(
         self,
-        sensors: list,
+        commodity_to_devices: dict[str, list[int]],
         ems_schedule: list[pd.Series],
-        device_constraints: list[pd.DataFrame],
         ems_constraints: list[pd.DataFrame],
         commitments: list,
-        initial_stock: list[float],
-        soc_at_start: list,
-    ) -> list[dict]:
-        """Compute a per-slot recourse rule for each flexible device (v1).
+        tolerance: float,
+    ) -> dict[str, np.ndarray]:
+        """Per commodity, the slots in which the responding devices should absorb a surprise at the connection.
 
-        The rule is ``setpoint(m) = clip(p + gain * (m - reference), band_min, band_max)``,
-        where ``m`` is the observed net flow of the device's commodity ("main meter").
-
-        Per flexible device and slot, this returns:
-
-        - ``p``: the planned power (MW, consumption positive) — the schedule itself;
-        - ``band_min``/``band_max``: the min/max power for this device in this slot such
-          that everything else stays feasible, holding all *other* devices to their
-          planned schedules. The band intersects (a) the device's own power capacity
-          bounds, (b) the EMS/site capacity of the device's commodity minus the planned
-          flows of the other devices (flexible and inflexible), and (c) the stock
-          reachability bounds from a one-slot deviation analysis (see
-          :meth:`_stock_reachability_band`);
-        - ``gain``: the response gain K. v1 rule-based classification: K = 0 by default;
-          K = -1 for the marginal flexible device of a commodity in slots where the
-          commodity's site capacity constraint is binding at the optimum, or where the
-          production price differs from the consumption price, or where prices are
-          negative. At most one device per commodity gets K = -1: the storage device
-          with the widest band (falling back to the widest-band flexible device when the
-          commodity has no storage device);
-        - ``reference``: the net planned/forecast flow of the device's commodity, i.e.
-          the sum of inflexible device flows plus all flexible devices' planned flows,
-          *including the device's own planned power*, so that observing m == reference
-          implies setpoint == p.
-
-        All values are in MW (consumption positive). Bounds may be ±inf where a device
-        is unconstrained. Note that device-level and site-level *soft* constraints
-        (breach-priced capacities) are not tightened into the band; only hard bounds are.
+        These are the slots where the commodity's site capacity binds at the optimum,
+        where the planned net power at the connection is zero while the production price is below the consumption price,
+        and where the production price is zero or negative.
         """
-        num_flexible = len(sensors)
-        if num_flexible == 0 or len(ems_schedule) == 0:
-            return []
-        index = ems_schedule[0].index
-        n = len(index)
-
-        commodity_to_devices = self._reconstruct_commodity_to_devices()
-        commodity_contexts = self._get_commodity_contexts()
-        device_models = getattr(self, "_device_models", None) or []
-        device_commodity = {
-            d: (
-                device_models[d].get("commodity", "electricity")
-                if d < len(device_models)
-                else "electricity"
-            )
-            for d in range(num_flexible)
-        }
-
-        # Reference forecast per commodity: net flow of all its devices (m̂ includes
-        # each device's own planned power, so m == m̂ implies setpoint == p).
-        references = {}
-        for commodity, devices in commodity_to_devices.items():
-            devices = [k for k in devices if k < len(ems_schedule)]
-            if devices:
-                references[commodity] = sum(
-                    ems_schedule[k].to_numpy(dtype=float) for k in devices
-                )
+        n = len(ems_schedule[0])
 
         # Per-commodity energy prices, as embedded in the net-energy commitments.
         consumption_prices = {}
@@ -3701,14 +3756,116 @@ class StorageScheduler(MetaStorageScheduler):
                 )[:n]
 
         ems_constraint_groups = self.ems_constraint_groups or []
+        responsive_by_commodity = {}
+        for commodity, devices in commodity_to_devices.items():
+            device_set = {k for k in devices if k < len(ems_schedule)}
+            net = np.zeros(n)
+            for k in device_set:
+                net += ems_schedule[k].to_numpy(dtype=float)
+            responsive = np.zeros(n, dtype=bool)
 
-        # Band per flexible device.
-        bands = {}
+            up = consumption_prices.get(commodity)
+            down = production_prices.get(commodity)
+            if up is not None and down is not None:
+                production_cheaper = (down < up) & ~np.isclose(down, up)
+                responsive |= (np.abs(net) <= tolerance) & production_cheaper
+                responsive |= down <= 0
+
+            for g, group_devices in enumerate(ems_constraint_groups):
+                if set(group_devices) != device_set:
+                    continue
+                emax = ems_constraints[g]["derivative max"].astype(float).to_numpy()
+                emin = ems_constraints[g]["derivative min"].astype(float).to_numpy()
+                with np.errstate(invalid="ignore"):
+                    responsive |= np.where(
+                        np.isnan(emax), False, net >= emax - tolerance
+                    )
+                    responsive |= np.where(
+                        np.isnan(emin), False, net <= emin + tolerance
+                    )
+                break
+            responsive_by_commodity[commodity] = responsive
+        return responsive_by_commodity
+
+    def _compute_recourse_rules(  # noqa: C901
+        self,
+        sensors: list,
+        ems_schedule: list[pd.Series],
+        device_constraints: list[pd.DataFrame],
+        ems_constraints: list[pd.DataFrame],
+        commitments: list,
+        initial_stock: list[float],
+        resolution: timedelta,
+    ) -> list[dict]:
+        """Compute the per-slot response rule of each flexible device, see :ref:`response_rules`.
+
+        The client applies ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)`` per slot,
+        where ``p`` is the planned power and ``m_uncontrolled`` the measured uncontrolled power at the connection.
+
+        Per flexible device and slot, this returns:
+
+        - ``p``: the planned power (MW, consumption positive), the schedule itself;
+        - ``reference``: the uncontrolled power at the connection the plan assumed,
+          i.e. the sum of the inflexible device forecasts of the device's commodity, without any flexible device's plan,
+          so 0 without inflexible devices; the flex-context's ``reference-at-start`` replaces the first slot's value;
+        - ``gain``: -1 for a device of the ``response-order`` in the slots found by :meth:`_responsive_slots`, 0 otherwise.
+          A device whose ``response-time`` exceeds the scheduling resolution, or whose band leaves no room to move, gets 0;
+        - ``band``: the (min, max) power ranges the device may move within, see :meth:`_response_band`,
+          narrowed so that its stock constraints stay reachable after a one-slot deviation (see :meth:`_stock_reachability_band`).
+          Shared limits, such as the site capacity, do not narrow the band.
+          A device with gain 0 gets the single range (p, p).
+
+        All values are in MW (consumption positive). Range sides may be ±inf where a device is unconstrained.
+        Soft (breach-priced) capacities do not narrow the band; only hard bounds do.
+        """
+        num_flexible = len(sensors)
+        if num_flexible == 0 or len(ems_schedule) == 0:
+            return []
+        index = ems_schedule[0].index
+        n = len(index)
+        tolerance = 1e-6  # MW
+
+        commodity_to_devices = self._reconstruct_commodity_to_devices()
+        device_models = getattr(self, "_device_models", None) or []
+        device_commodity = {
+            d: (
+                device_models[d].get("commodity", "electricity")
+                if d < len(device_models)
+                else "electricity"
+            )
+            for d in range(num_flexible)
+        }
+
+        # The uncontrolled power per commodity: the inflexible devices' forecasts, without any flexible device's plan.
+        references = {}
+        for commodity, devices in commodity_to_devices.items():
+            reference = np.zeros(n)
+            for k in devices:
+                if num_flexible <= k < len(ems_schedule):
+                    reference += ems_schedule[k].to_numpy(dtype=float)
+            references[commodity] = reference
+        flex_context = self.flex_context if isinstance(self.flex_context, dict) else {}
+        reference_at_start = flex_context.get("reference_at_start")
+        if reference_at_start is not None:
+            for reference in references.values():
+                reference[0] = float(reference_at_start.to("MW").magnitude)
+
+        responsive_by_commodity = self._responsive_slots(
+            commodity_to_devices, ems_schedule, ems_constraints, commitments, tolerance
+        )
+        response_order_sensor_ids = [
+            entry["sensor"].id for entry in flex_context.get("response_order") or []
+        ]
+        device_responses = (
+            getattr(self, "_device_responses", None) or [None] * num_flexible
+        )
+
+        entries = []
         for d in range(num_flexible):
             p = ems_schedule[d].to_numpy(dtype=float)
             dc = device_constraints[d]
 
-            # (a) The device's own power bounds.
+            # The device's own power bounds.
             dmax = dc["derivative max"].astype(float).to_numpy()
             dmin = dc["derivative min"].astype(float).to_numpy()
             deq = dc["derivative equals"].astype(float).to_numpy()
@@ -3717,22 +3874,7 @@ class StorageScheduler(MetaStorageScheduler):
             hi = np.where(np.isnan(deq), hi, np.fmin(hi, deq))
             lo = np.where(np.isnan(deq), lo, np.fmax(lo, deq))
 
-            # (b) EMS/site capacity headroom of the device's commodity, given the
-            # planned flows of the other devices (flexible and inflexible).
-            for g, group_devices in enumerate(ems_constraint_groups):
-                if d not in group_devices:
-                    continue
-                others = np.zeros(n)
-                for k in group_devices:
-                    if k != d and k < len(ems_schedule):
-                        others += ems_schedule[k].to_numpy(dtype=float)
-                emax = ems_constraints[g]["derivative max"].astype(float).to_numpy()
-                emin = ems_constraints[g]["derivative min"].astype(float).to_numpy()
-                hi = np.fmin(hi, np.where(np.isnan(emax), np.inf, emax) - others)
-                lo = np.fmax(lo, np.where(np.isnan(emin), -np.inf, emin) - others)
-
-            # (c) Stock reachability under a one-slot deviation (the power band computed
-            # so far also serves as the device's re-planning room in the continuation).
+            # Stock reachability under a one-slot deviation, with the device's own bounds as its re-planning room.
             lo_s, hi_s = self._stock_reachability_band(
                 d, ems_schedule, device_constraints, initial_stock, lo, hi
             )
@@ -3742,95 +3884,62 @@ class StorageScheduler(MetaStorageScheduler):
             # Guarantee the planned power lies within the band, despite numerical noise.
             hi = np.fmax(hi, p)
             lo = np.fmin(lo, p)
-            bands[d] = (lo, hi)
 
-        # Response gain classification (v1 rules).
-        gains = {d: np.zeros(n) for d in range(num_flexible)}
-        binding_tolerance = 1e-6  # MW
-        for commodity, devices in commodity_to_devices.items():
-            flexible_ds = [
-                d for d in range(num_flexible) if device_commodity[d] == commodity
-            ]
-            if not flexible_ds:
-                continue
+            response = device_responses[d] if d < len(device_responses) else None
+            directions = (
+                set(response["directions"])
+                if response is not None
+                else set(RESPONSE_DIRECTIONS)
+            )
+            response_time = (
+                response["response_time"] if response is not None else timedelta(0)
+            )
+            sensor_id = getattr(sensors[d], "id", None)
+            can_respond = (
+                sensor_id is not None
+                and sensor_id in response_order_sensor_ids
+                and response_time <= resolution
+            )
+            responsive = responsive_by_commodity.get(
+                device_commodity[d], np.zeros(n, dtype=bool)
+            )
+            modes = dc.attrs.get("operation_modes")
 
-            responsive = np.zeros(n, dtype=bool)
+            gains = np.zeros(n)
+            bands = []
+            for t in range(n):
+                ranges = self._response_band(
+                    float(p[t]),
+                    float(lo[t]),
+                    float(hi[t]),
+                    modes,
+                    directions,
+                    tolerance,
+                )
+                room = len(ranges) > 1 or ranges[0][1] - ranges[0][0] > tolerance
+                if can_respond and responsive[t] and room:
+                    gains[t] = -1.0
+                    bands.append(ranges)
+                else:
+                    bands.append([(float(p[t]), float(p[t]))])
 
-            # Asymmetric or negative energy prices.
-            up = consumption_prices.get(commodity)
-            down = production_prices.get(commodity)
-            if up is not None and down is not None:
-                responsive |= ~np.isclose(up, down) | (up < 0) | (down < 0)
-
-            # Site/commodity capacity binding at the optimum.
-            device_set = {k for k in devices if k < len(ems_schedule)}
-            for g, group_devices in enumerate(ems_constraint_groups):
-                if set(group_devices) != device_set:
-                    continue
-                net = np.zeros(n)
-                for k in group_devices:
-                    net += ems_schedule[k].to_numpy(dtype=float)
-                emax = ems_constraints[g]["derivative max"].astype(float).to_numpy()
-                emin = ems_constraints[g]["derivative min"].astype(float).to_numpy()
-                with np.errstate(invalid="ignore"):
-                    responsive |= np.where(
-                        np.isnan(emax), False, net >= emax - binding_tolerance
-                    )
-                    responsive |= np.where(
-                        np.isnan(emin), False, net <= emin + binding_tolerance
-                    )
-                break
-
-            if not responsive.any():
-                continue
-
-            # The marginal flexible device: the storage device with the widest band
-            # (fall back to any flexible device if the commodity has no storage device).
-            candidates = [d for d in flexible_ds if soc_at_start[d] is not None]
-            if not candidates:
-                candidates = flexible_ds
-            widths = {}
-            for d in candidates:
-                lo, hi = bands[d]
-                width = hi - lo
-                widths[d] = float(np.sum(np.minimum(width, 1e9)))
-            marginal_device = max(widths, key=widths.get)
-            gains[marginal_device][responsive] = -1.0
-
-        entries = []
-        for d in range(num_flexible):
-            lo, hi = bands[d]
-            commodity = device_commodity[d]
             data = pd.DataFrame(
                 {
-                    "p": ems_schedule[d].to_numpy(dtype=float),
-                    "gain": gains[d],
-                    "band_min": lo,
-                    "band_max": hi,
-                    "reference": references.get(
-                        commodity, ems_schedule[d].to_numpy(dtype=float)
-                    ),
+                    "p": p,
+                    "gain": gains,
+                    "reference": references.get(device_commodity[d], np.zeros(n)),
+                    "band": pd.Series(bands, index=index, dtype=object),
                 },
                 index=index,
             )
-            # Note: we deliberately do not round the rule data here. Rounding to
-            # self.round_to_decimals decimals in MW would be coarser than the
-            # schedule values, which are rounded in the sensor's own unit (e.g. kW),
-            # breaking the respond(reference) == p identity by up to half a
-            # rounding step. The API serves the rules converted to the same unit
-            # as the schedule values, so full precision keeps them consistent.
-            # Optional explicit reference ("main meter") sensor of this commodity,
-            # from the flex-context's `reference-sensor` field.
-            reference_sensor = commodity_contexts.get(commodity, {}).get(
-                "reference_sensor"
-            )
+            # The rule data is deliberately not rounded here:
+            # the API converts it to the unit of the served schedule values, so full precision keeps band and plan consistent.
             entries.append(
                 {
                     "name": "recourse_rule",
                     "sensor": sensors[d],
                     "data": data,
                     "unit": "MW",
-                    "reference_sensor": reference_sensor,
                 }
             )
         return entries
@@ -4093,7 +4202,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ems_constraints=ems_constraints,
                     commitments=commitments,
                     initial_stock=initial_stock,
-                    soc_at_start=soc_at_start,
+                    resolution=resolution,
                 )
             # Recourse rules name a device's sensor but are not saved to it (they go into the job meta),
             # so they stay out of the per-sensor deduplication.
