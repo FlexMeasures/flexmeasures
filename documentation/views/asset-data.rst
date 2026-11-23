@@ -156,6 +156,28 @@ An example would be:
     ]
 
 
+
+.. _view_replay:
+
+Replaying how data became known
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The play button beside the graphs replays the selected period as it unfolded:
+a vertical ruler moves through belief time, and the graphs show only the data that was known at the ruler's position.
+That makes it easy to see how forecasts and schedules were revised over time.
+
+Two settings below the play button control the replay:
+
+- **Step** sets how far belief time moves when stepping with the ``n`` and ``b`` keys.
+  By default (*Auto*), it follows how often new data was recorded, such as every 15 minutes for a forecast that is renewed every 15 minutes,
+  rounded down to a step that fits a whole number of times in an hour or a day.
+  While playing, the graphs update whenever new data becomes known, whatever the step,
+  except with the *Fast chart* switch turned off: then they move on one step at a time.
+- **Speed** sets how fast belief time passes. At 1×, 6 hours pass per second.
+
+Press ``p`` to play or pause, ``s`` to stop, ``n`` to move one step ahead, ``b`` to move one step back, ``r`` to rewind (play backward), and ``+`` or ``-`` to speed up or slow down.
+The sensor page offers the same replay.
+
 .. _view_asset_properties:
 
 Properties page

@@ -375,9 +375,20 @@ FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Maximum request body size for sensor data posted to the sensor data API, both for JSON data and file uploads.
+Unless you set ``MAX_CONTENT_LENGTH`` (see below), this also limits the body of any other request.
 Set to ``None`` to disable this FlexMeasures-specific limit.
+The limit also applies to bodies sent without a ``Content-Length`` header (chunked transfer encoding).
 
 Default: ``3 * 1024 * 1024``
+
+MAX_CONTENT_LENGTH
+^^^^^^^^^^^^^^^^^^
+
+Flask's maximum request body size, for every request. Larger requests are answered with ``413 (Payload Too Large)``.
+If you do not set it, it is the same as ``FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES``, so that one setting limits all request bodies (raising that limit raises this one too).
+Set it yourself to give other requests another limit, or to ``None`` to disable it (e.g. if your reverse proxy limits request bodies already).
+
+Default: ``FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES``
 
 .. _datasource_config:
 
@@ -583,6 +594,15 @@ A duration such as ``"1 week"`` or ``"7 days"``, or an ISO 8601 duration such as
 
 Default: ``"1 week"``
 
+FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``SECURITY_TWO_FACTOR`` is enabled, users who log in with a second factor cannot get an API token from ``/api/requestAuthToken`` with their email and password alone, as that would skip the second factor.
+They log in first (completing the second factor), and then request a token from that session.
+Set this to ``True`` to allow password-only token requests again, for instance while API clients of such users still authenticate with a password.
+
+Default: ``False``
+
 SECURITY_TWO_FACTOR_RESCUE_MAIL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -622,6 +642,22 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+SECURITY_RETURN_GENERIC_RESPONSES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Answer login, "forgot password" and other authentication forms alike, whether or not a user with the given email address exists, so the answers don't reveal who has an account.
+``/api/requestAuthToken`` likewise answers ``401`` for an unknown email address, as for a wrong password.
+
+Default: ``True``
+
+SECURITY_PASSWORD_LENGTH_MIN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Minimum length of a new password, when users set or reset their password and when ``flexmeasures add user`` creates one.
+Existing passwords keep working.
+
+Default: ``12``
+
 .. _flexmeasures_secrets_encryption_keys:
 
 FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
@@ -658,6 +694,16 @@ Maximal age of security tokens in seconds.
 .. note:: Token expiration time can be user-specific, see `SECURITY_TOKEN_EXPIRE_TIMESTAMP <https://flask-security-too.readthedocs.io/en/stable/configuration.html#SECURITY_TOKEN_EXPIRE_TIMESTAMP>`_.
 
 Default: ``60 * 60 * 6``  (six hours)
+
+SESSION_COOKIE_SECURE, SESSION_COOKIE_SAMESITE, REMEMBER_COOKIE_SECURE, REMEMBER_COOKIE_SAMESITE, REMEMBER_COOKIE_DURATION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Attributes of the cookies that keep users logged in to the UI (the `Flask <https://flask.palletsprojects.com/en/stable/config/#SESSION_COOKIE_SECURE>`_ session cookie and the `Flask-Login <https://flask-login.readthedocs.io/en/latest/#cookie-settings>`_ "remember me" cookie).
+FlexMeasures sets both cookies with ``SameSite=Lax`` and ``HttpOnly``, and keeps the "remember me" cookie for two weeks.
+With :ref:`FLEXMEASURES_FORCE_HTTPS <force_https>` on, both cookies are also ``Secure``, so browsers only send them over HTTPS.
+Setting ``SESSION_COOKIE_SECURE`` or ``REMEMBER_COOKIE_SECURE`` yourself (to ``True`` or ``False``) overrides this.
+
+Defaults: ``SameSite`` ``"Lax"``, ``Secure`` as ``FLEXMEASURES_FORCE_HTTPS``, ``REMEMBER_COOKIE_DURATION`` ``timedelta(days=14)``.
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
@@ -699,6 +745,7 @@ FLEXMEASURES_FORCE_HTTPS
 Set to ``True`` if all requests should be forced to be HTTPS.
 FlexMeasures then redirects requests made via ``http://`` to ``https://``, unless the app runs in debug mode or the request carries ``X-Forwarded-Proto: https``, as a reverse proxy that handles HTTPS sets it.
 The redirect comes from Flask-SSLify, so its own settings, such as ``SSLIFY_SKIPS`` for paths that should not be redirected, apply as well.
+This setting also covers cookies: the login cookies are then marked ``Secure``, unless you set ``SESSION_COOKIE_SECURE`` or ``REMEMBER_COOKIE_SECURE`` yourself.
 FlexMeasures reads this setting from the config file only, not from an environment variable.
 
 Default: ``False``
@@ -710,6 +757,27 @@ FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
 When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``. One example of a use case for this is if you have a load balancer in front of FlexMeasures, which is secured with a certificate and only accepts https.
 
 Default: ``False``
+
+
+FLEXMEASURES_SECURITY_HEADERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+HTTP headers FlexMeasures adds to every response, unless the response already sets them.
+The defaults keep browsers from guessing content types (``nosniff``), keep other sites from framing FlexMeasures pages (clickjacking), and keep full URLs out of the ``Referer`` header sent to other sites.
+The ``Content-Security-Policy`` default only restricts framing; it does not restrict scripts, as the UI uses inline scripts.
+Set a header to ``None`` to leave it out (e.g. when your reverse proxy adds it already), or change its value, e.g. to allow framing by another site you trust.
+HSTS (``Strict-Transport-Security``) is added when :ref:`force_https` is ``True``.
+
+Default:
+
+.. code-block:: python
+
+    {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+    }
 
 
 TRUSTED_HOSTS
@@ -833,6 +901,12 @@ FLEXMEASURES_SENTRY_CONFIG
 A dictionary with values to configure reporting to Sentry. Some options are taken care of by FlexMeasures (e.g. environment and release), but not all.
 See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for a complete list.
 
+By default, FlexMeasures sends no personal data to Sentry: an event about a request names only the id of the logged-in user,
+tags it with their account id (``account_id``), and adds links to the user's and the account's pages on your FlexMeasures platform (under the ``flexmeasures`` context).
+Following these links requires logging in to FlexMeasures, so Sentry holds no names or email addresses.
+To also send their email address and username, the client's IP address, cookies and request headers, set ``"send_default_pii": True`` here
+(and make sure your agreement with Sentry covers that).
+
 Default: ``{}``
 
 
@@ -868,6 +942,7 @@ FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Token which external services can use to check on the status of recurring tasks within FlexMeasures.
+They send it in the ``Authorization`` header. Leave it unset (or empty) to switch these checks off.
 
 Default: ``None``
 
@@ -878,9 +953,32 @@ Default: ``None``
 FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run``, ``flexmeasures monitor last-seen`` and ``flexmeasures monitor automations`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+
+.. _monitor_automations_stuck_after:
+
+FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long an automation run may execute before ``flexmeasures monitor automations`` reports it as stuck, for instance because the worker running its job died.
+Its ``--stuck-after-minutes`` option overrides this setting.
+
+Default: ``timedelta(hours=6)``
+
+.. _base_url:
+
+FLEXMEASURES_BASE_URL
+^^^^^^^^^^^^^^^^^^^^^
+
+Where this server is reached on the web, for instance ``"https://ems.example.com"``.
+Emails sent from the CLI, outside of any request, use it to link to the web pages they are about.
+For instance, the digest of ``flexmeasures monitor automations`` links each failing automation to the Automations page of its asset.
+Without it, these emails carry no links.
+
+Default: ``None``
 
 
 .. _redis-config:
@@ -971,6 +1069,74 @@ It is counted per account, so all users and assets of an account share it, too.
 Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
+
+Creating an automation through the API counts against this budget, too.
+
+FLEXMEASURES_AUTOMATION_MIN_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The shortest time between two runs of an automation, as set up through the API by users other than admins, per automation type.
+An automation whose cron expression can run more often (e.g. ``"* * * * *"`` or ``"*/5 * * * *"``) is refused when it is created, or when its cron expression is changed.
+Admins, and automations set up through the CLI, are not held to this.
+
+The setting maps automation types to their minimum interval. Types it does not name (such as automation types added by plugins) get the ``"default"`` interval.
+A single ``timedelta`` is also accepted, and then holds for all types.
+
+Default:
+
+.. code-block:: python
+
+    {
+        "default": timedelta(minutes=15),
+        "scheduling": timedelta(minutes=15),
+        "forecasting": timedelta(hours=1),
+        "reporting": timedelta(minutes=15),
+        "ingestion": timedelta(minutes=1),
+    }
+
+FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many attempts to authenticate as one email address are allowed from one client address: passwords on the login form and on ``/api/requestAuthToken``,
+and two-factor codes. Each attempt is counted before the credentials are checked, and a successful login or token request clears the count.
+Once the count is used up, further attempts for that email address from that client address are refused (with status 429) until the window ends,
+whether the password is right or not. Addresses without an account are counted the same way, so the answer does not reveal which addresses have one.
+
+Because the count is per client address, someone guessing at an account does not lock its owner, or scripts fetching tokens from elsewhere, out.
+Behind a reverse proxy, every client has the proxy's address unless :ref:`trusted_proxies_config` is set; until then, all clients share one count per email address,
+and anyone who knows an email address can keep its owner (including API scripts) from logging in. Raise this limit to soften that.
+
+The counts are kept in the rate limiter's storage (Redis), and are not applied when rate limiting is switched off (``RATELIMIT_ENABLED``).
+
+Default: ``"10 per 15 minutes"``
+
+FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many attempts to authenticate as one email address are allowed from all client addresses together, against guessing from many addresses at once.
+It works like ``FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT``. Someone who uses this up (from many addresses) keeps the account's owner from logging in until the window ends.
+
+Default: ``"100 per hour"``
+
+.. _trusted_proxies_config:
+
+FLEXMEASURES_TRUSTED_PROXIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The number of reverse proxies (e.g. nginx) in front of FlexMeasures that set ``X-Forwarded-For``.
+FlexMeasures then takes the client address from that header (the entry that many places from the end), rather than the proxy's own address.
+This address is used for counting failed logins, for limiting unauthenticated API calls, and in log lines.
+Only set it if every request passes through that many proxies, which each append to ``X-Forwarded-For``; otherwise clients can make up their address.
+
+Default: ``0`` (use the address of the direct peer)
+
+FLEXMEASURES_PASSWORD_RECOVERY_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How many password recovery requests (the "forgot password" form) are allowed per email address,
+so that the form cannot be used to flood someone's inbox.
+
+Default: ``"5 per hour"``
 
 Demonstrations
 --------------
@@ -1119,6 +1285,10 @@ Defines the set of transformation methods in Pandas Reporters that should **skip
 Extend this list if you want to permit additional pseudo-methods in reporter pipelines.
 
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
+
+.. note::  Names in this list also bypass the list of Pandas methods a transformation may use, along with any check of their arguments.
+           For instance, adding ``pipe`` here lets reporter configs (which users can send through the API) call it with any function name.
+           Methods that call other methods by name (``apply``, ``agg``, ``aggregate`` and ``transform``) are allowed without being listed here, as long as every name in their first argument is a method a transformation may use.
 
 Default: ``["get_attribute"]``
 

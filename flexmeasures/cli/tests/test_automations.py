@@ -135,9 +135,12 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data_fresh_db):
     assert automation.parameters == {"sensor": str(sensor_id)}
     assert automation.generator is not None
     assert automation.generator.model == "TrainPredictPipeline"
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Created automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
     # edit
     result = runner.invoke(
@@ -156,17 +159,23 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data_fresh_db):
     assert automation.name == "Renamed"
     assert automation.timezone == "UTC"
     assert automation.active is False
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Updated automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("Via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
     # delete
     result = runner.invoke(delete_automation, ["--id", automation.id, "--force"])
     assert "Successfully deleted" in result.output, result.output
     assert fresh_db.session.execute(select(Automation)).scalar_one_or_none() is None
-    assert fresh_db.session.execute(
+    record = fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Deleted automation%"))
     ).scalar_one_or_none()
+    assert record is not None
+    assert record.event.endswith("via CLI."), record.event
+    assert record.active_user_id is None  # no user acts through the CLI
 
 
 def test_add_automation_default_cron(
@@ -1869,6 +1878,58 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
+def test_a_failed_report_run_is_reported_by_monitoring(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A report run whose job failed on the worker shows up in the host's monitoring digest, with the job's error."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.cli.monitor import monitor_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+
+    mocker.patch.object(
+        PandasReporter, "compute", side_effect=KeyError("df_agg is missing")
+    )
+    work_on_rq(app.queues["reporting"])
+
+    with app.mail.record_messages() as outbox:
+        result = runner.invoke(monitor_automations, ["--recipient", "ops@example.test"])
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    body = outbox[0].body
+    assert f"Automation {automation.id} '{automation.name}' (reporting)" in body
+    assert "failed once (execution failed: 1)" in body
+    assert "last error: KeyError: 'df_agg is missing'" in body
+
+
 def _two_output_report_automation_cli_input(
     tmp_path,
     sensor1_id,
@@ -2721,7 +2782,7 @@ def automation_row_cell(output: str, name: str, header: str) -> str:
 
     Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
     """
-    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"]
+    headers = ["ID", "Asset", "Name", "Type", "Active", "Monitored", "Cron", "Timezone"]
     lines = output.splitlines()
     header_line = next(line for line in lines if all(h in line for h in headers))
     starts = [header_line.index(h) for h in headers]
@@ -2865,6 +2926,50 @@ def test_show_automations_includes_inactive_ones(app, setup_dummy_data_fresh_db)
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
     assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_add_edit_and_show_an_unmonitored_automation(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """An automation can be created without monitoring and edited to be monitored, and both views say which it is."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Experimental forecasts",
+                "sensor": setup_dummy_data_fresh_db[0],
+            }
+        )
+        + ["--unmonitored"],
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.monitored is False
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert (
+        automation_row_cell(result.output, "Experimental forecasts", "Monitored")
+        == "no"
+    )
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert re.search(r"^Monitored\s+no$", result.output, re.MULTILINE)
+    result = runner.invoke(list_automations, ["--id", automation.id, "--as-json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["monitored"] is False
+
+    result = runner.invoke(edit_automation, ["--id", automation.id, "--monitored"])
+    assert result.exit_code == 0, result.output
+    assert "monitoring switched on" in result.output
+    fresh_db.session.refresh(automation)
+    assert automation.monitored is True
 
 
 def test_show_automations_without_any_automations(app, setup_dummy_data_fresh_db):

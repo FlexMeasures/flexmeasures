@@ -164,6 +164,8 @@ def test_the_output_scoped_automation_types_are_supported():
 
 def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site):
     """Automations on the copied asset and on its descendants are copied, inactive and without run history."""
+    # One original opted out of monitoring, so that the copies show they keep that choice rather than the default.
+    automated_site["meter_automation"].monitored = False
     asset_copy = copy_asset(automated_site["site"])
 
     assert asset_copy.skipped_automations == []
@@ -187,6 +189,7 @@ def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site)
         assert copied.type == original.type
         assert copied.cronstr == original.cronstr
         assert copied.timezone == original.timezone
+        assert copied.monitored == original.monitored
         # A copy waits to be switched on, and starts without the original's run history.
         assert copied.active is False
         assert copied.cursor > OLD_CURSOR
@@ -448,6 +451,41 @@ def test_copy_skips_an_automation_whose_generator_is_unavailable(
     assert [copied.name for copied in _automations_of(fresh_db, asset_copy.asset)] == [
         "Site power forecasts"
     ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_runs_copied_automations_as_the_copying_user(
+    client,
+    fresh_db,
+    setup_roles_users_fresh_db,
+    automated_site,
+    requesting_user,
+):
+    """Automations copied through the API run as the user who copied them,
+    so that user's access is checked again before each run."""
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.services.automations import run_automation
+
+    response = client.post(
+        url_for("AssetAPI:copy_assets", id=automated_site["site"].id)
+    )
+    assert response.status_code == 201, response.json
+
+    copied_automations = _automations_of(
+        fresh_db, fresh_db.session.get(GenericAsset, response.json["asset"])
+    )
+    assert copied_automations
+    for copied_automation in copied_automations:
+        assert copied_automation.execution_user_id == requesting_user.id
+
+    # Once the copying user is deactivated, the copy no longer runs
+    requesting_user.active = False
+    fresh_db.session.commit()
+    with pytest.raises(Forbidden):
+        run_automation(copied_automations[0])
 
 
 @pytest.mark.parametrize(

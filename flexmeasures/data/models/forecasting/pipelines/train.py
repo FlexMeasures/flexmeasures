@@ -18,8 +18,6 @@ from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.schemas.sensors import SensorReference
 
-warnings.filterwarnings("ignore")
-
 
 def derive_daily_lag_steps(
     sensor_resolution: timedelta, fallback_lag_steps: int = 24
@@ -114,11 +112,15 @@ class TrainPipeline(BasePipeline):
         logging.debug(f"Training model {model.__class__.__name__}")
 
         try:
-            model.fit(
-                series=y_train,
-                past_covariates=past_covariates,
-                future_covariates=future_covariates,
-            )
+            # Keep library warnings from training out of the logs, but only while fitting:
+            # a module-level filter would mute every warning for the rest of the process.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                model.fit(
+                    series=y_train,
+                    past_covariates=past_covariates,
+                    future_covariates=future_covariates,
+                )
         except ValueError as e:
             if (
                 "do not share any common times for which features can be created"
