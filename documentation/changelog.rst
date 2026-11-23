@@ -53,6 +53,7 @@ Bugfixes
 
 Infrastructure / Support
 -------------------------
+* Require SQLAlchemy below 2.1, which v1.0 does not support (for instance, ``flexmeasures delete beliefs`` fails on it); upgrade to v1.1 to use SQLAlchemy 2.1 [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_ and `PR #2831 <https://www.github.com/FlexMeasures/flexmeasures/pull/2831>`_]
 * Every response carries ``X-Content-Type-Options: nosniff``, ``X-Frame-Options: SAMEORIGIN``, ``Content-Security-Policy: frame-ancestors 'self'`` and ``Referrer-Policy: strict-origin-when-cross-origin``; change or leave out each of them with the new ``FLEXMEASURES_SECURITY_HEADERS`` setting
 * Login cookies are ``SameSite=Lax`` and ``HttpOnly``, ``Secure`` when ``FLEXMEASURES_FORCE_HTTPS`` is on, and "remember me" lasts two weeks
 * Every request body is limited to ``FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES`` (3.1 MB by default) and answered with ``413`` above it, unless you set Flask's ``MAX_CONTENT_LENGTH`` yourself; sensor data sent without a ``Content-Length`` header (chunked) is held to the ingestion limit, too
