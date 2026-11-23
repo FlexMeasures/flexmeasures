@@ -70,7 +70,7 @@ since v1.0.1 | September 9, 2026
 
 * ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
-since v1.0.0 | August 11, 2026
+since v1.0.0 | August 25, 2026
 =================================
 
 * ``flexmeasures add user --roles`` now parses comma-separated role lists and accepts repeated ``--roles`` options.
