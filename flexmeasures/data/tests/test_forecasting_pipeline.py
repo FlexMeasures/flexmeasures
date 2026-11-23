@@ -4,6 +4,9 @@ import pytest
 
 import itertools
 import logging
+import subprocess
+import sys
+import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -25,7 +28,10 @@ from flexmeasures.data.models.forecasting.utils import (
 )
 from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
-from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
+from flexmeasures.data.models.forecasting.pipelines.train import (
+    TrainPipeline,
+    derive_daily_lag_steps,
+)
 from flexmeasures.data.models.generic_assets import (
     GenericAsset as Asset,
     GenericAssetType,
@@ -3316,3 +3322,35 @@ def test_future_regressor_keeps_day_ahead_prices_known_before_the_forecast(
     for values in future_values:
         assert values.notna().all()
         assert values.index.max() > pd.Timestamp("2025-01-07T21:00")
+
+
+def test_importing_the_train_pipeline_does_not_mute_all_warnings():
+    """Importing the training pipeline adds no filter that ignores every warning in the process."""
+    # A fresh interpreter, because this test session has imported the module already.
+    # Libraries such as numpy and pandas add narrow filters on import, so only a blanket ignore counts.
+    code = (
+        "import warnings; before = list(warnings.filters); "
+        "import flexmeasures.data.models.forecasting.pipelines.train; "
+        "added = [f for f in warnings.filters if f not in before]; "
+        "print([f for f in added if f[0] == 'ignore' and f[1] is None and f[2] is Warning and f[3] is None])"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip().splitlines()[-1] == "[]"
+
+
+def test_training_mutes_warnings_only_while_fitting():
+    """Warnings raised while fitting are silenced, and warnings raised afterwards still come through."""
+
+    class NoisyModel:
+        def fit(self, **kwargs):
+            warnings.warn("raised while fitting", UserWarning)
+
+    pipeline = TrainPipeline.__new__(TrainPipeline)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pipeline.train_model(NoisyModel(), None, None, None)
+        warnings.warn("raised after fitting", UserWarning)
+
+    assert [str(w.message) for w in caught] == ["raised after fitting"]

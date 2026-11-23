@@ -306,6 +306,7 @@ def test_post_automation(
     if expected_status_code == 201:
         assert response.json["name"] == "Posted schedules"
         assert response.json["active"] is True
+        assert response.json["monitored"] is True
         assert response.json["recurrence-description"] == "At 00:00"
         automation = db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
@@ -578,6 +579,151 @@ def test_post_and_patch_automation_timezone(
             json={"timezone": "Europe/NotAmsterdam"},
         )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_and_patch_automation_monitoring(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation can opt out of monitoring on creation, and opt back in afterwards."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Experimental schedules",
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+                "monitored": False,
+            },
+        )
+    assert response.status_code == 201, response.json
+    assert response.json["monitored"] is False
+    automation = db.session.get(Automation, response.json["id"])
+    assert automation.monitored is False
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"monitored": True},
+        )
+    assert response.status_code == 200, response.json
+    assert response.json["monitored"] is True
+    assert automation.monitored is True
+    assert db.session.scalars(
+        select(AssetAuditLog.event).where(
+            AssetAuditLog.affected_asset_id == battery.id,
+            AssetAuditLog.event.contains("monitoring switched on"),
+        )
+    ).all()
+
+
+@pytest.mark.parametrize(
+    "requesting_user, may_change_monitoring",
+    [
+        ("test_admin_user@seita.nl", True),
+        (
+            "test_prosumer_user_2@seita.nl",
+            True,
+        ),  # account-admin of the asset's organisation
+        (
+            "test_prosumer_user@seita.nl",
+            False,
+        ),  # member, who may manage the automation otherwise
+        (
+            "test_consultant@seita.nl",
+            False,
+        ),  # once the asset's organisation is a client of the consultancy
+    ],
+    indirect=["requesting_user"],
+)
+def test_only_admins_may_switch_monitoring(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    may_change_monitoring,
+):
+    """Only the host's admins and the asset's account-admins may create an unmonitored automation, or switch monitoring on or off."""
+    battery = add_battery_assets["Test battery"]
+    owner = battery.owner
+    original_consultancy_id = owner.consultancy_account_id
+    if requesting_user.has_role("consultant"):
+        # Make the consultant one of the organisation's own, so that they may manage its automations.
+        owner.consultancy_account_id = requesting_user.account_id
+        db.session.commit()
+    try:
+        _check_who_may_switch_monitoring(app, db, battery, may_change_monitoring)
+    finally:
+        owner.consultancy_account_id = original_consultancy_id
+        db.session.commit()
+
+
+def _check_who_may_switch_monitoring(app, db, battery, may_change_monitoring: bool):
+    automation_data = {
+        "name": "Experimental schedules",
+        "cron": "0 0 * * *",
+        "type": "scheduling",
+        "parameters": {"duration": "PT12H"},
+    }
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={**automation_data, "monitored": False},
+        )
+    if may_change_monitoring:
+        assert response.status_code == 201, response.json
+    else:
+        assert response.status_code == 403, response.json
+        assert "Only admins" in response.json["message"]
+
+    # Anyone who may manage the automation may still create a monitored one, and edit it with the monitoring left as it is.
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={**automation_data, "name": "Monitored schedules", "monitored": True},
+        )
+    assert response.status_code == 201, response.json
+    automation = db.session.get(Automation, response.json["id"])
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"name": "Renamed schedules", "monitored": True},
+        )
+    assert response.status_code == 200, response.json
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"monitored": False},
+        )
+    if may_change_monitoring:
+        assert response.status_code == 200, response.json
+        assert automation.monitored is False
+    else:
+        assert response.status_code == 403, response.json
+        db.session.refresh(automation)
+        assert automation.monitored is True
 
 
 @pytest.mark.parametrize(

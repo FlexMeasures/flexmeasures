@@ -9,9 +9,15 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import and_, not_, or_, select
 from sqlalchemy.orm import selectinload
 
+from flexmeasures.auth.policy import (
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+    user_has_scoped_permission,
+)
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.user import Role, User
 from flexmeasures.data.services.automations import AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
 from flexmeasures.utils.time_utils import server_now
 
@@ -39,6 +45,29 @@ class AutomationFailures:
     def reason_counts(self) -> Counter:
         """How many runs failed in each way."""
         return Counter(failed_run.reason for failed_run in self.failed_runs)
+
+    @property
+    def first_run(self) -> AutomationRun:
+        """The failed run that was due first."""
+        return min(
+            (failed_run.run for failed_run in self.failed_runs),
+            key=lambda run: (run.scheduled_at, run.id),
+        )
+
+    @property
+    def runs_failed_while_unmonitored(self) -> list[AutomationRun]:
+        """The failed runs that were due before monitoring was last switched back on.
+
+        Had the automation been monitored then, an earlier digest would have reported them.
+        """
+        resumed_at = self.automation.monitoring_resumed_at
+        if resumed_at is None:
+            return []
+        return [
+            failed_run.run
+            for failed_run in self.failed_runs
+            if failed_run.run.scheduled_at < resumed_at
+        ]
 
     @property
     def last_run(self) -> AutomationRun:
@@ -96,6 +125,7 @@ def get_unalerted_failed_automation_runs(
     A run failed when its execution failed, when its execution has been running for longer than ``stuck_after``,
     or when its dispatch failed and will not be attempted again.
     This holds for every automation type, although only the types that record their execution can fail on it.
+    Runs of an automation that opted out of monitoring are left out, and stay unreported until it opts back in.
 
     :param stuck_after: How long a run may execute before it counts as stuck.
     :param now:         The moment to judge by, which defaults to the server's current time.
@@ -110,7 +140,9 @@ def get_unalerted_failed_automation_runs(
     )
     runs = db.session.scalars(
         select(AutomationRun)
+        .join(AutomationRun.automation)
         .where(
+            Automation.monitored.is_(True),
             AutomationRun.alerted_at.is_(None),
             or_(execution_failed, stuck, _dispatch_failed_for_good(now)),
         )
@@ -148,3 +180,65 @@ def group_failed_runs_by_automation(
         failures.setdefault(automation.id, AutomationFailures(automation=automation))
         failures[automation.id].failed_runs.append(failed_run)
     return list(failures.values())
+
+
+def get_users_to_notify(
+    failures: list[AutomationFailures],
+) -> list[tuple[User, list[AutomationFailures]]]:
+    """Return who should hear about which failed automations, in a digest of their own.
+
+    Those are the account admins of each asset's organisation and the consultants of its consultancy organisation,
+    as long as they are active, have an email address and may read the automation.
+    Automations on public assets have no organisation, so only the host hears about them.
+
+    :param failures:    The failed runs, collapsed per automation.
+    :returns:           Each user to notify, ordered by ID, with the failures that user may read, in the given order.
+    """
+    owners = {
+        failure.automation.asset.owner
+        for failure in failures
+        if failure.automation.asset.owner is not None
+    }
+    admin_account_ids = {owner.id for owner in owners}
+    consultancy_account_ids = {
+        owner.consultancy_account_id
+        for owner in owners
+        if owner.consultancy_account_id is not None
+    }
+    if not admin_account_ids:
+        return []
+    users = db.session.scalars(
+        select(User)
+        .join(User.roles)
+        .where(
+            User.active.is_(True),
+            # In SQL, this also leaves out users whose email is NULL.
+            User.email != "",
+            or_(
+                and_(
+                    User.account_id.in_(admin_account_ids),
+                    Role.name == ACCOUNT_ADMIN_ROLE,
+                ),
+                and_(
+                    User.account_id.in_(consultancy_account_ids),
+                    Role.name == CONSULTANT_ROLE,
+                ),
+            ),
+        )
+        .distinct()
+        .order_by(User.id)
+    ).all()
+    users_to_notify = []
+    for user in users:
+        # The roles above bring these users to the right organisations, and the ACL decides which automations they see there.
+        readable_failures = [
+            failure
+            for failure in failures
+            if failure.automation.asset.owner is not None
+            and user_has_scoped_permission(
+                user, "read", failure.automation.__acl__()["read"]
+            )
+        ]
+        if readable_failures:
+            users_to_notify.append((user, readable_failures))
+    return users_to_notify
