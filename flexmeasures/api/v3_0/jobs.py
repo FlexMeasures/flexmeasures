@@ -354,7 +354,7 @@ class JobAPI(FlaskView):
         post:
           summary: Re-run a failed background job
           description: |
-            Queue a failed forecasting, scheduling or reporting job again.
+            Queue a failed forecasting, scheduling, reporting or ingestion job again.
 
             The job keeps its UUID, so it stays listed under its assets and sensors,
             and the jobs waiting on it stay attached.
@@ -363,8 +363,10 @@ class JobAPI(FlaskView):
             Only failed jobs can be re-run.
             The permission needed follows the type of job, as when triggering one:
             ``trigger-schedules`` for a schedule, ``trigger-forecasts`` on the sensor for a forecast,
-            and ``trigger-reports`` on the asset of each output sensor for a report.
+            ``trigger-reports`` on the asset of each output sensor for a report,
+            and ``post-data`` on the sensor for a sensor data upload.
             A report also needs read access to its input sensors, and the right to record data on its output sensors.
+            A job of an automation defined by a plugin needs ``manage-automations`` on the automation's asset, whichever queue it runs on.
 
             Re-running a job counts against the trigger rate limit.
           security:

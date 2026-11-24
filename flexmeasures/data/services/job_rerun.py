@@ -9,6 +9,7 @@ from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -90,10 +91,42 @@ def _check_report_rerun_access(job: Job) -> GenericAsset:
     return report_sensors["output_sensors"][0].generic_asset
 
 
+def _check_upload_rerun_access(job: Job) -> GenericAsset:
+    """Require the right to record data on the sensor the upload is for, which the upload itself needs."""
+    sensor = _job_sensor(job)
+    if sensor is None:
+        raise JobNotRerunnable(f"Job {job.id} names no sensor to record data on.")
+    check_access(sensor, "post-data")
+    return sensor.generic_asset
+
+
+def _check_automation_rerun_access(job: Job) -> GenericAsset:
+    """Require the right to manage automations on the asset of the automation, which triggering it needs."""
+    automation_id = job.kwargs.get("automation_id")
+    automation = (
+        db.session.get(Automation, automation_id) if automation_id is not None else None
+    )
+    if automation is None:
+        raise JobNotRerunnable(f"Job {job.id} names no automation to run.")
+    check_access(automation.asset, "manage-automations")
+    return automation.asset
+
+
+def _is_plugin_automation_job(job: Job) -> bool:
+    """Whether the job runs an automation of a type defined by a plugin, which can be on any queue."""
+    from flexmeasures.data.automations import execute_automation_job
+
+    return (
+        job.func_name
+        == f"{execute_automation_job.__module__}.{execute_automation_job.__qualname__}"
+    )
+
+
 RERUN_ACCESS_CHECKS = {
     "scheduling": _check_schedule_rerun_access,
     "forecasting": _check_forecast_rerun_access,
     "reporting": _check_report_rerun_access,
+    "ingestion": _check_upload_rerun_access,
 }
 
 
@@ -101,11 +134,14 @@ def check_job_rerun_access(job: Job) -> GenericAsset:
     """Require that the current user may re-run this job, and return the asset to log the re-run on.
 
     The permission follows the type of job, as it does when triggering one:
-    trigger-schedules for schedules, trigger-forecasts for forecasts, and trigger-reports for reports.
+    trigger-schedules for schedules, trigger-forecasts for forecasts, trigger-reports for reports,
+    post-data on the sensor for uploads, and manage-automations on the asset for jobs of plugin automations, whichever queue they run on.
 
     :raises JobNotRerunnable: if the job is of an unknown type, or names no asset or sensor.
     :raises Forbidden:        if the current user may not re-run it.
     """
+    if _is_plugin_automation_job(job):
+        return _check_automation_rerun_access(job)
     check = RERUN_ACCESS_CHECKS.get(job.origin)
     if check is None:
         raise JobNotRerunnable(
