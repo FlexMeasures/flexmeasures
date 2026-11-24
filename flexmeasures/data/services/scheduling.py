@@ -1130,7 +1130,7 @@ def make_schedule(  # noqa: C901
                 "start": df.index[0].isoformat(),
                 "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
                 "unit": result.get("unit", "MW"),
-                "gain": df["gain"].tolist(),
+                "react": df["react"].tolist(),
                 "reference": df["reference"].tolist(),
                 "band": [
                     [

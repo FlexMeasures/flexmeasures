@@ -3,7 +3,7 @@
 When the flex-context lists devices in ``response-order`` (and ``return_multiple`` is True),
 the scheduler also returns, per flexible device, a ``"recourse_rule"`` entry with per-slot values for the response rule:
 
-    setpoint = clip(p + gain * (m_uncontrolled - reference), band)
+    setpoint = clip(p - react * (m_uncontrolled - reference), band)
 
 where ``m_uncontrolled`` is the measured uncontrolled power at the connection,
 ``reference`` the uncontrolled power the plan assumed,
@@ -203,12 +203,12 @@ def _assert_bands_are_well_formed(data: pd.DataFrame):
             assert lo > previous_hi
             previous_hi = hi
         assert np.isclose(_clip_to_band(row["p"], band), row["p"], atol=TOLERANCE)
-        if row["gain"] == 0:
+        if row["react"] == 0:
             assert band == [(row["p"], row["p"])]
 
 
 def test_response_band_reference_and_gain_hand_verified(app, db):
-    """Battery + uncontrolled load: hand-verified band, reference and gain per slot.
+    """Battery + uncontrolled load: hand-verified band, reference and react share per slot.
 
     Setup (all powers in kW, consumption positive; 4 hourly slots):
 
@@ -223,7 +223,7 @@ def test_response_band_reference_and_gain_hand_verified(app, db):
     Hand-derived response values:
 
     - reference: the uncontrolled load, [8, 8, 8, 8], without the battery's own plan;
-    - gain: the site capacity binds at the optimum in slots 0 and 2 (net flow 15), so the battery gets -1 there and 0 elsewhere;
+    - react: the site capacity binds at the optimum in slots 0 and 2 (net flow 15), so the battery gets 1 there and 0 elsewhere;
     - band in the responding slots, from the device's own limits only (the site headroom does not narrow it):
       the device cap (±10) and the stock reachability given the planned SoC at the start of the slot (5 and 2 kWh),
       so slot 0 gets [-5, 10] and slot 2 gets [-2, 10];
@@ -246,7 +246,7 @@ def test_response_band_reference_and_gain_hand_verified(app, db):
     np.testing.assert_allclose(
         data["reference"], [0.008, 0.008, 0.008, 0.008], atol=TOLERANCE, err_msg="L̂"
     )
-    np.testing.assert_allclose(data["gain"], [-1, 0, -1, 0], err_msg="gain")
+    np.testing.assert_allclose(data["react"], [1, 0, 1, 0], err_msg="react")
     bands = data["band"].tolist()
     np.testing.assert_allclose(bands[0], [(-0.005, 0.010)], atol=TOLERANCE)
     np.testing.assert_allclose(bands[2], [(-0.002, 0.010)], atol=TOLERANCE)
@@ -256,7 +256,7 @@ def test_response_band_reference_and_gain_hand_verified(app, db):
 
 @pytest.mark.parametrize("load_kw", [8, None])
 def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
-    """When the connection behaves as forecast, every setpoint equals the plan, whatever the gain.
+    """When the connection behaves as forecast, every setpoint equals the plan, whatever the react share.
 
     That holds when the reference is the uncontrolled forecast (so the surprise is zero) and the band contains the plan.
     Without any uncontrolled device, the reference is 0, not null.
@@ -277,25 +277,25 @@ def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
     np.testing.assert_allclose(data["reference"], uncontrolled, atol=TOLERANCE)
     for _, row in data.iterrows():
         measured_uncontrolled = row["reference"]  # the house behaves as forecast
-        for gain in (0, -1):
+        for react in (0, 1):
             setpoint = _clip_to_band(
-                row["p"] + gain * (measured_uncontrolled - row["reference"]),
+                row["p"] - react * (measured_uncontrolled - row["reference"]),
                 row["band"],
             )
             assert setpoint == row["p"]
 
 
 def test_gain_classes_on_a_mixed_day(app, db):
-    """The gain is classified per slot, following the three rules of the response rules.
+    """The react share is classified per slot, following the three rules of the response rules.
 
     Four hourly slots (prices in EUR/MWh as consumption/production, powers in kW):
 
-    - slot 0, cheap night (30/30, nothing uncontrolled): the battery charges 4 kW to cover the evening, so gain 0;
+    - slot 0, cheap night (30/30, nothing uncontrolled): the battery charges 4 kW to cover the evening, so react 0;
     - slot 1, sunny midday (50/5, 6 kW of PV): the battery absorbs all PV, so the planned connection power is zero
-      while the production price is below the consumption price, so gain -1;
+      while the production price is below the consumption price, so react 1;
     - slot 2, expensive evening (100/100, nothing uncontrolled): the battery discharges its full 10 kW,
-      well within the 15 kW site capacity, so gain 0;
-    - slot 3, fuse-binding (20/20, 20 kW of load): the battery must discharge 5 kW to keep the connection at 15 kW, so gain -1.
+      well within the 15 kW site capacity, so react 0;
+    - slot 3, fuse-binding (20/20, 20 kW of load): the battery must discharge 5 kW to keep the connection at 15 kW, so react 1.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
@@ -314,7 +314,7 @@ def test_gain_classes_on_a_mixed_day(app, db):
     np.testing.assert_allclose(
         data["reference"], [0, -0.006, 0, 0.020], atol=TOLERANCE, err_msg="L̂"
     )
-    np.testing.assert_allclose(data["gain"], [0, -1, 0, -1], err_msg="gain per slot")
+    np.testing.assert_allclose(data["react"], [0, 1, 0, 1], err_msg="react per slot")
     _assert_bands_are_well_formed(data)
 
 
@@ -352,7 +352,7 @@ def test_bands_respect_operation_modes(app, db):
     )[battery_power.id]
 
     _assert_bands_are_well_formed(data)
-    np.testing.assert_allclose(data["gain"], -1)
+    np.testing.assert_allclose(data["react"], 1)
     for _, row in data.iterrows():
         for lo, hi in row["band"]:
             assert any(
@@ -367,27 +367,27 @@ def test_bands_respect_operation_modes(app, db):
 
 
 @pytest.mark.parametrize(
-    ["response", "expected_gain", "expected_band"],
+    ["response", "expected_react", "expected_band"],
     [
         # Only consumption-up: the band opens above the (idle) plan only.
         (
             {"directions": ["consumption-up"], "response-time": "PT1M"},
-            -1,
+            1,
             [(0, 0.010)],
         ),
         # Only production-up: the band opens below the plan, as far as the 5 kWh in stock allow.
         (
             {"directions": ["production-up"], "response-time": "PT1M"},
-            -1,
+            1,
             [(-0.005, 0)],
         ),
-        # A device slower than one scheduling step gets no gain, and a band of just its plan.
+        # A device slower than one scheduling step gets react 0, and a band of just its plan.
         (
             {"directions": ["consumption-up"], "response-time": "PT2H"},
             0,
             [(0, 0)],
         ),
-        # A device that cannot move at all gets no gain either.
+        # A device that cannot move at all gets react 0 either.
         (
             {"directions": [], "response-time": "PT1M"},
             0,
@@ -396,9 +396,9 @@ def test_bands_respect_operation_modes(app, db):
     ],
 )
 def test_response_directions_and_time_gate_the_band_and_gain(
-    app, db, response, expected_gain, expected_band
+    app, db, response, expected_react, expected_band
 ):
-    """The device's ``response`` field cuts the band to the directions it can move in, and a slow device gets no gain.
+    """The device's ``response`` field cuts the band to the directions it can move in, and a slow device gets react 0.
 
     A negative production price makes every slot a responding slot, and idling the battery's unique optimum.
     """
@@ -420,12 +420,12 @@ def test_response_directions_and_time_gate_the_band_and_gain(
     )[battery_power.id]
     # With nothing to gain from charging or discharging, the battery idles.
     np.testing.assert_allclose(data["p"], 0, atol=TOLERANCE)
-    np.testing.assert_allclose(data["gain"], expected_gain)
+    np.testing.assert_allclose(data["react"], expected_react)
     np.testing.assert_allclose(data["band"].iloc[0], expected_band, atol=TOLERANCE)
 
 
 def test_device_outside_the_response_order_gets_no_gain(app, db):
-    """Only devices in the response-order respond; a second battery left out of it keeps gain 0 and a band of its plan."""
+    """Only devices in the response-order respond; a second battery left out of it keeps react 0 and a band of its plan."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
         site_name="Recourse site (response order)",
@@ -461,8 +461,8 @@ def test_device_outside_the_response_order_gets_no_gain(app, db):
         ],
         response_order=[battery_power],
     )
-    np.testing.assert_allclose(rules[battery_power.id]["gain"], -1)
-    np.testing.assert_allclose(rules[other_battery.id]["gain"], 0)
+    np.testing.assert_allclose(rules[battery_power.id]["react"], 1)
+    np.testing.assert_allclose(rules[other_battery.id]["react"], 0)
     _assert_bands_are_well_formed(rules[other_battery.id])
 
 

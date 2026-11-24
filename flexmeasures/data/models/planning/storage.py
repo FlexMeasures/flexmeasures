@@ -102,7 +102,7 @@ class MetaStorageScheduler(Scheduler):
 
     #: Whether the flex-context opted in to the response rules by listing devices in ``response-order``.
     #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"recourse_rule"`` entry per flexible device,
-    #: containing per-slot values for the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
+    #: containing per-slot values for the response rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
     #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`response_rules`.
     include_response: bool = False
 
@@ -3798,7 +3798,7 @@ class StorageScheduler(MetaStorageScheduler):
     ) -> list[dict]:
         """Compute the per-slot response rule of each flexible device, see :ref:`response_rules`.
 
-        The client applies ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)`` per slot,
+        The client applies ``setpoint = clip(p - react * (m_uncontrolled - reference), band)`` per slot,
         where ``p`` is the planned power and ``m_uncontrolled`` the measured uncontrolled power at the connection.
 
         Per flexible device and slot, this returns:
@@ -3807,12 +3807,13 @@ class StorageScheduler(MetaStorageScheduler):
         - ``reference``: the uncontrolled power at the connection the plan assumed,
           i.e. the sum of the inflexible device forecasts of the device's commodity, without any flexible device's plan,
           so 0 without inflexible devices;
-        - ``gain``: -1 for a device of the ``response-order`` in the slots found by :meth:`_responsive_slots`, 0 otherwise.
+        - ``react``: the share of the surprise the device absorbs, 1 for a device of the ``response-order`` in the slots found by :meth:`_responsive_slots`, 0 otherwise.
+          Shares in between are reserved for a later version.
           A device whose ``response-time`` exceeds the scheduling resolution, or whose band leaves no room to move, gets 0;
         - ``band``: the (min, max) power ranges the device may move within, see :meth:`_response_band`,
           narrowed so that its stock constraints stay reachable after a one-slot deviation (see :meth:`_stock_reachability_band`).
           Shared limits, such as the site capacity, do not narrow the band.
-          A device with gain 0 gets the single range (p, p).
+          A device with react 0 gets the single range (p, p).
 
         All values are in MW (consumption positive). Range sides may be ±inf where a device is unconstrained.
         Soft (breach-priced) capacities do not narrow the band; only hard bounds do.
@@ -3900,7 +3901,7 @@ class StorageScheduler(MetaStorageScheduler):
             )
             modes = dc.attrs.get("operation_modes")
 
-            gains = np.zeros(n)
+            reacts = np.zeros(n)
             bands = []
             for t in range(n):
                 ranges = self._response_band(
@@ -3913,7 +3914,7 @@ class StorageScheduler(MetaStorageScheduler):
                 )
                 room = len(ranges) > 1 or ranges[0][1] - ranges[0][0] > tolerance
                 if can_respond and responsive[t] and room:
-                    gains[t] = -1.0
+                    reacts[t] = 1.0
                     bands.append(ranges)
                 else:
                     bands.append([(float(p[t]), float(p[t]))])
@@ -3921,7 +3922,7 @@ class StorageScheduler(MetaStorageScheduler):
             data = pd.DataFrame(
                 {
                     "p": p,
-                    "gain": gains,
+                    "react": reacts,
                     "reference": references.get(device_commodity[d], np.zeros(n)),
                     "band": pd.Series(bands, index=index, dtype=object),
                 },

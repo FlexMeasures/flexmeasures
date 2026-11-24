@@ -132,12 +132,12 @@ def _build_recourse_response(
     """
     rule_index = pd.date_range(
         start=pd.Timestamp(recourse_meta["start"]),
-        periods=len(recourse_meta["gain"]),
+        periods=len(recourse_meta["react"]),
         freq=pd.Timedelta(isodate.parse_duration(recourse_meta["resolution"])),
     )
     df = pd.DataFrame(
         {
-            "gain": recourse_meta["gain"],
+            "react": recourse_meta["react"],
             "reference": recourse_meta["reference"],
             "band": pd.Series(recourse_meta["band"], index=rule_index, dtype=object),
         },
@@ -179,7 +179,7 @@ def _build_recourse_response(
         response_objects.append(
             {
                 "reference": reference,
-                "gain": float(row["gain"]),
+                "react": float(row["react"]),
                 "band": band,
             }
         )
@@ -1369,7 +1369,7 @@ class SensorAPI(FlaskView):
                         description: |
                           Per-slot response rules, only present when the schedule was triggered with the flex-context field ``response-order``.
                           Each object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,
-                          following ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``.
+                          following ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``.
                           Here ``p`` is the scheduled value, and ``m_uncontrolled`` is the measured power at the connection minus the realised power of the responding devices.
                           Values share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.
                         items:
@@ -1378,12 +1378,12 @@ class SensorAPI(FlaskView):
                             reference:
                               type: number
                               description: The uncontrolled power at the connection the plan assumed for this slot (the inflexible devices' forecasts, without any flexible device's plan).
-                            gain:
+                            react:
                               type: number
-                              description: Response gain (0 means follow the plan; -1 means absorb the surprise).
+                              description: The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); this version emits 0 or 1, shares in between are reserved for a later version.
                             band:
                               type: array
-                              description: The power ranges the device may move within during this slot, as [min, max] pairs; a device with gain 0 gets the single range [p, p].
+                              description: The power ranges the device may move within during this slot, as [min, max] pairs; a device with react 0 gets the single range [p, p].
                               items:
                                 type: array
                                 items:

@@ -515,14 +515,14 @@ so the site keeps to the plan's intent between two schedule triggers.
 Each schedule value then comes with a ``response`` object, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
 
 - ``reference``: the uncontrolled power at the connection the plan assumed for the slot, in the schedule's unit;
-- ``gain``: ``-1`` when the device should absorb the surprise, and ``0`` when it should stick to the plan;
+- ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
 - ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs, in the schedule's unit (a side is ``null`` only when the device has no limit on that side).
 
 Writing ``p`` for the scheduled value, ``m`` for the measured net power at the connection and ``r`` for the sum of the realised power of the responding devices,
-the device's setpoint for the slot is the clip of ``p + gain * ((m - r) - reference)`` to the band, which equals the plan when the connection behaves as forecast.
+the device's setpoint for the slot is the clip of ``p - react * ((m - r) - reference)`` to the band, which equals the plan when the connection behaves as forecast.
 Devices respond in series, in the order of ``response-order``, each absorbing what the devices before it could not.
-The gain is ``-1`` in the slots where the site capacity binds, where the planned net power at the connection is zero while the production price is below the consumption price,
-and where the production price is zero or negative; the gain is ``0`` elsewhere, with a band of just the scheduled value.
+The react share is ``1`` in the slots where the site capacity binds, where the planned net power at the connection is zero while the production price is below the consumption price,
+and where the production price is zero or negative; it is ``0`` elsewhere, with a band of just the scheduled value.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach), in the directions its ``response`` field allows;
 when the response leaves the band, trigger a new schedule (see ``retrigger-on-band-exit``).
 

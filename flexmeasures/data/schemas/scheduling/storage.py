@@ -334,7 +334,7 @@ class ResponseSchema(Schema):
         data_key="response-time",
         required=True,
         metadata=dict(
-            description="The time the device needs to change its power; a device slower than one scheduling step gets no gain.",
+            description="The time the device needs to change its power; a device slower than one scheduling step does not respond.",
         ),
     )
 

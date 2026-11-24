@@ -1201,7 +1201,7 @@ def test_trigger_and_get_schedule_with_recourse_response(
     """The GET schedule payload gains per-slot "response" objects when the flex-context sets ``response-order``,
     and is exactly today's payload otherwise.
 
-    The response objects describe the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
+    The response objects describe the response rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
     in the same unit and sign convention as the schedule values, with the band as a list of [min, max] ranges.
     """
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
@@ -1260,8 +1260,8 @@ def test_trigger_and_get_schedule_with_recourse_response(
     assert schedule["values"] == schedule_without["values"]
     assert len(response_objects) == len(schedule["values"])
     for value, response_object in zip(schedule["values"], response_objects):
-        assert set(response_object.keys()) == {"reference", "gain", "band"}
-        assert response_object["gain"] in (0, -1)
+        assert set(response_object.keys()) == {"reference", "react", "band"}
+        assert response_object["react"] in (0, 1)
         # Nothing uncontrolled is scheduled alongside the battery, so the reference is 0 (not null).
         assert response_object["reference"] == 0
         band = response_object["band"]
@@ -1270,9 +1270,9 @@ def test_trigger_and_get_schedule_with_recourse_response(
             # The band is bounded by the device's power capacity, so both sides are finite.
             assert lower is not None and upper is not None
             assert lower <= upper
-        # The scheduled value lies within the band, which is just the plan when the gain is 0.
+        # The scheduled value lies within the band, which is just the plan when react is 0.
         # The band keeps the plan's full precision, whereas the served values are rounded.
         assert any(lower - 1e-6 <= value <= upper + 1e-6 for lower, upper in band)
-        if response_object["gain"] == 0:
+        if response_object["react"] == 0:
             assert len(band) == 1 and band[0][0] == band[0][1]
             assert band[0][0] == pytest.approx(value, abs=1e-6)
