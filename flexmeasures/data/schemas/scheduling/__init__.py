@@ -57,6 +57,9 @@ from flexmeasures.utils.unit_utils import (
 )
 from flexmeasures.utils.validation_utils import validate_variable_quantity
 
+# The breach price (per kWh, in the flex-context's currency) that softens SoC constraints when relaxation is asked for, unless a breach price is set explicitly.
+DEFAULT_SOC_BREACH_PRICE_PER_KWH = 1000
+
 
 class NoTimeSeriesSpecs(Schema):
 
@@ -482,6 +485,26 @@ class SharedSchema(Schema):
                 data["shared_currency_unit"]
                 + "/"
                 + self.declared_fields[field].to_unit.split("/")[-1]
+            )
+        return data
+
+    def set_default_soc_breach_prices(self, data: dict) -> dict:
+        """Fill in the default SoC breach prices, if the context asks to relax SoC constraints.
+
+        An explicit relax-soc-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
+        setting either flag to False keeps SoC minima/maxima as hard constraints.
+        Breach prices set explicitly are never overwritten.
+
+        :param data:    The deserialized (snake_case) context, with its shared currency unit set.
+        :returns:       The same context, for convenience.
+        """
+        if self.relaxation_asked_for(data, "relax_soc_constraints"):
+            self.set_default_breach_prices(
+                data,
+                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
+                price=DEFAULT_SOC_BREACH_PRICE_PER_KWH
+                * ur.Quantity(data["shared_currency_unit"])
+                / ur.Quantity("kWh"),
             )
         return data
 
@@ -1070,12 +1093,7 @@ class FlexContextSchema(SharedSchema):
         # Fill in default soc breach prices when asked to relax SoC constraints, for any breach price not already set explicitly.
         # An explicit relax-soc-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
         # setting either flag to False keeps SoC minima/maxima as hard constraints.
-        if self.relaxation_asked_for(data, "relax_soc_constraints"):
-            self.set_default_breach_prices(
-                data,
-                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
-                price=1000 * shared_currency / ur.Quantity("kWh"),
-            )
+        self.set_default_soc_breach_prices(data)
 
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless the caller already priced a breach themselves.
         # Note that the blanket 'relax-constraints' does not cover device capacities.
