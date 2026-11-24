@@ -983,14 +983,11 @@ class FlexContextSchema(SharedSchema):
                     f" (found both '{shared_currency_unit}' and '{context_currency_unit}')"
                 )
 
-    # Note: we deliberately tolerate a `commodities` list combined with top-level
-    # commodity-specific (SharedSchema) fields. In the API path, a multi-commodity
-    # list is normalized to {"commodities": [...]} and collect_flex_config then
-    # dict-merges the asset's db-stored flex-context (e.g. "site-power-capacity",
-    # "consumption-price") at the top level, so rejecting this mix would 422 any
-    # asset with stored electricity flex-context fields. Semantics: top-level fields
-    # serve as the electricity context only when the commodities list has no
-    # electricity entry (see _get_commodity_contexts in storage.py).
+    # Note: we deliberately tolerate a `commodities` list combined with top-level commodity-specific (SharedSchema) fields.
+    # Such top-level fields describe electricity.
+    # When scheduling, collect_flex_config (see merge_flex_contexts) folds them into the electricity context, if one is listed;
+    # otherwise, they stay at the top level, which then serves as the electricity context (see _get_commodity_contexts in storage.py).
+    # Rejecting this mix would reject any asset that stores electricity fields at the top level next to commodity tabs.
 
     def _reconcile_commodity_context_currencies(self, data: dict) -> str:
         """Backfill price-free contexts' currency with the portfolio's real currency.

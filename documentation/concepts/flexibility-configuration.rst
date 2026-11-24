@@ -194,7 +194,7 @@ The ``flex-context`` is independent of the type of flexible device that is optim
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
 Each of these commodity contexts describes all that applies to the devices of its commodity, including how their constraints are relaxed, and at what breach prices.
-Fields at the top level of a flex-context describe electricity, so they count as part of the electricity context, whose own fields take precedence.
+Fields at the top level of a flex-context describe electricity, so when scheduling, they count as part of the electricity context, whose own fields take precedence.
 The flex-context stored on an asset is combined with the one passed to the scheduler per commodity in the same way, with the passed fields taking precedence.
 
 A *non-electricity* commodity that defines no energy prices and no capacity (grid-connection) fields in the flex-context (e.g. a heat or steam network without a grid connection) is treated as an internal node:
