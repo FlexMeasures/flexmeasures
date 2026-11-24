@@ -13,6 +13,7 @@ from typing import Callable, Type
 import inspect
 from copy import deepcopy
 from traceback import print_tb
+from types import TracebackType
 
 
 import click
@@ -1226,7 +1227,8 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
         "HANDLING RQ SCHEDULING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
     )
 
-    print_tb(traceback)
+    if isinstance(traceback, TracebackType):
+        print_tb(traceback)
     store_job_exception(job, exc_type, exc_value)
 
 
