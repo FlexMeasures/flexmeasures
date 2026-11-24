@@ -72,6 +72,7 @@ class Config(object):
     SECURITY_RESET_PASSWORD_TEMPLATE: str = "admin/reset_password.html"
     SECURITY_TOKEN_AUTHENTICATION_HEADER: str = "Authorization"
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
+    FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT: int = 1000
     # Browser cookies for UI sessions: not sent along with requests that other sites start (SameSite),
     # not readable by scripts (HttpOnly), and "remember me" lasts two weeks rather than Flask-Login's year.
     # Unless set by the host, they are Secure (HTTPS only) when FLEXMEASURES_FORCE_HTTPS is on (see resolve_cookie_security).

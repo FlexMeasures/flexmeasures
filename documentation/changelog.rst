@@ -16,6 +16,8 @@ New features
 * Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as soon as new data becomes known, the replay speed can be set, the ``n`` and ``b`` keys step ahead and back by a step of your choice, and the ``r`` key rewinds [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
 * ``flexmeasures show beliefs`` labels the time axis of its plot in local time: the timezone given with ``--timezone``, or else that of the first sensor with data, instead of UTC [see `PR #2893 <https://www.github.com/FlexMeasures/flexmeasures/pull/2893>`_]
 
+* Add opt-in rotating refresh tokens for API clients, with expiry, revocation and a configurable per-user family limit while preserving existing access-token authentication [see `PR #2849 <https://github.com/FlexMeasures/flexmeasures/pull/2849>`_]
+
 Infrastructure / Support
 -------------------------
 * A plugin which registers no Blueprint is no longer dropped before its other registrations run, so a plugin can exist only to register automation types, data generators or critical-automation-failure hooks [see `PR #2856 <https://www.github.com/FlexMeasures/flexmeasures/pull/2856>`_]

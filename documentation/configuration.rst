@@ -695,6 +695,18 @@ Maximal age of security tokens in seconds.
 
 Default: ``60 * 60 * 6``  (six hours)
 
+.. _refresh_token_family_limit:
+
+FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum number of active API refresh-token families per user. Each opt-in login creates
+one family; rotating its refresh token does not create another. Revoked or expired API
+families are removed when that user next opts in. A login at the limit returns HTTP 409
+without revoking existing families. The value must be a positive integer and can also be
+set as an environment variable. See :ref:`api_refresh_tokens` for client guidance.
+
+Default: ``1000``
 SESSION_COOKIE_SECURE, SESSION_COOKIE_SAMESITE, REMEMBER_COOKIE_SECURE, REMEMBER_COOKIE_SAMESITE, REMEMBER_COOKIE_DURATION
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
