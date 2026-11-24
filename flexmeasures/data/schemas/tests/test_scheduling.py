@@ -2206,26 +2206,22 @@ def test_explicit_device_breach_price_is_not_overwritten():
 
 
 def test_flex_context_schema_response_rule_fields(db, app, setup_dummy_sensors):
-    """The flex-context fields that opt in to the response rules load as sensor references, a flag and a quantity."""
+    """The flex-context fields of the response rules load as a list of sensor references and a flag."""
     power_sensor = setup_dummy_sensors[3]
     flex_context = FlexContextSchema().load(
         {
-            "reference-sensor": {"sensor": power_sensor.id},
             "response-order": [{"sensor": power_sensor.id}],
             "retrigger-on-band-exit": False,
-            "reference-at-start": "0.4 kW",
         }
     )
-    assert flex_context["reference_sensor"]["sensor"] == power_sensor
     assert [entry["sensor"] for entry in flex_context["response_order"]] == [
         power_sensor
     ]
     assert flex_context["retrigger_on_band_exit"] is False
-    assert flex_context["reference_at_start"] == ur.Quantity("0.0004 MW")
 
-    # The bare-integer form of the July prototype is no longer accepted.
+    # Bare sensor IDs are not accepted in the response-order.
     with pytest.raises(ValidationError):
-        FlexContextSchema().load({"reference-sensor": power_sensor.id})
+        FlexContextSchema().load({"response-order": [power_sensor.id]})
 
 
 @pytest.mark.parametrize(

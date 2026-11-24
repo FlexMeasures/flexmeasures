@@ -1,6 +1,6 @@
 """Tests for the per-slot response rules (FlexMeasures issue #2894).
 
-When the flex-context sets ``reference-sensor`` (and ``return_multiple`` is True),
+When the flex-context lists devices in ``response-order`` (and ``return_multiple`` is True),
 the scheduler also returns, per flexible device, a ``"recourse_rule"`` entry with per-slot values for the response rule:
 
     setpoint = clip(p + gain * (m_uncontrolled - reference), band)
@@ -160,8 +160,7 @@ def _compute_recourse(
     flex_context = {
         **price_fields,
         "site-power-capacity": site_power_capacity,
-        # Opt in through the flex-context (the load sensor stands in for the connection's meter).
-        "reference-sensor": {"sensor": (load_sensor or battery_power).id},
+        # Opt in through the flex-context.
         "response-order": [{"sensor": sensor.id} for sensor in response_order],
         **(flex_context_extra or {}),
     }
@@ -317,29 +316,6 @@ def test_gain_classes_on_a_mixed_day(app, db):
     )
     np.testing.assert_allclose(data["gain"], [0, -1, 0, -1], err_msg="gain per slot")
     _assert_bands_are_well_formed(data)
-
-
-def test_reference_at_start_replaces_the_first_reference(app, db):
-    """The current uncontrolled reading given at trigger time is the reference of the first slot only."""
-    site, battery_power, load_sensor, price_fields, end = _build_site(
-        db,
-        site_name="Recourse site (reference at start)",
-        consumption_prices=[10, 50, 10, 45],
-        production_prices=[10, 50, 10, 45],
-        load_kw=8,
-    )
-    data = _compute_recourse(
-        site,
-        battery_power,
-        load_sensor,
-        price_fields,
-        end,
-        site_power_capacity="15 kW",
-        flex_context_extra={"reference-at-start": "0.4 kW"},
-    )[battery_power.id]
-    np.testing.assert_allclose(
-        data["reference"], [0.0004, 0.008, 0.008, 0.008], atol=TOLERANCE
-    )
 
 
 def test_bands_respect_operation_modes(app, db):
@@ -512,7 +488,7 @@ def test_response_order_entry_must_be_a_flex_model_device(app, db):
 
 
 def test_no_response_rules_without_the_opt_in(app, db):
-    """Without reference-sensor in the flex-context, the scheduler returns no response rules."""
+    """Without a response-order in the flex-context, the scheduler returns no response rules."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
         site_name="Recourse site (no opt-in)",

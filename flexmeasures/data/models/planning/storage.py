@@ -100,7 +100,7 @@ class MetaStorageScheduler(Scheduler):
 
     default_resolution = timedelta(minutes=15)
 
-    #: Whether the flex-context opted in to the response rules by setting ``reference-sensor``.
+    #: Whether the flex-context opted in to the response rules by listing devices in ``response-order``.
     #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"recourse_rule"`` entry per flexible device,
     #: containing per-slot values for the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
     #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`response_rules`.
@@ -185,11 +185,10 @@ class MetaStorageScheduler(Scheduler):
 
         device_models = inventory.device_flex_models
 
-        # The flex-context opts in to the response rules by naming the connection's meter (`reference-sensor`);
+        # The flex-context opts in to the response rules by listing the responding devices (`response-order`);
         # each device's `response` field says in which directions, and how fast, it can respond.
-        self.include_response = (
-            isinstance(self.flex_context, dict)
-            and self.flex_context.get("reference_sensor") is not None
+        self.include_response = isinstance(self.flex_context, dict) and bool(
+            self.flex_context.get("response_order")
         )
         self._device_responses = [fm.get("response") for fm in device_models]
         self._device_models = (
@@ -3807,7 +3806,7 @@ class StorageScheduler(MetaStorageScheduler):
         - ``p``: the planned power (MW, consumption positive), the schedule itself;
         - ``reference``: the uncontrolled power at the connection the plan assumed,
           i.e. the sum of the inflexible device forecasts of the device's commodity, without any flexible device's plan,
-          so 0 without inflexible devices; the flex-context's ``reference-at-start`` replaces the first slot's value;
+          so 0 without inflexible devices;
         - ``gain``: -1 for a device of the ``response-order`` in the slots found by :meth:`_responsive_slots`, 0 otherwise.
           A device whose ``response-time`` exceeds the scheduling resolution, or whose band leaves no room to move, gets 0;
         - ``band``: the (min, max) power ranges the device may move within, see :meth:`_response_band`,
@@ -3845,10 +3844,6 @@ class StorageScheduler(MetaStorageScheduler):
                     reference += ems_schedule[k].to_numpy(dtype=float)
             references[commodity] = reference
         flex_context = self.flex_context if isinstance(self.flex_context, dict) else {}
-        reference_at_start = flex_context.get("reference_at_start")
-        if reference_at_start is not None:
-            for reference in references.values():
-                reference[0] = float(reference_at_start.to("MW").magnitude)
 
         responsive_by_commodity = self._responsive_slots(
             commodity_to_devices, ems_schedule, ems_constraints, commitments, tolerance

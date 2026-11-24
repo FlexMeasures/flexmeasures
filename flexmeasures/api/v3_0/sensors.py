@@ -1367,7 +1367,7 @@ class SensorAPI(FlaskView):
                       response:
                         type: array
                         description: |
-                          Per-slot response rules, only present when the schedule was triggered with the flex-context field ``reference-sensor``.
+                          Per-slot response rules, only present when the schedule was triggered with the flex-context field ``response-order``.
                           Each object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,
                           following ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``.
                           Here ``p`` is the scheduled value, and ``m_uncontrolled`` is the measured power at the connection minus the realised power of the responding devices.
@@ -1575,7 +1575,7 @@ class SensorAPI(FlaskView):
             unit=unit,
         )
 
-        # Optionally add per-slot response rules (opt-in via the flex-context field `reference-sensor`),
+        # Optionally add per-slot response rules (opt-in via the flex-context field `response-order`),
         # aligned with the served schedule values.
         recourse_meta = (job.meta or {}).get("recourse_rules", {}).get(sensor.id)
         if recourse_meta is not None:

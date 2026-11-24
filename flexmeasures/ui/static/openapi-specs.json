@@ -952,7 +952,7 @@
                     },
                     "response": {
                       "type": "array",
-                      "description": "Per-slot response rules, only present when the schedule was triggered with the flex-context field <code>reference-sensor</code>.\nEach object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,\nfollowing <code>setpoint = clip(p + gain * (m_uncontrolled - reference), band)</code>.\nHere <code>p</code> is the scheduled value, and <code>m_uncontrolled</code> is the measured power at the connection minus the realised power of the responding devices.\nValues share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.\n",
+                      "description": "Per-slot response rules, only present when the schedule was triggered with the flex-context field <code>response-order</code>.\nEach object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,\nfollowing <code>setpoint = clip(p + gain * (m_uncontrolled - reference), band)</code>.\nHere <code>p</code> is the scheduled value, and <code>m_uncontrolled</code> is the measured power at the connection minus the realised power of the responding devices.\nValues share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.\n",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -8099,7 +8099,7 @@
             "example": true
           },
           "response": {
-            "description": "How this device can respond locally to a surprise at the connection (see the flex-context fields <code>reference-sensor</code> and <code>response-order</code>).\n<code>directions</code> lists the ways the device can move its power away from the plan, as a subset of <code>consumption-up</code>, <code>consumption-down</code>, <code>production-up</code> and <code>production-down</code>;\nthe device's response band only extends in the listed directions, so a device that cannot lower its consumption gets no room to do so.\n<code>response-time</code> is the time the device needs to change its power; a device slower than one scheduling step gets no gain.\nA device in the <code>response-order</code> without this field is taken to respond in any direction, without delay.\n",
+            "description": "How this device can respond locally to a surprise at the connection (see the flex-context field <code>response-order</code>).\n<code>directions</code> lists the ways the device can move its power away from the plan, as a subset of <code>consumption-up</code>, <code>consumption-down</code>, <code>production-up</code> and <code>production-down</code>;\nthe device's response band only extends in the listed directions, so a device that cannot lower its consumption gets no room to do so.\n<code>response-time</code> is the time the device needs to change its power; a device slower than one scheduling step gets no gain.\nA device in the <code>response-order</code> without this field is taken to respond in any direction, without delay.\n",
             "example": {
               "directions": [
                 "consumption-up",

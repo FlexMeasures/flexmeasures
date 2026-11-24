@@ -1198,7 +1198,7 @@ def test_trigger_and_get_schedule_with_recourse_response(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """The GET schedule payload gains per-slot "response" objects when the flex-context sets ``reference-sensor``,
+    """The GET schedule payload gains per-slot "response" objects when the flex-context sets ``response-order``,
     and is exactly today's payload otherwise.
 
     The response objects describe the response rule ``setpoint = clip(p + gain * (m_uncontrolled - reference), band)``,
@@ -1225,8 +1225,6 @@ def test_trigger_and_get_schedule_with_recourse_response(
                 "directions": ["consumption-up", "consumption-down"],
                 "response-time": "PT1M",
             }
-            # The battery's own power sensor stands in for the connection's meter.
-            message["flex-context"]["reference-sensor"] = {"sensor": sensor.id}
             message["flex-context"]["response-order"] = [{"sensor": sensor.id}]
         with app.test_client() as client:
             trigger_schedule_response = client.post(

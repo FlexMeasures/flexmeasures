@@ -243,18 +243,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``aggregate-power``
      - |AGGREGATE_POWER.example|
      - .. include:: ../_autodoc/AGGREGATE_POWER.rst
-   * - ``reference-sensor``
-     - |REFERENCE_SENSOR.example|
-     - .. include:: ../_autodoc/REFERENCE_SENSOR.rst
    * - ``response-order``
      - |RESPONSE_ORDER.example|
      - .. include:: ../_autodoc/RESPONSE_ORDER.rst
    * - ``retrigger-on-band-exit``
      - |RETRIGGER_ON_BAND_EXIT.example|
      - .. include:: ../_autodoc/RETRIGGER_ON_BAND_EXIT.rst
-   * - ``reference-at-start``
-     - |REFERENCE_AT_START.example|
-     - .. include:: ../_autodoc/REFERENCE_AT_START.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
@@ -515,7 +509,7 @@ Responding to surprises at the connection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A schedule plans each device's power against a forecast of the uncontrolled power at the connection (the base load and generation behind the main meter).
-When the flex-context sets ``reference-sensor``, the scheduler also tells the client how each device should respond locally when the meter deviates from that forecast,
+When the flex-context lists the responding devices in ``response-order``, the scheduler also tells the client how each device should respond locally when the meter deviates from that forecast,
 so the site keeps to the plan's intent between two schedule triggers.
 
 Each schedule value then comes with a ``response`` object, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
