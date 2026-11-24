@@ -17,7 +17,6 @@ from marshmallow.validate import OneOf, ValidationError
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
-from flexmeasures.data.schemas.times import DurationField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.scheduling.groups import (
@@ -312,31 +311,13 @@ class OperationModeSchema(Schema):
 #: The ways a device can move its power away from its plan, as signed power moves (positive is consumption):
 #: consumption-up and production-down move the power up, consumption-down and production-up move it down,
 #: each within the half-axis its name refers to.
+#: Read by the scheduler from the internal flex-model key ``reaction_directions``, which is not yet exposed through the public schema.
 RESPONSE_DIRECTIONS = (
     "consumption-up",
     "consumption-down",
     "production-up",
     "production-down",
 )
-
-
-class ResponseSchema(Schema):
-    """How a device can respond locally to a surprise at the connection, see :ref:`response_rules`."""
-
-    directions = fields.List(
-        fields.Str(validate=OneOf(RESPONSE_DIRECTIONS)),
-        required=True,
-        metadata=dict(
-            description="The ways the device can move its power away from the plan, as a subset of consumption-up, consumption-down, production-up and production-down.",
-        ),
-    )
-    response_time = DurationField(
-        data_key="response-time",
-        required=True,
-        metadata=dict(
-            description="The time the device needs to change its power; a device slower than one scheduling step does not respond.",
-        ),
-    )
 
 
 class StorageFlexModelSchema(Schema):
@@ -453,11 +434,10 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.PREFER_CHARGING_SOONER.to_dict(),
     )
 
-    response = fields.Nested(
-        ResponseSchema,
-        data_key="response",
-        required=False,
-        metadata=metadata.RESPONSE.to_dict(),
+    react = fields.Bool(
+        data_key="react",
+        load_default=False,
+        metadata=metadata.REACT.to_dict(),
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -884,6 +864,8 @@ class DBStorageFlexModelSchema(Schema):
     prefer_curtailing_later = fields.Bool(
         data_key="prefer-curtailing-later", load_default=True
     )
+
+    react = fields.Bool(data_key="react", load_default=False)
 
     power_capacity = VariableQuantityField(
         to_unit="MW",

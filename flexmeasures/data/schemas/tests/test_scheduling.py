@@ -2205,47 +2205,22 @@ def test_explicit_device_breach_price_is_not_overwritten():
     assert loaded.get("production_breach_price") is None
 
 
-def test_flex_context_schema_response_rule_fields(db, app, setup_dummy_sensors):
-    """The flex-context fields of the response rules load as a list of sensor references and a flag."""
-    power_sensor = setup_dummy_sensors[3]
-    flex_context = FlexContextSchema().load(
-        {
-            "response-order": [{"sensor": power_sensor.id}],
-            "retrigger-on-band-exit": False,
-        }
-    )
-    assert [entry["sensor"] for entry in flex_context["response_order"]] == [
-        power_sensor
-    ]
-    assert flex_context["retrigger_on_band_exit"] is False
-
-    # Bare sensor IDs are not accepted in the response-order.
+def test_flex_context_schema_has_no_reaction_fields(db, app):
+    """The reaction rules are opted in per device, in the flex-model, not in the flex-context."""
     with pytest.raises(ValidationError):
-        FlexContextSchema().load({"response-order": [power_sensor.id]})
+        FlexContextSchema().load({"response-order": [{"sensor": 1}]})
 
 
-@pytest.mark.parametrize(
-    ["response", "fails"],
-    [
-        ({"directions": ["consumption-up"], "response-time": "PT1M"}, False),
-        ({"directions": [], "response-time": "PT0S"}, False),
-        ({"directions": ["sideways"], "response-time": "PT1M"}, True),
-        ({"directions": ["consumption-up"], "response-time": "soon"}, True),
-        ({"directions": ["consumption-up"]}, True),
-    ],
-)
-def test_storage_flex_model_response_field(db, app, response, fails):
-    """A device's response declares a subset of the four directions and an ISO 8601 response time."""
-    schema = StorageFlexModelSchema(
-        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
-    )
-    flex_model = {"soc-at-start": "1 MWh", "response": response}
-    if fails:
-        with pytest.raises(ValidationError):
-            schema.load(flex_model)
-        return
-    loaded = schema.load(flex_model)
-    assert loaded["response"]["directions"] == response["directions"]
-    assert loaded["response"]["response_time"] == pd.Timedelta(
-        response["response-time"]
-    )
+@pytest.mark.parametrize("react", [True, False, None])
+def test_storage_flex_model_react_field(db, app, react):
+    """A device opts in to the reaction rules with the boolean ``react``, which defaults to false, in both flex-model schemas."""
+    flex_model = {"soc-min": "1 MWh"}
+    if react is not None:
+        flex_model["react"] = react
+    for schema in (
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ),
+        DBStorageFlexModelSchema(),
+    ):
+        assert schema.load(flex_model)["react"] is bool(react)

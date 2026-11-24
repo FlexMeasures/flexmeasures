@@ -1,13 +1,16 @@
-"""Tests for the per-slot response rules (FlexMeasures issue #2894).
+"""Tests for the per-slot reaction rules (FlexMeasures issue #2894).
 
-When the flex-context lists devices in ``response-order`` (and ``return_multiple`` is True),
-the scheduler also returns, per flexible device, a ``"recourse_rule"`` entry with per-slot values for the response rule:
+When a flex-model device sets ``react`` (and ``return_multiple`` is True),
+the scheduler also returns, per flexible device, a ``"recourse_rule"`` entry with per-slot values for the reaction rule:
 
     setpoint = clip(p - react * (m_uncontrolled - reference), band)
 
 where ``m_uncontrolled`` is the measured uncontrolled power at the connection,
 ``reference`` the uncontrolled power the plan assumed,
 and ``band`` a list of (min, max) power ranges the device may move within.
+
+The reaction directions, the reaction time and the retrigger flag are not yet exposed through the public schemas;
+the tests set their internal keys on the deserialized flex config.
 """
 
 from datetime import timedelta
@@ -15,7 +18,6 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 import pytest
-from marshmallow import ValidationError
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -130,13 +132,14 @@ def _build_site(
     return site, battery_power, load_sensor, price_fields, end
 
 
-def _battery_flex_model(sensor: Sensor, **extra) -> dict:
+def _battery_flex_model(sensor: Sensor, react: bool = True, **extra) -> dict:
     return {
         "sensor": sensor.id,
         "power-capacity": "10 kW",
         "soc-at-start": "0.005 MWh",
         "soc-min": "0 MWh",
         "soc-max": "0.02 MWh",
+        "react": react,
         **extra,
     }
 
@@ -149,20 +152,19 @@ def _compute_recourse(
     end,
     site_power_capacity: str,
     flex_model: list[dict] | None = None,
-    flex_context_extra: dict | None = None,
-    response_order: list[Sensor] | None = None,
+    internal_device_keys: dict[int, dict] | None = None,
+    internal_context_keys: dict | None = None,
 ) -> dict[int, pd.DataFrame]:
-    """Schedule the site with the response rules opted in, and return each device's rule data by sensor ID."""
+    """Schedule the site and return each device's reaction rule data by sensor ID.
+
+    ``internal_device_keys`` (by device index) and ``internal_context_keys`` are set on the deserialized flex config,
+    the way the scheduler reads keys the public schemas do not expose yet.
+    """
     if flex_model is None:
         flex_model = [_battery_flex_model(battery_power)]
-    if response_order is None:
-        response_order = [battery_power]
     flex_context = {
         **price_fields,
         "site-power-capacity": site_power_capacity,
-        # Opt in through the flex-context.
-        "response-order": [{"sensor": sensor.id} for sensor in response_order],
-        **(flex_context_extra or {}),
     }
     if load_sensor is not None:
         flex_context["inflexible-consumption"] = [{"sensor": load_sensor.id}]
@@ -177,10 +179,14 @@ def _compute_recourse(
         flex_context=flex_context,
         return_multiple=True,
     )
+    scheduler.deserialize_config()
+    for d, keys in (internal_device_keys or {}).items():
+        scheduler.flex_model[d].update(keys)
+    scheduler.flex_context.update(internal_context_keys or {})
     results = scheduler.compute()
     rules = [r for r in results if r["name"] == "recourse_rule"]
     assert len(rules) == len(flex_model)
-    return {rule["sensor"].id: rule["data"] for rule in rules}
+    return {rule["sensor"].id: rule for rule in rules}
 
 
 def _clip_to_band(value: float, band: list[tuple[float, float]]) -> float:
@@ -207,7 +213,7 @@ def _assert_bands_are_well_formed(data: pd.DataFrame):
             assert band == [(row["p"], row["p"])]
 
 
-def test_response_band_reference_and_gain_hand_verified(app, db):
+def test_reaction_band_reference_and_react_hand_verified(app, db):
     """Battery + uncontrolled load: hand-verified band, reference and react share per slot.
 
     Setup (all powers in kW, consumption positive; 4 hourly slots):
@@ -220,11 +226,11 @@ def test_response_band_reference_and_gain_hand_verified(app, db):
     The optimal plan is p = [7, -10, 7, -9]:
     charge at max in cheap hours (limited by the site fuse) and discharge at max in expensive hours, ending empty.
 
-    Hand-derived response values:
+    Hand-derived reaction values:
 
     - reference: the uncontrolled load, [8, 8, 8, 8], without the battery's own plan;
     - react: the site capacity binds at the optimum in slots 0 and 2 (net flow 15), so the battery gets 1 there and 0 elsewhere;
-    - band in the responding slots, from the device's own limits only (the site headroom does not narrow it):
+    - band in the reacting slots, from the device's own limits only (the site headroom does not narrow it):
       the device cap (±10) and the stock reachability given the planned SoC at the start of the slot (5 and 2 kWh),
       so slot 0 gets [-5, 10] and slot 2 gets [-2, 10];
     - band in the other slots: just the planned power.
@@ -238,7 +244,7 @@ def test_response_band_reference_and_gain_hand_verified(app, db):
     )
     data = _compute_recourse(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
-    )[battery_power.id]
+    )[battery_power.id]["data"]
 
     np.testing.assert_allclose(
         data["p"], [0.007, -0.010, 0.007, -0.009], atol=TOLERANCE, err_msg="plan"
@@ -270,7 +276,7 @@ def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
     )
     data = _compute_recourse(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
-    )[battery_power.id]
+    )[battery_power.id]["data"]
 
     _assert_bands_are_well_formed(data)
     uncontrolled = 0.008 if load_kw else 0.0
@@ -285,8 +291,8 @@ def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
             assert setpoint == row["p"]
 
 
-def test_gain_classes_on_a_mixed_day(app, db):
-    """The react share is classified per slot, following the three rules of the response rules.
+def test_react_classes_on_a_mixed_day(app, db):
+    """The react share is classified per slot, following the three rules of the reaction rules.
 
     Four hourly slots (prices in EUR/MWh as consumption/production, powers in kW):
 
@@ -306,7 +312,7 @@ def test_gain_classes_on_a_mixed_day(app, db):
     )
     data = _compute_recourse(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
-    )[battery_power.id]
+    )[battery_power.id]["data"]
 
     np.testing.assert_allclose(
         data["p"], [0.004, 0.006, -0.010, -0.005], atol=TOLERANCE, err_msg="plan"
@@ -322,7 +328,7 @@ def test_bands_respect_operation_modes(app, db):
     """A device with operation modes gets a band of several ranges, none of which spans a hole between modes.
 
     The battery can be off, consume between 2 and 5 kW, or produce between 2 and 5 kW.
-    With a production price of zero, every slot is a responding slot.
+    With a production price of zero, every slot is a reacting slot.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
@@ -349,7 +355,7 @@ def test_bands_respect_operation_modes(app, db):
                 battery_power, **{"power-capacity": "5 kW", "operation-modes": modes}
             )
         ],
-    )[battery_power.id]
+    )[battery_power.id]["data"]
 
     _assert_bands_are_well_formed(data)
     np.testing.assert_allclose(data["react"], 1)
@@ -367,44 +373,44 @@ def test_bands_respect_operation_modes(app, db):
 
 
 @pytest.mark.parametrize(
-    ["response", "expected_react", "expected_band"],
+    ["internal_keys", "expected_react", "expected_band"],
     [
         # Only consumption-up: the band opens above the (idle) plan only.
         (
-            {"directions": ["consumption-up"], "response-time": "PT1M"},
+            {"reaction_directions": ["consumption-up"]},
             1,
             [(0, 0.010)],
         ),
         # Only production-up: the band opens below the plan, as far as the 5 kWh in stock allow.
         (
-            {"directions": ["production-up"], "response-time": "PT1M"},
+            {"reaction_directions": ["production-up"]},
             1,
             [(-0.005, 0)],
         ),
         # A device slower than one scheduling step gets react 0, and a band of just its plan.
         (
-            {"directions": ["consumption-up"], "response-time": "PT2H"},
+            {"reaction_time": timedelta(hours=2)},
             0,
             [(0, 0)],
         ),
-        # A device that cannot move at all gets react 0 either.
+        # A device that cannot move in any direction gets react 0 either.
         (
-            {"directions": [], "response-time": "PT1M"},
+            {"reaction_directions": ["consumption-down"]},
             0,
             [(0, 0)],
         ),
     ],
 )
-def test_response_directions_and_time_gate_the_band_and_gain(
-    app, db, response, expected_react, expected_band
+def test_reaction_directions_and_time_gate_the_band_and_react(
+    app, db, internal_keys, expected_react, expected_band
 ):
-    """The device's ``response`` field cuts the band to the directions it can move in, and a slow device gets react 0.
+    """The internal reaction directions cut the band to the directions the device can move in, and a slow device gets react 0.
 
-    A negative production price makes every slot a responding slot, and idling the battery's unique optimum.
+    A negative production price makes every slot a reacting slot, and idling the battery's unique optimum.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name=f"Recourse site (response {sorted(response['directions'])} in {response['response-time']})",
+        site_name=f"Recourse site (reaction {sorted(internal_keys.items())})",
         consumption_prices="50 EUR/MWh",
         production_prices="-1 EUR/MWh",
         load_kw=None,
@@ -416,19 +422,19 @@ def test_response_directions_and_time_gate_the_band_and_gain(
         price_fields,
         end,
         site_power_capacity="100 kW",
-        flex_model=[_battery_flex_model(battery_power, response=response)],
-    )[battery_power.id]
+        internal_device_keys={0: internal_keys},
+    )[battery_power.id]["data"]
     # With nothing to gain from charging or discharging, the battery idles.
     np.testing.assert_allclose(data["p"], 0, atol=TOLERANCE)
     np.testing.assert_allclose(data["react"], expected_react)
     np.testing.assert_allclose(data["band"].iloc[0], expected_band, atol=TOLERANCE)
 
 
-def test_device_outside_the_response_order_gets_no_gain(app, db):
-    """Only devices in the response-order respond; a second battery left out of it keeps react 0 and a band of its plan."""
+def test_device_without_react_gets_no_share(app, db):
+    """Only devices with ``react`` set react; a second battery without it keeps react 0 and a band of its plan."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (response order)",
+        site_name="Recourse site (react per device)",
         consumption_prices="50 EUR/MWh",
         production_prices="0 EUR/MWh",
         load_kw=None,
@@ -457,38 +463,40 @@ def test_device_outside_the_response_order_gets_no_gain(app, db):
         site_power_capacity="100 kW",
         flex_model=[
             _battery_flex_model(battery_power),
-            _battery_flex_model(other_battery),
+            _battery_flex_model(other_battery, react=False),
         ],
-        response_order=[battery_power],
     )
-    np.testing.assert_allclose(rules[battery_power.id]["react"], 1)
-    np.testing.assert_allclose(rules[other_battery.id]["react"], 0)
-    _assert_bands_are_well_formed(rules[other_battery.id])
+    np.testing.assert_allclose(rules[battery_power.id]["data"]["react"], 1)
+    np.testing.assert_allclose(rules[other_battery.id]["data"]["react"], 0)
+    _assert_bands_are_well_formed(rules[other_battery.id]["data"])
 
 
-def test_response_order_entry_must_be_a_flex_model_device(app, db):
-    """A response-order entry whose sensor is not a flex-model device is a validation error."""
+@pytest.mark.parametrize("retrigger", [None, False])
+def test_retrigger_flag_defaults_to_true(app, db, retrigger):
+    """Each rule entry carries the retrigger flag, true unless the internal flex-context key says otherwise."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (invalid response order)",
+        site_name=f"Recourse site (retrigger {retrigger})",
         consumption_prices="50 EUR/MWh",
         production_prices="0 EUR/MWh",
-        load_kw=8,
+        load_kw=None,
     )
-    with pytest.raises(ValidationError, match="response-order"):
-        _compute_recourse(
-            site,
-            battery_power,
-            load_sensor,
-            price_fields,
-            end,
-            site_power_capacity="100 kW",
-            response_order=[load_sensor],
-        )
+    rule = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        internal_context_keys=(
+            {} if retrigger is None else {"retrigger_on_band_exit": retrigger}
+        ),
+    )[battery_power.id]
+    assert rule["retrigger_on_band_exit"] is (True if retrigger is None else retrigger)
 
 
-def test_no_response_rules_without_the_opt_in(app, db):
-    """Without a response-order in the flex-context, the scheduler returns no response rules."""
+def test_no_reaction_rules_without_the_opt_in(app, db):
+    """Without a device setting ``react``, the scheduler returns no reaction rules."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
         site_name="Recourse site (no opt-in)",
@@ -502,7 +510,7 @@ def test_no_response_rules_without_the_opt_in(app, db):
         end=end,
         resolution=RESOLUTION,
         belief_time=START,
-        flex_model=[_battery_flex_model(battery_power)],
+        flex_model=[_battery_flex_model(battery_power, react=False)],
         flex_context={**price_fields, "site-power-capacity": "100 kW"},
         return_multiple=True,
     )

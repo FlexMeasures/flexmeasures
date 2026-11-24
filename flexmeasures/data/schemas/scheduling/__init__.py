@@ -860,19 +860,6 @@ class FlexContextSchema(SharedSchema):
         metadata=metadata.AGGREGATE_POWER.to_dict(),
     )
 
-    # Response rules (opt-in through response-order), see :ref:`response_rules`.
-    response_order = fields.List(
-        fields.Nested(OutputSensorReferenceSchema),
-        data_key="response-order",
-        required=False,
-        metadata=metadata.RESPONSE_ORDER.to_dict(),
-    )
-    retrigger_on_band_exit = fields.Bool(
-        data_key="retrigger-on-band-exit",
-        required=False,
-        metadata=metadata.RETRIGGER_ON_BAND_EXIT.to_dict(),
-    )
-
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
         self,
@@ -1227,11 +1214,6 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
-    "response-order": {
-        "default": [],
-        "description": rst_to_openapi(metadata.RESPONSE_ORDER.description),
-        "example-units": EXAMPLE_UNIT_TYPES["power"],
-    },
     "inflexible-production": {
         "default": [],
         "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
@@ -1404,6 +1386,15 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["boolean"],
     },
+    "react": {
+        "default": False,
+        "description": rst_to_openapi(metadata.REACT.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "Boolean option only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["boolean"],
+    },
     "prefer-curtailing-later": {
         "default": None,
         "description": rst_to_openapi(metadata.PREFER_CURTAILING_LATER.description),
@@ -1535,10 +1526,6 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
-    class Meta:
-        # The client decides per trigger whether to be told to retrigger when a response leaves its band.
-        exclude = ("retrigger_on_band_exit",)
-
     # A stored asset flex-context is only validated here (never scheduled directly),
     # so it should not silently bake in the default breach prices implied by the relax flags.
     # Those defaults are applied at scheduling time instead,

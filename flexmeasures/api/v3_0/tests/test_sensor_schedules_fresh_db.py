@@ -1198,10 +1198,10 @@ def test_trigger_and_get_schedule_with_recourse_response(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """The GET schedule payload gains per-slot "response" objects when the flex-context sets ``response-order``,
+    """The GET schedule payload gains per-slot "reaction" objects when the flex-model sets ``react``,
     and is exactly today's payload otherwise.
 
-    The response objects describe the response rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
+    The reaction objects describe the rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
     in the same unit and sign convention as the schedule values, with the band as a list of [min, max] ranges.
     """
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
@@ -1221,11 +1221,7 @@ def test_trigger_and_get_schedule_with_recourse_response(
             "site-power-capacity": "1 TW",  # big enough to avoid infeasibilities
         }
         if opt_in:
-            message["flex-model"]["response"] = {
-                "directions": ["consumption-up", "consumption-down"],
-                "response-time": "PT1M",
-            }
-            message["flex-context"]["response-order"] = [{"sensor": sensor.id}]
+            message["flex-model"]["react"] = True
         with app.test_client() as client:
             trigger_schedule_response = client.post(
                 url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -1251,11 +1247,11 @@ def test_trigger_and_get_schedule_with_recourse_response(
 
     # Without the opt-in, the payload is today's payload.
     schedule_without = trigger_and_get_schedule(opt_in=False)
-    assert "response" not in schedule_without
+    assert "reaction" not in schedule_without
 
-    # With the opt-in, one response object accompanies each schedule value, and nothing else changes.
+    # With the opt-in, one reaction object accompanies each schedule value, and nothing else changes.
     schedule = trigger_and_get_schedule(opt_in=True)
-    response_objects = schedule.pop("response")
+    response_objects = schedule.pop("reaction")
     assert set(schedule.keys()) == set(schedule_without.keys())
     assert schedule["values"] == schedule_without["values"]
     assert len(response_objects) == len(schedule["values"])

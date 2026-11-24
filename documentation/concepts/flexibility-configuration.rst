@@ -243,12 +243,6 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``aggregate-power``
      - |AGGREGATE_POWER.example|
      - .. include:: ../_autodoc/AGGREGATE_POWER.rst
-   * - ``response-order``
-     - |RESPONSE_ORDER.example|
-     - .. include:: ../_autodoc/RESPONSE_ORDER.rst
-   * - ``retrigger-on-band-exit``
-     - |RETRIGGER_ON_BAND_EXIT.example|
-     - .. include:: ../_autodoc/RETRIGGER_ON_BAND_EXIT.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
@@ -475,9 +469,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``operation-modes``
      - |OPERATION_MODES.example|
      - .. include:: ../_autodoc/OPERATION_MODES.rst
-   * - ``response``
-     - |RESPONSE.example|
-     - .. include:: ../_autodoc/RESPONSE.rst
+   * - ``react``
+     - |REACT.example|
+     - .. include:: ../_autodoc/REACT.rst
    * - ``group``
      - |GROUP.example|
      - .. include:: ../_autodoc/GROUP.rst
@@ -503,28 +497,30 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
-.. _response_rules:
+.. _reaction_rules:
 
-Responding to surprises at the connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Reacting to surprises at the connection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A schedule plans each device's power against a forecast of the uncontrolled power at the connection (the base load and generation behind the main meter).
-When the flex-context lists the responding devices in ``response-order``, the scheduler also tells the client how each device should respond locally when the meter deviates from that forecast,
+For a device whose flex-model sets ``react`` to true, the scheduler also tells the client how the device should react locally when the meter deviates from that forecast,
 so the site keeps to the plan's intent between two schedule triggers.
 
-Each schedule value then comes with a ``response`` object, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
+Each schedule value of such a device then comes with an entry of the ``reaction`` array, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
 
 - ``reference``: the uncontrolled power at the connection the plan assumed for the slot, in the schedule's unit;
 - ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
 - ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs, in the schedule's unit (a side is ``null`` only when the device has no limit on that side).
 
-Writing ``p`` for the scheduled value, ``m`` for the measured net power at the connection and ``r`` for the sum of the realised power of the responding devices,
-the device's setpoint for the slot is the clip of ``p - react * ((m - r) - reference)`` to the band, which equals the plan when the connection behaves as forecast.
-Devices respond in series, in the order of ``response-order``, each absorbing what the devices before it could not.
+The client evaluates the reaction itself.
+Writing ``p`` for the scheduled value and ``meter`` for the measured net power at the connection,
+the surprise is ``(meter - Σ device power) - reference``, with ``Σ device power`` the realised power of the reacting devices,
+and the device's setpoint for the slot is the clip of ``p - react * surprise`` to the band, which equals the plan when the connection behaves as forecast.
+Devices react in series, in the order of the flex-model, each absorbing what the devices before it could not.
 The react share is ``1`` in the slots where the site capacity binds, where the planned net power at the connection is zero while the production price is below the consumption price,
 and where the production price is zero or negative; it is ``0`` elsewhere, with a band of just the scheduled value.
-The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach), in the directions its ``response`` field allows;
-when the response leaves the band, trigger a new schedule (see ``retrigger-on-band-exit``).
+The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
+When a reaction leaves the band, trigger a new schedule.
 
 
 Intermediate power constraints

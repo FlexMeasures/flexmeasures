@@ -1122,7 +1122,7 @@ def make_schedule(  # noqa: C901
             rq_job.save_meta()
             continue
         if result.get("name") == "recourse_rule":
-            # Response rules are not stored as sensor data;
+            # Reaction rules are not stored as sensor data;
             # they are kept in the job meta, so the schedule-serving API can include them in its response.
             # An unbounded range side (infinite) is kept as None, since the meta has to serialize.
             df = result["data"]
@@ -1130,6 +1130,7 @@ def make_schedule(  # noqa: C901
                 "start": df.index[0].isoformat(),
                 "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
                 "unit": result.get("unit", "MW"),
+                "retrigger-on-band-exit": result.get("retrigger_on_band_exit", True),
                 "react": df["react"].tolist(),
                 "reference": df["reference"].tolist(),
                 "band": [

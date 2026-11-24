@@ -100,10 +100,10 @@ class MetaStorageScheduler(Scheduler):
 
     default_resolution = timedelta(minutes=15)
 
-    #: Whether the flex-context opted in to the response rules by listing devices in ``response-order``.
+    #: Whether any flex-model device opted in to the reaction rules by setting ``react`` to true.
     #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"recourse_rule"`` entry per flexible device,
-    #: containing per-slot values for the response rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
-    #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`response_rules`.
+    #: containing per-slot values for the reaction rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
+    #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`reaction_rules`.
     include_response: bool = False
 
     COLUMNS = [
@@ -185,12 +185,8 @@ class MetaStorageScheduler(Scheduler):
 
         device_models = inventory.device_flex_models
 
-        # The flex-context opts in to the response rules by listing the responding devices (`response-order`);
-        # each device's `response` field says in which directions, and how fast, it can respond.
-        self.include_response = isinstance(self.flex_context, dict) and bool(
-            self.flex_context.get("response_order")
-        )
-        self._device_responses = [fm.get("response") for fm in device_models]
+        # A device opts in to the reaction rules with its flex-model field `react`.
+        self.include_response = any(fm.get("react") for fm in device_models)
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
@@ -1968,27 +1964,6 @@ class MetaStorageScheduler(Scheduler):
         self.device_inventory = DeviceInventory.from_flex_config(
             self.flex_model, self.flex_context, sensor=self.sensor
         )
-        self._validate_response_order()
-
-    def _validate_response_order(self):
-        """Refuse a ``response-order`` entry whose sensor is not the power sensor of a flex-model device."""
-        if not isinstance(self.flex_context, dict):
-            return
-        response_order = self.flex_context.get("response_order") or []
-        device_sensor_ids = {
-            device.sensor_id
-            for device in self.device_inventory.devices
-            if device.sensor_id is not None
-        }
-        unknown_sensor_ids = [
-            entry["sensor"].id
-            for entry in response_order
-            if entry["sensor"].id not in device_sensor_ids
-        ]
-        if unknown_sensor_ids:
-            raise ValidationError(
-                f"The response-order refers to sensor(s) {unknown_sensor_ids}, which are not the power sensors of flex-model devices."
-            )
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -3796,7 +3771,7 @@ class StorageScheduler(MetaStorageScheduler):
         initial_stock: list[float],
         resolution: timedelta,
     ) -> list[dict]:
-        """Compute the per-slot response rule of each flexible device, see :ref:`response_rules`.
+        """Compute the per-slot reaction rule of each flexible device, see :ref:`reaction_rules`.
 
         The client applies ``setpoint = clip(p - react * (m_uncontrolled - reference), band)`` per slot,
         where ``p`` is the planned power and ``m_uncontrolled`` the measured uncontrolled power at the connection.
@@ -3807,13 +3782,16 @@ class StorageScheduler(MetaStorageScheduler):
         - ``reference``: the uncontrolled power at the connection the plan assumed,
           i.e. the sum of the inflexible device forecasts of the device's commodity, without any flexible device's plan,
           so 0 without inflexible devices;
-        - ``react``: the share of the surprise the device absorbs, 1 for a device of the ``response-order`` in the slots found by :meth:`_responsive_slots`, 0 otherwise.
+        - ``react``: the share of the surprise the device absorbs, 1 for a device with ``react`` set in the slots found by :meth:`_responsive_slots`, 0 otherwise.
           Shares in between are reserved for a later version.
-          A device whose ``response-time`` exceeds the scheduling resolution, or whose band leaves no room to move, gets 0;
+          Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
+          A device whose reaction time exceeds the scheduling resolution, or whose band leaves no room to move, gets 0;
         - ``band``: the (min, max) power ranges the device may move within, see :meth:`_response_band`,
           narrowed so that its stock constraints stay reachable after a one-slot deviation (see :meth:`_stock_reachability_band`).
           Shared limits, such as the site capacity, do not narrow the band.
           A device with react 0 gets the single range (p, p).
+
+        Each entry also carries ``retrigger_on_band_exit``, whether the client should trigger a new schedule when a reaction leaves its band.
 
         All values are in MW (consumption positive). Range sides may be ±inf where a device is unconstrained.
         Soft (breach-priced) capacities do not narrow the band; only hard bounds do.
@@ -3849,12 +3827,8 @@ class StorageScheduler(MetaStorageScheduler):
         responsive_by_commodity = self._responsive_slots(
             commodity_to_devices, ems_schedule, ems_constraints, commitments, tolerance
         )
-        response_order_sensor_ids = [
-            entry["sensor"].id for entry in flex_context.get("response_order") or []
-        ]
-        device_responses = (
-            getattr(self, "_device_responses", None) or [None] * num_flexible
-        )
+        # Not yet exposed through the public schema: the flex-context key `retrigger_on_band_exit` (default True).
+        retrigger_on_band_exit = bool(flex_context.get("retrigger_on_band_exit", True))
 
         entries = []
         for d in range(num_flexible):
@@ -3881,20 +3855,15 @@ class StorageScheduler(MetaStorageScheduler):
             hi = np.fmax(hi, p)
             lo = np.fmin(lo, p)
 
-            response = device_responses[d] if d < len(device_responses) else None
-            directions = (
-                set(response["directions"])
-                if response is not None
-                else set(RESPONSE_DIRECTIONS)
+            device_model = device_models[d] if d < len(device_models) else {}
+            # Not yet exposed through the public schema: the flex-model keys `reaction_directions`
+            # (a subset of RESPONSE_DIRECTIONS, defaulting to all of them) and `reaction_time` (a timedelta, defaulting to no bound).
+            directions = set(
+                device_model.get("reaction_directions") or RESPONSE_DIRECTIONS
             )
-            response_time = (
-                response["response_time"] if response is not None else timedelta(0)
-            )
-            sensor_id = getattr(sensors[d], "id", None)
+            reaction_time = device_model.get("reaction_time") or timedelta(0)
             can_respond = (
-                sensor_id is not None
-                and sensor_id in response_order_sensor_ids
-                and response_time <= resolution
+                bool(device_model.get("react")) and reaction_time <= resolution
             )
             responsive = responsive_by_commodity.get(
                 device_commodity[d], np.zeros(n, dtype=bool)
@@ -3936,6 +3905,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "sensor": sensors[d],
                     "data": data,
                     "unit": "MW",
+                    "retrigger_on_band_exit": retrigger_on_band_exit,
                 }
             )
         return entries

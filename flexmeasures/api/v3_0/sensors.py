@@ -117,13 +117,13 @@ def _build_recourse_response(
     to_unit: str,
     sign: int,
 ) -> list[dict]:
-    """Serialize the per-slot response rules of one device (stored in the job meta) for the schedule response.
+    """Serialize the per-slot reaction rules of one device (stored in the job meta) for the schedule response.
 
     Aligns the rule slots (stored at the scheduling resolution) with the served schedule window and resolution (rules are piecewise constant),
     converts power values from the stored unit to the unit of the served schedule values, and applies their sign convention.
     An unbounded range side is serialized as null.
 
-    :param recourse_meta:  Response rules of one device, as stored in the job meta.
+    :param recourse_meta:  Reaction rules of one device, as stored in the job meta.
     :param schedule_index: DatetimeIndex of the served schedule values.
     :param resolution:     Event resolution of the served schedule values.
     :param to_unit:        Unit of the served schedule values.
@@ -1364,13 +1364,13 @@ class SensorAPI(FlaskView):
                         type: string
                         description: Unit of the schedule's values.
 
-                      response:
+                      reaction:
                         type: array
                         description: |
-                          Per-slot response rules, only present when the schedule was triggered with the flex-context field ``response-order``.
-                          Each object corresponds to one schedule value and describes how the device should respond locally to a surprise at the connection,
-                          following ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``.
-                          Here ``p`` is the scheduled value, and ``m_uncontrolled`` is the measured power at the connection minus the realised power of the responding devices.
+                          Per-slot reaction rules, only present when the device's flex-model set ``react`` to true.
+                          Each object corresponds to one schedule value and describes how the device should react locally to a surprise at the connection,
+                          which the client evaluates as ``setpoint = clip(p - react * surprise, band)``,
+                          with ``surprise = (meter - sum of the reacting devices' power) - reference`` and ``p`` the scheduled value.
                           Values share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.
                         items:
                           type: object
@@ -1575,7 +1575,7 @@ class SensorAPI(FlaskView):
             unit=unit,
         )
 
-        # Optionally add per-slot response rules (opt-in via the flex-context field `response-order`),
+        # Optionally add per-slot reaction rules (opt-in via the flex-model field `react`),
         # aligned with the served schedule values.
         recourse_meta = (job.meta or {}).get("recourse_rules", {}).get(sensor.id)
         if recourse_meta is not None:
@@ -1590,7 +1590,7 @@ class SensorAPI(FlaskView):
                     and not db_consumption_is_positive
                 ):
                     response_sign = -1
-            response["response"] = _build_recourse_response(
+            response["reaction"] = _build_recourse_response(
                 recourse_meta,
                 schedule_index=consumption_schedule.index,
                 resolution=resolution,
