@@ -169,7 +169,7 @@ def request_auth_token(args) -> tuple[dict, int]:
             # Serialize issuance with deactivation/password changes, then verify
             # credentials again against the locked, up-to-date user record.
             from flexmeasures.auth.tokens import issue_refresh_token
-            
+
             user = db.session.scalar(
                 select(User)
                 .where(User.id == user.id)
@@ -179,7 +179,7 @@ def request_auth_token(args) -> tuple[dict, int]:
             if not user or not verify_password(args["password"], user.password):
                 return {"errors": ["User password does not match."]}, 401
             return issue_refresh_token(user)
-            
+
         token = user.get_auth_token()
         log_authentication_event(
             f"auth token issued to user {user.id} (by {issued_by})"

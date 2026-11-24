@@ -436,7 +436,8 @@ def check_refresh_token_family_limit(app: Flask) -> None:
         raise ValueError(
             "FLEXMEASURES_REFRESH_TOKEN_FAMILY_LIMIT must be a positive integer"
         )
-        
+
+
 COOKIE_SECURITY_SETTINGS = ("SESSION_COOKIE_SECURE", "REMEMBER_COOKIE_SECURE")
 
 
