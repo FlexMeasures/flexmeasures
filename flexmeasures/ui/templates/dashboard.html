@@ -137,8 +137,9 @@
             <div class="leaflet-marker-popup">
                 <div class="row">
                     <div class="col-sm-9">
-                        <h4>{{ asset.name }} </h4>
-                        {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
+                        {# Names go into this JS template literal as JSON strings of their HTML-escaped text, so neither ${...} nor backticks nor markup in a name can run. #}
+                        <h4>${ {{ asset.name | e | tojson }} } </h4>
+                        {% if user_has_admin_reader_rights %} <small>Account: ${ {{ asset.owner.name | e | tojson }} } </small> {% endif %}
                     </div>
                 </div>
                 <div class="row top-buffer">
@@ -172,7 +173,7 @@
                 next();
             });
         })
-        .bindTooltip({% if user_has_admin_reader_rights %}"{{ asset.name }} ({{ asset.owner.name }})"{% else %}"{{ asset.name }}" {% endif %},
+        .bindTooltip({% if user_has_admin_reader_rights %}{{ (asset.name ~ " (" ~ asset.owner.name ~ ")") | e | tojson }}{% else %}{{ asset.name | e | tojson }}{% endif %},
         {
             permanent: false,
             direction: 'right'
@@ -231,7 +232,7 @@
     {% if asset_groups[asset_group_name].count > 0 %}
     var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
     mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);
-    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, "{{ asset_group_name | capitalize }}")
+    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, {{ asset_group_name | capitalize | e | tojson }})  {# Leaflet sets the label as HTML: escape it, then encode it for JS #}
     {{ asset_groups[asset_group_name].parameterized_name }}_layer.addTo(assetMap);
     {% endif %}
     {% endfor %}

@@ -100,6 +100,13 @@ class AutomationCreationSchema(Schema):
             " it decides whether a failed run is handed to the host's critical-automation-failure hooks."
         },
     )
+    monitored = fields.Bool(
+        load_default=True,
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -159,7 +166,7 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+    """Request schema for updating an automation's name, recurrence, timezone, activation status and/or monitoring.
 
     The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
     """
@@ -174,6 +181,12 @@ class AutomationUpdateSchema(Schema):
     )
     active = fields.Bool()
     critical = fields.Bool()
+    monitored = fields.Bool(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
+            "example": True,
+        },
+    )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -224,6 +237,12 @@ class AutomationSchema(ma.SQLAlchemySchema):
         metadata={
             "description": "Whether a failed run of this automation is handed to the host's critical-automation-failure hooks."
         }
+    )
+    monitored = ma.auto_field(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
     )
 
     @staticmethod

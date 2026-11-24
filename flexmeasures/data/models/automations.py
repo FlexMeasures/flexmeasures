@@ -100,6 +100,12 @@ class Automation(db.Model, AuthModelMixin):
     # it only decides whether a failure is handed to the critical-failure hooks (see `flexmeasures.data.services.automation_failure_hooks`),
     # where a host's own business logic can act on it, for instance by paging the engineer on duty.
     critical = db.Column(db.Boolean, nullable=False, default=False)
+    # Whether `flexmeasures monitor automations` reports this automation's failed runs.
+    monitored = db.Column(
+        db.Boolean, nullable=False, default=True, server_default="true"
+    )
+    # When monitoring was last switched back on, which tells the digest which runs failed while it was off.
+    monitoring_resumed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )

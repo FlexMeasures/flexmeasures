@@ -72,6 +72,10 @@
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
                                             <option value="" {% if asset.parent_asset_id is none %} selected {%
                                                 endif %}>No Parent</option>
+                                            {% if other_organisation_parent %}
+                                            <option value="{{ other_organisation_parent.id }}" selected>
+                                                {{ other_organisation_parent.label }}</option>
+                                            {% endif %}
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if
@@ -731,7 +735,7 @@
                     }
 
                     const errorMessage = extractApiErrorMessage(errorData, response.statusText);
-                    showToast(`Failed to update the flex model <div>${errorMessage}</div>`, "error");
+                    showToast(`Failed to update the flex model <div>${escapeHtml(errorMessage)}</div>`, "error");
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
@@ -862,9 +866,9 @@
                         const sensor = await renderSensor(value.sensor);
                         component.innerHTML = sensor;
                     } else if (isFixed) {
-                        component.innerHTML = `<p class="card-text fs-4">${value}</p>`;
+                        component.innerHTML = `<p class="card-text fs-4">${escapeHtml(value)}</p>`;
                     } else {
-                        showToast(`Invalid value type for card: ${value}`, "error");
+                        showToast(`Invalid value type for card: ${escapeHtml(value)}`, "error");
                         return;
                     }
 
@@ -1039,7 +1043,7 @@
                     ${isUnsetSensorReference(value) ? `<div class="text-warning-emphasis">${escapeHtml(unsetSensorReferenceNote(value))}</div>`
                         : isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
-                    ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
+                    ${isNumber || isString ? `<p class="card-text fs-4">${escapeHtml(value)}</p>` : ''}
                 `;
 
                 highlightCard.appendChild(contentContainer);

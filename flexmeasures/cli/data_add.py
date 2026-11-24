@@ -30,6 +30,8 @@ import click
 # whose stubs shadow the inline types that click ships itself, and predate both of these (added in click 8.0).
 from click.core import ParameterSource  # type: ignore[attr-defined]
 import getpass
+
+from flask_security.utils import password_length_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -74,6 +76,7 @@ from flexmeasures.data.services.reporting import (
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.services.generic_assets import cross_account_parent_warning
 from flexmeasures.data.models.user import (
     Account,
     AccountRole,
@@ -449,6 +452,11 @@ def new_user(
     if pwd1 != pwd2:
         click.secho("Passwords do not match!", **MsgStyle.ERROR)
         raise click.Abort()
+    # Hold the password to the same policy as the password forms (SECURITY_PASSWORD_LENGTH_MIN)
+    password_problems = password_length_validator(pwd1)
+    if password_problems:
+        click.secho(" ".join(password_problems), **MsgStyle.ERROR)
+        raise click.Abort()
     created_user = create_user(
         username=username,
         email=email,
@@ -605,6 +613,11 @@ def add_asset(**args):
         )
     db.session.add(generic_asset)
     db.session.flush()
+    warning = cross_account_parent_warning(
+        generic_asset, generic_asset.parent_asset, generic_asset.account_id
+    )
+    if warning:
+        click.secho(warning, **MsgStyle.WARN)
     AssetAuditLog.add_record(
         generic_asset,
         f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",
@@ -1823,6 +1836,12 @@ def add_forecast(  # noqa: C901
     " where your own business logic can act on it, for instance by paging the engineer on duty.",
 )
 @click.option(
+    "--unmonitored",
+    "unmonitored",
+    is_flag=True,
+    help="Add this flag to keep the automation's failed runs out of `flexmeasures monitor automations`.",
+)
+@click.option(
     "--data-generator",
     "--forecaster",
     "--scheduler",
@@ -1899,6 +1918,7 @@ def add_automation(  # noqa: C901
     automation_type: str,
     inactive: bool = False,
     critical: bool = False,
+    unmonitored: bool = False,
     generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1998,6 +2018,7 @@ def add_automation(  # noqa: C901
             automation_type=automation_type,
             active=not inactive,
             critical=critical,
+            monitored=not unmonitored,
             parameters=parameters,
             generator_class=generator_class,
             config=config,

@@ -85,6 +85,7 @@ def copy_automations(
     asset_id_map: dict[int, int],
     sensor_id_map: dict[int, int],
     destination_account_id: int | None,
+    execution_user_id: int | None = None,
 ) -> list[SkippedAutomation]:
     """Copy the automations of a freshly copied asset subtree, leaving each copy inactive.
 
@@ -100,6 +101,8 @@ def copy_automations(
     :param asset_id_map:            Mapping of every original asset ID in the copied subtree to its new asset ID.
     :param sensor_id_map:           Mapping of every original sensor ID in the copied subtree to its new sensor ID.
     :param destination_account_id:  The account the copy belongs to, or None if the copy is public.
+    :param execution_user_id:       The user each copy runs as, whose permissions are checked again before each run
+                                    (see `check_execution_access`). Copies made through the API run as the copying user.
     :returns:                       The automations that were skipped, in the order they were considered.
     """
     if not asset_id_map:
@@ -128,6 +131,7 @@ def copy_automations(
                     asset_id_map=asset_id_map,
                     sensor_id_map=sensor_id_map,
                     destination_account_id=destination_account_id,
+                    execution_user_id=execution_user_id,
                 )
         except Exception as e:
             # Whatever an automation's stored data generator does on the way in, it does not take the asset copy with it.
@@ -156,6 +160,7 @@ def _copy_automation(
     asset_id_map: dict[int, int],
     sensor_id_map: dict[int, int],
     destination_account_id: int | None,
+    execution_user_id: int | None = None,
 ) -> Automation:
     """Copy one automation onto the copy of the asset it belongs to.
 
@@ -199,10 +204,12 @@ def _copy_automation(
         active=False,
         # Criticality is inherited: a variation on a critical automation is critical until said otherwise.
         critical=automation.critical,
+        monitored=automation.monitored,
         generator_id=generator.id,
         parameters=parameters,
         # A fresh cursor, so that the copy does not inherit the original's run history.
         cursor=get_initial_cursor(),
+        execution_user_id=execution_user_id,
     )
     db.session.add(copied_automation)
     db.session.flush()
