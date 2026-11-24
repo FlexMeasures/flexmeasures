@@ -222,7 +222,7 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 class PrioritySchema(Schema):
     """Breach prices for the devices that name this priority in their flex-model.
 
-    Each breach price left out falls back to the one set at the top level of the flex-context.
+    Each breach price left out falls back to the one that applies in the context listing this priority.
     """
 
     priority = fields.Str(
