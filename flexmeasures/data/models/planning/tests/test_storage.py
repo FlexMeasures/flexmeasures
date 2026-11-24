@@ -3366,3 +3366,45 @@ def test_device_capacity_breach_price_per_commodity(db, charge_point, form):
     )
 
     assert charged == pytest.approx([2, 3], abs=1e-3)
+
+
+@pytest.mark.parametrize(
+    "top_level, electricity_context, expected_cost",
+    [
+        (
+            {"site-consumption-breach-price": "5000 EUR/kW"},
+            {"site-consumption-capacity": "1.25 kW"},
+            5000 * 0.25,
+        ),
+        (
+            {"site-consumption-capacity": "1.25 kW"},
+            {},
+            10000 * 0.25,
+        ),
+    ],
+)
+def test_top_level_fields_count_for_the_listed_electricity_context(
+    db, charge_point, top_level, electricity_context, expected_cost
+):
+    """The top-level fields of a flex-context describe electricity, also when it lists an electricity context."""
+    charged, costs = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"top-level {top_level} next to a listed electricity context",
+        flex_context={
+            **top_level,
+            "commodities": [
+                {
+                    "commodity": "electricity",
+                    **HARD_SOC_CONSTRAINTS,
+                    **electricity_context,
+                },
+            ],
+        },
+        **{"soc-minima": "3 kWh"},
+    )
+
+    assert charged == pytest.approx([3, 3], abs=1e-3)
+    assert costs["electricity any consumption breach"] == pytest.approx(
+        expected_cost, rel=1e-3
+    )
