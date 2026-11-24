@@ -49,20 +49,20 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=encode))
 
 
-# The fields of a serialized flex-context that only exist at its top level, rather than in a commodity context.
+# The fields of a serialized flex-context that stay at its top level, rather than counting for its electricity context.
 # The top-level commitments stay there, too, as each of them names its own commodity.
-TOP_LEVEL_FLEX_CONTEXT_KEYS = frozenset(
-    (
-        "aggregate-power",
-        "consumption-price-sensor",
-        "production-price-sensor",
-        "commitments",
-    )
-)
+TOP_LEVEL_FLEX_CONTEXT_KEYS = frozenset(("aggregate-power", "commitments"))
 
 
 def _commodity_of(context: dict) -> str:
     return context.get("commodity", "electricity")
+
+
+def _lists_electricity(flex_context: dict | list) -> bool:
+    """Whether a serialized flex-context lists a commodity context for electricity."""
+    if isinstance(flex_context, dict):
+        flex_context = flex_context.get("commodities") or []
+    return any(_commodity_of(context) == "electricity" for context in flex_context)
 
 
 def _merge_contexts(context: dict, overriding_context: dict) -> dict:
@@ -77,48 +77,55 @@ def _merge_contexts(context: dict, overriding_context: dict) -> dict:
     return {**context, **overriding_context}
 
 
-def _split_flex_context(flex_context: dict | list) -> tuple[dict, list[dict]]:
-    """Split a serialized flex-context into its top-level-only fields and its commodity contexts.
+def _split_flex_context(
+    flex_context: dict | list, fold_electricity: bool
+) -> tuple[dict, list[dict]]:
+    """Split a serialized flex-context into its top-level fields and its commodity contexts.
 
-    The other fields at the top level of a flex-context passed as a dict describe electricity,
-    so they make up the electricity context,
-    together with any listed electricity context, whose own fields take precedence.
+    The fields at the top level of a flex-context passed as a dict describe electricity.
+    When folding these into the electricity context,
+    only the fields that stay at the top level (see TOP_LEVEL_FLEX_CONTEXT_KEYS) are returned as top-level fields,
+    and the others make up the electricity context, together with any listed electricity context, whose own fields take precedence.
 
-    :returns: The top-level-only fields, and the commodity contexts.
+    :param flex_context:        The serialized flex-context.
+    :param fold_electricity:    Whether to fold the top-level fields describing electricity into the electricity context.
+    :returns:                   The top-level fields, and the commodity contexts.
     """
     if isinstance(flex_context, list):
         return {}, [dict(context) for context in flex_context]
-    top_level = {
-        k: v for k, v in flex_context.items() if k in TOP_LEVEL_FLEX_CONTEXT_KEYS
-    }
     contexts = [dict(context) for context in flex_context.get("commodities") or []]
+    top_level = {k: v for k, v in flex_context.items() if k != "commodities"}
+    if not fold_electricity:
+        return top_level, contexts
     electricity_fields = {
         k: v
-        for k, v in flex_context.items()
-        if k not in TOP_LEVEL_FLEX_CONTEXT_KEYS
-        and k not in ("commodities", "commodity")
+        for k, v in top_level.items()
+        if k not in TOP_LEVEL_FLEX_CONTEXT_KEYS and k != "commodity"
     }
-    if electricity_fields:
-        for i, context in enumerate(contexts):
-            if _commodity_of(context) == "electricity":
-                contexts[i] = _merge_contexts(electricity_fields, context)
-                break
-        else:
-            contexts.insert(0, {"commodity": "electricity", **electricity_fields})
+    top_level = {k: v for k, v in top_level.items() if k in TOP_LEVEL_FLEX_CONTEXT_KEYS}
+    for i, context in enumerate(contexts):
+        if _commodity_of(context) == "electricity":
+            contexts[i] = _merge_contexts(electricity_fields, context)
+            break
+    else:
+        contexts.insert(0, {"commodity": "electricity", **electricity_fields})
     return top_level, contexts
 
 
 def merge_flex_contexts(
     db_flex_context: dict, passed_flex_context: dict | list
-) -> dict | list:
+) -> dict:
     """Merge a passed flex-context with the one stored on the asset (and its ancestors), with the passed fields taking precedence.
 
     A flex-context describing only electricity (a dict without commodity contexts) is merged field by field.
-    Otherwise, the two flex-contexts are merged per commodity,
-    with the top-level fields of each describing electricity (except the few that only exist at the top level),
-    as if they were part of its electricity context.
-    That gives a dict with only those top-level-only fields at its top level, next to the merged commodity contexts,
-    so that each commodity context holds all of that commodity's fields, whichever form each flex-context came in.
+    Otherwise, the two flex-contexts are merged per commodity.
+    The top-level fields of each describe electricity.
+    If either flex-context lists an electricity context, or the passed one is a list, which has no top level,
+    those fields are folded into the electricity context (except those in TOP_LEVEL_FLEX_CONTEXT_KEYS),
+    so that it holds all fields for electricity, whichever form each flex-context came in.
+    Otherwise, they stay at the top level, which then serves as the electricity context, as before.
+
+    Commitments passed for electricity replace the stored top-level commitments, like they do in a flex-context describing only electricity.
     """
     if (
         isinstance(passed_flex_context, dict)
@@ -126,8 +133,21 @@ def merge_flex_contexts(
         and not db_flex_context.get("commodities")
     ):
         return _merge_contexts(db_flex_context, passed_flex_context)
-    db_top_level, db_contexts = _split_flex_context(db_flex_context)
-    passed_top_level, passed_contexts = _split_flex_context(passed_flex_context)
+    fold_electricity = (
+        isinstance(passed_flex_context, list)
+        or _lists_electricity(passed_flex_context)
+        or _lists_electricity(db_flex_context)
+    )
+    db_top_level, db_contexts = _split_flex_context(db_flex_context, fold_electricity)
+    passed_top_level, passed_contexts = _split_flex_context(
+        passed_flex_context, fold_electricity
+    )
+    if any(
+        "commitments" in context
+        for context in passed_contexts
+        if _commodity_of(context) == "electricity"
+    ):
+        db_top_level.pop("commitments", None)
     contexts = []
     for passed_context in passed_contexts:
         commodity = _commodity_of(passed_context)
@@ -140,7 +160,7 @@ def merge_flex_contexts(
         else:
             contexts.append(_merge_contexts(db_contexts.pop(i), passed_context))
     contexts.extend(db_contexts)
-    return {**db_top_level, **passed_top_level, "commodities": contexts}
+    return {**_merge_contexts(db_top_level, passed_top_level), "commodities": contexts}
 
 
 _DROP = object()
