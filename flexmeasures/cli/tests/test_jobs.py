@@ -243,6 +243,48 @@ def test_handle_exception_by_queue_falls_back_and_passes_on_the_result(
     assert go_on is None
 
 
+def test_handle_scheduling_exception_accepts_stack_summary(app, clean_job_redis):
+    """RQ 2.x can pass a StackSummary instead of a traceback to the handler (#2897)."""
+    from traceback import extract_stack
+
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from rq.job import Job
+
+    with app.app_context():
+        queue = app.queues["scheduling"]
+        job = queue.enqueue(sum, [1, 2])
+        error = ValueError("boom")
+
+        handle_scheduling_exception(job, ValueError, error, extract_stack())
+
+        job = Job.fetch(job.id, connection=queue.connection)
+        assert job.meta["exception"] == {"type": "ValueError", "message": "boom"}
+
+
+def test_abandoned_scheduling_job_cleanup_uses_exception_handler(app, clean_job_redis):
+    """Cleaning up an abandoned scheduling job must not stop the worker (#2897)."""
+    from flexmeasures.cli import jobs as jobs_cli
+    from rq.job import Job, JobStatus
+    from rq.registry import StartedJobRegistry
+
+    with app.app_context():
+        queue = app.queues["scheduling"]
+        job = queue.enqueue(sum, [1, 2])
+        queue.remove(job)
+        job.set_status(JobStatus.STARTED)
+        registry = StartedJobRegistry(queue=queue)
+        # RQ 2.12 stores started jobs as <job id>:<execution id> and no longer exposes add().
+        registry.connection.zadd(registry.key, {f"{job.id}:1": 0})
+
+        registry.cleanup(exception_handlers=[jobs_cli.handle_exception_by_queue])
+
+        job = Job.fetch(job.id, connection=queue.connection)
+        assert job.is_failed
+        assert job.meta["exception"]["type"] == "AbandonedJobError"
+        assert job.id in queue.failed_job_registry
+        assert job.id not in registry
+
+
 def test_check_source_references(app, db, clean_job_redis, monkeypatch):
     """Waiting jobs referring to a data source that does not exist, or that a database upgrade will merge, are listed; other jobs are not."""
     from datetime import timedelta
