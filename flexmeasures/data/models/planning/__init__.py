@@ -50,8 +50,16 @@ def _json_safe(value: Any) -> Any:
 
 
 # The fields of a serialized flex-context that stay at its top level, rather than counting for its electricity context.
-# The top-level commitments stay there, too, as each of them names its own commodity.
-TOP_LEVEL_FLEX_CONTEXT_KEYS = frozenset(("aggregate-power", "commitments"))
+# The top-level commitments stay there, too, as each of them names its own commodity,
+# and so do the deprecated price sensors, which get no support beyond the top level.
+TOP_LEVEL_FLEX_CONTEXT_KEYS = frozenset(
+    (
+        "aggregate-power",
+        "commitments",
+        "consumption-price-sensor",
+        "production-price-sensor",
+    )
+)
 
 
 def _commodity_of(context: dict) -> str:

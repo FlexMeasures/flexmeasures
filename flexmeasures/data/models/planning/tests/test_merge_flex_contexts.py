@@ -194,10 +194,7 @@ def test_soc_relaxation_turned_off_in_the_electricity_context(relax_flag):
 
 
 def test_top_level_flex_context_keys_match_the_schemas():
-    """The fields that stay at the top level are those that only exist there, plus the top-level commitments, which each name their own commodity.
-
-    The exceptions are the deprecated price sensors, which describe the prices of electricity.
-    """
+    """The fields that stay at the top level are those that only exist there, plus the top-level commitments, which each name their own commodity."""
 
     def data_keys(schema) -> set[str]:
         return {
@@ -207,7 +204,6 @@ def test_top_level_flex_context_keys_match_the_schemas():
     top_level_only = data_keys(FlexContextSchema()) - data_keys(
         CommodityFlexContextSchema()
     )
-    assert TOP_LEVEL_FLEX_CONTEXT_KEYS == (
-        top_level_only
-        - {"commodities", "consumption-price-sensor", "production-price-sensor"}
-    ) | {"commitments"}
+    assert TOP_LEVEL_FLEX_CONTEXT_KEYS == (top_level_only - {"commodities"}) | {
+        "commitments"
+    }
