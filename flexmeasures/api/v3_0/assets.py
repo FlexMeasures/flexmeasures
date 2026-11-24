@@ -390,7 +390,7 @@ class AssetJobsQuerySchema(Schema):
         load_default=None,
         validate=validate.OneOf(ASSET_JOB_QUEUES),
         metadata={
-            "description": "Only list the jobs of this queue: forecasting, scheduling or reporting.",
+            "description": "Only list the jobs of this queue: forecasting, scheduling, reporting or ingestion.",
         },
     )
 
@@ -2306,7 +2306,8 @@ class AssetAPI(FlaskView):
             Each job names the asset it happened on, in `asset_id` and `asset_name`.
             Each job also says in `can_rerun` whether you may re-run it now with [POST /api/v3_0/jobs/<uuid>/rerun](#/Jobs/post_api_v3_0_jobs__uuid__rerun), which requires it to have failed.
 
-            Pass `queue` to only list the jobs of one queue: `forecasting`, `scheduling` or `reporting`.
+            Pass `queue` to only list the jobs of one queue: `forecasting`, `scheduling`, `reporting` or `ingestion`.
+            The `ingestion` queue holds sensor data uploads and, by default, the jobs of automations defined by plugins.
             On a paginated response, `num-records` still counts all jobs, and `filtered-records` counts the jobs of that queue.
           security:
             - ApiKeyAuth: []

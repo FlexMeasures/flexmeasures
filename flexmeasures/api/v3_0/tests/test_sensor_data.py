@@ -370,6 +370,10 @@ def test_post_sensor_data_returns_accepted_job(
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["sensor_data"] == post_data
     assert "data" not in job.kwargs
+    assert [
+        indexed.id
+        for indexed in current_app.job_map.get(sensor.id, "ingestion", "sensor")
+    ] == [job.id], "the job is indexed under its sensor, so the status page lists it"
 
 
 @pytest.mark.parametrize(

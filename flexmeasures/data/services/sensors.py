@@ -1013,7 +1013,7 @@ def _can_read_automation(automation: Automation | None) -> bool:
 
 
 # The queues whose jobs are indexed under an asset or its sensors, and so can be listed on its status page.
-ASSET_JOB_QUEUES = ("scheduling", "forecasting", "reporting")
+ASSET_JOB_QUEUES = ("scheduling", "forecasting", "reporting", "ingestion")
 
 
 def _collect_asset_jobs(
@@ -1032,15 +1032,15 @@ def _collect_asset_jobs(
     """
     jobs = list()
 
-    # try to get scheduling jobs for asset first (only scheduling jobs can be stored by asset id)
-    if "scheduling" in queues:
+    # Jobs indexed under the asset itself: schedules for the asset, and the jobs of automations on it, which can run on any queue.
+    for queue in queues:
         jobs.append(
             (
-                "scheduling",
+                queue,
                 "asset",
                 asset.id,
                 asset.name,
-                lookup(asset.id, "scheduling", "asset"),
+                lookup(asset.id, queue, "asset"),
             )
         )
 
@@ -1077,10 +1077,10 @@ def build_asset_jobs_data(
     :param per_page:             Number of jobs per page when page is set.
     :param sort_by:              Field used to sort pages (enqueued_at or queue).
     :param sort_dir:             Sort direction (asc or desc).
-    :param queue:                Queue to list the jobs of (scheduling, forecasting or reporting), or None for all of them.
+    :param queue:                Queue to list the jobs of (scheduling, forecasting, reporting or ingestion), or None for all of them.
     :returns:                    A list of dictionaries, each containing the following keys:
                                  - job_id: id of a job
-                                 - queue: job queue (scheduling or forecasting)
+                                 - queue: job queue (scheduling, forecasting, reporting or ingestion)
                                  - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
                                  - asset_id: id of the asset the job happened on
                                  - asset_name: name of the asset the job happened on

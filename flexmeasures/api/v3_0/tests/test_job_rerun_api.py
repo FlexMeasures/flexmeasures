@@ -330,3 +330,40 @@ def test_rerun_failed_plugin_automation_job(
         JobStatus.QUEUED if expected_status_code == 202 else JobStatus.FAILED
     )
     assert job.get_status() == expected_job_status
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_job_list_shows_ingestion_jobs(
+    app, db, add_battery_assets, clean_redis, requesting_user
+):
+    """Uploads are indexed under their sensor, and plugin automation jobs under their asset."""
+    battery = add_battery_assets["Test battery"]
+    sensor = battery.sensors[0]
+    upload = failed_job(app.queues["ingestion"], {"sensor_id": sensor.id})
+    app.job_map.add(sensor.id, upload.id, "ingestion", "sensor")
+    automation_job = failed_plugin_automation_job(app, db, battery, "ingestion")
+    app.job_map.add(battery.id, automation_job.id, "ingestion", "asset")
+    schedule = failed_job(app.queues["scheduling"], battery_schedule_meta(sensor))
+    app.job_map.add(sensor.id, schedule.id, "scheduling", "sensor")
+
+    with app.test_client() as client:
+        response = client.get(
+            url_for("AssetAPI:get_jobs", id=battery.id),
+            query_string={
+                "page": 1,
+                "queue": "ingestion",
+                "include-child-assets": False,
+            },
+        )
+
+    assert response.status_code == 200, response.json
+    jobs = {job["job_id"]: job for job in response.json["jobs"]}
+    assert set(jobs) == {upload.id, automation_job.id}
+    assert all(job["queue"] == "ingestion" for job in jobs.values())
+    assert all(
+        job["can_rerun"] for job in jobs.values()
+    ), "the owner of the battery may re-run both"
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 2

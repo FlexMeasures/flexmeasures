@@ -33,6 +33,7 @@ from flexmeasures.data.services.automation_copies import (
     SkippedAutomation,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
     SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
@@ -195,6 +196,21 @@ def process_sensor_data_ingestion(
                 error,
             )
         else:
+            # Index the job under its sensor, so the status page of the sensor's asset lists it.
+            # The job is queued already, so failing to index it only hides it from that page.
+            try:
+                current_app.job_map.add(
+                    sensor_id,
+                    job.id,
+                    queue="ingestion",
+                    asset_or_sensor_type="sensor",
+                )
+            except NoRedisConfigured:
+                current_app.logger.warning(
+                    "Unable to index ingestion job %s under sensor %s.",
+                    job.id,
+                    sensor_id,
+                )
             return request_accepted_for_processing(
                 job.id,
                 "Sensor data has been accepted for processing.",
