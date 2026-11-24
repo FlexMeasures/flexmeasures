@@ -2014,6 +2014,7 @@ class MetaStorageScheduler(Scheduler):
                 ]
 
             # Each commodity context gets the default breach prices of the constraints it asks to relax, like it does in FlexContextSchema.check_prices.
+            # (A scheduler normally reaches this branch only if it skips collect_flex_config, which turns a list into a dict.)
             schema = CommodityFlexContextSchema()
             for commodity_flex_context in self.flex_context:
                 if is_currency_unit(commodity_flex_context["shared_currency_unit"]):
@@ -2136,11 +2137,16 @@ class MetaStorageScheduler(Scheduler):
         That is the case when any context defines a SoC breach price explicitly,
         sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
         general ``relax-constraints`` flag (which defaults to ``True``).
+        The top level only counts as a context when it serves as the electricity context,
+        i.e. when no electricity context is listed (see `merge_flex_contexts`).
         """
         if isinstance(self.flex_context, dict):
-            contexts = [self.flex_context] + list(
-                self.flex_context.get("commodities", [])
-            )
+            contexts = list(self.flex_context.get("commodities") or [])
+            if not any(
+                context.get("commodity", "electricity") == "electricity"
+                for context in contexts
+            ):
+                contexts.insert(0, self.flex_context)
         elif isinstance(self.flex_context, list):
             contexts = self.flex_context
         else:

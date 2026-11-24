@@ -1,11 +1,14 @@
 """Tests for merging a passed flex-context with the one stored on an asset."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from flexmeasures.data.models.planning import (
     TOP_LEVEL_FLEX_CONTEXT_KEYS,
     merge_flex_contexts,
 )
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
@@ -178,6 +181,16 @@ def test_passed_electricity_commitments_replace_the_stored_ones(passed):
         for commitment in context.get("commitments", [])
     ]
     assert all_commitments == [{"name": "passed"}]
+
+
+@pytest.mark.parametrize("relax_flag", ["relax-constraints", "relax-soc-constraints"])
+def test_soc_relaxation_turned_off_in_the_electricity_context(relax_flag):
+    """After merging, the top level no longer stands for electricity, so its (absent) relax flags do not count as the user asking for relaxation."""
+    merged = merge_flex_contexts(
+        STORED, [{"commodity": "electricity", relax_flag: False}]
+    )
+    scheduler = SimpleNamespace(flex_context=merged)
+    assert not StorageScheduler._soc_relaxation_user_enabled(scheduler)
 
 
 def test_top_level_flex_context_keys_match_the_schemas():
