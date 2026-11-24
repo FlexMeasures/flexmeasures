@@ -22,6 +22,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
+* Posting an annotation again with a prior and a different end no longer fails with a server error, but updates the end, or is refused (409) when the annotation is also shown on other sensors, assets or organisations [see `PR #2877 <https://www.github.com/FlexMeasures/flexmeasures/pull/2877>`_]
 
 
 v1.1.1 | November 11, 2026
