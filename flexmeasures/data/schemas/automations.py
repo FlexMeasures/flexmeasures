@@ -92,6 +92,13 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    monitored = fields.Bool(
+        load_default=True,
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -151,7 +158,7 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+    """Request schema for updating an automation's name, recurrence, timezone, activation status and/or monitoring.
 
     The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
     """
@@ -165,6 +172,12 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    monitored = fields.Bool(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
+            "example": True,
+        },
+    )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -203,14 +216,20 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     schedule_revision = ma.auto_field(
-        data_key="schedule-revision",
+        data_key="revision",
         dump_only=True,
         metadata={
-            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
             "example": 2,
         },
     )
     active = ma.auto_field()
+    monitored = ma.auto_field(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
+    )
 
     @staticmethod
     def _in_automation_timezone(

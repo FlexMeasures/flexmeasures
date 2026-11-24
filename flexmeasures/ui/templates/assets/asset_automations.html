@@ -143,6 +143,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         </div>
         {% endif %}
 
+        <div class="mb-2 d-flex align-items-center gap-2">
+          <label for="monitoringFilter" class="form-label mb-0">Show</label>
+          <select class="form-select form-select-sm w-auto" id="monitoringFilter">
+            <option value="all" selected>All automations</option>
+            <option value="monitored">Monitored automations</option>
+            <option value="unmonitored">Unmonitored automations</option>
+          </select>
+        </div>
+
         {% if user_can_manage_automations %}
         <div class="mb-2 text-end">
           <button class="btn btn-primary" id="newAutomationButton" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
@@ -252,6 +261,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input class="form-check-input" type="checkbox" id="automationActive" checked>
                   <label class="form-check-label" for="automationActive">Active</label>
                 </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="automationMonitored" checked{% if not user_can_change_monitoring %} disabled{% endif %}>
+                  <label class="form-check-label" for="automationMonitored">Monitored
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
+                  </label>
+                  {% if not user_can_change_monitoring %}
+                  <div class="form-text">Only admins can switch monitoring off or on.</div>
+                  {% endif %}
+                </div>
                 <div class="alert alert-danger d-none" id="newAutomationErr"></div>
               </div>
               <div class="modal-footer">
@@ -293,6 +312,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
                   <label class="form-check-label" for="editAutomationActive">Active</label>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationMonitored"{% if not user_can_change_monitoring %} disabled{% endif %}>
+                  <label class="form-check-label" for="editAutomationMonitored">Monitored
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
+                  </label>
+                  {% if not user_can_change_monitoring %}
+                  <div class="form-text">Only admins can switch monitoring off or on.</div>
+                  {% endif %}
                 </div>
                 <div class="alert alert-danger d-none" id="editAutomationErr"></div>
               </div>
@@ -341,6 +370,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanManage = {{ user_can_manage_automations | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
+  // Switching monitoring off silences the digest for whoever receives it, so only admins may, and the forms leave the field out for everyone else.
+  const userCanChangeMonitoring = {{ user_can_change_monitoring | tojson }};
   const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
@@ -349,6 +380,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // How often the listing catches up with the server, while the tab is in front and nothing is open.
   const REFRESH_INTERVAL_MS = 60000;
   let loadInFlight = false;
+  // Which automations to list by their monitoring: "all", "monitored" or "unmonitored".
+  let monitoringFilter = "all";
+  // The last listing from the server, so that changing the filter does not need another request.
+  let lastListedAutomations = [];
+
+  function matchesMonitoringFilter(automation) {
+    if (monitoringFilter === "monitored") {
+      return automation.monitored !== false;
+    }
+    if (monitoringFilter === "unmonitored") {
+      return automation.monitored === false;
+    }
+    return true;
+  }
   let lastRefreshedAt = null;
   // Only an asset with something below it can widen its scope, so only then is the Asset column worth a place.
   const assetHasChildren = {{ 'true' if asset.child_assets else 'false' }};
@@ -532,6 +577,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
     $("#automationActive").prop("checked", values.active);
+    // Someone who may not switch monitoring off gets a monitored automation, also when copying an unmonitored one.
+    $("#automationMonitored").prop("checked", userCanChangeMonitoring ? values.monitored : true);
   }
 
   // The name column allows 80 characters, and so does the API, so a long name loses its tail rather than the suffix that marks the copy.
@@ -558,6 +605,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: automation.timezone,
       parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
       active: false,
+      // Whether failures are worth hearing about is the original's call, and stays so for a variation on it.
+      monitored: automation.monitored !== false,
       sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
     };
   }
@@ -666,9 +715,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       name: esc(automation.name),
       "asset-name": `<a href="/assets/${encodeURIComponent(automation.asset)}/automations">${esc(automation["asset-name"] || "")}</a>`,
       "created-at": createdAt(automation),
+      // Sorted by activity first, then with the unmonitored ones of each kind together.
       active: sortable(
-        automation.active ? 1 : 0,
+        (automation.active ? 2 : 0) + (automation.monitored === false ? 0 : 1),
         `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
+        + (automation.monitored === false
+          ? ' <i class="fa fa-bell-slash text-muted" aria-hidden="true" title="Not monitored: its failed runs are not reported"></i><span class="visually-hidden">Not monitored</span>'
+          : ""),
       ),
       recurrence: sortable(
         automation["cron"],
@@ -752,8 +805,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${esc(res.timezone)}</p>
           <h6 title="Read on the automation's own clock, ${esc(res.timezone)}.">Cursor</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
-          <h6>Schedule revision</h6>
-          <p>${esc(res["schedule-revision"])}</p>
+          <h6>Revision</h6>
+          <p>${esc(res["revision"])}</p>
           <h6>Data source</h6>
           <p>${esc(generator)}</p>
           <h6 title="The static settings this data source was created with. Changing one of them makes a new data source.">Configuration</h6>
@@ -818,7 +871,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ordering: true,
       order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
-        emptyTable: `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
+        emptyTable: monitoringFilter !== "all"
+          ? `No ${monitoringFilter} automations of type '${esc(automationTypes[automationType] || automationType)}' ${scope}.`
+          : `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
           + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
       },
       columns: columns,
@@ -844,6 +899,40 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // The types the page keeps a tab and a table for.
   const AUTOMATION_TYPES = Object.keys(automationTypes);
 
+  /* A link can point at one automation (?automation=<id>), as the monitoring digest's links do.
+     Once the listing is in, its tab and its info panel are opened, which show its latest run, its error and its jobs. */
+  let automationToOpen = Number(new URLSearchParams(window.location.search).get("automation")) || null;
+
+  function openLinkedAutomation() {
+    const automation = automationToOpen === null ? undefined : automationsById.get(automationToOpen);
+    automationToOpen = null;  // only on the first load, not on every refresh
+    if (automation === undefined) {
+      return;
+    }
+    const tab = document.getElementById(`${automation.type}-tab`);
+    if (tab) {
+      bootstrap.Tab.getOrCreateInstance(tab).show();
+    }
+    const modal = document.getElementById(`AutomationInfoModal-${automation.id}`);
+    if (modal) {
+      bootstrap.Modal.getOrCreateInstance(modal).show();
+    }
+  }
+
+  function renderAutomationsTables({ rebuild = false } = {}) {
+    for (const automationType of AUTOMATION_TYPES) {
+      $(`#automationsTable-${automationType}`).show();
+      const ofThisType = lastListedAutomations.filter(
+        automation => automation.type === automationType && matchesMonitoringFilter(automation)
+      );
+      if (rebuild) {
+        makeAutomationsTable(automationType, ofThisType);
+      } else {
+        updateAutomationsTable(automationType, ofThisType);
+      }
+    }
+  }
+
   function loadAutomations({ rebuild = false } = {}) {
     // One refresh at a time: a slow response must not pile up behind the next tick.
     if (loadInFlight) {
@@ -856,16 +945,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       success: function (res) {
         automationsById.clear();
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of AUTOMATION_TYPES) {
-          $(`#automationsTable-${automationType}`).show();
-          const ofThisType = res.automations.filter(automation => automation.type === automationType);
-          if (rebuild) {
-            makeAutomationsTable(automationType, ofThisType);
-          } else {
-            updateAutomationsTable(automationType, ofThisType);
-          }
-        }
+        lastListedAutomations = res.automations;
+        renderAutomationsTables({ rebuild });
         markAutomationsRefreshed();
+        openLinkedAutomation();
         // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
         if (res["redis-connection-err"]) {
           showAutomationsError(res["redis-connection-err"]);
@@ -954,6 +1037,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
     loadAutomations({ rebuild: true });
 
+    // Rebuilt rather than redrawn, so that an empty table says what it is filtered on.
+    $("#monitoringFilter").on("change", function () {
+      monitoringFilter = this.value;
+      renderAutomationsTables({ rebuild: true });
+    });
+
     // Widen or narrow what the page reports on, and keep that choice for the next visit.
     $("#includeChildAssets").on("change", function () {
       includeChildAssets = this.checked;
@@ -992,6 +1081,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationCron").val(automation["cron"]);
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
+      $("#editAutomationMonitored").prop("checked", automation.monitored);
       $("#editAutomationErr").addClass("d-none").text("");
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
     });
@@ -1064,6 +1154,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#editAutomationCron").val(),
           timezone: $("#editAutomationTimezone").val(),
           active: $("#editAutomationActive").is(":checked"),
+          ...(userCanChangeMonitoring ? { monitored: $("#editAutomationMonitored").is(":checked") } : {}),
         }),
         success: () => location.reload(),
         error: function (xhr) {
@@ -1205,6 +1296,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         cron: $("#automationCron").val(),
         timezone: $("#automationTimezone").val(),
         active: $("#automationActive").is(":checked"),
+        ...(userCanChangeMonitoring ? { monitored: $("#automationMonitored").is(":checked") } : {}),
         parameters: parameters,
       };
       if (reusesSource) {

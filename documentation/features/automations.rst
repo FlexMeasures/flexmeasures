@@ -253,7 +253,7 @@ Runs and retries
 ----------------
 
 Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
-The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and schedule revision, so two runners started in the same minute cannot both execute it.
+The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and revision, so two runners started in the same minute cannot both execute it.
 A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
 
 Before queueing anything, the runner writes down the plan for the run: the parameters it will use and the individual jobs it intends to create, each with its own logical name and a job ID derived from the run.
@@ -285,8 +285,45 @@ A run tracks two things separately: how far its *dispatch* got (``pending``, ``c
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
-Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
+Editing an automation's cron string or timezone, or reactivating it, counts up its revision.
 Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
+
+.. _monitoring_automations:
+
+Monitoring automation runs
+--------------------------
+
+As a host, you can have FlexMeasures email you a digest of the automation runs that failed, by running ``flexmeasures monitor automations`` regularly, for instance every hour:
+
+.. code-block:: bash
+
+    0 * * * * flexmeasures monitor automations
+
+A run is reported when its execution failed, when it has been executing for longer than six hours, or when its dispatch failed and will not be attempted again.
+A forecast run therefore counts once its five dispatch attempts are used up, and a run of any other type after its first failed attempt.
+The six hours are set by :ref:`monitor_automations_stuck_after`, and ``--stuck-after-minutes`` overrides that setting.
+
+Each run is reported once, so if one monitoring run is missed, the next one still reports what failed in the meantime.
+Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it first and last did, and with which error.
+No email is sent when nothing failed.
+
+Every automation is monitored, unless it opts out, for instance an experiment whose failures nobody needs to hear about.
+Untick *Monitored* on the Automations page, create it with ``flexmeasures add automation --unmonitored``, switch it with ``flexmeasures edit automation --monitored/--unmonitored``, or send ``"monitored": false`` to the API.
+Its runs are then left out of every digest.
+They are not marked as reported, though, so once the automation is monitored again, the next digest reports the runs that failed in the meantime,
+saying how many of them failed while it was not monitored, and when monitoring was switched back on.
+Only the host's admins and the account-admins of the asset's organisation may switch monitoring off or on, as it decides what the recipients of the digest hear about.
+Switching it off only keeps the automation out of these digests; the automation runs as before.
+
+The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
+The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
+
+The people responsible for the assets can receive a digest of their own, once you add ``--notify-users`` to the command.
+Each user with the ``account-admin`` role in an asset's organisation, and each user with the ``consultant`` role in its consultancy organisation, then receives one email per monitoring run,
+listing only the automations they can see.
+Inactive users and users without an email address are skipped.
+Automations on public assets belong to no organisation, so they only appear in your digest, which keeps listing every failed run.
+A run counts as reported once your digest is sent, so a user digest that cannot be delivered is logged, and not sent again.
 
 Running one automation on demand
 --------------------------------

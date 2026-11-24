@@ -115,6 +115,9 @@ def test_scheduling_a_battery(
         isinstance(cost, float) and np.isfinite(cost)
         for cost in commitment_costs.values()
     )
+    assert (
+        "commodity_costs" not in finished_job.meta["scheduler_info"]
+    ), "single-commodity schedule should not emit commodity_costs"
 
     # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
     # Count only this job's message — the RQ worker may also process other queued jobs.
@@ -152,18 +155,20 @@ def test_loading_custom_scheduler(is_path: bool):
     assert data_source_info["model"] == "DummyScheduler"
 
 
-@pytest.mark.parametrize("is_path", [False, True])
 def test_assigning_custom_scheduler(
-    fresh_db, app, add_battery_assets_fresh_db, is_path: bool
+    fresh_db, app, add_battery_assets_fresh_db, monkeypatch
 ):
     """
-    Test if the custom scheduler is picked up when we assign it to a Sensor,
+    Test if the custom scheduler is picked up when we assign it to a Sensor by its registered name,
     and that its dummy values are saved.
     """
-    scheduler_specs["module"] = make_module_descr(is_path)
+    from flexmeasures.data.tests.dummy_scheduler import DummyScheduler
 
+    monkeypatch.setitem(
+        app.data_generators["scheduler"], "DummyScheduler", DummyScheduler
+    )
     battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
-    battery.attributes["custom-scheduler"] = scheduler_specs
+    battery.attributes["custom-scheduler"] = "DummyScheduler"
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))

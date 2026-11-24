@@ -4,6 +4,22 @@
 FlexMeasures CLI Changelog
 **************************
 
+since v1.2.0 | December xx, 2026
+=================================
+
+* Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation. With ``--notify-users``, the admins and consultants of each asset's organisation also receive a digest of the automations they can see.
+* Add ``flexmeasures add automation --unmonitored`` and ``flexmeasures edit automation --monitored/--unmonitored`` to keep an automation's failed runs out of ``flexmeasures monitor automations``, or to report them again. ``flexmeasures show automations`` shows whether each automation is monitored.
+* ``flexmeasures show beliefs`` labels the time axis of its plot in the timezone given with ``--timezone``, or else in that of the first sensor with data, instead of in UTC, so ``--timezone`` no longer warns when it is given without ``--to-file``.
+
+since v1.1.2 | November 23, 2026
+=================================
+
+* ``flexmeasures add user`` refuses a password shorter than ``SECURITY_PASSWORD_LENGTH_MIN``, which is now 12 characters by default.
+* ``flexmeasures add asset --parent-asset``, ``flexmeasures edit transfer-parenthood`` and ``flexmeasures edit transfer-ownership`` warn when an asset ends up under a parent asset of another organisation (or a public asset under an organisation's asset). They go ahead, as the CLI is not held to the permissions that the API and UI require for this.
+* ``flexmeasures delete sensor`` no longer fails for every sensor when one automation on the server cannot be resolved; it logs a warning and skips that automation.
+
+The first two changes also ship in v1.0.3.
+
 since v1.1.0 | November 05, 2026
 =================================
 
@@ -54,7 +70,7 @@ since v1.0.1 | September 9, 2026
 
 * ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
-since v1.0.0 | August 11, 2026
+since v1.0.0 | August 25, 2026
 =================================
 
 * ``flexmeasures add user --roles`` now parses comma-separated role lists and accepts repeated ``--roles`` options.

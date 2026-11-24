@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from passlib.totp import TOTP
-import random
+import secrets
 import string
 
 from flask import current_app
@@ -200,6 +200,36 @@ def reset_password(user: User):
     send_reset_password_instructions(user)
 
 
+def send_email_change_notice(user: User, old_email: str):
+    """
+    Tell the previous email address of a user that the account's email address was changed.
+
+    This way, the owner of the account notices when someone else redirects their account's mail
+    (e.g. to receive a password reset link).
+    Raises if the mail cannot be sent.
+    """
+    from flask_mail import Message
+
+    platform_name = current_app.config.get("FLEXMEASURES_PLATFORM_NAME", "FlexMeasures")
+    if not isinstance(platform_name, str):
+        platform_name = "FlexMeasures"
+    changed_by = ""
+    if hasattr(current_user, "id") and current_user.id != user.id:
+        changed_by = f" by {current_user.username} (user {current_user.id})"
+    message = Message(
+        subject=f"The email address of your {platform_name} account was changed",
+        recipients=[old_email],
+    )
+    message.body = (
+        f"Hello {user.username},\n\n"
+        f"The email address of your {platform_name} account was changed{changed_by}"
+        f" from {old_email} to {user.email}.\n"
+        "From now on, messages for this account, such as password reset links, go to the new address.\n\n"
+        "If you did not expect this change, contact your account administrator or the platform's support right away.\n"
+    )
+    current_app.mail.send(message)
+
+
 def set_random_password(user: User):
     """
     Randomize a user's password.
@@ -207,7 +237,7 @@ def set_random_password(user: User):
     Does not commit the session.
     """
     new_random_password = "".join(
-        [random.choice(string.ascii_lowercase) for _ in range(24)]
+        [secrets.choice(string.ascii_lowercase) for _ in range(24)]
     )
     update_password(user, new_random_password)
 

@@ -300,8 +300,10 @@ def _usable_source_conditions(
     """The two conditions under which a data source is the current user's to work with.
 
     A source is theirs when it belongs to an organisation they may read,
-    and theirs by proxy when an automation they may read computes under it,
+    and theirs by proxy when an automation on an asset of such an organisation computes under it,
     which is how a source they set up becomes theirs before it has recorded anything.
+    An automation on a public asset does not count: every user may read those,
+    so counting them would hand everyone the generators (and stored configuration) the host set up there.
     """
     from flexmeasures.data.models.automations import Automation
     from flexmeasures.data.models.generic_assets import GenericAsset
@@ -313,7 +315,7 @@ def _usable_source_conditions(
         .join(GenericAsset, Automation.asset_id == GenericAsset.id)
         .where(
             Automation.generator_id == DataSource.id,
-            _readable_asset_condition(readable_account_ids),
+            GenericAsset.account_id.in_(readable_account_ids),
         )
         .exists(),
     ]
@@ -338,10 +340,12 @@ def readable_source_filter() -> ColumnElement[bool] | None:
 
     On top of the sources which are theirs to work with (see `usable_source_filter`),
     this covers the sources which have recorded data on a sensor they may read,
-    because "what computed this number?" is a fair question about data one is allowed to see.
+    because "what computed this number?" is a fair question about data one is allowed to see,
+    and the sources of automations on assets they may read (including public ones).
 
     Returns None to say that every source is readable, which is what admin access amounts to.
     """
+    from flexmeasures.data.models.automations import Automation
     from flexmeasures.data.models.data_sources import SensorDataSource
     from flexmeasures.data.models.generic_assets import GenericAsset
     from flexmeasures.data.models.time_series import Sensor
@@ -351,6 +355,14 @@ def readable_source_filter() -> ColumnElement[bool] | None:
         return None
     return or_(
         *_usable_source_conditions(readable_account_ids),
+        select(1)
+        .select_from(Automation)
+        .join(GenericAsset, Automation.asset_id == GenericAsset.id)
+        .where(
+            Automation.generator_id == DataSource.id,
+            _readable_asset_condition(readable_account_ids),
+        )
+        .exists(),
         select(1)
         .select_from(SensorDataSource)
         .join(Sensor, SensorDataSource.sensor_id == Sensor.id)

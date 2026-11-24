@@ -67,11 +67,25 @@ class Config(object):
     )
     SECURITY_FORGOT_PASSWORD_TEMPLATE: str = "admin/forgot_password.html"
     SECURITY_RECOVERABLE: bool = True
+    # Answer login and password recovery requests alike, whether or not a user with the given email exists
+    SECURITY_RETURN_GENERIC_RESPONSES: bool = True
     SECURITY_RESET_PASSWORD_TEMPLATE: str = "admin/reset_password.html"
     SECURITY_TOKEN_AUTHENTICATION_HEADER: str = "Authorization"
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
+    # Browser cookies for UI sessions: not sent along with requests that other sites start (SameSite),
+    # not readable by scripts (HttpOnly), and "remember me" lasts two weeks rather than Flask-Login's year.
+    # Unless set by the host, they are Secure (HTTPS only) when FLEXMEASURES_FORCE_HTTPS is on (see resolve_cookie_security).
+    SESSION_COOKIE_HTTPONLY: bool = True
+    SESSION_COOKIE_SAMESITE: str | None = "Lax"
+    SESSION_COOKIE_SECURE: bool | None = None
+    REMEMBER_COOKIE_HTTPONLY: bool = True
+    REMEMBER_COOKIE_SAMESITE: str | None = "Lax"
+    REMEMBER_COOKIE_SECURE: bool | None = None
+    REMEMBER_COOKIE_DURATION: timedelta = timedelta(days=14)
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+    # Minimum length of new passwords (Flask-Security's default is 8; ASVS level 2 asks for 12)
+    SECURITY_PASSWORD_LENGTH_MIN: int = 12
     FLEXMEASURES_SECRETS_ENCRYPTION_KEYS: dict[str, str] | None = None
 
     # Two Factor Authentication
@@ -83,6 +97,9 @@ class Config(object):
     SECURITY_TOTP_ISSUER = "FlexMeasures"
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
         True  # False if you want to skip validation for testing
+    )
+    FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA: bool = (
+        False  # allow /api/requestAuthToken by password alone for users with 2FA
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
     # Explicitly require POST for logout.
@@ -125,6 +142,10 @@ class Config(object):
         []
     )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
+    # How long an automation run may execute before `flexmeasures monitor automations` reports it as stuck.
+    FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER: timedelta = timedelta(hours=6)
+    # Where this server is reached on the web, e.g. "https://ems.example.com", for links in emails sent outside of a request, such as monitoring digests.
+    FLEXMEASURES_BASE_URL: str | None = None
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
@@ -181,6 +202,8 @@ class Config(object):
     FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = (
         3.1 * 1024 * 1024
     )  # up to 3MB are allowed per request
+    # Flask's limit on the body of any request (MAX_CONTENT_LENGTH) is not set here:
+    # unless the host sets it, it is FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES (see resolve_max_content_length).
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
@@ -195,6 +218,23 @@ class Config(object):
         "100 per minute"  # per user, for the API calls the UI makes with the user's session
     )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
+    # The shortest time between two runs of an automation that non-admins may set up through the API,
+    # per automation type ("default" for types not named), or one timedelta for all types
+    FLEXMEASURES_AUTOMATION_MIN_INTERVAL: dict[str, timedelta] | timedelta = {
+        "default": timedelta(minutes=15),
+        "scheduling": timedelta(minutes=15),
+        "forecasting": timedelta(hours=1),
+        "reporting": timedelta(minutes=15),
+        "ingestion": timedelta(minutes=1),
+    }
+    # Failed attempts to authenticate (wrong password or two-factor code) allowed per email address and client address (see flexmeasures.auth.login_throttling)
+    FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
+    # ... and per email address from all client addresses together
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "100 per hour"
+    # Number of reverse proxies in front of FlexMeasures whose X-Forwarded-For entries are trusted for the client address
+    FLEXMEASURES_TRUSTED_PROXIES: int = 0
+    # Password recovery requests allowed per email address
+    FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "5 per hour"
     # Deprecated, and ignored: triggers are always counted per account
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
     # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
@@ -226,6 +266,13 @@ class Config(object):
     FLEXMEASURES_FORCE_HTTPS: bool = False
     # if True, the content could be accessed via HTTPS.
     FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
+    # Headers added to every response (unless the response sets them itself). Set a header to None to leave it out.
+    FLEXMEASURES_SECURITY_HEADERS: dict[str, str | None] = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+    }
 
     SECURITY_PASSWORD_CHECK_BREACHED = (
         "best-effort"  # will try to check https://api.pwnedpasswords.com
@@ -324,6 +371,9 @@ class TestingConfig(Config):
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_AUTHENTICATION_FAILURE_CEILING: str = "1000000 per hour"
+    FLEXMEASURES_PASSWORD_RECOVERY_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}

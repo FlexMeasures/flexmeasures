@@ -229,28 +229,15 @@ export function getActiveContext(flexContext, activeCommodityIndex) {
 /**
  * Prepare a flex-context for saving, in place.
  *
- * Fields the schema does not know are taken out, sparing the structural ones
- * (the commodities list itself is not part of the UI schema),
- * and so are fields left empty.
+ * Fields left empty are taken out.
+ * Fields the editor does not know (such as those only set through the API) are kept as they are,
+ * as the editor shows them as uneditable, and saving should not lose them.
  *
  * @param {Object} flexContext - The whole flex-context of the asset, which is modified.
- * @param {Object} schema - Default values by field name; its keys are the fields that may be saved.
  * @returns {Object} - The same flex-context, for convenience.
  */
-export function cleanFlexContext(flexContext, schema) {
-  function cleanContext(context, isCommodityContext) {
-    for (const key in context) {
-      if (isCommodityContext && key === "commodity") {
-        continue;
-      }
-      if (!isCommodityContext && key === "commodities") {
-        continue;
-      }
-      if (!Object.prototype.hasOwnProperty.call(schema, key)) {
-        delete context[key];
-      }
-    }
-
+export function cleanFlexContext(flexContext) {
+  function cleanContext(context) {
     for (const [key, value] of Object.entries(context)) {
       if (value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
         delete context[key];
@@ -258,10 +245,10 @@ export function cleanFlexContext(flexContext, schema) {
     }
   }
 
-  cleanContext(flexContext, false);
+  cleanContext(flexContext);
   if (flexContext["commodities"]) {
     for (const commodityContext of flexContext["commodities"]) {
-      cleanContext(commodityContext, true);
+      cleanContext(commodityContext);
     }
   }
   return flexContext;

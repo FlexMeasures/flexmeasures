@@ -95,6 +95,12 @@ class Automation(db.Model, AuthModelMixin):
     )
     schedule_revision = db.Column(db.Integer, nullable=False, default=1)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    # Whether `flexmeasures monitor automations` reports this automation's failed runs.
+    monitored = db.Column(
+        db.Boolean, nullable=False, default=True, server_default="true"
+    )
+    # When monitoring was last switched back on, which tells the digest which runs failed while it was off.
+    monitoring_resumed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )
@@ -245,6 +251,8 @@ class AutomationRun(db.Model):
     execution_completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     last_error_type = db.Column(db.String(160), nullable=True)
     last_error_message = db.Column(db.Text, nullable=True)
+    # When `flexmeasures monitor automations` reported this run as failed or stuck, so that it is reported once.
+    alerted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
     plan = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
 
@@ -274,6 +282,7 @@ class AutomationRun(db.Model):
         "dispatch_completed_at",
         "execution_started_at",
         "execution_completed_at",
+        "alerted_at",
     )
     def validate_datetime_is_aware(
         self, key: str, value: datetime | None

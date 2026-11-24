@@ -33,6 +33,7 @@ def automation_script(
     can_run: bool,
     has_children: bool = False,
     include_children: bool = True,
+    can_change_monitoring: bool = True,
 ) -> str:
     """Render inline JavaScript with representative registered automation types."""
     template = TEMPLATE.read_text()
@@ -46,6 +47,7 @@ def automation_script(
         include_child_assets=include_children,
         user_can_manage_automations=can_manage,
         user_can_create_children=can_run,
+        user_can_change_monitoring=can_change_monitoring,
         automation_types={
             "forecasting": "Forecasts",
             "scheduling": "Schedules",
