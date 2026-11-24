@@ -85,6 +85,52 @@ def flexmeasures_cli():
     pass
 
 
+def _sentry_attach_user_id(event, hint):
+    """Identify the user of a request by id only (no email address, username or IP address).
+
+    Also tag the event with the user's account id, and add links to the user's and the account's pages
+    on this platform. Following these links requires logging in to FlexMeasures,
+    so Sentry still holds no names or email addresses.
+    """
+    try:
+        from flask import has_request_context, url_for
+        from flask_login import current_user
+
+        if not (has_request_context() and current_user.is_authenticated):
+            return event
+        event["user"] = {"id": str(current_user.id)}
+        account_id = getattr(current_user, "account_id", None)
+        if account_id is not None:
+            event.setdefault("tags", {})["account_id"] = str(account_id)
+        links = {}
+        try:
+            links["user_page"] = url_for(
+                "UserCrudUI:get", id=current_user.id, _external=True
+            )
+            if account_id is not None:
+                links["account_page"] = url_for(
+                    "AccountCrudUI:get", account_id=account_id, _external=True
+                )
+        except Exception:  # noqa: B902 - e.g. no UI registered; the ids suffice
+            pass
+        if links:
+            event.setdefault("contexts", {})["flexmeasures"] = links
+    except Exception:  # noqa: B902 - never lose an error report over this
+        pass
+    return event
+
+
+def trust_proxies(app: Flask):
+    """Take the client address from X-Forwarded-For, as set by the number of proxies in FLEXMEASURES_TRUSTED_PROXIES."""
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    number_of_proxies = int(app.config.get("FLEXMEASURES_TRUSTED_PROXIES") or 0)
+    if number_of_proxies > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=number_of_proxies, x_proto=0, x_host=0, x_port=0
+        )
+
+
 def init_sentry(app: Flask):
     """
     Configure Sentry.
@@ -125,6 +171,13 @@ def init_sentry(app: Flask):
                 _make_sentry_daily_rate_limiter(app, daily_rate_limit, redis_connection)
             )
 
+    # Personal data (email addresses, usernames, IP addresses, cookies and headers) only goes to Sentry if the host opts in.
+    # Without it, we attach only the ids of the user and their account, and links to their pages on this platform.
+    sentry_config = dict(app.config["FLEXMEASURES_SENTRY_CONFIG"])
+    send_default_pii = bool(sentry_config.pop("send_default_pii", False))
+    if not send_default_pii:
+        filters.append(_sentry_attach_user_id)
+
     def before_send(event, hint):
         for event_filter in filters:
             event = event_filter(event, hint)
@@ -137,10 +190,10 @@ def init_sentry(app: Flask):
         integrations=[FlaskIntegration(), RqIntegration()],
         debug=app.debug,
         release=f"flexmeasures@{fm_version}",
-        send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
+        send_default_pii=send_default_pii,
         environment=app.config.get("FLEXMEASURES_ENV"),
         before_send=before_send if filters else None,
-        **app.config["FLEXMEASURES_SENTRY_CONFIG"],
+        **sentry_config,
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
     sentry_sdk.set_tag("platform-name", app.config.get("FLEXMEASURES_PLATFORM_NAME"))

@@ -117,12 +117,17 @@ class DataGenerator:
         origin: str,
         automation_id: int | None = None,
         automation_run_id: int | None = None,
+        user_id: int | None = None,
     ):
         """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
 
         This information is stored on the jobs themselves (as job meta data).
+        A job triggered by a user (through the API) records the user's ID,
+        so that the job can check that user's access again when it runs.
         """
         self._job_trigger = {"origin": origin}
+        if user_id is not None:
+            self._job_trigger["user_id"] = user_id
         if automation_id is not None:
             self._job_trigger["automation_id"] = automation_id
         if automation_run_id is not None:

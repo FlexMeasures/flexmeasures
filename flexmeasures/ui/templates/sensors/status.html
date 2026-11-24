@@ -168,7 +168,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      queue: job.queue,
+      queue: escapeHtml(job.queue),
       asset: `${escapeHtml(job.asset_name)} (<a href="/assets/${job.asset_id}">${job.asset_id}</a>)`,
       entity: escapeHtml(job.entity),
       created_via: escapeHtml(job.created_via),
@@ -180,7 +180,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
               <h5 class="modal-title">Info</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body"><pre>${job.metadata}</pre></div>
+            <div class="modal-body"><pre>${escapeHtml(job.metadata)}</pre></div>
           </div></div>
         </div>`,
       url: `/tasks/0/view/job/${job.job_id}`

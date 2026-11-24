@@ -597,26 +597,16 @@ function refreshRoundedSteps(instance) {
   const list = instance._roundedSeries;
   if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0) return;
   const perPixelByGrid = new Map();
-  const dataPerPixel = (gridIndex) => {
-    if (perPixelByGrid.has(gridIndex)) return perPixelByGrid.get(gridIndex);
-    let result = null;
-    try {
-      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
-      const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
-      const rx = Math.abs(xa(200) - xa(100)) / 100;
-      const ry = Math.abs(ya(200) - ya(100)) / 100;
-      if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) result = { rx: rx, ry: ry };
-    } catch (e) {
-      result = null;
-    }
-    perPixelByGrid.set(gridIndex, result);
-    return result;
-  };
+  for (const r of list) {
+    if (!perPixelByGrid.has(r.gridIndex)) perPixelByGrid.set(r.gridIndex, roundedStepScale(chart, r.gridIndex));
+  }
+  // Remembered, so the next render can cut its corners up front (see preRoundSteps).
+  instance._roundedScale = perPixelByGrid;
 
   const dataByIndex = new Map();
   let maxIdx = -1;
   for (const r of list) {
-    const pp = dataPerPixel(r.gridIndex);
+    const pp = perPixelByGrid.get(r.gridIndex);
     if (!pp) continue;
     dataByIndex.set(
       r.seriesIndex,
@@ -628,6 +618,47 @@ function refreshRoundedSteps(instance) {
   const patch = [];
   for (let i = 0; i <= maxIdx; i++) patch.push(dataByIndex.has(i) ? { data: dataByIndex.get(i) } : {});
   chart.setOption({ series: patch });
+}
+
+// The data per pixel along a subplot's axes, as the chart currently lays them out, or null if they can't be told.
+function roundedStepScale(chart, gridIndex) {
+  try {
+    const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+    const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
+    const rx = Math.abs(xa(200) - xa(100)) / 100;
+    const ry = Math.abs(ya(200) - ya(100)) / 100;
+    if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) return { rx: rx, ry: ry };
+  } catch (e) {
+    // the axes are not laid out
+  }
+  return null;
+}
+
+// Cut the corners of the rounded series in a new option at the scale the previous render ended up with,
+// so they need no second pass when the new render keeps that scale (see roundedStepsNeedRefresh),
+// as during a replay, where the data changes but the axes mostly do not.
+function preRoundSteps(instance, option) {
+  const scale = instance._roundedScale;
+  if (!scale) return;
+  const series = [].concat(option.series || []);
+  for (const r of instance._roundedSeries || []) {
+    const pp = scale.get(r.gridIndex);
+    if (!pp || !series[r.seriesIndex]) continue;
+    series[r.seriesIndex].data = roundedStepDataPx(r.points, STEP_ROUND_RADIUS_PX * pp.rx, STEP_ROUND_RADIUS_PX * pp.ry);
+  }
+}
+
+// Whether the rounded series' corners have to be cut again, because they were cut at another scale than the chart now has.
+function roundedStepsNeedRefresh(instance) {
+  const scale = instance._roundedScale;
+  if (!scale) return true;
+  const same = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+  for (const r of instance._roundedSeries || []) {
+    const before = scale.get(r.gridIndex);
+    const now = roundedStepScale(instance.chart, r.gridIndex);
+    if (!before || !now || !same(before.rx, now.rx) || !same(before.ry, now.ry)) return true;
+  }
+  return false;
 }
 
 // Recompute every bar series' width so each bar still covers exactly one event resolution at the current zoom,
@@ -693,14 +724,26 @@ function niceTimeStep(span, target) {
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
-  const dz = (chart.getOption().dataZoom || [])[0];
-  const start = dz && typeof dz.start === "number" ? dz.start : 0;
-  const end = dz && typeof dz.end === "number" ? dz.end : 100;
-  const span = (instance._xDomainSpan * (end - start)) / 100;
-  const maxInterval = niceTimeStep(span, 4); // ~4+ major gridlines across the visible span
+  const maxInterval = timeTickInterval(instance._xDomainSpan, (chart.getOption().dataZoom || [])[0]);
   const xAxis = chart.getOption().xAxis || [];
   const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { maxInterval: maxInterval } : {}));
   chart.setOption({ xAxis: patch });
+}
+
+// The cap on the time between major gridlines, for a time axis spanning the given time, zoomed into by the given dataZoom (if any).
+function timeTickInterval(domainSpan, dz) {
+  const start = dz && typeof dz.start === "number" ? dz.start : 0;
+  const end = dz && typeof dz.end === "number" ? dz.end : 100;
+  return niceTimeStep((domainSpan * (end - start)) / 100, 4); // ~4+ major gridlines across the visible span
+}
+
+// Set the gridline cap of refreshTimeTicks in a new option up front, rather than in a second pass after rendering it.
+function presetTimeTicks(instance, option) {
+  if (!(instance._xDomainSpan > 0)) return;
+  const maxInterval = timeTickInterval(instance._xDomainSpan, [].concat(option.dataZoom || [])[0]);
+  [].concat(option.xAxis || []).forEach((ax) => {
+    if (ax && ax.type === "time") ax.maxInterval = maxInterval;
+  });
 }
 
 // Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
@@ -721,7 +764,9 @@ function wireZoomRefresh(instance) {
     if (hasBars) refreshBarWidths(instance);
     if (hasTimeTicks) refreshTimeTicks(instance);
   };
-  refresh(); // initial pass
+  // Initial pass: the time ticks are already set in the option (presetTimeTicks), and the rounded corners usually are, too (preRoundSteps).
+  if (hasRounded && roundedStepsNeedRefresh(instance)) refreshRoundedSteps(instance);
+  if (hasBars) refreshBarWidths(instance);
   instance.onZoomRefresh = refresh;
   chart.on("dataZoom", instance.onZoomRefresh);
 }
@@ -858,20 +903,24 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
 
 // Apply the current mode: turn the marquee on when zoom is effectively active (mode XOR
 // Ctrl), and recolour the Zoom/Pan buttons so the active one is blue.
-function applyChartMode(instance) {
+//
+// A freshly rendered option already has the buttons coloured by toolboxFeatures, so recolouring them can be skipped then.
+function applyChartMode(instance, { recolour = true } = {}) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
   const selectActive = effectiveSelect(instance);
-  const feature = {
-    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-    myPan: { iconStyle: { borderColor: panColor(instance) } },
-  };
-  if (instance._selectable) {
-    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  if (recolour) {
+    const feature = {
+      myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+      myPan: { iconStyle: { borderColor: panColor(instance) } },
+    };
+    if (instance._selectable) {
+      feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+    }
+    // Recolour the buttons first, then set the marquee (so the merge can't clear it).
+    chart.setOption({ toolbox: { feature: feature } });
   }
-  // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({ toolbox: { feature: feature } });
   // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
   if (selectActive && instance.lastOption && instance.lastOption.brush) {
     chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
@@ -937,9 +986,12 @@ function exportCSV(elementId, datasetName) {
 // exported canvas grows to the right by just enough for them — otherwise the
 // extra columns would spill over the plot (see #2513).
 //
+// While replaying, the export also shows the replay ruler at the given belief time
+// (on screen it is laid over the chart, see drawReplayRuler).
+//
 // Returns the option together with the canvas size the export should use.
 // (Exported for the JavaScript tests, which check the legend never covers a plot.)
-export function buildExportOption(lastOption, width, height) {
+export function buildExportOption(lastOption, width, height, replayTime = null) {
   const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
   const grids = asList(lastOption.grid);
   // The room the on-screen layout reserves beside the plots for the legend
@@ -999,6 +1051,9 @@ export function buildExportOption(lastOption, width, height) {
   const series = asList(lastOption.series).map((s) =>
     Object.assign({}, s, { progressive: 0, animation: false })
   );
+  if (replayTime != null) {
+    series.push(...replayRulerExportSeries(lastOption, replayTime));
+  }
   // Widening the canvas must not stretch the plots: every grid keeps its width
   // by giving the added space to its right margin.
   const option = Object.assign({}, lastOption, {
@@ -1014,6 +1069,37 @@ export function buildExportOption(lastOption, width, height) {
   return { option: option, width: width + extraWidth, height: height };
 }
 
+// The replay ruler as data-less series with a markLine, one per time-axis subplot, drawn above the data.
+function replayRulerExportSeries(lastOption, replayTime) {
+  const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+  const yAxes = asList(lastOption.yAxis);
+  const series = [];
+  asList(lastOption.xAxis).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridIndex = xAxis.gridIndex || 0;
+    const yAxisIndex = yAxes.findIndex((y) => (y.gridIndex || 0) === gridIndex);
+    if (yAxisIndex < 0) return;
+    series.push({
+      type: "line",
+      xAxisIndex: i,
+      yAxisIndex: yAxisIndex,
+      data: [],
+      silent: true,
+      animation: false,
+      itemStyle: { color: "transparent" }, // keeps this empty series from consuming a data palette slot
+      markLine: {
+        z: REPLAY_RULER_Z,
+        silent: true,
+        animation: false,
+        symbol: "none",
+        label: { show: false },
+        data: [{ xAxis: replayTime, lineStyle: { color: REPLAY_RULER_COLOR, width: REPLAY_RULER_WIDTH, type: "solid" } }],
+      },
+    });
+  });
+  return series;
+}
+
 function exportSVG(elementId, datasetName) {
   const instance = instances[elementId];
   if (!instance || !instance.lastOption || typeof echarts === "undefined") {
@@ -1023,7 +1109,8 @@ function exportSVG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    replayRulerTime(instance)
   );
   const svgChart = echarts.init(null, null, {
     renderer: "svg",
@@ -1049,7 +1136,8 @@ function exportPNG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    replayRulerTime(instance)
   );
   const holder = document.createElement("div");
   holder.style.width = exported.width + "px";
@@ -1332,10 +1420,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 }
 
 // Build the markLine config for one subplot: instant (zero-duration) annotations
-// as a thin vertical rule with an enlarged triangle marker at the top, plus the
-// replay ruler at the current belief time (when replaying). Returns null when
+// as a thin vertical rule with an enlarged triangle marker at the top. Returns null when
 // there is nothing to draw.
-function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx) {
   const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
@@ -1355,21 +1442,11 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
       };
     })
     .filter(Boolean);
-  if (replayTime != null) {
-    // Replay ruler: a vertical line at the current belief time
-    data.push({
-      xAxis: replayTime,
-      symbol: "none",
-      lineStyle: { color: "#555", width: 1.5, type: "solid" },
-      blur: { lineStyle: { color: "#555", width: 1.5, type: "solid" } },
-      label: { show: false },
-    });
-  }
   if (data.length === 0) return null;
   return {
     silent: true,
     animation: false,
-    // Downward triangle at the top of each rule (the replay ruler opts out per item)
+    // Downward triangle at the top of each rule
     symbol: ["none", "path://M-6,-5 L6,-5 L0,5 Z"],
     symbolSize: 13,
     data: data,
@@ -1584,13 +1661,13 @@ function buildLineBarOption(elementId, groups, opts) {
     });
     // Linear or step-after for the whole row, as in Vega-Lite (see isGroupInstantaneous).
     const groupIsInstantaneous = isGroupInstantaneous(group);
-    // Annotation marks (shaded bands, instant rules) and the replay ruler live
+    // Annotation marks (shaded bands, instant rules) live
     // on a dedicated, data-less carrier series, so they also show in subplots
     // that (still) have no data — parity with the Vega-Lite annotation layers.
     // The marks are silent and drawn behind the data, so the data tooltip keeps
     // working inside annotation bands; wireAnnotationHover darkens the hovered/
     // pinned annotation and reveals its text below the hovered subplot only.
-    if (annotations.length > 0 || instance.replayTime != null) {
+    if (annotations.length > 0) {
       // Hover tolerance for instant annotations: one resolution bin of this
       // subplot's finest sensor, as in the Vega-Lite annotation layers.
       const groupResolutionsMs = group.series
@@ -1612,11 +1689,11 @@ function buildLineBarOption(elementId, groups, opts) {
         animation: false,
         legendHoverLink: false, // not in any legend (legends list explicit entries only)
         // An explicit color keeps this empty carrier from consuming a data palette slot.
-        // Annotation marks and the replay ruler specify their own colors.
+        // Annotation marks specify their own colors.
         itemStyle: { color: "transparent" },
         markArea: buildAnnotationMarkArea(annotations, -1, -1),
       };
-      const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, -1, -1);
       if (markLine) carrier.markLine = markLine;
       series.push(carrier);
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
@@ -2465,7 +2542,7 @@ export function renderFastChart(elementId, data, options) {
   let instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) {
     const chart = echarts.init(container, null, { renderer: "canvas" });
-    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayTime: null };
+    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayMotion: null };
     instance._lastWidth = container.clientWidth;
     // Re-render on resize (debounced), so centered titles stay centered — but ONLY when
     // the WIDTH changed. A height-only resize (mobile browsers fire one when the address
@@ -2494,6 +2571,8 @@ export function renderFastChart(elementId, data, options) {
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
+  // Ctrl is taken to be released by a re-render (see wireZoomInteractions), so the button colours are set accordingly.
+  instance._ctrlHeld = false;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._barSeries = []; // rebuilt by buildLineBarOption for bar charts (see refreshBarWidths)
@@ -2519,6 +2598,9 @@ export function renderFastChart(elementId, data, options) {
   if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
     option.brush = selectionBrush(option);
   }
+  // Settle what would otherwise take extra passes over the rendered chart, each about as costly as the render itself.
+  presetTimeTicks(instance, option);
+  preRoundSteps(instance, option);
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
@@ -2529,6 +2611,84 @@ export function renderFastChart(elementId, data, options) {
   wireZoomRefresh(instance);
   wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+  wireReplayRuler(instance);
+}
+
+/* ============================== replay ruler ============================== */
+
+const REPLAY_RULER_COLOR = "#555";
+const REPLAY_RULER_WIDTH = 1.5;
+// In exports, the ruler is a markLine above the series (z 2), so it stays visible inside bars and filled areas,
+// at the default z of a markLine, where the ruler was drawn when it was one (as the Vega-Lite chart draws its ruler last).
+const REPLAY_RULER_Z = 5;
+
+// The replay's belief time at the given wall time, following the ruler's motion, or null when not replaying.
+function replayRulerTime(instance, now = performance.now()) {
+  const motion = instance.replayMotion;
+  if (!motion) return null;
+  const time = motion.time + (now - motion.wallTime) * motion.rate;
+  // The ruler stops at the end of its motion, which lies before it while rewinding.
+  return motion.rate < 0 ? Math.max(motion.end, time) : Math.min(motion.end, time);
+}
+
+// Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, above the data, or clear it.
+// The rules are HTML elements laid over the chart, moved by a CSS transform animation,
+// which the browser runs off the main thread: so the ruler keeps moving at a steady speed while the chart redraws its data,
+// which can block the main thread for a hundred milliseconds or more on a crowded chart.
+// Each rule sits in a lane the size of its subplot, which hides it outside the subplot (also when zoomed in).
+function drawReplayRuler(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed()) return;
+  if (instance._replayRuler) {
+    instance._replayRuler.remove();
+    instance._replayRuler = null;
+  }
+  const motion = instance.replayMotion;
+  if (!motion || !instance.lastOption) return;
+  const now = performance.now();
+  const time = replayRulerTime(instance, now);
+  const holder = document.createElement("div");
+  holder.className = "replay-ruler";
+  holder.style.cssText = "position: absolute; inset: 0; pointer-events: none; z-index: 1;";
+  const model = chart.getModel();
+  [].concat(instance.lastOption.xAxis || []).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridModel = model.getComponent("grid", xAxis.gridIndex || 0);
+    const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+    // A time axis maps time to pixels linearly, so the ruler moves at a constant pixel speed, too.
+    const x = (t) => chart.convertToPixel({ xAxisIndex: i }, t) - rect.x - REPLAY_RULER_WIDTH / 2;
+    if (!rect || !isFinite(x(time))) return;
+    const lane = document.createElement("div");
+    lane.style.cssText = `position: absolute; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.width}px; height: ${rect.height}px; overflow: hidden;`;
+    const rule = document.createElement("div");
+    rule.style.cssText = `position: absolute; left: 0; top: 0; width: ${REPLAY_RULER_WIDTH}px; height: 100%; background: ${REPLAY_RULER_COLOR}; will-change: transform;`;
+    rule.style.transform = `translateX(${x(time)}px)`;
+    if (motion.rate !== 0 && time !== motion.end && typeof rule.animate === "function") {
+      const animation = rule.animate(
+        [{ transform: `translateX(${x(time)}px)` }, { transform: `translateX(${x(motion.end)}px)` }],
+        { duration: (motion.end - time) / motion.rate, easing: "linear", fill: "forwards" }
+      );
+      // Start from the moment the position was read, rather than from the next frame,
+      // which comes late exactly when the chart is busy redrawing.
+      animation.startTime = now;
+    }
+    lane.appendChild(rule);
+    holder.appendChild(lane);
+  });
+  // ECharts' own root, positioned relative to the chart, whose pixel coordinates the lanes use
+  chart.getZr().painter.getViewportRoot().appendChild(holder);
+  instance._replayRuler = holder;
+}
+
+// Redraw the replay ruler now, and whenever zooming or panning moves the time axes.
+function wireReplayRuler(instance) {
+  const chart = instance.chart;
+  if (instance.onReplayRulerZoom) {
+    chart.off("dataZoom", instance.onReplayRulerZoom);
+  }
+  instance.onReplayRulerZoom = () => drawReplayRuler(instance);
+  chart.on("dataZoom", instance.onReplayRulerZoom);
+  drawReplayRuler(instance);
 }
 
 /* ============================== range selection ============================== */
@@ -2819,8 +2979,8 @@ function wireZoomInteractions(instance, opts) {
   // resets. Ctrl temporarily inverts the mode — the blue highlight jumps to the other
   // button and the marquee flips — restored on release.
   if (instance._zoomMode === undefined) instance._zoomMode = true;
-  instance._ctrlHeld = false;
-  applyChartMode(instance);
+  instance._ctrlHeld = false; // as already assumed in the option's button colours (see renderFastChart)
+  applyChartMode(instance, { recolour: false });
   instance.onDblClickReset = () => resetZoom();
   zr.on("dblclick", instance.onDblClickReset);
   instance.onCtrlDown = (e) => {
@@ -3104,7 +3264,7 @@ export function wireAnnotationHover(instance) {
       const after = stateFor(g, newHover, newPins);
       if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
-      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p);
       if (markLine) marks.markLine = markLine;
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
@@ -3155,12 +3315,22 @@ export function wireAnnotationHover(instance) {
 
 /**
  * Set (or clear, with null) the replay belief time, shown as a vertical ruler.
- * Takes effect on the next renderFastChart call.
+ *
+ * While the replay plays, pass its rate and end: the ruler then moves on by itself, at that rate, until the end,
+ * so this needs calling only when the replay starts, pauses, resumes, seeks or changes speed, not on every frame.
+ *
+ * @param {string} elementId          The chart's element id.
+ * @param {?number} beliefTimeMs      The replay's belief time, in ms, or null to clear the ruler.
+ * @param {Object} motion             How the ruler moves on from there:
+ * @param {number} motion.rate        Belief time passing per ms of wall time (0 while paused, negative while rewinding).
+ * @param {number} motion.end         The belief time at which the ruler stops, in ms.
+ * @param {number} motion.now         The wall time at which the belief time was read, in ms, such as performance.now().
  */
-export function setFastChartReplayTime(elementId, beliefTimeMs) {
+export function setFastChartReplayTime(elementId, beliefTimeMs, { rate = 0, end = Infinity, now = performance.now() } = {}) {
   const instance = instances[elementId];
   if (instance) {
-    instance.replayTime = beliefTimeMs;
+    instance.replayMotion = beliefTimeMs == null ? null : { time: beliefTimeMs, rate: rate, end: end, wallTime: now };
+    drawReplayRuler(instance);
   }
 }
 

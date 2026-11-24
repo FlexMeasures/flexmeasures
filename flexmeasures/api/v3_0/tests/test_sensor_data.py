@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import io
+import json
 from flask import current_app, url_for
 import pandas as pd
 import pytest
@@ -461,6 +463,133 @@ def test_post_sensor_data_rejects_large_json(
 
     assert response.status_code == 413
     assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.parametrize("limit, expected_status", [(100, 413), (1_000_000, 200)])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_large_json_without_content_length(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+    limit,
+    expected_status,
+):
+    """A body sent without a Content-Length header (chunked) is held to the same limit, and processed if it is within it."""
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        limit,
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+    body = json.dumps(make_sensor_data_request_for_gas_sensor()).encode()
+    assert 100 < len(body) < 1_000_000
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        input_stream=io.BytesIO(body),
+        content_type="application/json",
+        headers={
+            "Transfer-Encoding": "chunked"
+        },  # so the request has no content length
+        # as WSGI servers that handle chunked transfer encoding (e.g. gunicorn) mark the stream
+        environ_overrides={"wsgi.input_terminated": True},
+    )
+
+    assert response.status_code == expected_status, response.json
+    if expected_status == 413:
+        assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+    else:  # the body was read and parsed (earlier tests in this module may have posted the same data)
+        assert response.json["status"] in (
+            "PROCESSED",
+            "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED",
+        )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_any_request_body_has_a_size_limit(
+    client, setup_api_test_data, requesting_user
+):
+    """Requests other than sensor data ingestion are held to Flask's MAX_CONTENT_LENGTH, which is set by default."""
+    max_size = current_app.config["MAX_CONTENT_LENGTH"]
+    assert max_size is not None
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        data=b"{}",
+        content_type="application/json",
+        environ_overrides={"CONTENT_LENGTH": str(max_size + 1)},
+    )
+
+    assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_request_bodies_are_limited_by_the_ingestion_limit(
+    client, setup_api_test_data, requesting_user
+):
+    """By default, one setting limits every request body: a body just above the ingestion limit gets 413 anywhere."""
+    ingestion_limit = int(
+        current_app.config["FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"]
+    )
+    assert current_app.config["MAX_CONTENT_LENGTH"] == ingestion_limit
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.patch(
+        url_for("SensorAPI:patch", id=sensor.id),
+        data=b"{}",
+        content_type="application/json",
+        environ_overrides={"CONTENT_LENGTH": str(ingestion_limit + 1)},
+    )
+    assert response.status_code == 413
+
+    # Sensor data sent without a Content-Length (chunked) just above the limit is refused, too,
+    # now that the stream itself is limited to the same size.
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        input_stream=io.BytesIO(b" " * (ingestion_limit + 1)),
+        content_type="application/json",
+        headers={"Transfer-Encoding": "chunked"},
+        environ_overrides={"wsgi.input_terminated": True},
+    )
+    assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    "host_settings, expected_limit",
+    [
+        # Raising the ingestion limit raises the limit on every request body.
+        (
+            {"FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES": 10 * 1024 * 1024},
+            10 * 1024 * 1024,
+        ),
+        ({"FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES": None}, None),
+        # A host may still set its own general limit, or none at all.
+        ({"MAX_CONTENT_LENGTH": 1024}, 1024),
+        ({"MAX_CONTENT_LENGTH": None}, None),
+    ],
+)
+def test_max_content_length_follows_the_ingestion_limit(host_settings, expected_limit):
+    from flask import Flask
+
+    from flexmeasures.utils.config_defaults import ProductionConfig
+    from flexmeasures.utils.config_utils import resolve_max_content_length
+
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    app.config.pop(
+        "MAX_CONTENT_LENGTH"
+    )  # as read_config does, before reading the host's settings
+    app.config.update(host_settings)
+    resolve_max_content_length(app)
+    assert app.config["MAX_CONTENT_LENGTH"] == expected_limit
 
 
 @pytest.mark.parametrize(

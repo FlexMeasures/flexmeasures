@@ -744,56 +744,120 @@ def test_shift_click_pins_several_annotations(assert_js):
         """)
 
 
-def test_replay_ruler_survives_empty_data(assert_js):
-    """Belief-time filtering must not remove the ruler along with the data series."""
+def test_image_exports_show_the_replay_ruler(assert_js):
+    """On screen, the ruler is drawn outside the chart option, so the export has to add it back."""
     assert_js("""
-        import { renderFastChart, setFastChartReplayTime, disposeFastChart } from "/js/fast-chart.js";
+        import { buildExportOption } from "/js/fast-chart.js";
+        const option = {
+            grid: [{top: 50, height: 100, right: 300}, {top: 250, height: 100, right: 300}, {top: 450, height: 100, right: 300}],
+            xAxis: [{type: "time", gridIndex: 0}, {type: "time", gridIndex: 1}, {type: "category", gridIndex: 2}],
+            yAxis: [{gridIndex: 0}, {gridIndex: 1}, {gridIndex: 2}],
+            series: [{type: "line", xAxisIndex: 0, yAxisIndex: 0, data: [[0, 1]]}],
+        };
+        const rulers = (exported) => exported.option.series.filter((s) => s.markLine);
+        eq("no ruler outside a replay", rulers(buildExportOption(option, 1200, 600)).length, 0);
+        const exported = buildExportOption(option, 1200, 600, 1234);
+        eq("one ruler per time-axis subplot", rulers(exported).map((s) => [s.xAxisIndex, s.yAxisIndex]), [[0, 0], [1, 1]]);
+        check("at the replay time", rulers(exported).every((s) => s.markLine.data[0].xAxis === 1234));
+        check("above the data", rulers(exported).every((s) => s.markLine.z > 2 && s.data.length === 0));
+        eq("the data series are kept", exported.option.series.length, 3);
+        """)
+
+
+def test_replay_ruler_moves_by_itself(assert_js, echarts_available):
+    """The replay ruler moves at the replay's rate by itself, without re-rendering the chart.
+
+    It is an animated overlay, which the browser keeps moving while the chart redraws its data.
+    It is drawn in every time-axis subplot, above the data,
+    and has to survive re-renders (also without visible data) and follow zooming.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart, setFastChartReplayTime, disposeFastChart } = await import("/js/fast-chart.js?replay-ruler");
         const container = document.createElement("div");
         container.id = "replay-chart";
-        container.style.width = "800px";
+        container.style.cssText = "width: 800px; height: 600px;";
         document.body.appendChild(container);
-        let option;
-        const zr = {on() {}, off() {}};
-        window.echarts = {init: () => ({
-            isDisposed: () => false, resize() {}, dispose() {},
-            setOption(value, opts) { if (opts?.notMerge) option = value; },
-            getOption: () => option,
-            getDom: () => container, getZr: () => zr,
-            getModel: () => ({getSeriesByIndex: () => null}),
-            on() {}, off() {}, dispatchAction() {},
-        })};
         const start = Date.parse("2026-01-01T00:00:00Z");
-        const row = {
-            event_start: start, event_value: 5, belief_horizon: 0,
-            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: 0},
+        const hour = 3600000;
+        const row = (sensor, offset) => ({
+            event_start: start + offset * hour, event_value: 5, belief_horizon: 0,
+            sensor: {id: sensor, name: "Power " + sensor, unit: "kW", event_resolution: 0},
             source: {id: 1, name: "Meter"},
-        };
-        const rulers = () => option.series.flatMap(s => s.markLine?.data || [])
-            .filter(mark => mark.lineStyle.color === "#555");
+        });
+        const rows = [row(1, 1), row(1, 2), row(2, 1), row(2, 2)];
+        const rulers = () => [...container.querySelectorAll(".replay-ruler > div > div")];
+        // Where a rule's middle is, in chart pixels, as currently drawn (also mid-animation)
+        const rulerX = (rule) => rule.parentElement.offsetLeft + new DOMMatrix(getComputedStyle(rule).transform).m41 + rule.offsetWidth / 2;
+        const near = (a, b) => Math.abs(a - b) < 0.5;
+
         for (const chartType of ["line", "bar_chart"]) {
             const opts = {
-                chartType, isSensorPage: true,
-                groupSpec: [{title: "Power", sensorIds: [1]}],
-                timeWindow: {start, end: start + 86400000},
+                chartType,
+                groupSpec: [{title: "One", sensorIds: [1]}, {title: "Two", sensorIds: [2]}],
+                timeWindow: {start, end: start + 24 * hour},
             };
+            renderFastChart(container.id, rows, opts);
+            const chart = echarts.getInstanceByDom(container);
+            let setOptionCalls = 0;
+            const setOption = chart.setOption.bind(chart);
+            chart.setOption = (...args) => { setOptionCalls++; return setOption(...args); };
+
+            eq(`${chartType}: no ruler before replaying`, rulers().length, 0);
+            const time = start + 6 * hour;
+            setFastChartReplayTime(container.id, time);
+            eq(`${chartType}: one ruler per subplot`, rulers().length, 2);
+            check("at the replay time", rulers().every((rule, i) => near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time))),
+                  rulers().map(rulerX));
+            const holder = container.querySelector(".replay-ruler");
+            check("above the data", [...holder.parentElement.querySelectorAll("canvas")].every((canvas) =>
+                canvas.parentElement === holder.parentElement && getComputedStyle(canvas).zIndex === "auto")
+                && getComputedStyle(holder).zIndex === "1");
+            check("standing still while paused", rulers().every((rule) => rule.getAnimations().length === 0));
+
+            // Played at 1000 ms of belief time per ms, from a moment ago
+            const now = performance.now() - 50;
+            setFastChartReplayTime(container.id, time, {rate: 1000, end: time + 4 * hour, now});
+            eq("setting the replay time leaves the chart option alone", setOptionCalls, 0);
+            const animations = rulers().map((rule) => rule.getAnimations()[0]);
+            check("while playing, each ruler moves by itself", animations.every((a) => a && a.effect.getTiming().easing === "linear"));
+            check("starting right away, rather than at the next frame, which comes late while the chart is busy",
+                  animations.every((a) => !a.pending && a.startTime !== null));
+            // Show where the ruler is 1.8 s after the replay time was read
+            animations.forEach((a) => { a.pause(); a.currentTime = now + 1800 - a.startTime; });
+            check("at the replay's rate, from when the replay time was read", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time + 1800 * 1000))), rulers().map(rulerX));
+            animations.forEach((a) => { a.currentTime = 1e9; });
+            check("until the end", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time + 4 * hour))), rulers().map(rulerX));
+
+            // Rewound at 1000 ms of belief time per ms, back to the start
+            setFastChartReplayTime(container.id, time, {rate: -1000, end: start, now});
+            const rewinding = rulers().map((rule) => rule.getAnimations()[0]);
+            rewinding.forEach((a) => { a.pause(); a.currentTime = now + 1800 - a.startTime; });
+            check("while rewinding, each ruler moves back by itself, at the replay's rate", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, time - 1800 * 1000))), rulers().map(rulerX));
+            rewinding.forEach((a) => { a.currentTime = 1e9; });
+            check("until the start", rulers().every((rule, i) =>
+                near(rulerX(rule), chart.convertToPixel({xAxisIndex: i}, start))), rulers().map(rulerX));
+            setFastChartReplayTime(container.id, time + hour);
+
             renderFastChart(container.id, [], opts);
-            for (const [index, data] of [[], [row], [], [row]].entries()) {
-                const time = start + (index + 1) * 3600000;
-                setFastChartReplayTime(container.id, time);
-                renderFastChart(container.id, data, opts);
-                eq(`${chartType}: exactly one ruler even without visible data`, rulers().length, 1);
-                eq("the ruler follows playback", rulers()[0]?.xAxis, time);
-                eq("the carrier opts out of automatic data colors",
-                   option.series[0].itemStyle?.color, "transparent");
-                eq("the requested time window is retained", option.xAxis[0].min, start);
-                check("the ruler is independent of data", option.series.some(
-                    s => s.data.length === 0 && s.markLine?.data.some(m => m.xAxis === time)));
-            }
+            eq("a re-render without visible data keeps the ruler, once per subplot", rulers().length, 2);
+            renderFastChart(container.id, rows, opts);
+            eq("so does one with data", rulers().length, 2);
+
+            chart.dispatchAction({type: "dataZoom", startValue: start + 5 * hour, endValue: start + 9 * hour});
+            check("zooming moves the ruler along", near(rulerX(rulers()[0]), chart.convertToPixel({xAxisIndex: 0}, time + hour)),
+                  [rulerX(rulers()[0]), chart.convertToPixel({xAxisIndex: 0}, time + hour)]);
+            setFastChartReplayTime(container.id, start + 12 * hour);
+            const outside = rulers()[0];
+            check("a ruler outside the zoomed range is clipped by its subplot",
+                  getComputedStyle(outside.parentElement).overflow === "hidden" && rulerX(outside) > outside.parentElement.offsetWidth);
+
             setFastChartReplayTime(container.id, null);
-            renderFastChart(container.id, [], opts);
-            eq("stopping replay clears the ruler", rulers().length, 0);
+            eq("stopping replay clears the ruler", container.querySelectorAll(".replay-ruler").length, 0);
+            disposeFastChart(container.id);
         }
-        disposeFastChart(container.id);
         container.remove();
         """)
 
@@ -866,3 +930,64 @@ def test_charge_point_companion_titles_match_whatever_the_case_of_their_first_le
             eq(`"${title}" is not a companion graph`, isChargePointCompanionTitle(title, names), false);
         }
         """.replace("CHARGE_POINT_CHART_NAMES", json.dumps(CHARGE_POINT_CHART_NAMES)))
+
+
+def test_a_re_render_takes_one_pass_where_it_can(assert_js, echarts_available):
+    """A re-render settles its gridlines, rounded corners and button colours in the render itself,
+    rather than in extra passes over the rendered chart, each about as costly as the render,
+    as long as that ends up as the extra passes would.
+    """
+    assert_js(LOAD_ECHARTS + """
+        const { renderFastChart } = await import("/js/fast-chart.js?one-pass");
+        const container = document.createElement("div");
+        container.id = "one-pass-chart";
+        container.style.cssText = "width: 800px; height: 600px;";
+        document.body.appendChild(container);
+        const start = Date.parse("2026-01-01T00:00:00Z");
+        const hour = 3600000;
+        const rows = (values) => values.map((value, i) => ({
+            event_start: start + i * hour, event_value: value, belief_horizon: 0,
+            sensor: {id: 1, name: "Power", unit: "kW", event_resolution: hour},
+            source: {id: 1, name: "Meter"},
+        }));
+        const opts = {chartType: "line", groupSpec: [{title: "One", sensorIds: [1]}], timeWindow: {start, end: start + 48 * hour}};
+        renderFastChart(container.id, rows([0, 5, 10, 5, 0, 5, 10]), opts);
+        const chart = echarts.getInstanceByDom(container);
+        let passes = 0;
+        const setOption = chart.setOption.bind(chart);
+        chart.setOption = (...args) => { passes++; return setOption(...args); };
+        const drawn = () => {
+            const option = chart.getOption();
+            const feature = option.toolbox[0].feature;
+            return {
+                corners: option.series[0].data, gridlines: option.xAxis[0].maxInterval,
+                zoomButton: feature.myZoom.iconStyle.borderColor, panButton: feature.myPan.iconStyle.borderColor,
+                marquee: feature.dataZoom.iconStatus && feature.dataZoom.iconStatus.zoom,
+            };
+        };
+        // What the extra passes make of the chart as it is drawn: zooming out to the full range runs them all.
+        const afterExtraPasses = () => {
+            chart.dispatchAction({type: "dataZoom", start: 0, end: 100});
+            chart.getOption().toolbox[0].feature[drawn().zoomButton === "#4e91fc" ? "myZoom" : "myPan"].onclick();
+            return drawn();
+        };
+
+        passes = 0;
+        renderFastChart(container.id, rows([10, 0, 5, 10, 5, 0, 5]), opts);
+        eq("data within the same axes is drawn in one pass", passes, 1);
+        const once = drawn();
+        eq("with 12-hourly gridlines on a 2-day axis", once.gridlines, 12 * hour);
+        eq("the Zoom button lit, and its marquee on", [once.zoomButton, once.panButton, once.marquee], ["#4e91fc", "#666", "emphasis"]);
+        eq("as the extra passes would have drawn it", afterExtraPasses(), once);
+
+        passes = 0;
+        renderFastChart(container.id, rows([0, 50, 100, 50, 0, 50, 100]), opts);
+        eq("data on another scale takes a second pass, for the rounded corners", passes, 2);
+        eq("which then are as the extra passes would have drawn them", afterExtraPasses().corners, drawn().corners);
+
+        chart.getOption().toolbox[0].feature.myPan.onclick();
+        renderFastChart(container.id, rows([0, 50, 100, 50, 0, 50, 100]), opts);
+        const panning = drawn();
+        eq("in Pan mode, a re-render lights the Pan button", [panning.zoomButton, panning.panButton], ["#666", "#4e91fc"]);
+        check("with the marquee off", panning.marquee !== "emphasis", panning.marquee);
+        """)
