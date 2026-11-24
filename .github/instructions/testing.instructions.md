@@ -17,6 +17,43 @@ Intermediate full test runs are encouraged when appropriate (e.g., after a signi
 During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration,
 but must not substitute for the full suite at session close.
 
+## Run the doctests too
+
+CI runs `pytest --doctest-modules`, with a list of `--ignore`s and a `-k` filter (see the test step in `.github/workflows/lint-and-test.yml`).
+Neither `poe test` nor the `addopts` in `pyproject.toml` include doctests,
+so a green local run can still fail in CI on a docstring example alone, for instance after a dependency upgrade.
+Before pushing a dependency change or a docstring example, run the doctests with the same `--ignore` and `-k` arguments as the workflow.
+
+A doctest that shows a pint `Quantity` should `print()` it rather than rely on its `repr`,
+because the `repr` differs between pint versions.
+
+## Never migrate the test database
+
+Do not run `flexmeasures db upgrade` (or `flask db upgrade`) against the test database to check a migration.
+Pytest owns that database: the `db` fixture runs `drop_all()` and `create_all()` and expects nothing else in it.
+The migration chain creates legacy tables (`power`, `price`, `weather`, `market`, `asset`, …) that are not in the current models,
+so `drop_all()` leaves them behind, and since `market` holds a foreign key onto `sensor`,
+every later `drop_all()` fails with `DependentObjectsStillExist` and the whole suite errors at setup.
+`flexmeasures db downgrade base` does not undo it either: an early revision's downgrade recreates a table that still exists, and the chain stops halfway.
+
+Verify a migration on a scratch database instead.
+If the test database was migrated by accident, drop the legacy tables explicitly:
+
+```sql
+DROP TABLE IF EXISTS power, price, weather, market, market_type, weather_sensor, weather_sensor_type,
+    asset, asset_type, role, roles_users, alembic_version CASCADE;
+```
+
+Pytest's own `drop_all()` then clears the model tables, and the database is empty again.
+
+## Failures that only show up in a subset run
+
+Some tests assert on warnings or on the deduplication of log records,
+which is process-global state that depends on what ran before them in the same process.
+Such tests can fail when only part of the suite runs (e.g. `pytest flexmeasures/utils flexmeasures/data`), yet pass in a full run.
+Before attributing a failure in a subset run to your change, run the same subset on the merge base and compare,
+or run the full suite.
+
 ## Run the full module after changing any test
 
 When you fix or add a single test, always run the entire test module before closing:
@@ -147,6 +184,18 @@ asset.sensors_to_show = []
 # ❌ Reset to None (may cause unexpected ValidationError downstream)
 asset.sensors_to_show = None
 ```
+
+## Scheduling tests: give each its own parent asset
+
+`Sensor.__init__` moves legacy sensor attributes (such as `capacity_in_mw`) into the flex-model of the sensor's asset,
+and the module-scoped `flexible_devices` and `inflexible_devices` fixtures do this to the shared `building` asset.
+A scheduler triggered on `building` then merges `asset.get_flex_model()` (that asset and all its descendants) into the flex-model it was given,
+so a later test in the same module schedules an extra device it never asked for.
+Such tests pass on their own and fail in module order.
+
+A test that schedules a multi-device flex-model should create a fresh parent asset of its own
+(see `_add_parent_site` in `flexmeasures/data/models/planning/tests/test_solver.py`),
+and pass `flex_context={}` explicitly.
 
 ## Authentication failures in tests
 

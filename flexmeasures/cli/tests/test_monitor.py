@@ -10,6 +10,7 @@ from flexmeasures.data.models.user import User
 def test_monitor_help(app):
     from flexmeasures.cli.monitor import (
         fm_monitor,
+        monitor_automations,
         monitor_last_seen,
         monitor_latest_run,
     )
@@ -19,7 +20,7 @@ def test_monitor_help(app):
     result = runner.invoke(fm_monitor, ["--help"])
     assert result.exit_code == 0
 
-    for command in (monitor_last_seen, monitor_latest_run):
+    for command in (monitor_last_seen, monitor_latest_run, monitor_automations):
         result = runner.invoke(command, ["--help"])
 
         assert result.exit_code == 0

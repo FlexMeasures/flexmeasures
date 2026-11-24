@@ -10,11 +10,13 @@ Each `<topic>.instructions.md` file covers a cross-cutting convention that appli
 |------|-----------|-------|
 | `atomic-commits.instructions.md` | `**` | Commit discipline — one logical change per commit |
 | `changelog.instructions.md` | `**` | Changelog entry format and location |
+| `dependencies.instructions.md` | `pyproject.toml,uv.lock` | Resolving `uv.lock` conflicts, testing version ranges |
 | `docstrings.instructions.md` | `**/*.py` | RST docstring format, doctests |
 | `error-handling.instructions.md` | `**/*.py` | Catching specific exceptions |
+| `local-environment.instructions.md` | `**` | Never use a shared configuration; checking plugins |
 | `marshmallow-schemas.instructions.md` | `flexmeasures/data/schemas/**/*.py` | `data_key`, field naming, `load_default` |
 | `pre-commit-hooks.instructions.md` | `**` | Running hooks before every commit |
-| `testing.instructions.md` | `flexmeasures/**/tests/**/*.py` | Full suite, `db` vs `fresh_db`, `requesting_user` |
+| `testing.instructions.md` | `flexmeasures/**/tests/**/*.py` | Full suite and doctests, `db` vs `fresh_db`, the test database, `requesting_user` |
 | `timezone-awareness.instructions.md` | `**/*.py` | Always timezone-aware datetimes |
 | `ui-terminology.instructions.md` | `flexmeasures/ui/**` | "organisation" not "account" in user-facing text |
 
