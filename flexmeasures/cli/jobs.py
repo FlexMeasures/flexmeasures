@@ -27,7 +27,9 @@ from rq.registry import (
     StartedJobRegistry,
 )
 from marshmallow import ValidationError
+from redis.exceptions import RedisError
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
@@ -47,6 +49,9 @@ from flexmeasures.data.services.automations import (
     floor_to_minute,
     get_dispatchable_automation_runs,
     run_automation,
+)
+from flexmeasures.data.services.automation_pruning import (
+    prune_automation_runs_if_due,
 )
 from flexmeasures.data.services.data_sources import (
     find_duplicate_sources,
@@ -100,13 +105,41 @@ def run_automations():
 
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
+
+    Once an hour, it also deletes the records of runs older than the FLEXMEASURES_AUTOMATION_DBLOGS_TTL setting allows.
     """
     now = floor_to_minute(server_now())
     claimed_runs = get_dispatchable_automation_runs(now)
     if not claimed_runs:
         click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
-        return
+    n_run, n_failed = _dispatch_claimed_runs(claimed_runs)
+    _prune_automation_runs(now)
+    if n_failed:
+        click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
+        raise click.exceptions.Exit(1)
 
+
+def _prune_automation_runs(now: datetime):
+    """Delete the records of expired automation runs, if that is due.
+
+    Dispatching went first, so that pruning never holds up a run;
+    a pruning that fails is reported, and does not fail the command, as the runs it left are pruned on a later try.
+    """
+    try:
+        n_pruned = prune_automation_runs_if_due(now)
+    except (SQLAlchemyError, RedisError) as e:
+        db.session.rollback()
+        click.secho(f"Could not prune old automation runs: {e}", **MsgStyle.WARN)
+        return
+    if n_pruned:
+        click.secho(
+            f"Deleted the records of {n_pruned} automation run(s) older than their time-to-live.",
+            **MsgStyle.SUCCESS,
+        )
+
+
+def _dispatch_claimed_runs(claimed_runs) -> tuple[int, int]:
+    """Queue the jobs of each claimed run, and return how many runs were queued and how many failed."""
     n_run = 0
     n_failed = 0
     for claimed_run in claimed_runs:
@@ -130,9 +163,7 @@ def run_automations():
                 **MsgStyle.ERROR,
             )
             n_failed += 1
-    if n_failed:
-        click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
-        raise click.exceptions.Exit(1)
+    return n_run, n_failed
 
 
 @fm_jobs.command("run-automation")

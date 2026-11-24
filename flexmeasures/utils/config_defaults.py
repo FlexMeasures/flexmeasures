@@ -227,6 +227,17 @@ class Config(object):
         "reporting": timedelta(minutes=15),
         "ingestion": timedelta(minutes=1),
     }
+    # How long to keep the records of automation runs, per automation type ("default" for types not named), or one timedelta for all types.
+    # None keeps them forever. `flexmeasures jobs run-automations` deletes older runs once an hour.
+    FLEXMEASURES_AUTOMATION_DBLOGS_TTL: (
+        dict[str, timedelta | None] | timedelta | None
+    ) = {
+        "default": timedelta(days=60),
+        "scheduling": timedelta(days=90),
+        "forecasting": timedelta(days=60),
+        "reporting": timedelta(days=60),
+        "ingestion": timedelta(days=14),
+    }
     # Failed attempts to authenticate (wrong password or two-factor code) allowed per email address and client address (see flexmeasures.auth.login_throttling)
     FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT: str = "10 per 15 minutes"
     # ... and per email address from all client addresses together
