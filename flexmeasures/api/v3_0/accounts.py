@@ -13,7 +13,11 @@ from flexmeasures.auth.policy import (
     FlexMeasuresPlatform,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    AnnotationConflict,
+    get_or_create_annotation,
+)
 from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -22,7 +26,10 @@ from flexmeasures.data.services.accounts import (
     get_accounts,
     get_audit_log_records,
 )
-from flexmeasures.api.common.responses import unprocessable_entity
+from flexmeasures.api.common.responses import (
+    conflicting_annotation,
+    unprocessable_entity,
+)
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import (
     AccountSchema,
@@ -517,6 +524,10 @@ class AccountAPI(FlaskView):
           description: |
             This endpoint creates a new :ref:`annotation <annotations>` on an account.
 
+            Posting an annotation that already exists (same content, start, prior, type and source) returns it with status 200.
+            With a prior, a different end updates the end of the existing annotation,
+            unless it is also linked to other sensors, assets or organisations: then the request is refused with status 409.
+
           security:
             - ApiKeyAuth: []
           parameters:
@@ -541,6 +552,8 @@ class AccountAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            409:
+              description: CONFLICT
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -549,7 +562,10 @@ class AccountAPI(FlaskView):
         """
 
         # Use get_or_create to handle duplicates gracefully
-        annotation, is_new = get_or_create_annotation(annotation)
+        try:
+            annotation, is_new = get_or_create_annotation(annotation, annotated=account)
+        except AnnotationConflict as exc:
+            return conflicting_annotation(str(exc))
 
         # Link annotation to account
         if annotation not in account.annotations:

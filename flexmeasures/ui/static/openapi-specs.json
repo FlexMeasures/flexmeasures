@@ -394,7 +394,7 @@
       },
       "post": {
         "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n\nPosting an annotation that already exists (same content, start, prior, type and source) returns it with status 200.\nWith a prior, a different end updates the end of the existing annotation,\nunless it is also linked to other sensors, assets or organisations: then the request is refused with status 409.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -435,6 +435,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "409": {
+            "description": "CONFLICT"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -2360,7 +2363,7 @@
     "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an account.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an account.\n\nPosting an annotation that already exists (same content, start, prior, type and source) returns it with status 200.\nWith a prior, a different end updates the end of the existing annotation,\nunless it is also linked to other sensors, assets or organisations: then the request is refused with status 409.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2401,6 +2404,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "409": {
+            "description": "CONFLICT"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -4817,7 +4823,7 @@
     "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an asset.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an asset.\n\nPosting an annotation that already exists (same content, start, prior, type and source) returns it with status 200.\nWith a prior, a different end updates the end of the existing annotation,\nunless it is also linked to other sensors, assets or organisations: then the request is refused with status 409.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4858,6 +4864,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "409": {
+            "description": "CONFLICT"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"

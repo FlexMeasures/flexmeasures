@@ -431,3 +431,7 @@ def too_many_requests(message: str) -> ResponseTuple:
 def pluralize(usef_role_name: str) -> str:
     """Adding a trailing 's' works well for USEF roles."""
     return "%ss" % usef_role_name
+
+
+def conflicting_annotation(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="CONFLICT", message=message), 409

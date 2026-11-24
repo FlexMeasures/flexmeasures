@@ -21,6 +21,7 @@ from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, exists, select, or_
 
 from flexmeasures.api.common.responses import (
+    conflicting_annotation,
     request_accepted_for_processing,
     request_processed,
     unrecognized_event,
@@ -56,6 +57,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
     Annotation,
+    AnnotationConflict,
     GenericAssetAnnotationRelationship,
     SensorAnnotationRelationship,
     get_or_create_annotation,
@@ -2528,6 +2530,10 @@ class SensorAPI(FlaskView):
           description: |
             This endpoint creates a new :ref:`annotation <annotations>` on a sensor.
 
+            Posting an annotation that already exists (same content, start, prior, type and source) returns it with status 200.
+            With a prior, a different end updates the end of the existing annotation,
+            unless it is also linked to other sensors, assets or organisations: then the request is refused with status 409.
+
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2552,6 +2558,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            409:
+              description: CONFLICT
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -2560,7 +2568,10 @@ class SensorAPI(FlaskView):
         """
 
         # Use get_or_create to handle duplicates gracefully
-        annotation, is_new = get_or_create_annotation(annotation)
+        try:
+            annotation, is_new = get_or_create_annotation(annotation, annotated=sensor)
+        except AnnotationConflict as exc:
+            return conflicting_annotation(str(exc))
 
         # Link annotation to sensor
         if annotation not in sensor.annotations:
