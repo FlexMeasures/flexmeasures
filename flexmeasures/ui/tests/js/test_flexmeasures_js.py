@@ -137,3 +137,19 @@ def test_timezone_format(assert_js):
         """,
         timezone="America/St_Johns",
     )
+
+
+def test_escape_html_for_table_cells(assert_js):
+    """Pages that build DataTables cells as HTML escape user-defined names with this."""
+    assert_js(LOAD_FLEXMEASURES_JS + """
+        const name = `<img src="x" onerror="window.__ran = 1"> & 'co'`;
+        eq("markup characters are escaped", escapeHtml(name),
+           "&lt;img src=&quot;x&quot; onerror=&quot;window.__ran = 1&quot;&gt; &amp; &#39;co&#39;");
+        eq("null becomes empty", escapeHtml(null), "");
+        eq("numbers become text", escapeHtml(7), "7");
+        const cell = document.createElement("td");
+        cell.innerHTML = `<i class="${escapeHtml(name)}">${escapeHtml(name)}</i>`;
+        eq("no element is created from the name", cell.querySelectorAll("img").length, 0);
+        eq("the name shows as typed", cell.textContent, name);
+        eq("the attribute holds the name as typed", cell.firstChild.className, name);
+        """)

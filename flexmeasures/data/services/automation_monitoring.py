@@ -47,6 +47,29 @@ class AutomationFailures:
         return Counter(failed_run.reason for failed_run in self.failed_runs)
 
     @property
+    def first_run(self) -> AutomationRun:
+        """The failed run that was due first."""
+        return min(
+            (failed_run.run for failed_run in self.failed_runs),
+            key=lambda run: (run.scheduled_at, run.id),
+        )
+
+    @property
+    def runs_failed_while_unmonitored(self) -> list[AutomationRun]:
+        """The failed runs that were due before monitoring was last switched back on.
+
+        Had the automation been monitored then, an earlier digest would have reported them.
+        """
+        resumed_at = self.automation.monitoring_resumed_at
+        if resumed_at is None:
+            return []
+        return [
+            failed_run.run
+            for failed_run in self.failed_runs
+            if failed_run.run.scheduled_at < resumed_at
+        ]
+
+    @property
     def last_run(self) -> AutomationRun:
         """The failed run that was due most recently."""
         return max(
@@ -102,6 +125,7 @@ def get_unalerted_failed_automation_runs(
     A run failed when its execution failed, when its execution has been running for longer than ``stuck_after``,
     or when its dispatch failed and will not be attempted again.
     This holds for every automation type, although only the types that record their execution can fail on it.
+    Runs of an automation that opted out of monitoring are left out, and stay unreported until it opts back in.
 
     :param stuck_after: How long a run may execute before it counts as stuck.
     :param now:         The moment to judge by, which defaults to the server's current time.
@@ -116,7 +140,9 @@ def get_unalerted_failed_automation_runs(
     )
     runs = db.session.scalars(
         select(AutomationRun)
+        .join(AutomationRun.automation)
         .where(
+            Automation.monitored.is_(True),
             AutomationRun.alerted_at.is_(None),
             or_(execution_failed, stuck, _dispatch_failed_for_good(now)),
         )

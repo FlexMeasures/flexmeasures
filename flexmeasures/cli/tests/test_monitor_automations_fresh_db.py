@@ -323,7 +323,7 @@ def test_repeated_failures_are_collapsed_per_automation(
     body = outbox[0].body
     assert body.count(f"Automation {forecast_automation.id} ") == 1
     assert (
-        "failed 4 times (execution failed: 3, dispatch failed: 1), last at 2026-08-05 00:30 UTC"
+        "failed 4 times (execution failed: 3, dispatch failed: 1), first at 2026-08-04 22:00 UTC, last at 2026-08-05 00:30 UTC"
         in body
     )
     # The dispatch failure recorded no error, so the latest error is that of the latest failed execution.
@@ -505,6 +505,88 @@ def test_a_user_digest_that_cannot_be_sent_is_not_sent_again(
 
     assert result.exit_code == 0, result.output
     assert outbox == []
+
+
+def test_an_unmonitored_automation_is_reported_once_it_is_monitored_again(
+    app, fresh_db, forecast_automation
+):
+    """The failed runs of an automation that opted out of monitoring are left out, until it opts back in."""
+    forecast_automation.monitored = False
+    fresh_db.session.commit()
+    run = add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert outbox == []
+    fresh_db.session.refresh(run)
+    assert run.alerted_at is None
+
+    forecast_automation.monitored = True
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    assert f"Automation {forecast_automation.id} " in outbox[0].body
+    fresh_db.session.refresh(run)
+    assert run.alerted_at == DUE_AT
+
+
+def test_users_hear_nothing_about_an_unmonitored_automation(
+    app, fresh_db, automations_per_organisation
+):
+    """Opting out of monitoring also keeps the automation out of the digests to account admins and consultants."""
+    client = automations_per_organisation["client"]
+    client.monitored = False
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app, "--notify-users")
+
+    assert result.exit_code == 0, result.output
+    assert f"Automation {client.id} " not in outbox[0].body
+    digests = emails_by_user(outbox)
+    assert set(digests) == {"test_prosumer_user_2@seita.nl"}
+    for body in digests.values():
+        assert f"Automation {client.id} " not in body
+
+
+def test_the_digest_says_which_runs_failed_while_unmonitored(
+    app, fresh_db, forecast_automation, freeze_server_now
+):
+    """Once monitoring is switched back on, the digest names the first failure and says how many runs failed while it was off."""
+    from flexmeasures.data.services.automations import update_automation
+
+    update_automation(forecast_automation, monitored=False, origin="test")
+    fresh_db.session.commit()
+    for hours_ago in (72, 48, 24):
+        add_run(
+            fresh_db,
+            forecast_automation,
+            DUE_AT - timedelta(hours=hours_ago),
+            execution_state="failed",
+        )
+    switched_on_at = DUE_AT - timedelta(hours=2)
+    freeze_server_now(switched_on_at)
+    update_automation(forecast_automation, monitored=True, origin="test")
+    fresh_db.session.commit()
+    freeze_server_now(DUE_AT)
+    # One more failure once it is monitored again.
+    add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    body = outbox[0].body
+    assert (
+        "failed 4 times (execution failed: 4), first at 2026-08-02 01:00 UTC, last at 2026-08-05 01:00 UTC"
+        in body
+    )
+    assert (
+        "  3 of these failed while the automation was not monitored, before monitoring was switched back on at 2026-08-04 23:00 UTC"
+        in body
+    )
 
 
 def test_the_digest_links_to_the_automation_once_the_base_url_is_set(

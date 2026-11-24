@@ -349,5 +349,8 @@ or Python version support changes. Edit the relevant section in place — don't 
 breaking the coverage check. Fix by adding `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms,
 then regenerating `uv.lock`. After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0 before committing.
 
+**A `uv.lock` merge conflict**: never merge the lockfile by hand; take main's and lock again with the required `uv` version.
+See `.github/instructions/dependencies.instructions.md`.
+
 Before claiming a CI/tooling change works: run `pre-commit run --all-files` locally, and if it's a workflow change,
 verify it actually passes in CI on a branch — don't assume.

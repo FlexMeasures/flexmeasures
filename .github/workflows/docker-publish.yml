@@ -1,7 +1,6 @@
 
-# This workflow builds and pushes a Docker image to Docker Hub whenever a
-# GitHub Release is published, tagging it with the release version and,
-# for stable (non-pre-release) releases, also as `latest`.
+# This workflow builds and pushes a Docker image to Docker Hub whenever a GitHub Release is published,
+# tagging it with the release version and, for the newest stable (non-pre-release) release, also as `latest`.
 #
 # Requires the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets
 # to be configured under Settings -> Secrets and variables -> Actions.
@@ -17,7 +16,7 @@ on:
         description: "Git tag to build/push (e.g. v1.0.0). Required when run manually."
         required: false
       latest:
-        description: "Also push as `latest`. Only tick this when re-running a stable release; never for a pre-release."
+        description: "Also push as `latest`. Only tick this when re-running a stable release; never for a pre-release. Ignored unless the tag is the newest stable release."
         type: boolean
         required: false
         default: false
@@ -66,6 +65,28 @@ jobs:
           else
             PUSH_LATEST="${{ inputs.latest }}"
           fi
+          echo "push-latest=${PUSH_LATEST}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          fetch-depth: 0 # full history + tags, required for hatch-vcs to resolve the version
+
+      - name: Determine image tags
+        id: tags
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          PUSH_LATEST: ${{ steps.version.outputs.push-latest }}
+        run: |
+          # Only the newest stable release may claim `latest`.
+          # A patch release on an older line (e.g. v1.0.3, published alongside v1.1.2) is stable too,
+          # and whichever of the two publish runs finished last used to win `latest` (both ran on November 23, 2026, and v1.0.3 won).
+          # This also refuses a manual run with `latest` ticked for a tag that is no longer the newest release.
+          NEWEST=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ "$PUSH_LATEST" = "true" ] && [ "$TAG" != "$NEWEST" ]; then
+            echo "::notice::Not pushing ${TAG} as latest, because ${NEWEST} is the newest release."
+            PUSH_LATEST=false
+          fi
 
           IMAGE_TAGS="lfenergy/flexmeasures:${TAG}"
           if [ "$PUSH_LATEST" = "true" ]; then
@@ -77,11 +98,6 @@ jobs:
             echo "$IMAGE_TAGS"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.version.outputs.tag }}
-          fetch-depth: 0 # full history + tags, required for hatch-vcs to resolve the version
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -101,7 +117,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.version.outputs.image-tags }}
+          tags: ${{ steps.tags.outputs.image-tags }}
           build-args: |
             FLEXMEASURES_VERSION=${{ steps.version.outputs.version }}
 
@@ -119,5 +135,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "Pushed: ${{ steps.version.outputs.image-tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pushed: ${{ steps.tags.outputs.image-tags }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Version: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
