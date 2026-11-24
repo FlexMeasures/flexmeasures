@@ -1,4 +1,6 @@
 from datetime import timedelta
+import math
+
 from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
@@ -1263,8 +1265,9 @@ def test_trigger_and_get_schedule_with_recourse_response(
         band = response_object["band"]
         assert len(band) >= 1
         for lower, upper in band:
-            # The band is bounded by the device's power capacity, so both sides are finite.
-            assert lower is not None and upper is not None
+            # The band is bounded by the device's power capacity, so both sides are finite numbers.
+            assert isinstance(lower, float) and isinstance(upper, float)
+            assert math.isfinite(lower) and math.isfinite(upper)
             assert lower <= upper
         # The scheduled value lies within the band, which is just the plan when react is 0.
         # The band keeps the plan's full precision, whereas the served values are rounded.

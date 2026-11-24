@@ -23,7 +23,6 @@ from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
 import timely_beliefs as tb
-import numpy as np
 import pandas as pd
 from sqlalchemy import select
 
@@ -1124,7 +1123,6 @@ def make_schedule(  # noqa: C901
         if result.get("name") == "recourse_rule":
             # Reaction rules are not stored as sensor data;
             # they are kept in the job meta, so the schedule-serving API can include them in its response.
-            # An unbounded range side (infinite) is kept as None, since the meta has to serialize.
             df = result["data"]
             recourse_rules[result["sensor"].id] = {
                 "start": df.index[0].isoformat(),
@@ -1135,10 +1133,7 @@ def make_schedule(  # noqa: C901
                 "reference": df["reference"].tolist(),
                 "band": [
                     [
-                        [
-                            float(side) if np.isfinite(side) else None
-                            for side in power_range
-                        ]
+                        [float(side) for side in power_range]
                         for power_range in power_ranges
                     ]
                     for power_ranges in df["band"]

@@ -510,7 +510,7 @@ Each schedule value of such a device then comes with an entry of the ``reaction`
 
 - ``reference``: the uncontrolled power at the connection the plan assumed for the slot, in the schedule's unit;
 - ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
-- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs, in the schedule's unit (a side is ``null`` only when the device has no limit on that side).
+- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit.
 
 The client evaluates the reaction itself.
 Writing ``p`` for the scheduled value and ``meter`` for the measured net power at the connection,

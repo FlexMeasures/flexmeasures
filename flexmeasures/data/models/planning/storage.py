@@ -3793,7 +3793,8 @@ class StorageScheduler(MetaStorageScheduler):
 
         Each entry also carries ``retrigger_on_band_exit``, whether the client should trigger a new schedule when a reaction leaves its band.
 
-        All values are in MW (consumption positive). Range sides may be ±inf where a device is unconstrained.
+        All values are in MW (consumption positive).
+        Range sides are finite, since the scheduler requires a power capacity for every device.
         Soft (breach-priced) capacities do not narrow the band; only hard bounds do.
         """
         num_flexible = len(sensors)

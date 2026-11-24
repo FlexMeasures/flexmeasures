@@ -952,7 +952,7 @@
                     },
                     "reaction": {
                       "type": "array",
-                      "description": "Per-slot reaction rules, only present when the device's flex-model set <code>react</code> to true.\nEach object corresponds to one schedule value and describes how the device should react locally to a surprise at the connection,\nwhich the client evaluates as <code>setpoint = clip(p - react * surprise, band)</code>,\nwith <code>surprise = (meter - sum of the reacting devices' power) - reference</code> and <code>p</code> the scheduled value.\nValues share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.\n",
+                      "description": "Per-slot reaction rules, only present when the device's flex-model set <code>react</code> to true.\nEach object corresponds to one schedule value and describes how the device should react locally to a surprise at the connection,\nwhich the client evaluates as <code>setpoint = clip(p - react * surprise, band)</code>,\nwith <code>surprise = (meter - sum of the reacting devices' power) - reference</code> and <code>p</code> the scheduled value.\nValues share the schedule's unit and sign convention, and every value is a finite number.\n",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -970,8 +970,7 @@
                             "items": {
                               "type": "array",
                               "items": {
-                                "type": "number",
-                                "nullable": true
+                                "type": "number"
                               }
                             }
                           }

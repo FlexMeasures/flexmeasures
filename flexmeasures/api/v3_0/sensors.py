@@ -126,19 +126,22 @@ def _build_recourse_response(
     resolution: timedelta,
     to_unit: str,
     sign: int,
+    device: str,
 ) -> list[dict]:
     """Serialize the per-slot reaction rules of one device (stored in the job meta) for the schedule response.
 
     Aligns the rule slots (stored at the scheduling resolution) with the served schedule window and resolution (rules are piecewise constant),
     converts power values from the stored unit to the unit of the served schedule values, and applies their sign convention.
-    An unbounded range side is serialized as null.
+    Every value is a finite number: the scheduler requires a power capacity for each device, so each band side is bounded.
 
     :param recourse_meta:  Reaction rules of one device, as stored in the job meta.
     :param schedule_index: DatetimeIndex of the served schedule values.
     :param resolution:     Event resolution of the served schedule values.
     :param to_unit:        Unit of the served schedule values.
     :param sign:           Sign multiplier applied to power values (1 or -1).
-    :returns:              One response object per served schedule value.
+    :param device:         Name of the device, for the error raised on a non-finite value.
+    :returns:              One reaction object per served schedule value.
+    :raises ValueError:    When a stored rule value is not finite, which would be a scheduler bug rather than a contract case.
     """
     rule_index = pd.date_range(
         start=pd.Timestamp(recourse_meta["start"]),
@@ -156,36 +159,26 @@ def _build_recourse_response(
     df = df.reindex(schedule_index.tz_convert(df.index.tz), method="ffill")
     from_unit = recourse_meta.get("unit", "MW")
 
-    def convert(values: list[float | None]) -> list[float | None]:
-        """Convert a list of power values (None for an unbounded side) to the served unit and sign."""
+    def convert(values: list[float], slot: pd.Timestamp) -> list[float]:
+        """Convert a list of power values to the served unit and sign."""
         converted = convert_units(
-            pd.Series([math.nan if value is None else value for value in values]),
+            pd.Series(values, dtype=float),
             from_unit=from_unit,
             to_unit=to_unit,
             event_resolution=resolution,
         )
-        return [
-            None if not math.isfinite(value) else sign * float(value)
-            for value in converted
-        ]
+        for value in converted:
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"The reaction rule of {device} holds a non-finite value ({value}) for the slot starting at {slot}."
+                )
+        return [sign * float(value) for value in converted]
 
-    references = convert(df["reference"].tolist())
     response_objects = []
-    for reference, (_, row) in zip(references, df.iterrows()):
-        band = []
-        for lo, hi in row["band"]:
-            sides = convert([lo, hi])
-            # A production-positive sign convention swaps the sides, and an unbounded side stays unbounded.
-            band.append(
-                sorted(sides, key=lambda side: -math.inf if side is None else side)
-                if sign > 0
-                else [sides[1], sides[0]]
-            )
-        band.sort(
-            key=lambda power_range: (
-                -math.inf if power_range[0] is None else power_range[0]
-            )
-        )
+    for slot, row in df.iterrows():
+        reference = convert([row["reference"]], slot)[0]
+        # A production-positive sign convention swaps the sides.
+        band = sorted(sorted(convert([lo, hi], slot)) for lo, hi in row["band"])
         response_objects.append(
             {
                 "reference": reference,
@@ -1432,7 +1425,7 @@ class SensorAPI(FlaskView):
                           Each object corresponds to one schedule value and describes how the device should react locally to a surprise at the connection,
                           which the client evaluates as ``setpoint = clip(p - react * surprise, band)``,
                           with ``surprise = (meter - sum of the reacting devices' power) - reference`` and ``p`` the scheduled value.
-                          Values share the schedule's unit and sign convention; a range side of null means the device has no limit on that side.
+                          Values share the schedule's unit and sign convention, and every value is a finite number.
                         items:
                           type: object
                           properties:
@@ -1449,7 +1442,6 @@ class SensorAPI(FlaskView):
                                 type: array
                                 items:
                                   type: number
-                                  nullable: true
 
                       status:
                         type: string
@@ -1659,6 +1651,7 @@ class SensorAPI(FlaskView):
                 resolution=resolution,
                 to_unit=unit,
                 sign=response_sign,
+                device=str(sensor),
             )
 
         d, s = request_processed(scheduler_info_msg)
