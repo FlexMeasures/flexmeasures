@@ -38,6 +38,9 @@ from flexmeasures.data.models.automations import (
     get_default_automation_timezone,
     get_initial_cursor,
 )
+from flexmeasures.auth.loaders import (
+    OUTPUT_SENSOR_FIELDS as SHARED_OUTPUT_SENSOR_FIELDS,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import SensorReference
@@ -48,6 +51,8 @@ from flexmeasures.data.queries.generic_assets import (
 )
 from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.services.data_generators import (
+    annotation_sources,
+    check_annotation_source_access,
     check_sensor_access,
     resolve_data_generator_sensors,
 )
@@ -749,16 +754,67 @@ def _logical_job_key(run_id: int, rq_job_id: str) -> str | None:
 # the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
 # A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
 # so that drift shows up as a refusal rather than a quiet downgrade.
-OUTPUT_SENSOR_FIELDS = (
-    "consumption",
-    "production",
-    "state-of-charge",
-    "state_of_charge",
-    "aggregate-consumption",
-    "aggregate_consumption",
-    "aggregate-production",
-    "aggregate_production",
-)
+# The list is shared with the access checks on stored flex-configs and schedule triggers (see flexmeasures.auth.loaders).
+OUTPUT_SENSOR_FIELDS = SHARED_OUTPUT_SENSOR_FIELDS
+
+
+def shortest_cron_interval(cronstr: str) -> timedelta:
+    """The shortest time there can be between two runs of a (five-field) cron expression.
+
+    Only the minute and hour fields are looked at, and a day is assumed to be followed by another day the expression runs on,
+    so this errs on the short side: the answer is never longer than the real shortest interval.
+    """
+    minutes, hours = croniter(cronstr).expanded[:2]
+    minutes = list(range(60)) if minutes == ["*"] else [int(m) for m in minutes]
+    hours = list(range(24)) if hours == ["*"] else [int(h) for h in hours]
+    times = sorted({hour * 60 + minute for hour in hours for minute in minutes})
+    gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+    gaps.append(
+        times[0] + 24 * 60 - times[-1]
+    )  # from the last run of a day to the first of the next
+    return timedelta(minutes=min(gaps))
+
+
+DEFAULT_AUTOMATION_MIN_INTERVAL = timedelta(minutes=15)
+
+
+def automation_min_interval(
+    automation_type: str, setting: dict[str, timedelta] | timedelta | None = None
+) -> timedelta:
+    """The shortest time between two runs that non-admins may set up for automations of this type.
+
+    :param setting: FLEXMEASURES_AUTOMATION_MIN_INTERVAL (read from the app config if not given):
+                    a timedelta for all types, or a timedelta per type, with "default" for types not named.
+    """
+    if setting is None:
+        setting = current_app.config.get(
+            "FLEXMEASURES_AUTOMATION_MIN_INTERVAL", DEFAULT_AUTOMATION_MIN_INTERVAL
+        )
+    if isinstance(setting, dict):
+        return setting.get(
+            automation_type, setting.get("default", DEFAULT_AUTOMATION_MIN_INTERVAL)
+        )
+    return setting
+
+
+def refuse_too_frequent_cron(
+    cronstr: str, min_interval: timedelta, automation_type: str | None = None
+) -> None:
+    """Refuse a cron expression whose runs can come closer together than the given interval.
+
+    :raises ValidationError: under the "cron" key.
+    """
+    interval = shortest_cron_interval(cronstr)
+    if interval < min_interval:
+        kind = f"{automation_type} automations" if automation_type else "automations"
+        raise ValidationError(
+            {
+                "cron": [
+                    f"'{cronstr}' can run every {int(interval.total_seconds() // 60)} minute(s),"
+                    f" but {kind} may run at most once every {int(min_interval.total_seconds() // 60)} minute(s)."
+                ]
+            }
+        )
 
 
 def collect_sensors(
@@ -769,8 +825,9 @@ def collect_sensors(
 ) -> list[Sensor]:
     """Collect the sensors referenced anywhere in a (possibly nested) structure.
 
-    Both deserialized sensors and the sensor references that survive deserialization as raw data are picked up,
-    the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
+    Deserialized sensors, deserialized sensor references (``SensorReference``, which wraps a sensor with
+    source filters, a default or bounds) and the sensor references that survive deserialization as raw data
+    are picked up, the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
 
     :param only_under_output_field: only collect the sensors that are referenced under one of the OUTPUT_SENSOR_FIELDS, at any depth.
     """
@@ -783,6 +840,9 @@ def collect_sensors(
 
     if isinstance(value, Sensor):
         collect(value)
+    elif isinstance(value, SensorReference):
+        # a reference with source filters, a default or bounds, which wraps the sensor it reads
+        collect(value.sensor)
     elif isinstance(value, dict):
         for key, item in value.items():
             under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
@@ -1734,7 +1794,15 @@ def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     """
     involved = []
     for automation in db.session.scalars(select(Automation)).unique():
-        automation_sensors = get_automation_sensors(automation)
+        try:
+            automation_sensors = get_automation_sensors(automation)
+        except Exception as exc:  # noqa: B902
+            # One broken automation (e.g. with an asset attribute naming a module that does not exist)
+            # should not keep admins from checking all the others, as run-automations does, too.
+            current_app.logger.warning(
+                f"Could not tell which sensors automation {automation.id} involves: {exc.__class__.__name__}: {exc}"
+            )
+            continue
         if sensor.id in {
             involved_sensor.id
             for key in ("input_sensors", "output_sensors")
@@ -1937,12 +2005,18 @@ def _prepare_forecast_automation(
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.schemas.forecasting.pipeline import (
         ForecasterParametersSchema,
+        validate_model_params_from_api,
     )
     from flexmeasures.data.services.data_sources import get_data_generator
 
     warnings = []
     with errors_reported_for("parameters"):
-        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+        # Server paths to write models and outputs to are for the CLI only:
+        # an automation runs unattended on the servers, for whoever defined it.
+        # Excluded fields are refused as unknown, before the schema creates any directory.
+        deserialized_parameters = ForecasterParametersSchema(
+            exclude=["model_save_dir", "output_path"]
+        ).load(parameters)
     sensor = deserialized_parameters.get("sensor")
     with errors_reported_for("parameters"):
         _refuse_target_qualifiers(sensor)
@@ -1954,6 +2028,9 @@ def _prepare_forecast_automation(
         )
     model = generator_class or "TrainPredictPipeline"
     with errors_reported_for("config"):
+        # Model params are passed on to the model library as keyword arguments,
+        # so only bounded tuning knobs are accepted for an automation.
+        validate_model_params_from_api((config or {}).get("model-params"))
         forecaster = get_data_generator(
             source=source,
             model=model,
@@ -2190,6 +2267,7 @@ def _create_builtin_automation(
 
     if check_permissions:
         check_sensor_access(input_sensors, output_sensors)
+        check_annotation_source_access(annotation_sources(data_generator))
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
     # so that this does not reveal where a sensor sits to someone who may not read it.
@@ -2572,6 +2650,16 @@ def run_automation(
     handler = get_automation_handler(automation.type)
     if automation.execution_user_id is not None:
         check_execution_access(automation, resolve_automation_sensors(automation))
+        if automation.type != "scheduling" and automation.generator is not None:
+            check_execution_access(
+                automation,
+                {
+                    "input_sensors": annotation_sources(
+                        automation.generator.data_generator
+                    ),
+                    "output_sensors": [],
+                },
+            )
     return handler.run(
         automation, automation_run=automation_run, scheduled_at=scheduled_at
     )

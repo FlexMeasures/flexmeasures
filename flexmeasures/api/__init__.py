@@ -3,8 +3,7 @@ FlexMeasures API routes and implementations.
 """
 
 from flask import Flask, Blueprint, request, current_app
-import html
-from flask_security.utils import verify_password
+from flask_security.utils import hash_password, verify_password
 from flask_json import as_json
 from flask_login import current_user
 from webargs.flaskparser import use_args
@@ -28,9 +27,19 @@ from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
 from werkzeug.exceptions import RequestEntityTooLarge
 from flexmeasures.api.v3_0.users import AuthRequestSchema
+from flexmeasures.auth.event_logging import email_fingerprint, log_authentication_event
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
+
+
+def _requires_second_factor(user: User) -> bool:
+    """Whether logging in as this user requires a second factor (as it does in the UI)."""
+    return bool(
+        current_app.config.get("SECURITY_TWO_FACTOR")
+        and user.tf_primary_method
+        and user.tf_totp_secret
+    )
 
 
 @flexmeasures_api.route("/requestAuthToken", methods=["POST"])
@@ -45,6 +54,13 @@ def request_auth_token(args) -> tuple[dict, int]:
       description: |
           Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting
           SECURITY_TOKEN_MAX_AGE.
+
+          On servers with two-factor authentication (SECURITY_TWO_FACTOR), users who log in with a second factor
+          cannot get a token with their password alone: they log in first (completing the second factor),
+          and then call this endpoint from that session. Hosts can allow password-only tokens again with
+          FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA.
+
+          The password is required also when the request comes from a logged-in session. Deactivated users get no token.
 
       requestBody:
         required: true
@@ -79,25 +95,52 @@ def request_auth_token(args) -> tuple[dict, int]:
         email = request.json["email"]
         if current_user.is_authenticated and current_user.email == email:
             user = current_user
+            issued_by = "session"
+            # A session alone does not get a token: that would turn a copied session cookie into a portable credential
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
+            if not verify_password(request.json["password"], user.password):
+                user.track_failed_authn("password")
+                return {"errors": ["User password does not match."]}, 401
         else:
+            issued_by = "password"
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}, 400
             user = db.session.execute(
                 select(User).filter_by(email=email)
             ).scalar_one_or_none()
             if not user:
+                log_authentication_event(
+                    f"token requested for an unknown email address (hash {email_fingerprint(str(email))})",
+                    failed=True,
+                )
+                # Answer as for a wrong password, and take as long, so the answer does not tell which email addresses have an account
+                hash_password(str(request.json["password"]))
+                return {"errors": ["User password does not match."]}, 401
+            if not verify_password(request.json["password"], user.password):
+                # Counts against the user's failed attempts, and is logged, through Flask-Security's user_failed_authn signal
+                # (see flexmeasures.auth.login_throttling and flexmeasures.auth.event_logging)
+                user.track_failed_authn("password")
+                return {"errors": ["User password does not match."]}, 401
+            if _requires_second_factor(user) and not current_app.config.get(
+                "FLEXMEASURES_ALLOW_PASSWORD_TOKENS_WITH_2FA", False
+            ):
                 return (
                     {
                         "errors": [
-                            "User with email '%s' does not exist" % html.escape(email)
+                            "This user logs in with two-factor authentication, so a password alone cannot get a token."
+                            " Log in (with your second factor) and request a token from that session."
                         ]
                     },
-                    404,
+                    401,
                 )
-
-            if "password" not in request.json:
-                return {"errors": ["Please provide the 'password' parameter."]}, 400
-            if not verify_password(request.json["password"], user.password):
-                return {"errors": ["User password does not match."]}, 401
+        if not user.active:
+            # Flask-Security would refuse the token anyway; do not issue it
+            return {"errors": ["This user is deactivated."]}, 401
         token = user.get_auth_token()
+        log_authentication_event(
+            f"auth token issued to user {user.id} (by {issued_by})"
+        )
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:
         current_app.logger.error(f"Exception in /requestAuthToken endpoint: {e}")

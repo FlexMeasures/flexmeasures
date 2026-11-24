@@ -54,27 +54,29 @@ def test_fields_available_per_commodity(assert_js):
 
 
 def test_clean_flex_context_before_saving(assert_js):
-    assert_js(SCHEMA + """
+    """Saving drops empty fields, but keeps fields the editor does not know, such as those only set through the API."""
+    assert_js("""
         import { cleanFlexContext } from "/js/flex-context-utils.js";
         const flexContext = {
             "site-power-capacity": "1 MW",
             "consumption-price": "",
             "inflexible-consumption": [],
             "aggregate-power": null,
-            "not-a-field": "x",
+            "relax-constraints": true,
             "commodity": "electricity",
             "commodities": [
-                {"commodity": "gas", "consumption-price": "30 EUR/MWh", "commitments": [], "not-a-field": 1},
+                {"commodity": "gas", "consumption-price": "30 EUR/MWh", "commitments": [], "relax-soc-constraints": false},
             ],
         };
-        const cleaned = cleanFlexContext(flexContext, schema);
-        eq("empty and unknown fields are dropped, the structure is kept", cleaned, {
+        const cleaned = cleanFlexContext(flexContext);
+        eq("empty fields are dropped, fields unknown to the editor and the structure are kept", cleaned, {
             "site-power-capacity": "1 MW",
-            "commodities": [{"commodity": "gas", "consumption-price": "30 EUR/MWh"}],
+            "relax-constraints": true,
+            "commodity": "electricity",
+            "commodities": [{"commodity": "gas", "consumption-price": "30 EUR/MWh", "relax-soc-constraints": false}],
         });
         check("the flex-context is cleaned in place", cleaned === flexContext);
-        eq("an empty list of commodities goes too", cleanFlexContext({commodities: []}, schema), {});
-        eq("inherited object members are no fields", cleanFlexContext({"constructor": "x", "toString": "y"}, schema), {});
+        eq("an empty list of commodities goes too", cleanFlexContext({commodities: []}), {});
         """)
 
 

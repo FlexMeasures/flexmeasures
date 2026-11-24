@@ -205,8 +205,8 @@ def test_asset_properties_page_omits_expires_column_without_expiry_metadata(
 # ---------------------------------------------------------------------------
 
 
-def test_account_page_shows_attributes_editor(db, client, as_prosumer_user1):
-    """The account page shows the 'Edit attributes' button for a logged-in user."""
+def test_account_page_shows_attributes_editor(db, client, as_prosumer_account_admin):
+    """The account page shows the 'Edit attributes' button to an account-admin."""
     response = client.get(
         url_for("AccountCrudUI:get", account_id=current_user.account_id),
         follow_redirects=True,
@@ -214,6 +214,19 @@ def test_account_page_shows_attributes_editor(db, client, as_prosumer_user1):
     assert response.status_code == 200
     assert EDITOR_BUTTON_MARKER in response.data
     assert EDITOR_MODAL_MARKER in response.data
+
+
+def test_account_page_hides_attributes_editor_from_members(
+    db, client, as_prosumer_user1
+):
+    """Plain members may not edit their organisation, so they get no attributes editor."""
+    response = client.get(
+        url_for("AccountCrudUI:get", account_id=current_user.account_id),
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert EDITOR_BUTTON_MARKER not in response.data
+    assert EDITOR_MODAL_MARKER not in response.data
 
 
 def test_account_page_shows_secret_paths_without_values(db, client, as_prosumer_user1):

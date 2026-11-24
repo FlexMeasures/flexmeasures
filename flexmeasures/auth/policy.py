@@ -65,7 +65,8 @@ ROLE_DISPLAY_ORDER = (
 ROLE_PERMISSION_GRANTS = {
     ACCOUNT_READER_ROLE: frozenset({"read"}),
     ACCOUNT_DATA_INTEGRATOR_ROLE: frozenset({"read", "post-data", "reset-password"}),
-    ACCOUNT_MEMBER_ROLE: PERMISSIONS - {"delete-data", "manage-users", "delete"},
+    ACCOUNT_MEMBER_ROLE: PERMISSIONS
+    - {"delete-data", "manage-users", "delete", "edit-account"},
     ACCOUNT_ADMIN_ROLE: PERMISSIONS,
     CONSULTANT_ROLE: PERMISSIONS,
     ADMIN_READER_ROLE: frozenset({"read"}),
@@ -356,7 +357,8 @@ def can_modify_role(  # noqa: C901
     - admin: can only be changed in CLI / directly in the DB, so not here
     - admin-reader: can be added and removed by admins
     - account-admin: can be added and removed by admins and consultants (in consultancy account)
-    - consultant: can be added and removed by admins and account-admins (in same account)
+    - consultant: can be added and removed by admins and account-admins (in same account);
+      account-admins can only add it in an account with the Consultancy account role
     - account-member, account-reader, account-data-integrator: can be changed by admins, account-admins
       of the user's account, and consultants of its consultancy account
 
@@ -402,6 +404,12 @@ def can_modify_role(  # noqa: C901
             if (
                 user.has_role(ACCOUNT_ADMIN_ROLE)
                 and user.account.id == modified_user.account.id
+                and (
+                    # account-admins may only hand out the consultant role in a consultancy account
+                    modified_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE)
+                    # but they may always take it away
+                    or role.name in [r.name for r in modified_user.flexmeasures_roles]
+                )
             ):
                 continue
             return False
@@ -425,6 +433,29 @@ def can_modify_role(  # noqa: C901
             return False
         return False
 
+    return True
+
+
+def can_manage_user_with_roles(user, managed_user) -> bool:
+    """Check that a user is at least as privileged as the user they manage.
+
+    Used for changes that could hand over or lock out another user's account,
+    such as their email address, their active status or a password reset.
+    For every role of the managed user, the managing user must either have that role themselves,
+    or be allowed to add and remove it (see can_modify_role).
+    So an account-admin cannot change the email address of an admin in their account,
+    while an admin can manage another admin.
+
+    :param user: The user attempting the change.
+    :param managed_user: The user whose account would be changed.
+    :return: True if the managing user may make such changes, False otherwise.
+    """
+    for role in managed_user.flexmeasures_roles:
+        if user.has_role(role.name):
+            continue
+        if can_modify_role(user, [role], managed_user):
+            continue
+        return False
     return True
 
 
