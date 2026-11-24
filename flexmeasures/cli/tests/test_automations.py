@@ -2777,7 +2777,17 @@ def automation_row_cell(output: str, name: str, header: str) -> str:
 
     Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
     """
-    headers = ["ID", "Asset", "Name", "Type", "Active", "Monitored", "Cron", "Timezone"]
+    headers = [
+        "ID",
+        "Asset",
+        "Name",
+        "Type",
+        "Active",
+        "Critical",
+        "Monitored",
+        "Cron",
+        "Timezone",
+    ]
     lines = output.splitlines()
     header_line = next(line for line in lines if all(h in line for h in headers))
     starts = [header_line.index(h) for h in headers]
@@ -2919,6 +2929,37 @@ def test_show_automations_includes_inactive_ones(app, setup_dummy_data_fresh_db)
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
     assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_show_automations_says_which_are_critical(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A host that flags automations from the CLI can check from the CLI which of them page."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data_fresh_db[0]
+    runner = app.test_cli_runner()
+    for name, flags in (("Paging forecasts", ["--critical"]), ("Quiet forecasts", [])):
+        result = runner.invoke(
+            add_automation,
+            to_flags({"asset": 1, "name": name, "sensor": sensor_id}) + flags,
+        )
+        assert "Successfully created" in result.output, result.output
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Paging forecasts", "Critical") == "yes"
+    assert automation_row_cell(result.output, "Quiet forecasts", "Critical") == "no"
+
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Paging forecasts")
+    ).one()
+    result = runner.invoke(list_automations, ["--id", str(automation.id)])
+    assert result.exit_code == 0, result.output
+    assert any(
+        line.split() == ["Critical", "yes"] for line in result.output.splitlines()
+    ), result.output
 
 
 def test_add_edit_and_show_an_unmonitored_automation(

@@ -535,6 +535,7 @@ def list_automations(
                         else f"{automation.type} (plugin unavailable)"
                     ),
                     "yes" if automation.active else "no",
+                    "yes" if automation.critical else "no",
                     "yes" if automation.monitored else "no",
                     automation.cronstr,
                     automation.timezone,
@@ -547,6 +548,7 @@ def list_automations(
                 "Name",
                 "Type",
                 "Active",
+                "Critical",
                 "Monitored",
                 "Cron",
                 "Timezone",
@@ -569,6 +571,7 @@ def _show_automation(automation: Automation):
                 ("Asset", f"{automation.asset.name} (ID: {automation.asset_id})"),
                 ("Type", automation.type),
                 ("Active", "yes" if automation.active else "no"),
+                ("Critical", "yes" if automation.critical else "no"),
                 ("Monitored", "yes" if automation.monitored else "no"),
                 (
                     "Recurrence",
