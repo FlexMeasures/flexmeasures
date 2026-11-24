@@ -9,6 +9,7 @@ v3.0-37 | December xx, 2026
 """"""""""""""""""""""""""""
 
 - ``GET /api/v3_0/assets/<id>/jobs`` accepts ``queue``, to list only the jobs of one queue: ``forecasting``, ``scheduling`` or ``reporting``. On a paginated response, ``num-records`` still counts all jobs, and ``filtered-records`` counts the jobs of that queue.
+- Added ``POST /api/v3_0/jobs/<uuid>/rerun``, to queue a failed forecasting, scheduling or reporting job again under the same UUID. It needs the permission to trigger that kind of job, counts against the trigger rate limit, and returns ``409`` for a job that has not failed. ``GET /api/v3_0/assets/<id>/jobs`` reports for each job whether you may re-run it, in ``can_rerun``.
 
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""

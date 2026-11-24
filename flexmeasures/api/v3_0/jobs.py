@@ -12,9 +12,18 @@ from werkzeug.exceptions import Forbidden
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
+from flexmeasures.api.common.rate_limiting import limit_triggers
+from flexmeasures.api.common.responses import request_accepted_for_processing
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.services.job_rerun import (
+    JobNotFailed,
+    JobNotRerunnable,
+    check_job_rerun_access,
+    rerun_failed_job,
+)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
 
@@ -331,3 +340,96 @@ class JobAPI(FlaskView):
             status_code = 202
 
         return response, status_code
+
+    @route("/<uuid>/rerun", methods=["POST"])
+    @limit_triggers()
+    @auth_required()
+    @use_kwargs({"job_id": fields.Str(data_key="uuid", required=True)}, location="path")
+    @as_json
+    def rerun_job(self, job_id: str, **kwargs):
+        """
+        .. :quickref: Jobs; Re-run a failed background job
+
+        ---
+        post:
+          summary: Re-run a failed background job
+          description: |
+            Queue a failed forecasting, scheduling or reporting job again.
+
+            The job keeps its UUID, so it stays listed under its assets and sensors,
+            and the jobs waiting on it stay attached.
+            It runs with the same parameters as before.
+
+            Only failed jobs can be re-run.
+            The permission needed follows the type of job, as when triggering one:
+            ``trigger-schedules`` for a schedule, ``trigger-forecasts`` on the sensor for a forecast,
+            and ``trigger-reports`` on the asset of each output sensor for a report.
+            A report also needs read access to its input sensors, and the right to record data on its output sensors.
+
+            Re-running a job counts against the trigger rate limit.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: uuid
+              required: true
+              description: UUID of the failed background job.
+              example: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+              schema:
+                type: string
+          responses:
+            202:
+              description: The job was queued again.
+              content:
+                application/json:
+                  examples:
+                    requeued:
+                      summary: Job queued again
+                      value:
+                        status: ACCEPTED
+                        message: "Job b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b has been queued again."
+                        job: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+                        job-url: /api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            409:
+              description: The job has not failed, so it cannot be re-run.
+            422:
+              description: The job cannot be re-run from the API, for example because it names no asset or sensor.
+            503:
+              description: SERVICE_UNAVAILABLE
+          tags:
+            - Jobs
+        """
+        connection = current_app.redis_connection
+        try:
+            connection.ping()
+            job = Job.fetch(job_id, connection=connection)
+        except NoSuchJobError:
+            return dict(status="ERROR", message=f"Job {job_id} not found."), 404
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
+
+        # Without read access, the caller may not learn anything more about the job.
+        read_context = _job_read_context(job)
+        if read_context is not None:
+            check_access(read_context, "read")
+        try:
+            asset = check_job_rerun_access(job)
+            rerun_failed_job(job)
+        except JobNotRerunnable as exc:
+            return dict(status="UNPROCESSABLE_ENTITY", message=str(exc)), 422
+        except JobNotFailed as exc:
+            return dict(status="CONFLICT", message=str(exc)), 409
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
+
+        AssetAuditLog.add_record(asset, f"Re-ran failed {job.origin} job {job.id}.")
+        db.session.commit()
+        return request_accepted_for_processing(
+            job.id, message=f"Job {job.id} has been queued again."
+        )
