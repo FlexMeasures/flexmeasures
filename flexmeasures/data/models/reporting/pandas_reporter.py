@@ -12,9 +12,60 @@ from flexmeasures.data.models.reporting import Reporter, read_input_beliefs
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterParametersSchema,
+    pseudo_methods,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.data_sources import DataSource
+from pandas.core.groupby.groupby import BaseGroupBy
+from pandas.core.window.rolling import BaseWindow
 from flexmeasures.utils.time_utils import server_now
+
+# The objects whose methods (from the allow-list) and properties a transformation may use.
+PANDAS_TYPES = (pd.Series, pd.DataFrame, pd.Index, BaseGroupBy, BaseWindow)
+
+
+def _is_plain_value(value: Any) -> bool:
+    """Whether a value is a plain JSON-like value, such as what get_attribute returns."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(_is_plain_value(v) for v in value)
+    if isinstance(value, dict):
+        return all(isinstance(k, str) and _is_plain_value(v) for k, v in value.items())
+    return False
+
+
+def check_transformation_step(
+    obj: Any, method: str | None, prop: str | None, pseudo_methods: set[str]
+) -> None:
+    """Refuse a transformation step whose input is not a pandas object.
+
+    The only exception is the sensor of a BeliefsDataFrame and its asset (reached with the `sensor` and
+    `generic_asset` properties), on which only the pseudo-methods the host trusts (such as get_attribute)
+    may be called, so that a transformation cannot walk on to other objects, such as an account.
+    """
+    if isinstance(obj, PANDAS_TYPES):
+        if prop != "generic_asset":
+            return
+    elif isinstance(obj, Sensor):
+        if prop == "generic_asset" or (method is not None and method in pseudo_methods):
+            return
+    elif isinstance(obj, GenericAsset):
+        if method is not None and method in pseudo_methods:
+            return
+    raise ValueError(
+        f"A transformation cannot {'call ' + method if method else 'read ' + str(prop)} on a {type(obj).__name__}."
+    )
+
+
+def check_transformation_argument(value: Any) -> None:
+    """Refuse an @-argument that is not a pandas object, a data source (to select by) or a plain value."""
+    if isinstance(value, (*PANDAS_TYPES, DataSource)) or _is_plain_value(value):
+        return
+    raise ValueError(
+        f"A transformation cannot take a {type(value).__name__} as an argument."
+    )
 
 
 class PandasReporter(Reporter):
@@ -282,6 +333,7 @@ class PandasReporter(Reporter):
 
         if isinstance(value, str) and value.startswith("@"):
             value = value.replace("@", "")
+            check_transformation_argument(self.data[value])
             return self.data[value]
 
         if isinstance(value, list):
@@ -334,6 +386,7 @@ class PandasReporter(Reporter):
             return False
 
         previous_df = None
+        trusted_pseudo_methods = pseudo_methods()
 
         for _transformation in self._config.get("transformations"):
             transformation = deepcopy(_transformation)
@@ -347,6 +400,9 @@ class PandasReporter(Reporter):
 
             method = transformation.get("method")
             _property = transformation.get("_property")
+            check_transformation_step(
+                self.data[df_input], method, _property, trusted_pseudo_methods
+            )
             args = self._process_pandas_args(transformation.get("args", []), method)
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method

@@ -323,7 +323,7 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
+        extractApiErrorMessage, escapeHtml, countSensorsGone, unavailableReferencesWarning, deletedSensorReferencesWarning
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
     const {
@@ -460,7 +460,7 @@
         });
     }
     // ============== Commodity scope END ============== //
-    const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON(
+    const [assetFlexContextRawJSON] = processResourceRawJSON(
         { ...assetFlexContextSchema },
         // As JSON rather than as the Python representation inside a string literal,
         // which a double quote in any value (such as a commitment's name) would end early.
@@ -524,7 +524,7 @@
 
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        const data = cleanFlexContext(getFlexContext(), assetFlexContextSchema);
+        const data = cleanFlexContext(getFlexContext());
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
@@ -545,7 +545,7 @@
             }
 
             const errorMessage = extractApiErrorMessage(errorData, response.statusText);
-            showToast(`Failed to update the flex context <div>${errorMessage}</div>`, "error");
+            showToast(`Failed to update the flex context <div>${escapeHtml(errorMessage)}</div>`, "error");
         } else {
             showToast("Flex context updated successfully", "success");
         }
@@ -706,7 +706,8 @@
             return activeCard && activeCard === fieldName;
         };
 
-        const isExtraField = fieldName in extraFields;
+        // A field the editor does not know (whether at the top level or in a commodity context) is shown, but not edited.
+        const isExtraField = !Object.prototype.hasOwnProperty.call(assetFlexContextSchema, fieldName);
 
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
@@ -859,6 +860,19 @@
         // The inherited value, read-only
         const valueContainer = document.createElement('div');
         valueContainer.className = 'pb-2';
+        if (info.hidden) {
+            // Set on an ancestor in another organisation, which this user may not see; scheduling still uses it.
+            const note = document.createElement('span');
+            note.className = 'fw-light text-muted';
+            note.textContent = 'Inherited, not visible to you';
+            valueContainer.appendChild(note);
+            card.appendChild(valueContainer);
+            const source = document.createElement('small');
+            source.className = 'text-muted';
+            source.textContent = `from ${info.asset_name}`;
+            card.appendChild(source);
+            return card;
+        }
         if (Array.isArray(fieldValue)) {
             for (const entry of fieldValue) {
                 const item = convertHtmlToElement(await renderSensor(entrySensorId(entry)));
@@ -1598,7 +1612,9 @@ Make sure that the sensor data will be available consistently, though, so schedu
         // The inherited fields are kept with their provenance, so unwrap them back into a flex-context first,
         // because a field name is what tells a bare id in the deprecated inflexible-device-sensors field apart from any other number.
         const inheritedValues = Object.fromEntries(
-            Object.entries(inheritedFlexContext).map(([field, info]) => [field, info["value"]])
+            Object.entries(inheritedFlexContext)
+                .filter(([field, info]) => !info.hidden)
+                .map(([field, info]) => [field, info["value"]])
         );
         const referenced = flexConfigSensorIds(getFlexContext()).concat(
             flexConfigSensorIds(inheritedValues)

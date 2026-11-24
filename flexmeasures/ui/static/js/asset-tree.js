@@ -244,6 +244,8 @@ export function buildAssetTreeOption(rootNodes, assetMap, options) {
   function nodeStyles(node) {
     const isCurrent = node.id === currentAssetId;
     const isAdd = isAddAsset(node);
+    // Asset trees may span organisations: a child of another organisation than its parent's gets a dashed border.
+    const isOtherOrganisation = node.other_organisation === true;
 
     const displayName = wrapName(node.name, charsPerLine, MAX_LINES);
     const rich = {
@@ -285,8 +287,9 @@ export function buildAssetTreeOption(rootNodes, assetMap, options) {
       },
       itemStyle: {
         color: isCurrent ? "#fcd34d" : isAdd ? "#10b981" : "#ffffff",
-        borderColor: isCurrent ? "#f59e0b" : isAdd ? "#047857" : "#cbd5e1",
-        borderWidth: isCurrent ? 3 : 1,
+        borderColor: isCurrent ? "#f59e0b" : isAdd ? "#047857" : isOtherOrganisation ? "#64748b" : "#cbd5e1",
+        borderWidth: isCurrent ? 3 : isOtherOrganisation ? 2 : 1,
+        borderType: isOtherOrganisation && !isCurrent ? "dashed" : "solid",
         borderRadius: 8,
         shadowColor: "rgba(0, 0, 0, 0.2)",
         shadowBlur: 10,
