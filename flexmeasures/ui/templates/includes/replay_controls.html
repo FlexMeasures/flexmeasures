@@ -1,0 +1,30 @@
+{# The replay button with its step and speed pickers, shared by the asset graph and sensor pages (logic in graphs.html). #}
+<div class="replay-container">
+    <div id="replay" data-bs-toggle="tooltip" data-bs-html="true" data-bs-custom-class="replay-tooltip"
+        data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step, 'b' for previous step.<br>Press 'r' to rewind.<br>Press '+' or '-' to speed up or slow down."
+        class="stopped">
+    </div>
+    <div class="replay-settings">
+        <label for="replay-step" title="How far 'n' and 'b' step through time. Auto follows how often new data was recorded.">Step</label>
+        <select id="replay-step" class="form-select form-select-sm">
+            <option value="auto" selected>Auto</option>
+            <option value="1">1 min</option>
+            <option value="5">5 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">1 h</option>
+            <option value="360">6 h</option>
+            <option value="1440">1 day</option>
+        </select>
+        <label for="replay-speed" title="How fast the replay runs. At 1×, 6 hours pass per second.">Speed</label>
+        <select id="replay-speed" class="form-select form-select-sm">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="5">5×</option>
+            <option value="10">10×</option>
+        </select>
+    </div>
+    <div id="replay-time"></div>
+</div>

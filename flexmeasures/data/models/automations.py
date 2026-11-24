@@ -95,6 +95,12 @@ class Automation(db.Model, AuthModelMixin):
     )
     schedule_revision = db.Column(db.Integer, nullable=False, default=1)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    # Whether `flexmeasures monitor automations` reports this automation's failed runs.
+    monitored = db.Column(
+        db.Boolean, nullable=False, default=True, server_default="true"
+    )
+    # When monitoring was last switched back on, which tells the digest which runs failed while it was off.
+    monitoring_resumed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )

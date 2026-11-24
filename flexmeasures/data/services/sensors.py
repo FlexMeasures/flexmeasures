@@ -867,6 +867,23 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
+def _current_user_may_read(sensor: Sensor) -> bool:
+    """Whether the logged-in user may read the sensor (always True without a logged-in user, e.g. in the CLI)."""
+    from flask import has_request_context
+    from flask_login import current_user
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    if not has_request_context() or not current_user.is_authenticated:
+        return True
+    try:
+        check_access(sensor, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
+
+
 def _get_flex_context_sensors(asset: Asset) -> dict[str, Sensor]:
     """The sensors an asset's flex-context refers to, by the field that refers to them.
 
@@ -926,6 +943,9 @@ def get_asset_sensors_metadata(
         if sensor.id is not None and sensor.id < 0:
             # Skip fixed-value sensors, the synthetic stand-ins for flex-config quantities.
             # They carry negative IDs, have no row in the database, and therefore no data connectivity to report on.
+            continue
+        if not _current_user_may_read(sensor):
+            # A flex-context may refer to a sensor the user may not see; do not show its name
             continue
         sensor_status = {}
         sensor_status["id"] = sensor.id

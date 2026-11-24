@@ -306,6 +306,7 @@ def test_post_automation(
     if expected_status_code == 201:
         assert response.json["name"] == "Posted schedules"
         assert response.json["active"] is True
+        assert response.json["monitored"] is True
         assert response.json["recurrence-description"] == "At 00:00"
         automation = db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
@@ -498,6 +499,34 @@ def test_post_automation_with_invalid_parameters(
     assert "sensor" in str(response.json)
 
 
+@pytest.mark.parametrize("path_field", ["model-save-dir", "output-path"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_refuses_server_paths(
+    app, add_battery_assets, requesting_user, path_field, tmp_path
+):
+    """Server paths to write models or outputs to are for the CLI only, so a forecast automation may not store them."""
+    battery = add_battery_assets["Test battery"]
+    chosen_dir = tmp_path / "chosen-by-the-client"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts kept on the server",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {
+                    "sensor": battery.sensors[0].id,
+                    path_field: str(chosen_dir),
+                },
+            },
+        )
+    assert response.status_code == 422, response.json
+    assert path_field in str(response.json)
+    assert not chosen_dir.exists()
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
@@ -550,6 +579,151 @@ def test_post_and_patch_automation_timezone(
             json={"timezone": "Europe/NotAmsterdam"},
         )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_and_patch_automation_monitoring(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation can opt out of monitoring on creation, and opt back in afterwards."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Experimental schedules",
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+                "monitored": False,
+            },
+        )
+    assert response.status_code == 201, response.json
+    assert response.json["monitored"] is False
+    automation = db.session.get(Automation, response.json["id"])
+    assert automation.monitored is False
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"monitored": True},
+        )
+    assert response.status_code == 200, response.json
+    assert response.json["monitored"] is True
+    assert automation.monitored is True
+    assert db.session.scalars(
+        select(AssetAuditLog.event).where(
+            AssetAuditLog.affected_asset_id == battery.id,
+            AssetAuditLog.event.contains("monitoring switched on"),
+        )
+    ).all()
+
+
+@pytest.mark.parametrize(
+    "requesting_user, may_change_monitoring",
+    [
+        ("test_admin_user@seita.nl", True),
+        (
+            "test_prosumer_user_2@seita.nl",
+            True,
+        ),  # account-admin of the asset's organisation
+        (
+            "test_prosumer_user@seita.nl",
+            False,
+        ),  # member, who may manage the automation otherwise
+        (
+            "test_consultant@seita.nl",
+            False,
+        ),  # once the asset's organisation is a client of the consultancy
+    ],
+    indirect=["requesting_user"],
+)
+def test_only_admins_may_switch_monitoring(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    may_change_monitoring,
+):
+    """Only the host's admins and the asset's account-admins may create an unmonitored automation, or switch monitoring on or off."""
+    battery = add_battery_assets["Test battery"]
+    owner = battery.owner
+    original_consultancy_id = owner.consultancy_account_id
+    if requesting_user.has_role("consultant"):
+        # Make the consultant one of the organisation's own, so that they may manage its automations.
+        owner.consultancy_account_id = requesting_user.account_id
+        db.session.commit()
+    try:
+        _check_who_may_switch_monitoring(app, db, battery, may_change_monitoring)
+    finally:
+        owner.consultancy_account_id = original_consultancy_id
+        db.session.commit()
+
+
+def _check_who_may_switch_monitoring(app, db, battery, may_change_monitoring: bool):
+    automation_data = {
+        "name": "Experimental schedules",
+        "cron": "0 0 * * *",
+        "type": "scheduling",
+        "parameters": {"duration": "PT12H"},
+    }
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={**automation_data, "monitored": False},
+        )
+    if may_change_monitoring:
+        assert response.status_code == 201, response.json
+    else:
+        assert response.status_code == 403, response.json
+        assert "Only admins" in response.json["message"]
+
+    # Anyone who may manage the automation may still create a monitored one, and edit it with the monitoring left as it is.
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={**automation_data, "name": "Monitored schedules", "monitored": True},
+        )
+    assert response.status_code == 201, response.json
+    automation = db.session.get(Automation, response.json["id"])
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"name": "Renamed schedules", "monitored": True},
+        )
+    assert response.status_code == 200, response.json
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"monitored": False},
+        )
+    if may_change_monitoring:
+        assert response.status_code == 200, response.json
+        assert automation.monitored is False
+    else:
+        assert response.status_code == 403, response.json
+        db.session.refresh(automation)
+        assert automation.monitored is True
 
 
 @pytest.mark.parametrize(
@@ -665,6 +839,422 @@ def test_post_automation_with_inaccessible_sensor(
             },
         )
     assert response.status_code == 201, response.json
+
+
+@pytest.mark.parametrize("source_kind", ["account", "asset", "sensor"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_with_inaccessible_annotation_regressor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    setup_accounts,
+    requesting_user,
+    source_kind,
+):
+    """Annotations used as a regressor must come from an account, asset or sensor the creator can read."""
+    battery = add_battery_assets["Test battery"]
+    wind_turbine = setup_generic_assets[
+        "test_wind_turbine"
+    ]  # owned by the Supplier account
+    someone_elses_sensor = Sensor(
+        name="annotated sensor",
+        generic_asset=wind_turbine,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    source_id = {
+        "account": setup_accounts["Supplier"].id,
+        "asset": wind_turbine.id,
+        "sensor": someone_elses_sensor.id,
+    }[source_kind]
+    name = f"Forecasts with another account's annotations ({source_kind})"
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{source_kind: source_id}]},
+            },
+        )
+    assert response.status_code == 403, response.json
+    assert f"{source_kind} {source_id}" in response.json["message"]
+    assert (
+        db.session.execute(select(Automation).filter_by(name=name)).scalar_one_or_none()
+        is None
+    )
+
+    # Annotations of their own account are fine
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Forecasts with own annotations ({source_kind})",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{"account": battery.owner.id}]},
+            },
+        )
+    assert response.status_code == 201, response.json
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_forecast_automation_run_rechecks_annotation_regressors(
+    app,
+    db,
+    add_battery_assets,
+    setup_accounts,
+    requesting_user,
+):
+    """Before each run, the creator must still be able to read the annotations the forecast uses."""
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.services.automations import run_automation
+
+    battery = add_battery_assets["Test battery"]
+    annotated_asset = GenericAsset(
+        name="Annotated asset",
+        generic_asset_type=battery.generic_asset_type,
+        owner=battery.owner,
+    )
+    db.session.add(annotated_asset)
+    db.session.commit()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts with annotations of an asset that moves away",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"annotation-regressors": [{"asset": annotated_asset.id}]},
+            },
+        )
+    assert response.status_code == 201, response.json
+    automation = db.session.get(Automation, response.json["id"])
+    assert automation.execution_user_id == requesting_user.id
+
+    # The annotated asset now belongs to another account, which the creator cannot read
+    annotated_asset.owner = setup_accounts["Supplier"]
+    db.session.commit()
+    with pytest.raises(Forbidden):
+        run_automation(automation)
+
+
+@pytest.mark.parametrize(
+    "reference_extras",
+    [
+        {},
+        {"source-types": ["forecaster"]},
+        {"exclude-source-types": ["scheduler"]},
+        {"default": "30 EUR/MWh"},
+        {"lower": 0},
+    ],
+    ids=["plain", "source-types", "exclude-source-types", "default", "lower"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_with_inaccessible_filtered_input_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+    reference_extras,
+):
+    """A sensor the schedule reads is checked, also when its reference carries source filters,
+    a default or bounds (which deserialize to a SensorReference rather than a Sensor).
+    """
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="someone else's prices",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="EUR/MWh",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    name = f"Schedules on another account's prices {sorted(reference_extras)}"
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "parameters": {
+                    "duration": "PT12H",
+                    "flex-context": {
+                        "consumption-price": {
+                            "sensor": someone_elses_sensor.id,
+                            **reference_extras,
+                        }
+                    },
+                },
+            },
+        )
+    assert response.status_code == 403, response.json
+    assert str(someone_elses_sensor.id) in response.json["message"]
+    assert (
+        db.session.execute(select(Automation).filter_by(name=name)).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "model_params, status_code",
+    [
+        ({"machines": "127.0.0.1:12400,10.0.0.1:12400", "num_machines": 2}, 422),
+        ({"num_threads": 64}, 422),
+        ({"forcedsplits_filename": "/etc/passwd"}, 422),
+        ({"n_estimators": 1_000_000}, 422),
+        ({"max_depth": 6, "min_child_samples": 10}, 201),
+        ({"n_estimators": 300, "num_leaves": 64, "max_depth": 8}, 422),
+        ({"n_estimators": 250, "num_leaves": 32, "max_depth": 5}, 201),
+    ],
+    ids=["machines", "threads", "file", "huge", "tuning", "combined", "at-the-limit"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_forecast_automation_accepts_only_bounded_model_params(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    model_params,
+    status_code,
+):
+    """Model params of a forecast automation are limited to bounded tuning knobs."""
+    battery = add_battery_assets["Test battery"]
+    name = f"Forecasts with model params {sorted(model_params)}"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {"model-params": model_params},
+            },
+        )
+    assert response.status_code == status_code, response.json
+    if status_code == 422:
+        assert "model-params" in str(response.json)
+        assert (
+            db.session.execute(
+                select(Automation).filter_by(name=name)
+            ).scalar_one_or_none()
+            is None
+        )
+
+
+@pytest.mark.parametrize(
+    "requesting_user, is_admin",
+    [("test_prosumer_user_2@seita.nl", False), ("test_admin_user@seita.nl", True)],
+    indirect=["requesting_user"],
+)
+def test_activating_a_too_frequent_automation_is_refused(
+    app, db, add_battery_assets, requesting_user, is_admin
+):
+    """An inactive automation that runs too often (e.g. a copy of one an admin set up) may not be activated by a non-admin."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Copied frequent forecasts ({requesting_user.email})",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "active": False,
+            },
+        )
+        assert response.status_code == 201, response.json
+        automation_id = response.json["id"]
+        automation = db.session.get(Automation, automation_id)
+        automation.cronstr = "* * * * *"  # as copied from an automation an admin set up
+        db.session.commit()
+        url = url_for(
+            "AssetAPI:patch_automation", id=battery.id, automation_id=automation_id
+        )
+
+        response = client.patch(url, json={"active": True})
+        if is_admin:
+            assert response.status_code == 200, response.json
+            assert db.session.get(Automation, automation_id).active
+            return
+        assert response.status_code == 422, response.json
+        assert "cron" in str(response.json["message"])
+        assert not db.session.get(Automation, automation_id).active
+
+        # Other changes to the inactive automation are still possible
+        response = client.patch(url, json={"name": "Renamed copy"})
+        assert response.status_code == 200, response.json
+
+        # The interval is the one for the automation's type (an hour for forecasting)
+        db.session.get(Automation, automation_id).cronstr = "*/15 * * * *"
+        db.session.commit()
+        response = client.patch(url, json={"active": True})
+        assert response.status_code == 422, response.json
+        assert "forecasting automations" in str(response.json["message"])
+        assert not db.session.get(Automation, automation_id).active
+
+        # Activating it with a cron expression that is allowed is fine
+        response = client.patch(url, json={"active": True, "cron": "0 * * * *"})
+        assert response.status_code == 200, response.json
+        automation = db.session.get(Automation, automation_id)
+        assert automation.active and automation.cronstr == "0 * * * *"
+
+
+@pytest.mark.parametrize(
+    "cron, allowed",
+    [
+        ("* * * * *", False),
+        ("*/5 * * * *", False),
+        ("0,10 * * * *", False),
+        ("*/15 * * * *", False),  # forecasting automations may run once an hour
+        ("0,30 * * * *", False),
+        ("0 6-18 * * *", True),
+        ("0 * * * *", True),
+        ("0 6 * * *", True),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user, is_admin",
+    [("test_prosumer_user_2@seita.nl", False), ("test_admin_user@seita.nl", True)],
+    indirect=["requesting_user"],
+)
+def test_automation_cron_may_not_run_too_often(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    is_admin,
+    cron,
+    allowed,
+):
+    """Non-admins may not set up a forecasting automation that runs more often than once an hour,
+    neither when creating it nor when changing its cron expression."""
+    battery = add_battery_assets["Test battery"]
+    name = f"Forecasts on cron {cron} by {requesting_user.email}"
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": name,
+                "cron": cron,
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+        if allowed or is_admin:
+            assert response.status_code == 201, response.json
+        else:
+            assert response.status_code == 422, response.json
+            assert "cron" in str(response.json["message"])
+            assert (
+                db.session.execute(
+                    select(Automation).filter_by(name=name)
+                ).scalar_one_or_none()
+                is None
+            )
+
+        # Changing the cron expression of an existing automation is held to the same rule
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"{name} (daily)",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+        assert response.status_code == 201, response.json
+        automation_id = response.json["id"]
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation_id,
+            ),
+            json={"cron": cron},
+        )
+        if allowed or is_admin:
+            assert response.status_code == 200, response.json
+        else:
+            assert response.status_code == 422, response.json
+            assert db.session.get(Automation, automation_id).cronstr == "0 6 * * *"
+
+
+@pytest.mark.parametrize(
+    "setting, cron, allowed",
+    [
+        # One interval for all types is still accepted
+        (timedelta(minutes=5), "*/5 * * * *", True),
+        (timedelta(minutes=5), "* * * * *", False),
+        # A type that is not named gets the default
+        ({"default": timedelta(minutes=10)}, "*/10 * * * *", True),
+        ({"default": timedelta(minutes=10)}, "*/5 * * * *", False),
+        ({"forecasting": timedelta(minutes=30)}, "*/30 * * * *", True),
+        ({"forecasting": timedelta(minutes=30)}, "*/15 * * * *", False),
+        ({"scheduling": timedelta(minutes=1)}, "*/5 * * * *", False),  # default 15 min
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_automation_min_interval_per_type(
+    app, db, add_battery_assets, requesting_user, monkeypatch, setting, cron, allowed
+):
+    """The minimum interval is set per automation type, with a default for types not named."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_AUTOMATION_MIN_INTERVAL", setting)
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": f"Forecasts on cron {cron} ({len(str(setting))})",
+                "cron": cron,
+                "type": "forecasting",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+    assert response.status_code == (201 if allowed else 422), response.json
+    if not allowed:
+        assert "forecasting automations may run at most once every" in str(
+            response.json["message"]
+        )
+
+
+def test_automation_min_interval_defaults():
+    from flexmeasures.data.services.automations import automation_min_interval
+    from flexmeasures.utils.config_defaults import Config
+
+    setting = Config.FLEXMEASURES_AUTOMATION_MIN_INTERVAL
+    assert automation_min_interval("scheduling", setting) == timedelta(minutes=15)
+    assert automation_min_interval("forecasting", setting) == timedelta(hours=1)
+    assert automation_min_interval("reporting", setting) == timedelta(minutes=15)
+    assert automation_min_interval("ingestion", setting) == timedelta(minutes=1)
+    assert automation_min_interval("a-plugin-type", setting) == timedelta(minutes=15)
 
 
 @pytest.mark.parametrize(

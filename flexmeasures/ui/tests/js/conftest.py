@@ -101,6 +101,16 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             if found:
                 self._send(found[-1].read_bytes(), "text/javascript")
                 return
+        if self.path.startswith("/vendor/"):
+            # Other vendored libraries, at their version-specific paths (see the `datatables_paths` fixture).
+            target = STATIC_VENDOR / self.path[len("/vendor/") :].split("?")[0]
+            if (
+                target.suffix == ".js"
+                and target.is_file()
+                and STATIC_VENDOR.resolve() in target.resolve().parents
+            ):
+                self._send(target.read_bytes(), "text/javascript")
+                return
         if self.path.startswith("/js/"):
             target = STATIC_JS / self.path[len("/js/") :].split("?")[0]
             if target.is_file() and STATIC_JS in target.resolve().parents:
@@ -217,6 +227,26 @@ def echarts_available() -> None:
     """Skip a test that needs the real ECharts library, when it has not been downloaded."""
     if not list(STATIC_VENDOR.glob("echarts/*/dist/echarts.min.js")):
         pytest.skip("the vendored ECharts library is not downloaded")
+
+
+@pytest.fixture(scope="session")
+def datatables_paths() -> list[str]:
+    """The URLs of the vendored jQuery and DataTables, in loading order.
+
+    Skips a test that needs the real libraries, when they have not been downloaded.
+    """
+    from flexmeasures.ui.utils.vendor_assets import VENDOR_LIBRARIES
+
+    paths = [
+        f"{key}/{VENDOR_LIBRARIES[key].version}/{file}"
+        for key, file in (
+            ("jquery", "dist/jquery.min.js"),
+            ("datatables", "js/jquery.dataTables.min.js"),
+        )
+    ]
+    if not all((STATIC_VENDOR / path).is_file() for path in paths):
+        pytest.skip("the vendored jQuery and DataTables libraries are not downloaded")
+    return [f"/vendor/{path}" for path in paths]
 
 
 @pytest.fixture(scope="session")

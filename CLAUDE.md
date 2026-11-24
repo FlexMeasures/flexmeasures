@@ -17,10 +17,15 @@ Most-missed rules, called out so they are not forgotten:
   a hook that rewrites a file aborts the commit, so re-stage and commit again.
   See [`pre-commit-hooks.instructions.md`](.github/instructions/pre-commit-hooks.instructions.md).
 - **Add a changelog entry** for user-facing changes, in the right section, with a PR link.
+  Before pushing a new PR, fill in its most likely number (check that it is still free), and check it once the PR exists.
   See [`changelog.instructions.md`](.github/instructions/changelog.instructions.md).
 - **Prove a new test can fail** — break what it covers, confirm it goes red, restore.
   A test that passes with the feature disabled asserts nothing.
   See [`testing.instructions.md`](.github/instructions/testing.instructions.md).
+- **Never run the CLI or the app against a shared development configuration** —
+  a shared Redis hands queued jobs to other people's workers, and a shared database may hold real data.
+  Use the test suite or isolated local services.
+  See [`local-environment.instructions.md`](.github/instructions/local-environment.instructions.md).
 - **Never rebase or force-push a branch under review.**
   When a stacked branch's base was squash-merged, restore that base and merge,
   rather than re-resolving its whole diff.

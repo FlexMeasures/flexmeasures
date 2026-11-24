@@ -5,14 +5,15 @@ from datetime import datetime
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus, NoSuchJobError
+from werkzeug.exceptions import Forbidden
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
@@ -43,6 +44,21 @@ def _job_read_context(job: Job):
         return None
 
     return db.session.get(Sensor, sensor_id)
+
+
+def check_job_read_access(job: Job):
+    """Check that the current user may read the asset or sensor the job is about.
+
+    Jobs whose asset or sensor cannot be found (e.g. it was deleted) are only readable by admins and admin-readers.
+    """
+    read_context = _job_read_context(job)
+    if read_context is None:
+        if not user_has_admin_access(current_user, "read"):
+            raise Forbidden(
+                f"Job {job.id} is not about an asset or sensor you have access to."
+            )
+        return
+    check_access(read_context, "read")
 
 
 def _job_queue_unavailable_response():
@@ -263,9 +279,7 @@ class JobAPI(FlaskView):
         try:
             connection.ping()
             job = Job.fetch(job_id, connection=connection)
-            read_context = _job_read_context(job)
-            if read_context is not None:
-                check_access(read_context, "read")
+            check_job_read_access(job)
         except NoSuchJobError:
             return (
                 dict(
