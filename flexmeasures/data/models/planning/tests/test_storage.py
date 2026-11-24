@@ -3186,23 +3186,28 @@ def test_soc_breach_priority_must_be_listed(db, charge_point):
         )
 
 
-def test_soc_breach_priority_must_be_listed_in_the_devices_commodity_context(
+def test_soc_breach_priorities_at_the_top_level_count_for_the_listed_electricity_context(
     db, charge_point
 ):
-    """Priorities listed at the top level do not count for devices whose commodity has its own context, just like the other top-level fields."""
-    with pytest.raises(ValidationError, match="not listed"):
-        _schedule_two_evs_on_a_tight_site(
-            db,
-            charge_point,
-            "soc-minima",
-            ["high", None],
-            form="commodities",
-            top_level_flex_context={
-                "priorities": [
-                    {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
-                ]
-            },
-        )
+    """Priorities listed at the top level describe electricity, like the other top-level fields, so they count for the listed electricity context, too.
+
+    EV A, on the high priority, gets its 3 kWh, so EV B falls short, at the breach price of the electricity context.
+    """
+    charged, costs = _schedule_two_evs_on_a_tight_site(
+        db,
+        charge_point,
+        "soc-minima",
+        ["high", None],
+        form="commodities",
+        top_level_flex_context={
+            "priorities": [
+                {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"}
+            ]
+        },
+    )
+
+    assert charged == pytest.approx([3, 2], abs=1e-3)
+    assert costs["any soc minima"] == pytest.approx(1000, rel=1e-3)
 
 
 def _schedule_two_evs(
