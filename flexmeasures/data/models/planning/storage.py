@@ -60,7 +60,12 @@ from flexmeasures.utils.calculations import (
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    ur,
+    convert_units,
+    is_currency_unit,
+    units_are_convertible,
+)
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
@@ -2010,6 +2015,13 @@ class MetaStorageScheduler(Scheduler):
                     "shared_currency_unit"
                 ]
 
+            # Each commodity context gets the default SoC breach prices that FlexContextSchema fills in at the top level of a flex-context passed as a dict,
+            # as this form has no top level to fall back to.
+            schema = CommodityFlexContextSchema()
+            for commodity_flex_context in self.flex_context:
+                if is_currency_unit(commodity_flex_context["shared_currency_unit"]):
+                    schema.set_default_soc_breach_prices(commodity_flex_context)
+
             # Nest the flex-contexts per commodity under the commodity_contexts field
             self.flex_context = dict(
                 commodity_contexts=self.flex_context,
@@ -2161,15 +2173,18 @@ class MetaStorageScheduler(Scheduler):
 
         1. the device's priority, if its flex-model names one, and the ``priorities`` of the device's commodity context set the price for it,
         2. the device's commodity context, so that each entry of a multi-commodity flex-context can price the SoC constraints of its own devices,
-        3. the top-level flex-context, which is also where the flex-context schema fills in the default breach prices.
+        3. the top-level flex-context, which is also where the flex-context schema fills in the default breach prices,
+           unless the commodity context keeps its SoC constraints hard (setting relax-soc-constraints or relax-constraints to False).
+
+        In a flex-context passed as a list, there is no top level, but each commodity context got its own default breach prices.
 
         :param commodity_contexts:  The commodity contexts, as returned by `_get_commodity_contexts`.
         :param commodity:           The commodity of the device.
         :param flex_model_d:        The flex-model of the device.
         :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
-        :returns:                   The breach price, or None if none of these sets one.
+        :returns:                   The breach price, or None if the SoC constraints stay hard.
         """
-        commodity_context = commodity_contexts.get(commodity, {})
+        commodity_context = commodity_contexts.get(commodity, self.flex_context)
         priority = flex_model_d.get("priority")
         if priority is not None:
             for priority_context in commodity_context.get("priorities", []) or []:
@@ -2179,7 +2194,9 @@ class MetaStorageScheduler(Scheduler):
                     return priority_context[field]
                 break
         price = commodity_context.get(field)
-        if price is None:
+        if price is None and SharedSchema.relaxation_asked_for(
+            commodity_context, "relax_soc_constraints"
+        ):
             price = self.flex_context.get(field)
         return price
 
