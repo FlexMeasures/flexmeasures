@@ -3390,3 +3390,78 @@ def test_soc_breach_price_per_commodity(db, charge_point, form):
 
     assert charged == pytest.approx([4, 4], abs=1e-3)
     assert costs["any soc minima"] == pytest.approx(777 + 333, rel=1e-3)
+
+
+@pytest.mark.parametrize(
+    "deadline_of_ev_b, charged_by_ev_a",
+    [
+        # EV B takes 1 kW for 3 hours, leaving EV A 0.25 kW, and then 1 kW in the last hour.
+        ("03:00", 1.75),
+        # EV B's off-tick deadline is projected onto the end of its hour.
+        ("03:30", 2),
+    ],
+)
+def test_soc_breach_priority_with_soc_relaxation_off(
+    db, charge_point, deadline_of_ev_b, charged_by_ev_a
+):
+    """A priority's breach price softens the SoC constraints of its devices, even with relax-soc-constraints off.
+
+    Off-tick SoC constraints (EV B's at 03:30, with an hourly resolution) used to make the scheduler soften only the SoC constraints of the devices that have them,
+    as long as it did not count a priority's breach price as the user asking to soften SoC constraints.
+    Two EVs on a site with 1.25 kW each need 3 kWh, so EV A, on the low priority, falls short.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    connectors = [
+        _evse_power_sensor(
+            db,
+            charge_point,
+            resolution,
+            name=f"EV {ev} power (low priority, SoC relaxation off, EV B's deadline at {deadline_of_ev_b})",
+        )
+        for ev in ("A", "B")
+    ]
+    deadlines = [
+        end,
+        pd.Timestamp(f"2020-01-01T{deadline_of_ev_b}:00", tz="Europe/Amsterdam"),
+    ]
+    flex_model = [
+        {
+            "sensor": connector.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": deadline.isoformat(), "value": "3 kWh"}],
+            "power-capacity": "1 kW",
+            "production-capacity": "0 kW",
+        }
+        for connector, deadline in zip(connectors, deadlines)
+    ]
+    flex_model[0]["priority"] = "low"
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            **TIGHT_SITE,
+            "relax-soc-constraints": False,
+            "priorities": [
+                {"priority": "low", "soc-minima-breach-price": "900 EUR/kWh"}
+            ],
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    charged = [
+        _storage_schedule_for_sensor(results, connector).sum()
+        for connector in connectors
+    ]
+    costs = next(r for r in results if r.get("name") == "commitment_costs")["data"]
+
+    assert charged == pytest.approx([charged_by_ev_a, 3], abs=1e-3)
+    assert costs["any soc minima"] == pytest.approx(
+        900 * (3 - charged_by_ev_a), rel=1e-3
+    )

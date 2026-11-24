@@ -2134,7 +2134,7 @@ class MetaStorageScheduler(Scheduler):
     def _soc_relaxation_user_enabled(self) -> bool:
         """Whether the user's own (serialized) flex-context already softens SoC constraints.
 
-        That is the case when any context defines a SoC breach price explicitly,
+        That is the case when any context defines a SoC breach price explicitly (also for one of its ``priorities``),
         sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
         general ``relax-constraints`` flag (which defaults to ``True``).
         """
@@ -2147,11 +2147,12 @@ class MetaStorageScheduler(Scheduler):
         else:
             return True
         for context in contexts:
-            if (
-                context.get("soc-minima-breach-price") is not None
-                or context.get("soc-maxima-breach-price") is not None
-            ):
-                return True
+            for priced in [context, *(context.get("priorities") or [])]:
+                if (
+                    priced.get("soc-minima-breach-price") is not None
+                    or priced.get("soc-maxima-breach-price") is not None
+                ):
+                    return True
             if context.get("relax-soc-constraints") is True:
                 return True
             if context.get("relax-soc-constraints") is None and context.get(
