@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from flask import url_for
 from rq.job import Job, JobStatus
 from sqlalchemy import select
 
 from flexmeasures.api.v3_0.tests.utils import report_message
+from flexmeasures.data.automations import execute_automation_job
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.utils.job_utils import work_on_rq
@@ -233,3 +238,95 @@ def test_job_list_offers_rerun_of_failed_jobs_only(
                 failed.id: False,
                 queued.id: False,
             }, "a job that is queued again can no longer be re-run"
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user@seita.nl", 202),
+        # May read the sensor, but not record data on it.
+        ("test_admin_reader_user@seita.nl", 403),
+        # May not even read the sensor.
+        ("test_dummy_user_3@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_rerun_failed_upload(
+    app, add_battery_assets, clean_redis, requesting_user, expected_status_code
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    # Sensor data uploads name their sensor in the job metadata.
+    job = failed_job(app.queues["ingestion"], {"sensor_id": sensor.id})
+
+    with app.test_client() as client:
+        response = client.post(url_for("JobAPI:rerun_job", uuid=job.id))
+
+    assert response.status_code == expected_status_code
+    expected_job_status = (
+        JobStatus.QUEUED if expected_status_code == 202 else JobStatus.FAILED
+    )
+    assert job.get_status() == expected_job_status
+
+
+def failed_plugin_automation_job(app, db, asset, queue_name: str) -> Job:
+    """Have a worker fail a job of an automation defined by a plugin, on the given queue."""
+    automation = Automation(
+        asset=asset,
+        # The database outlives each test in this module, so each generator gets a name of its own.
+        generator=DataSource(
+            name=f"re-run test plugin generator {uuid4()}", type="ingester"
+        ),
+        name="Plugin automation to re-run",
+        type="mock-ingestion",
+        cronstr="0 6 * * *",
+        parameters={},
+    )
+    db.session.add(automation)
+    db.session.flush()
+    queue = app.queues[queue_name]
+    # The data source does not exist, so the job fails.
+    job = queue.enqueue(
+        execute_automation_job,
+        automation_id=automation.id,
+        data_source_id=-1,
+        parameters={},
+        meta={"asset_or_sensor": {"class": "Asset", "id": asset.id}},
+    )
+    work_on_rq(queue, max_jobs=1)
+    assert (
+        job.get_status() == JobStatus.FAILED
+    ), "the job should fail for the test to mean anything"
+    return job
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user@seita.nl", 202),
+        # May read the asset, but not manage its automations.
+        ("test_admin_reader_user@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+# A plugin chooses the queue of its automation jobs, and the permission does not depend on it.
+@pytest.mark.parametrize("queue_name", ["ingestion", "reporting"])
+def test_rerun_failed_plugin_automation_job(
+    app,
+    db,
+    add_battery_assets,
+    clean_redis,
+    requesting_user,
+    expected_status_code,
+    queue_name,
+):
+    battery = add_battery_assets["Test battery"]
+    job = failed_plugin_automation_job(app, db, battery, queue_name)
+
+    with app.test_client() as client:
+        response = client.post(url_for("JobAPI:rerun_job", uuid=job.id))
+
+    assert response.status_code == expected_status_code, response.json
+    expected_job_status = (
+        JobStatus.QUEUED if expected_status_code == 202 else JobStatus.FAILED
+    )
+    assert job.get_status() == expected_job_status
