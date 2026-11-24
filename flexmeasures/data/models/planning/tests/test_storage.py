@@ -3211,11 +3211,13 @@ def _schedule_two_evs(
     name: str,
     flex_context,
     commodity_of_ev_b: str = "electricity",
+    priority_of_ev_a: str | None = None,
     **flex_model,
 ):
     """Schedule two EVs on two connectors (1 kW each) of the charge point, for 4 hours.
 
     EV B can be given another commodity than electricity, to tell apart the commodity contexts that apply to each EV.
+    EV A can be given a priority.
 
     :returns: The energy charged per EV (in kWh), and the costs per commitment.
     """
@@ -3233,6 +3235,11 @@ def _schedule_two_evs(
         resolution=resolution,
         flex_model=[
             {
+                **(
+                    {"priority": priority_of_ev_a}
+                    if ev == "A" and priority_of_ev_a
+                    else {}
+                ),
                 "sensor": connector.id,
                 "commodity": commodity,
                 "soc-at-start": "0 kWh",
@@ -3245,8 +3252,8 @@ def _schedule_two_evs(
                     for key, value in flex_model.items()
                 },
             }
-            for connector, commodity in zip(
-                connectors, ("electricity", commodity_of_ev_b)
+            for ev, connector, commodity in zip(
+                ("A", "B"), connectors, ("electricity", commodity_of_ev_b)
             )
         ],
         flex_context=flex_context,
@@ -3465,3 +3472,33 @@ def test_soc_breach_priority_with_soc_relaxation_off(
     assert costs["any soc minima"] == pytest.approx(
         900 * (3 - charged_by_ev_a), rel=1e-3
     )
+
+
+@pytest.mark.parametrize("form", ["dict", "commodities", "list"])
+def test_soc_breach_priority_with_one_price_in_a_context_without_prices(
+    db, charge_point, form
+):
+    """A priority may set only the soc-minima-breach-price, in a context that sets no breach prices itself.
+
+    The soc-maxima-breach-price then falls back to the default one, so that the soc-targets of the priority's devices are soft, too.
+    Two EVs on a site with 1.25 kW each need 3 kWh, so EV A, on the low priority, falls short by 1 kWh.
+    """
+    charged, costs = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"low priority with one price, in a context without prices, in the {form} form",
+        flex_context=_in_form(
+            form,
+            {
+                **TIGHT_SITE,
+                "priorities": [
+                    {"priority": "low", "soc-minima-breach-price": "900 EUR/kWh"}
+                ],
+            },
+        ),
+        priority_of_ev_a="low",
+        **{"soc-targets": "3 kWh"},
+    )
+
+    assert charged == pytest.approx([2, 3], abs=1e-3)
+    assert costs["any soc targets"] == pytest.approx(900, rel=1e-3)
