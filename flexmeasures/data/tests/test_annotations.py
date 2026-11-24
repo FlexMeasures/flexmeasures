@@ -1,7 +1,12 @@
 import pandas as pd
+import pytest
 from sqlalchemy import select, func
 
-from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    AnnotationConflict,
+    get_or_create_annotation,
+)
 from flexmeasures.data.models.data_sources import DataSource
 
 
@@ -137,3 +142,141 @@ def test_search_annotations_by_belief_time(db, setup_annotations):
         all_annotations = obj.search_annotations()
         all_contents = {a.content for a in all_annotations}
         assert {"Dutch new year", "Recorded later", "Recorded earlier"} <= all_contents
+
+
+def test_get_or_create_annotation_updates_end(db, setup_sources):
+    """Extending an existing label must reuse its identity instead of violating it."""
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    deadline = pd.Timestamp("2030-01-16 08:00+01")
+    fields = dict(
+        content="Depart for work: 60% SoC by 08:00 (configured)",
+        start=deadline - pd.Timedelta(minutes=15),
+        belief_time=deadline - pd.Timedelta(days=1),
+        source=source,
+        type="label",
+    )
+    first, _ = get_or_create_annotation(Annotation(end=deadline, **fields))
+    db.session.flush()
+    original_id = first.id
+    new_end = deadline + pd.Timedelta(minutes=15)
+    updated, is_new = get_or_create_annotation(Annotation(end=new_end, **fields))
+    db.session.flush()
+    assert not is_new
+    assert updated.id == original_id
+    assert updated.end == new_end
+    repeated, is_new = get_or_create_annotation(Annotation(end=new_end, **fields))
+    db.session.flush()
+    assert not is_new
+    assert repeated.id == original_id
+
+
+def test_get_or_create_annotation_preserves_distinct_belief_times(db, setup_sources):
+    """Equal labels recorded at different belief times are distinct annotations."""
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    fields = dict(
+        content="Configured EV target",
+        start=pd.Timestamp("2030-01-16 07:45+01"),
+        end=pd.Timestamp("2030-01-16 08:15+01"),
+        source=source,
+        type="label",
+    )
+    first, _ = get_or_create_annotation(
+        Annotation(belief_time=pd.Timestamp("2030-01-15 08:00+01"), **fields)
+    )
+    db.session.flush()
+    second, is_new = get_or_create_annotation(
+        Annotation(belief_time=pd.Timestamp("2030-01-15 12:00+01"), **fields)
+    )
+    db.session.flush()
+    assert is_new
+    assert second.id != first.id
+
+
+def test_get_or_create_annotation_without_prior_preserves_legacy_spans(
+    db, setup_sources
+):
+    """NULL-prior labels with different ends can coexist and remain repeatable."""
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    start = pd.Timestamp("2030-01-16 07:45+01")
+    fields = dict(
+        content="Configured EV target without prior",
+        start=start,
+        belief_time=None,
+        source=source,
+        type="label",
+    )
+    first = Annotation(end=start + pd.Timedelta(minutes=15), **fields)
+    second = Annotation(end=start + pd.Timedelta(minutes=30), **fields)
+    # Seed valid pre-existing data: the unique constraint permits both NULLs.
+    db.session.add_all([first, second])
+    db.session.flush()
+    first_id, second_id = first.id, second.id
+    before = db.session.scalar(select(func.count()).select_from(Annotation))
+
+    for existing in (first, second):
+        repeated, is_new = get_or_create_annotation(
+            Annotation(end=existing.end, **fields)
+        )
+        db.session.flush()
+        assert not is_new
+        assert repeated.id == existing.id
+    assert first.end == start + pd.Timedelta(minutes=15)
+    assert second.end == start + pd.Timedelta(minutes=30)
+    assert db.session.scalar(select(func.count()).select_from(Annotation)) == before
+
+    # A new end without a prior still represents a distinct span, as before.
+    third, is_new = get_or_create_annotation(
+        Annotation(end=start + pd.Timedelta(minutes=45), **fields)
+    )
+    db.session.flush()
+    assert is_new
+    assert third.id not in (first_id, second_id)
+    assert db.session.scalar(select(func.count()).select_from(Annotation)) == before + 1
+
+
+def test_get_or_create_annotation_refuses_end_change_when_shared(
+    db, setup_sources, setup_accounts
+):
+    """Changing the end of an annotation that is also linked elsewhere must not move it there."""
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    account, other_account = list(setup_accounts.values())[:2]
+    start = pd.Timestamp("2030-01-16 07:45+01")
+    fields = dict(
+        content="Shared EV target",
+        start=start,
+        belief_time=pd.Timestamp("2030-01-15 12:00+01"),
+        source=source,
+        type="label",
+    )
+
+    # Only linked to the annotated account: the end may change.
+    annotation, _ = get_or_create_annotation(
+        Annotation(end=start + pd.Timedelta(minutes=15), **fields), annotated=account
+    )
+    account.annotations.append(annotation)
+    db.session.flush()
+    updated, is_new = get_or_create_annotation(
+        Annotation(end=start + pd.Timedelta(minutes=30), **fields), annotated=account
+    )
+    assert not is_new
+    assert updated.end == start + pd.Timedelta(minutes=30)
+
+    # Reusing it for another account with the same end is fine.
+    reused, is_new = get_or_create_annotation(
+        Annotation(end=start + pd.Timedelta(minutes=30), **fields),
+        annotated=other_account,
+    )
+    assert not is_new
+    other_account.annotations.append(reused)
+    db.session.flush()
+
+    # Now that it is shared, changing its end from either account is refused.
+    for annotated in (account, other_account):
+        with pytest.raises(AnnotationConflict):
+            get_or_create_annotation(
+                Annotation(end=start + pd.Timedelta(minutes=45), **fields),
+                annotated=annotated,
+            )
+    db.session.flush()
+    db.session.refresh(annotation)
+    assert annotation.end == start + pd.Timedelta(minutes=30)

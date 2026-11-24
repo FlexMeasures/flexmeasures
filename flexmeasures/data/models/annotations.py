@@ -195,30 +195,86 @@ class SensorAnnotationRelationship(db.Model):
     )
 
 
+class AnnotationConflict(ValueError):
+    """Raised when changing an existing annotation would also change it elsewhere."""
+
+
+def _is_linked_elsewhere(annotation: Annotation, annotated) -> bool:
+    """Tell whether the annotation is linked to any account, asset or sensor other than the annotated one."""
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.models.user import Account
+
+    links = [
+        (
+            Account,
+            AccountAnnotationRelationship,
+            AccountAnnotationRelationship.account_id,
+        ),
+        (
+            GenericAsset,
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id,
+        ),
+        (Sensor, SensorAnnotationRelationship, SensorAnnotationRelationship.sensor_id),
+    ]
+    for model, link, linked_id in links:
+        query = select(link.id).filter(link.annotation_id == annotation.id)
+        if isinstance(annotated, model):
+            query = query.filter(linked_id != annotated.id)
+        if db.session.execute(query.limit(1)).first() is not None:
+            return True
+    return False
+
+
 def get_or_create_annotation(
     annotation: Annotation,
+    annotated=None,
 ) -> tuple[Annotation, bool]:
     """Add annotation to db session if it doesn't exist in the session already.
 
     Return tuple of (annotation object, is_new boolean).
-    If annotation exists, return (existing_annotation, False).
+    With an explicit belief time, match the database identity and update end.
+    Without one, also match end to preserve distinct legacy spans.
+    If annotation exists, update its end and return (existing_annotation, False).
     If annotation is new, return (new_annotation, True).
+
+    :param annotation:  the annotation to look up or add.
+    :param annotated:   the account, asset or sensor being annotated, if any.
+                        An existing annotation is shared by everything it is linked to,
+                        so its end is only changed when it is not linked to anything else;
+                        otherwise, AnnotationConflict is raised and nothing is changed.
     """
     with db.session.no_autoflush:
+        filters = [
+            Annotation.content == annotation.content,
+            Annotation.start == annotation.start,
+            Annotation.belief_time == annotation.belief_time,
+            Annotation.source == annotation.source,
+            Annotation.type == annotation.type,
+        ]
+        # NULL belief times are not unique in the database. Preserve the existing
+        # distinction between spans when no prior was supplied; several such labels
+        # may already share their content and start while having different ends.
+        if annotation.belief_time is None:
+            filters.append(Annotation.end == annotation.end)
         existing_annotation = db.session.execute(
-            select(Annotation).filter(
-                Annotation.content == annotation.content,
-                Annotation.start == annotation.start,
-                Annotation.end == annotation.end,
-                Annotation.source == annotation.source,
-                Annotation.type == annotation.type,
-            )
+            select(Annotation).filter(*filters)
         ).scalar_one_or_none()
     if existing_annotation is None:
         db.session.add(annotation)
         return annotation, True
     if annotation in db.session:
         db.session.expunge(annotation)
+    if existing_annotation.end != annotation.end and annotated is not None:
+        with db.session.no_autoflush:
+            linked_elsewhere = _is_linked_elsewhere(existing_annotation, annotated)
+        if linked_elsewhere:
+            raise AnnotationConflict(
+                f"Annotation {existing_annotation.id} is also linked to other sensors, assets or organisations, so its end cannot be changed here without changing it there, too. "
+                "To add a separate annotation, use a different content or prior."
+            )
+    existing_annotation.end = annotation.end
     return existing_annotation, False
 
 

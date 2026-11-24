@@ -857,3 +857,48 @@ def test_delete_sensor_annotations_refuses_until(
     )
     assert response.status_code == 422
     assert "until" in response.json["message"]["json"]
+
+
+def test_post_annotation_with_prior_updates_end_unless_shared(
+    client, setup_api_test_data
+):
+    """Re-posting with a later end updates the annotation, unless another sensor shows it too."""
+    from flexmeasures.api.tests.utils import get_auth_token
+
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    db = client.application.db
+    sensor, other_sensor = db.session.scalars(select(Sensor).limit(2)).all()
+    annotation_data = {
+        "content": "EV target with prior",
+        "start": "2024-12-03T07:45:00+01:00",
+        "prior": "2024-12-02T12:00:00+01:00",
+    }
+
+    def post(sensor_id, end):
+        return client.post(
+            url_for("SensorAPI:post_annotation", id=sensor_id),
+            json=dict(annotation_data, end=end),
+            headers={"Authorization": auth_token},
+        )
+
+    # Extending the end of an annotation on one sensor updates it.
+    first = post(sensor.id, "2024-12-03T08:00:00+01:00")
+    assert first.status_code == 201, first.json
+    extended = post(sensor.id, "2024-12-03T08:15:00+01:00")
+    assert extended.status_code == 200, extended.json
+    assert extended.json["id"] == first.json["id"]
+    assert pd.Timestamp(extended.json["end"]) == pd.Timestamp(
+        "2024-12-03T08:15:00+01:00"
+    )
+
+    # Reusing it on another sensor with the same end links it there, too.
+    shared = post(other_sensor.id, "2024-12-03T08:15:00+01:00")
+    assert shared.status_code == 200, shared.json
+    assert shared.json["id"] == first.json["id"]
+
+    # Changing its end from the other sensor would move it on the first sensor, so it is refused.
+    conflict = post(other_sensor.id, "2024-12-03T09:00:00+01:00")
+    assert conflict.status_code == 409, conflict.json
+    db.session.expire_all()
+    annotation = db.session.get(Annotation, first.json["id"])
+    assert annotation.end == pd.Timestamp("2024-12-03T08:15:00+01:00")

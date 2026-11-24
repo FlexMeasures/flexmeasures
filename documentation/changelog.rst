@@ -28,6 +28,7 @@ Bugfixes
 * Saving beliefs that overlap stored ones in the hour that an autumn clock change repeats no longer fails with "Categorical categories must be unique" or keeps unchanged beliefs as new, when the new beliefs are in local time [see `PR #2869 <https://www.github.com/FlexMeasures/flexmeasures/pull/2869>`_]
 * Running a forecast no longer mutes all warnings for the rest of the process (for instance, in a worker); only warnings raised while fitting the model are muted [see `PR #2890 <https://www.github.com/FlexMeasures/flexmeasures/pull/2890>`_]
 * Saving from the UI's flex-context editor no longer deletes the fields it does not edit, such as ``relax-constraints`` set through the API; in a commodity tab, such fields are now also shown as uneditable [see `PR #2892 <https://www.github.com/FlexMeasures/flexmeasures/pull/2892>`_]
+* Posting an annotation again with a prior and a different end no longer fails with a server error, but updates the end, or is refused (409) when the annotation is also shown on other sensors, assets or organisations [see `PR #2877 <https://www.github.com/FlexMeasures/flexmeasures/pull/2877>`_]
 
 
 v1.1.2 | November 23, 2026
