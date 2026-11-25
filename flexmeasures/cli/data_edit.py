@@ -147,6 +147,13 @@ def fm_edit_data():
     " See `flexmeasures show automations` for whom it runs as now.",
 )
 @click.option(
+    "--critical/--not-critical",
+    "critical",
+    default=None,
+    help="Mark the automation as critical to your organisation, or no longer critical."
+    " A failed run of a critical automation is handed to the critical-automation-failure hooks.",
+)
+@click.option(
     "--monitored/--unmonitored",
     "monitored",
     default=None,
@@ -163,6 +170,7 @@ def edit_automation(
     config_file: TextIOBase | None = None,
     source: DataSource | None = None,
     run_as: User | None = None,
+    critical: bool | None = None,
     monitored: bool | None = None,
 ):
     """Edit an automation.
@@ -190,6 +198,7 @@ def edit_automation(
             cronstr=cronstr,
             timezone=timezone,
             active=active,
+            critical=critical,
             monitored=monitored,
             parameters=(
                 _load_yaml_mapping(parameters_file, "--parameters")

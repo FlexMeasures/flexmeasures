@@ -222,6 +222,7 @@ class AutomationHandler:
             name=kwargs["name"],
             cronstr=kwargs["cronstr"],
             active=kwargs.get("active", True),
+            critical=kwargs.get("critical", False),
             generator=prepared.generator,
             parameters=prepared.parameters,
             timezone=prepared.timezone,

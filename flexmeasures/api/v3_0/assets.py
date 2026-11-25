@@ -2027,6 +2027,7 @@ class AssetAPI(FlaskView):
 
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
+            Flagging an automation as critical, or no longer critical, leaves its cursor as it is, as it does not change which runs are due.
             Unless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:
             by default once every 15 minutes, and once an hour for forecasting automations
             (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
