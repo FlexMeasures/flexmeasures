@@ -205,15 +205,17 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
         const plan = {{automationId: 9, include: "upstream", exclude: new Set(), steps: [
             {{automation: 2, "waits-for": [], name: "Tariffs", "asset-name": "site"}},
             {{automation: 4, "waits-for": [], name: "Meters", "asset-name": "site"}},
-            {{automation: 7, "waits-for": [2], name: "Prices", "asset-name": "site"}},
+            {{automation: 7, "waits-for": [2, 5], name: "Prices", "asset-name": "site"}},
             {{automation: 9, "waits-for": [4, 7], name: "<b>Forecast</b>", "asset-name": "site"}},
-        ], excluded: [{{automation: 5, reason: "You may not run this automation."}}]}};
+        ], excluded: [{{automation: 5, reason: "You may not run this automation.", name: "Public prices", "waited-for-by": [7]}}]}};
         eq("what runs is what the server says runs", page.runPlanSelection(plan), [2, 4, 7, 9]);
         eq("the IDs show the order, with what can run side by side next to each other", page.runPlanStructure(plan), "2, 4 → 7 → 9");
-        eq("only automations that come together can be chosen between", [...page.runPlanBranches(plan)].sort(), [4, 7]);
+        eq("only automations that come together can be chosen between, not one that cannot run", [...page.runPlanBranches(plan)].sort(), [4, 7]);
         const doc = new DOMParser().parseFromString(page.runPlanHtml(plan), "text/html");
         const row = (id) => doc.querySelector(`li[data-automation-id="${{id}}"]`);
         check("what will not run says why", row(5).textContent.includes("Won't run. You may not run this automation."));
+        check("and which step waits for it", row(5).textContent.includes("Prices waits for it"));
+        check("a step names what it waits for that does not run, too", row(7).textContent.includes("Waits for 2, 5"));
         check("it has no box to tick", row(5).querySelector("input") === null);
         check("a branch has a ticked box", row(7).querySelector("input").checked);
         check("this automation is pointed out", row(9).textContent.includes("This automation"));
@@ -225,14 +227,19 @@ def test_a_run_plan_shows_what_runs_and_lets_a_branch_be_excluded(assert_js):
         // The server answers again for 7 left out, which takes along 2.
         const without7 = {{...plan, exclude: new Set([7]), steps: [
             {{automation: 4, "waits-for": [], name: "Meters"}},
-            {{automation: 9, "waits-for": [4], name: "Forecast"}},
-        ], excluded: [{{automation: 7, reason: "You left it out.", name: "Prices"}}]}};
+            {{automation: 9, "waits-for": [4, 7], name: "Forecast"}},
+        ], excluded: [
+            {{automation: 7, reason: "You left it out.", name: "Prices", "waited-for-by": [9]}},
+            {{automation: 2, reason: "Only runs for Prices, which you left out.", name: "Tariffs", "waited-for-by": []}},
+        ]}};
+        eq("what was left out can be ticked again, along with what it came together with", [...page.runPlanBranches(without7)].sort(), [4, 7]);
         eq("the IDs follow", page.runPlanStructure(without7), "4 → 9");
         eq("and so does the request", page.runPlanQuery(without7), "with-upstream=true&exclude=7");
         eq("and so does the plan's", page.runPlanLookupQuery(without7), "include=upstream&exclude=7");
         const unticked = new DOMParser().parseFromString(page.runPlanHtml(without7), "text/html");
         check("its box stays there to tick again", !unticked.querySelector('li[data-automation-id="7"] input').checked);
         check("it says why it won't run", unticked.querySelector('li[data-automation-id="7"]').textContent.includes("You left it out."));
+        check("what it takes along says so", unticked.querySelector('li[data-automation-id="2"]').textContent.includes("Only runs for Prices, which you left out."));
 
         // Of those that won't run, one never succeeded and one did.
         const stale = {{...without7, excluded: [

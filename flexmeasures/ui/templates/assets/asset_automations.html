@@ -995,9 +995,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const branches = new Set(plan.exclude);
     const ids = new Set(runPlanSelection(plan));
     for (const step of plan.steps) {
-      const together = plan.include === "upstream"
+      // A step also waits for what does not run, of which only what was left out on purpose can be ticked again.
+      const together = (plan.include === "upstream"
         ? step["waits-for"]
-        : plan.steps.filter((other) => other["waits-for"].includes(step.automation)).map((other) => other.automation);
+        : plan.steps.filter((other) => other["waits-for"].includes(step.automation)).map((other) => other.automation)
+      ).filter((id) => ids.has(id) || plan.exclude.has(id));
       if (together.length > 1) {
         together.filter((id) => ids.has(id) && id !== plan.automationId).forEach((id) => branches.add(id));
       }
@@ -1022,9 +1024,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ...(step.automation === plan.automationId ? ["This automation"] : []),
       ...(step["waits-for"].length ? [`Waits for ${step["waits-for"].join(", ")}`] : []),
     ]));
+    const stepNames = new Map(plan.steps.map((step) => [step.automation, step.name || `Automation ${step.automation}`]));
+    const waitedForBy = (step) => {
+      const names = (step["waited-for-by"] || []).map((id) => esc(stepNames.get(id)));
+      return names.length ? [`${names.join(" and ")} ${names.length === 1 ? "waits" : "wait"} for it`] : [];
+    };
     const excludedRows = plan.excluded.map((step) => row(step.automation, false, runPlanName(step), [
       ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
       `Won't run. ${esc(step.reason)}`,
+      ...waitedForBy(step),
       ...(step["last-succeeded-at"] ? [`Last succeeded ${esc(new Date(step["last-succeeded-at"]).toLocaleString())}`] : []),
       ...(step["last-succeeded-at"] === null ? ["Never ran successfully"] : []),
     ]));
