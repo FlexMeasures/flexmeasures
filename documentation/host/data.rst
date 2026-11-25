@@ -298,6 +298,41 @@ Just to note, there are also commands to get rid of data. Check:
 Check out the :ref:`cli` documentation for more details.
 
 
+.. _host-data-timescaledb:
+
+Optional: store time series data with TimescaleDB
+--------------------------------------------------
+
+FlexMeasures keeps all time series data in one table, ``timed_belief``.
+If your PostgreSQL server provides the `TimescaleDB <https://docs.timescale.com>`_ extension (version 2.13 or later),
+you can turn that table into a TimescaleDB *hypertable*:
+the same table to FlexMeasures, but stored in chunks by event time,
+of which the older ones can be compressed.
+FlexMeasures does not need this, and its queries do not change.
+
+.. code-block:: bash
+
+   $ flexmeasures db-ops enable-timescaledb --chunk-time-interval "7 days" --compress-after "30 days"
+
+What to expect:
+
+- **Much less storage.** Compressed chunks, segmented per sensor and data source, typically take an order of magnitude less space, indexes included.
+  In a test with 7 million beliefs, the table and its indexes went from 1.6 GB to 115 MB.
+  Smaller data means more of it stays in memory, which matters most once your data no longer fits in RAM.
+- **Similar query times while data fits in memory.** Most queries ask for one sensor and a time range, which the primary key already serves well, so on a database that fits in memory, expect little difference either way.
+- **Slower queries without a time range.** A query that does not bound event time, such as asking for the most recent value of a sensor, is planned against every chunk, which adds milliseconds per query on a table with many chunks. Larger chunks reduce this.
+- **Slower writes to compressed data.** Compressed chunks still accept new and updated beliefs, but pick a ``--compress-after`` beyond which data is rarely rewritten.
+
+Before you run it:
+
+- Converting moves all existing beliefs into chunks, and blocks writes to the table until it is done (in our test, 34 seconds for 7 million beliefs). Plan a maintenance window for a large database.
+- There is no command to go back to a plain table: that takes a dump and restore of the time series data.
+- Some database migrations (in FlexMeasures or in your plugins) may build indexes ``CONCURRENTLY``, which TimescaleDB does not support on hypertables. We will keep this in mind, but check before upgrading.
+- Not all managed PostgreSQL services offer TimescaleDB, and some only offer its Apache-licensed edition, which has no compression.
+- TimescaleDB sends anonymous usage data by default. To turn that off, set ``timescaledb.telemetry_level = off`` in your ``postgresql.conf``.
+
+Run the command again to add or change compression on a table that is already a hypertable.
+
 
 Visualize the data model
 --------------------------
