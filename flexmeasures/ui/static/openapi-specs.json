@@ -3586,6 +3586,10 @@
                       "revision": 1,
                       "active": true,
                       "monitored": true,
+                      "runs-as": {
+                        "id": 2,
+                        "name": "toy-user"
+                      },
                       "parameters": {
                         "sensor": 2092
                       },
@@ -3822,6 +3826,10 @@
                           "revision": 1,
                           "active": true,
                           "monitored": true,
+                          "runs-as": {
+                            "id": 2,
+                            "name": "toy-user"
+                          },
                           "job-stats": {
                             "finished": 3
                           }
@@ -5005,7 +5013,7 @@
             "description": "UNAUTHORIZED"
           },
           "403": {
-            "description": "INVALID_SENDER"
+            "description": "INVALID_SENDER.\nWhen the user the automation runs as (`runs-as`) may not run it, the response carries `reason: run-user-lacks-access`,\nand `refusal` says why, without how to take over (with `run-as-me`, see the PATCH endpoint).\n"
           },
           "404": {
             "description": "NOT_FOUND"

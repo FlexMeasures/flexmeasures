@@ -1643,6 +1643,9 @@ class AssetAPI(FlaskView):
                             revision: 1
                             active: true
                             monitored: true
+                            runs-as:
+                              id: 2
+                              name: toy-user
                             job-stats:
                               finished: 3
                         redis-connection-err: null
@@ -1760,6 +1763,9 @@ class AssetAPI(FlaskView):
                         revision: 1
                         active: true
                         monitored: true
+                        runs-as:
+                          id: 2
+                          name: toy-user
                         parameters:
                           sensor: 2092
                         source:
