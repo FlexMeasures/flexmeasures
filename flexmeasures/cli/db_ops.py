@@ -8,8 +8,11 @@ from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
+from flexmeasures.data import db
+from flexmeasures.data.services import timescaledb
 
 
 @click.group("db-ops", cls=LoggedClickExceptionGroup)
@@ -116,6 +119,86 @@ def restore(file: str):
         click.secho(f"Could not run pg_restore: {e.strerror}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
         raise click.Abort()
+
+
+@fm_db_ops.command("enable-timescaledb")
+@with_appcontext
+@click.option(
+    "--chunk-time-interval",
+    default="7 days",
+    show_default=True,
+    help="How much event time each chunk of the timed_belief table spans, as a PostgreSQL interval."
+    " Aim for the most recent chunks, with their indexes, to fit in memory.",
+)
+@click.option(
+    "--compress-after",
+    default=None,
+    help="Also compress chunks whose events are all older than this PostgreSQL interval (e.g. '30 days'),"
+    " now and from now on. Compressed data still accepts writes, but more slowly.",
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Do not ask for confirmation.",
+)
+def enable_timescaledb(chunk_time_interval: str, compress_after: str | None, yes: bool):
+    """Store time series data in a TimescaleDB hypertable (optional, needs TimescaleDB on the server).
+
+    Converting moves all existing beliefs into time chunks.
+    Writes to the table are blocked while that runs,
+    so on a large database, plan a maintenance window.
+    Running it again on a hypertable only (re)applies the compression setting.
+    """
+    try:
+        version = timescaledb.ensure_extension(db.session)
+    except timescaledb.TimescaleDBUnavailable as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+    except DBAPIError as e:
+        click.secho(
+            f"Could not install the timescaledb extension: {e.orig}", **MsgStyle.ERROR
+        )
+        raise click.Abort()
+
+    already_hypertable = timescaledb.is_hypertable(db.session)
+    if not already_hypertable and not yes:
+        if not click.confirm(
+            f"This converts the {timescaledb.TABLE} table on {db.engine.url.render_as_string(hide_password=True)}"
+            f" into a TimescaleDB {version} hypertable with chunks of {chunk_time_interval},"
+            " blocking writes until done.\nDo you want to continue?"
+        ):
+            db.session.rollback()
+            click.secho("I did nothing.", **MsgStyle.WARN)
+            raise click.Abort()
+
+    try:
+        if already_hypertable:
+            click.echo(
+                f"{timescaledb.TABLE} is already a hypertable; leaving its chunks as they are."
+            )
+        else:
+            timescaledb.convert_to_hypertable(db.session, chunk_time_interval)
+        if compress_after is not None:
+            timescaledb.enable_compression(db.session, compress_after)
+            n_compressed = timescaledb.compress_eligible_chunks(
+                db.session, compress_after
+            )
+            click.echo(
+                f"Compressed {n_compressed} chunk(s) older than {compress_after}."
+            )
+        db.session.commit()
+    except DBAPIError as e:
+        db.session.rollback()
+        click.secho(f"Nothing was changed: {e.orig}", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    size = timescaledb.table_size(db.session)
+    click.secho(
+        f"{timescaledb.TABLE} is a hypertable (TimescaleDB {version}),"
+        f" taking {size['table'] / 2**20:.0f} MiB of data and {size['indexes'] / 2**20:.0f} MiB of indexes.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 def libpq_uri(sqlalchemy_uri: str | None) -> str:
