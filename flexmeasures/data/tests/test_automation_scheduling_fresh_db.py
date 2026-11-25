@@ -5,12 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 from flask import current_app
 
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.services.automations import (
+    MISSED_RUN_TOO_OLD,
+    DueAutomation,
     claim_due_automation_run,
     get_due_automations,
     skip_stale_automation_runs,
@@ -143,20 +146,81 @@ def test_stale_missed_runs_are_skipped(
     skipped = skip_stale_automation_runs(max_catchup, now)
 
     if expected_skipped:
-        assert [(item.automation.id, item.scheduled_at) for item in skipped] == [
+        assert [(run.automation_id, run.scheduled_at) for run in skipped] == [
             (automation.id, missed_run)
         ]
+        # the skip is recorded as a run, saying why, so that it shows up with the automation's runs
+        run = fresh_db.session.scalars(select(AutomationRun)).one()
+        assert run.execution_state == "skipped"
+        assert run.execution_completed_at is not None
+        assert run.dispatch_completed_at is not None
+        assert run.last_error_type == MISSED_RUN_TOO_OLD
+        assert "--max-catchup" in run.last_error_message
         # the cursor moved past the skipped run, so it is not caught up afterwards either
         fresh_db.session.refresh(automation)
         assert automation.cursor == missed_run
         assert get_due_automations(now) == []
     else:
         assert skipped == []
+        assert fresh_db.session.scalars(select(AutomationRun)).all() == []
         assert [item.scheduled_at for item in get_due_automations(now)] == [missed_run]
 
     # either way, the automation resumes on its next scheduled run
     next_run = datetime(2026, 2, 2, 10, 0, tzinfo=timezone.utc)
     assert [item.scheduled_at for item in get_due_automations(next_run)] == [next_run]
+
+
+@pytest.mark.parametrize(
+    ("dispatch_state", "queued_a_job", "expected_skipped"),
+    (
+        # A runner died after claiming the run, before it queued anything.
+        ("claimed", False, True),
+        # Its attempt failed before queueing anything, and is up for a retry.
+        ("failed", False, True),
+        # It queued part of its jobs, so it is left to queue the rest, rather than to stay half done.
+        ("partially_queued", True, False),
+    ),
+)
+def test_stale_unfinished_runs_are_skipped(
+    fresh_db, automation_factory, dispatch_state, queued_a_job, expected_skipped
+):
+    """A run a runner left unfinished is not resumed when it is older than the bound, unless it already queued a job."""
+    automation = automation_factory(
+        name="Left behind",
+        cronstr="0 8 * * *",
+        timezone_name="UTC",
+        cursor=datetime(2026, 1, 31, 8, 0, tzinfo=timezone.utc),
+    )
+    scheduled_at = datetime(2026, 2, 1, 8, 0, tzinfo=timezone.utc)
+    due_automation = DueAutomation(
+        automation=automation,
+        scheduled_at=scheduled_at,
+        expected_cursor=automation.cursor,
+        expected_cronstr=automation.cronstr,
+        expected_timezone=automation.timezone,
+    )
+    run = claim_due_automation_run(due_automation).run
+    run.dispatch_state = dispatch_state
+    run.claim_expires_at = datetime(2026, 2, 1, 8, 5, tzinfo=timezone.utc)
+    if queued_a_job:
+        run.first_enqueued_at = datetime(2026, 2, 1, 8, 0, 30, tzinfo=timezone.utc)
+    fresh_db.session.commit()
+    # Three hours later, the runner restarts with a bound of an hour, after the run's own time came and went.
+    now = datetime(2026, 2, 1, 11, 0, tzinfo=timezone.utc)
+
+    skipped = skip_stale_automation_runs(timedelta(minutes=60), now)
+
+    fresh_db.session.refresh(run)
+    if expected_skipped:
+        assert [skipped_run.id for skipped_run in skipped] == [run.id]
+        assert run.execution_state == "skipped"
+        assert run.dispatch_completed_at is not None
+        assert run.claim_owner is None
+        assert run.last_error_type == MISSED_RUN_TOO_OLD
+    else:
+        assert skipped == []
+        assert run.execution_state == "pending"
+        assert run.dispatch_completed_at is None
 
 
 def test_zero_catchup_keeps_the_run_due_this_minute(fresh_db, automation_factory):
