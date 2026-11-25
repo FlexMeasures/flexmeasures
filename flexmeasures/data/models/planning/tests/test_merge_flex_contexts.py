@@ -45,13 +45,17 @@ def test_electricity_only_flex_contexts_merge_field_by_field():
     ],
 )
 def test_stored_fields_count_for_the_passed_electricity_context(passed):
-    """Whatever form the passed flex-context takes, if it has an electricity context, the stored fields end up in it, where the passed fields take precedence."""
+    """Whatever form the passed flex-context takes, if it has an electricity context, the stored fields end up in it, where the passed fields take precedence.
+
+    The stored consumption price comes without a production price, which the merged consumption price then also serves as (see test_top_level_consumption_price_also_serves_as_production_price).
+    """
     assert merge_flex_contexts(STORED, passed) == {
         "commodities": [
             {
                 "commodity": "electricity",
                 "site-power-capacity": "1 MVA",
                 "consumption-price": "80 EUR/MWh",
+                "production-price": "80 EUR/MWh",
             },
             GAS,
         ]
@@ -114,6 +118,7 @@ def test_passed_electricity_context_takes_precedence_over_passed_top_level():
                 "commodity": "electricity",
                 "consumption-price": "90 EUR/MWh",
                 "site-consumption-breach-price": "5000 EUR/kW",
+                "production-price": "90 EUR/MWh",
             },
         ]
     }
@@ -135,10 +140,66 @@ def test_stored_commodity_contexts_merge_per_commodity():
                 "site-power-capacity": "2 MVA",
                 "consumption-price": "50 EUR/MWh",
             },
-            {"commodity": "electricity", **STORED},
+            {
+                "commodity": "electricity",
+                **STORED,
+                "production-price": "100 EUR/MWh",
+            },
             {"commodity": "heat", "consumption-price": "10 EUR/MWh"},
         ]
     }
+
+
+@pytest.mark.parametrize(
+    "stored, passed, expected_production_price",
+    [
+        # The stored top-level consumption price also serves as the production price.
+        (STORED, [{"commodity": "electricity"}], "100 EUR/MWh"),
+        # So does the passed electricity context's consumption price, which takes precedence.
+        (
+            STORED,
+            [{"commodity": "electricity", "consumption-price": "80 EUR/MWh"}],
+            "80 EUR/MWh",
+        ),
+        # A passed top-level consumption price, too.
+        (
+            {"site-power-capacity": "1 MVA"},
+            {
+                "consumption-price": "80 EUR/MWh",
+                "commodities": [{"commodity": "electricity"}],
+            },
+            "80 EUR/MWh",
+        ),
+        # The electricity context's own production price takes precedence.
+        (
+            STORED,
+            [{"commodity": "electricity", "production-price": "50 EUR/MWh"}],
+            "50 EUR/MWh",
+        ),
+        # So does a top-level production price.
+        (
+            {**STORED, "production-price": "50 EUR/MWh"},
+            [{"commodity": "electricity"}],
+            "50 EUR/MWh",
+        ),
+        # Without a top-level consumption price, the electricity context is left as it is.
+        (
+            {"site-power-capacity": "1 MVA"},
+            [{"commodity": "electricity", "consumption-price": "80 EUR/MWh"}],
+            None,
+        ),
+    ],
+)
+def test_top_level_consumption_price_also_serves_as_production_price(
+    stored, passed, expected_production_price
+):
+    """When folded into the electricity context, a top-level consumption price without a top-level production price keeps serving as the production price.
+
+    At the top level, the production price falls back to the consumption price,
+    whereas a commodity context without a production price defaults to having no grid connection for production.
+    """
+    (electricity,) = merge_flex_contexts(stored, passed)["commodities"]
+    assert electricity.get("production-price") == expected_production_price
 
 
 def test_top_level_only_fields_stay_at_the_top_level():
