@@ -506,7 +506,7 @@ FlexMeasures saves each finding as a version of an annotation on the sensor it i
 Each run saves a new version only of the findings that changed, and gives a finding it no longer returns a resolved version, of type ``label``.
 With ``flexmeasures add report --dry-run``, the findings are printed instead.
 
-See ``flexmeasures.data.services.generator_results`` for the shape of such results.
+See :ref:`reporting_findings` for how a reporter returns findings.
 
 
 See also
