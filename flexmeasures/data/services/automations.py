@@ -120,6 +120,8 @@ AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
 # The jobs of other types, such as reports and plugin types, take a fresh ID on every dispatch,
 # so retrying one could queue the same work twice; such a run is recorded and reported, but left where it failed.
 AUTOMATION_RUN_RETRIED_TYPES = ("forecasting", "scheduling")
+# The error type of a run skipped for being older than a runner's catch-up bound (see `skip_stale_automation_runs`).
+MISSED_RUN_TOO_OLD = "MissedRunTooOld"
 
 
 @dataclass(frozen=True)
@@ -246,14 +248,11 @@ def _finish_attempt(
         attempt.error_message = str(error)
 
 
-def claim_due_automation_run(
-    due_automation: DueAutomation,
-    owner: str | None = None,
-    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
-) -> ClaimedAutomationRun | None:
-    """Atomically claim a newly due occurrence and create its durable run."""
-    owner = owner or _runner_owner()
-    now = _now_utc()
+def _advance_cursor(due_automation: DueAutomation) -> bool:
+    """Move the automation's cursor to the due run, unless another runner or an edit got there first.
+
+    The caller commits, or rolls back if this returns False.
+    """
     if due_automation.expected_cursor is None:
         cursor_matches = Automation.cursor.is_(None)
     else:
@@ -271,7 +270,18 @@ def claim_due_automation_run(
         .values(cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)
     )
-    if result.rowcount != 1:
+    return result.rowcount == 1
+
+
+def claim_due_automation_run(
+    due_automation: DueAutomation,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Atomically claim a newly due occurrence and create its durable run."""
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    if not _advance_cursor(due_automation):
         db.session.rollback()
         return None
 
@@ -347,6 +357,62 @@ def claim_existing_automation_run(
     attempt = _new_attempt(claimed_run, owner, now)
     db.session.commit()
     return ClaimedAutomationRun(run=claimed_run, attempt=attempt)
+
+
+def skip_stale_automation_runs(
+    max_catchup: timedelta,
+    now: datetime | None = None,
+    owner: str | None = None,
+) -> list[AutomationRun]:
+    """Skip the runs scheduled more than ``max_catchup`` before ``now`` which have not queued any job yet.
+
+    These are an automation's latest missed run, and a run whose dispatch a runner left unfinished before queueing anything.
+    Each is recorded as a 'skipped' run, saying why, so that it shows up with the automation's runs,
+    and whatever waits for it knows it will not deliver.
+    The automation's cursor moves past a skipped missed run, so it is not caught up later either,
+    and the automation resumes on its next scheduled run.
+    A zero ``max_catchup`` skips every missed run, and keeps only the run scheduled for this very minute.
+
+    A run that already queued some of its jobs is left to queue the rest, so that it does not stay half done.
+    Runs on demand are asked for, so they are never skipped.
+
+    :returns: The runs that were skipped.
+    """
+    if now is None:
+        now = _now_utc()
+    now = floor_to_minute(now)
+    oldest_allowed = now - max_catchup
+    reason = f"Skipped: it was missed, and is more than {max_catchup // timedelta(minutes=1)} minute(s) old, the most a runner catches up (--max-catchup)."
+    skipped = []
+    for due_automation in get_due_automations(now):
+        if due_automation.scheduled_at >= oldest_allowed:
+            continue
+        claimed = claim_due_automation_run(due_automation, owner=owner)
+        if claimed is not None:
+            skipped.append(_end_skipped_run(claimed, MISSED_RUN_TOO_OLD, reason))
+
+    unfinished_runs = db.session.scalars(
+        select(AutomationRun)
+        .join(Automation)
+        .where(
+            Automation.active.is_(True),
+            AutomationRun.trigger == "schedule",
+            AutomationRun.automation_type.in_(AUTOMATION_RUN_RETRIED_TYPES),
+            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_completed_at.is_(None),
+            AutomationRun.first_enqueued_at.is_(None),
+            # A run which used up its attempts failed for good, and is left for monitoring to report.
+            AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
+            AutomationRun.scheduled_at < oldest_allowed,
+            _claim_is_available(now),
+        )
+        .order_by(AutomationRun.scheduled_at, AutomationRun.id)
+    ).all()
+    for run in unfinished_runs:
+        claimed = claim_existing_automation_run(run, owner=owner)
+        if claimed is not None:
+            skipped.append(_end_skipped_run(claimed, MISSED_RUN_TOO_OLD, reason))
+    return skipped
 
 
 def get_dispatchable_automation_runs(
@@ -600,14 +666,14 @@ def check_upstream_runs(run: AutomationRun) -> tuple[str, list[dict[str, Any]]]:
     return _upstream_verdict(found), found
 
 
-def _format_due_at(upstream: Automation, due_at: datetime) -> str:
-    """Write a time on an upstream automation's own clock, for a message."""
+def format_automation_time(automation: Automation, moment: datetime) -> str:
+    """Write a time on an automation's own clock, for a message, so that an operator recognises the run."""
     try:
-        return due_at.astimezone(ZoneInfo(upstream.timezone)).strftime(
+        return moment.astimezone(ZoneInfo(automation.timezone)).strftime(
             "%Y-%m-%d %H:%M %Z"
         )
     except ZoneInfoNotFoundError:
-        return due_at.isoformat()
+        return moment.isoformat()
 
 
 def _summarize_upstream_run(
@@ -627,7 +693,9 @@ def _summarize_upstream_run(
         return "An automation that no longer exists did not run."
     label = f"{upstream.name} (automation {upstream.id}"
     label += f", run {upstream_run.id})" if upstream_run is not None else ")"
-    due = f" at {_format_due_at(upstream, due_at)}" if due_at is not None else ""
+    due = (
+        f" at {format_automation_time(upstream, due_at)}" if due_at is not None else ""
+    )
     if upstream_run is None:
         return _summarize_missing_upstream_run(upstream, label, state, due)
     if due_at is not None and upstream_run.scheduled_at > due_at:
@@ -747,19 +815,17 @@ def _hold_automation_run(
     }
 
 
-def _skip_automation_run(
-    claimed_run: ClaimedAutomationRun, found: list[dict[str, Any]]
-) -> dict[str, Any]:
-    """End a run without queueing any jobs, as an upstream run it waits for did not succeed."""
+def _end_skipped_run(
+    claimed_run: ClaimedAutomationRun, error_type: str, reason: str
+) -> AutomationRun:
+    """End a claimed run without queueing any jobs, recording why, and let go of what waits for it."""
     run = claimed_run.run
     now = _now_utc()
-    # Only the upstream runs whose failure is not allowed for are why the run is skipped.
-    reason = f"Skipped: {_describe_upstream_runs([upstream for upstream in found if not upstream['allow-failure']], ('failed', 'passed-over'))}"
     run.dispatch_state = "queued"
     run.dispatch_completed_at = now
     run.execution_state = "skipped"
     run.execution_completed_at = now
-    run.last_error_type = "UpstreamRunFailed"
+    run.last_error_type = error_type
     run.last_error_message = reason
     run.claim_owner = None
     run.claim_expires_at = None
@@ -767,6 +833,16 @@ def _skip_automation_run(
     db.session.commit()
     # Whatever waits for this run cannot have its input either.
     release_automation_runs_waiting_for(run)
+    return run
+
+
+def _skip_automation_run(
+    claimed_run: ClaimedAutomationRun, found: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """End a run without queueing any jobs, as an upstream run it waits for did not succeed."""
+    # Only the upstream runs whose failure is not allowed for are why the run is skipped.
+    reason = f"Skipped: {_describe_upstream_runs([upstream for upstream in found if not upstream['allow-failure']], ('failed', 'passed-over'))}"
+    run = _end_skipped_run(claimed_run, "UpstreamRunFailed", reason)
     return {
         "run_id": run.id,
         "job_id": None,

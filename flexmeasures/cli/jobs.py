@@ -45,9 +45,11 @@ from flexmeasures.data.services.automations import (
     AutomationRunClaimLost,
     dispatch_automation_run,
     floor_to_minute,
+    format_automation_time,
     get_dispatchable_automation_runs,
     run_automation,
     run_automation_chain,
+    skip_stale_automation_runs,
 )
 from flexmeasures.data.services.data_sources import (
     find_duplicate_sources,
@@ -81,6 +83,10 @@ QUEUE_EXCEPTION_HANDLERS = dict(
 )
 
 
+# The largest --max-catchup, which keeps the bound within the range of a datetime.
+MAX_CATCHUP_MINUTES = 60 * 24 * 366
+
+
 @click.group("jobs", cls=LoggedClickExceptionGroup)
 def fm_jobs():
     """FlexMeasures: Job queueing."""
@@ -88,12 +94,22 @@ def fm_jobs():
 
 @fm_jobs.command("run-automations")
 @with_appcontext
-def run_automations():
+@click.option(
+    "--max-catchup",
+    "max_catchup",
+    type=click.IntRange(min=0, max=MAX_CATCHUP_MINUTES),
+    default=None,
+    help="Only catch up on a missed run scheduled at most this many minutes ago, counted in real minutes (at most a year)."
+    " Older missed runs, and older runs a runner left before queueing any job, are skipped and recorded as such,"
+    " and their automations resume on their next scheduled run. By default, missed runs are caught up however old they are.",
+)
+def run_automations(max_catchup: int | None):
     """
     Queue jobs for all automations that are due to run this minute.
 
     Each cron string is interpreted in the automation's timezone.
-    Missed forecast runs are caught up once, with several missed runs coalesced into the latest useful forecast.
+    Missed runs are caught up once, with several missed runs of the same automation coalesced into the latest one.
+    Use --max-catchup to bound how old a missed run may be to still be caught up.
     Run this command once per minute (e.g. via cron):
 
     \b
@@ -107,6 +123,13 @@ def run_automations():
     This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
+    if max_catchup is not None:
+        for skipped in skip_stale_automation_runs(timedelta(minutes=max_catchup), now):
+            automation = skipped.automation
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') run {skipped.id}, scheduled for {format_automation_time(automation, skipped.scheduled_at)}, is skipped, as it is more than {max_catchup} minute(s) old.",
+                **MsgStyle.WARN,
+            )
     report: list[dict] = []
     claimed_runs = get_dispatchable_automation_runs(now, report=report)
     # A killed job's run, or an abandoned run on demand, is failed here, which can skip or set off the runs waiting for it, too.
@@ -114,7 +137,7 @@ def run_automations():
         run = event["run"]
         failed = run.execution_state in ("failed", "skipped", "canceled")
         click.secho(
-            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {format_automation_time(run.automation, run.scheduled_at)}, is {run.execution_state if failed else run.dispatch_state}"
             + {
                 "reconciled": ", as its job ended without saying so",
                 "abandoned": ", as its dispatch was abandoned",
@@ -138,7 +161,7 @@ def run_automations():
             n_jobs = returns["n_jobs"]
             if returns.get("dispatch_state") in ("waiting", "skipped"):
                 click.secho(
-                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {format_automation_time(automation, claimed_run.run.scheduled_at)}, queued no jobs. {returns['message']}",
                     **(
                         MsgStyle.WARN
                         if returns["dispatch_state"] == "skipped"
@@ -148,7 +171,7 @@ def run_automations():
                 n_run += 1
                 continue
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {format_automation_time(automation, claimed_run.run.scheduled_at)}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1

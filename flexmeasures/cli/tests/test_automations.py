@@ -2521,12 +2521,89 @@ def test_run_automations_catches_up_once_after_downtime(
     assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
 
 
+@pytest.mark.parametrize(
+    ("max_catchup", "expected_queued"),
+    (
+        # At 09:05 UTC, the missed 10:00 Amsterdam run is 5 minutes old.
+        ("10", True),
+        ("5", True),
+        ("4", False),
+        ("0", False),
+    ),
+)
+def test_run_automations_bounds_catch_up(
+    app,
+    fresh_db,
+    setup_dummy_asset_fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    freeze_server_now,
+    max_catchup,
+    expected_queued,
+):
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            str(setup_dummy_asset_fresh_db),
+            "--name",
+            "Amsterdam catch-up",
+            "--cron",
+            "0 10 * * *",
+            "--timezone",
+            "Europe/Amsterdam",
+            "--sensor",
+            str(setup_dummy_data_fresh_db[0]),
+        ],
+    )
+    assert add_result.exit_code == 0, add_result.output
+
+    freeze_server_now(datetime(2026, 1, 15, 9, 5, tzinfo=timezone.utc))
+    result = runner.invoke(run_automations, ["--max-catchup", max_catchup])
+    assert result.exit_code == 0, result.output
+    if expected_queued:
+        assert result.output.count("queued") == 1, result.output
+        assert app.queues["forecasting"].count > 0
+    else:
+        assert "is skipped, as it is more than" in result.output, result.output
+        assert "No automations due" in result.output, result.output
+        assert app.queues["forecasting"].count == 0
+    # the run is named by its time on the automation's own clock
+    assert "scheduled for 2026-01-15 10:00 CET" in result.output, result.output
+
+    # either way, the missed run is handled, so a later tick without a bound does not catch it up
+    fresh_db.session.remove()
+    n_jobs = app.queues["forecasting"].count
+    second_result = runner.invoke(run_automations)
+    assert "No automations due" in second_result.output, second_result.output
+    assert app.queues["forecasting"].count == n_jobs
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
+
+
+def test_run_automations_refuses_a_bound_beyond_a_year(app):
+    """A bound of more than a year is refused, rather than overflowing the datetime it is subtracted from."""
+    from flexmeasures.cli.jobs import run_automations
+
+    result = app.test_cli_runner().invoke(
+        run_automations, ["--max-catchup", "2000000000"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "--max-catchup" in result.output
+
+
 def test_run_automations_reports_durable_run_status(app, clean_redis, mocker):
     """The automation runner reports durable run and retry-attempt identifiers."""
     from flexmeasures.cli.jobs import run_automations
 
     automation = SimpleNamespace(
-        id=42, name="Partial run", asset_id=1, type="scheduling"
+        id=42, name="Partial run", asset_id=1, type="scheduling", timezone="UTC"
     )
     run = SimpleNamespace(
         id=7,
@@ -2549,7 +2626,7 @@ def test_run_automations_reports_durable_run_status(app, clean_redis, mocker):
 
     assert result.exit_code == 0, result.output
     assert "run 7 queued 3 scheduling job(s) for asset 1" in result.output
-    assert "scheduled for 2026-08-05 01:00:00+00:00" in result.output
+    assert "scheduled for 2026-08-05 01:00 UTC" in result.output
 
 
 def test_run_automation_revalidates_output_scope(
