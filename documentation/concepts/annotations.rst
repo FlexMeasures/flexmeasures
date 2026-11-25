@@ -504,6 +504,7 @@ A data generator, such as a reporter checking sensors for gaps in their data, ca
 FlexMeasures saves each finding as a version of an annotation on the sensor it is about, with the finding's type saying how urgent it is
 (for instance ``warning``, or ``alert`` when it requires action).
 Each run saves a new version only of the findings that changed, and gives a finding it no longer returns a resolved version, of type ``label``.
+With ``flexmeasures add report --dry-run``, the findings are printed instead.
 
 See ``flexmeasures.data.services.generator_results`` for the shape of such results.
 
