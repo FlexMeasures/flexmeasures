@@ -661,14 +661,15 @@ def test_running_a_chain_on_demand(
     # An inactive automation does not run, and neither does what only waits for it.
     paused = make_automation("Paused", depends_on=[snapper])
     paused.active = False
-    make_automation("Waits for paused", depends_on=[paused])
+    waits_for_paused = make_automation("Waits for paused", depends_on=[paused])
     fresh_db.session.commit()
 
     runs, returns, excluded = run_automation_chain(snapper, "downstream", now=TICK)
     dependent_runs = runs[1:]
 
     assert [(step.id, reason) for step, reason in excluded] == [
-        (paused.id, "It is inactive.")
+        (paused.id, "It is inactive."),
+        (waits_for_paused.id, "Waits for Paused, which does not run."),
     ]
     assert [run.automation_id for run in dependent_runs] == [flows.id, totals.id]
     assert [run.dispatch_state for run in dependent_runs] == ["waiting", "waiting"]
@@ -777,7 +778,7 @@ def test_a_failure_above_stops_an_automation_run_with_upstream(
 def test_a_branch_can_be_excluded_from_a_run_with_upstream(
     fresh_db, app, make_automation
 ):
-    """Leaving out an automation takes along what only it needs, and what waits for it goes ahead without it."""
+    """Leaving out an automation takes along what only it needs, which is said, and what waits for it goes ahead without it."""
     tariffs = make_automation("Pull tariffs")
     prices = make_automation("Compute prices", depends_on=[tariffs])
     meters = make_automation("Pull meters")
@@ -789,7 +790,8 @@ def test_a_branch_can_be_excluded_from_a_run_with_upstream(
 
     assert [run.automation_id for run in runs] == [meters.id, forecast.id]
     assert [(step.id, reason) for step, reason in excluded] == [
-        (prices.id, "You left it out.")
+        (prices.id, "You left it out."),
+        (tariffs.id, "Only runs for Compute prices, which you left out."),
     ]
     _work(app, runs[0])
     assert _states(fresh_db, runs)[forecast.id][0] == "queued"
@@ -814,6 +816,7 @@ def test_what_may_not_run_is_reported_and_takes_along_what_is_above_it(
     assert {(step.id, reason) for step, reason in excluded} == {
         (public.id, "You may not run this automation."),
         (paused.id, "It is inactive."),
+        (tariffs.id, "Only runs for Public prices, which does not run."),
     }
 
 
@@ -869,6 +872,24 @@ def test_deactivating_an_automation_cancels_its_waiting_runs(
     assert totals_run.plan["upstream-runs"][0]["state"] == "not-scheduled"
 
 
+def test_a_chain_run_leaves_out_what_may_not_be_read(fresh_db, make_automation):
+    """Another organisation's automation that waits for this one does not run, and its ID is not given away."""
+    snapper = make_automation("Snap meter readings")
+    flows = make_automation("Compute flows", depends_on=[snapper])
+    operator_copy = make_automation("Operator's copy", depends_on=[snapper])
+
+    runs, _, excluded = run_automation_chain(
+        snapper,
+        "downstream",
+        now=TICK,
+        may_run=lambda automation: automation.id != operator_copy.id,
+        may_read=lambda automation: automation.id != operator_copy.id,
+    )
+
+    assert [run.automation_id for run in runs] == [snapper.id, flows.id]
+    assert excluded == []
+
+
 def test_an_automation_without_upstream_automations_just_runs(
     fresh_db, app, make_automation
 ):
@@ -883,7 +904,7 @@ def test_an_automation_without_upstream_automations_just_runs(
 def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
     fresh_db, make_automation
 ):
-    """A plan lists the automations in the order they run, and says why one does not, giving nothing away about one that may not be read."""
+    """A plan lists the automations in the order they run, and says why one does not, leaving out one that may not be read."""
     public = make_automation("Public prices")
     meters = make_automation("Pull meters")
     forecast = make_automation("Forecast", depends_on=[public, meters])
@@ -896,13 +917,7 @@ def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
         may_run=lambda automation: automation.id != public.id,
     )
 
-    assert plan["excluded"] == [
-        {
-            "automation": public.id,
-            "reason": "You may not run this automation.",
-            "waited-for-by": [forecast.id],
-        }
-    ]
+    assert plan["excluded"] == []
     assert [step["automation"] for step in plan["steps"]] == [meters.id, forecast.id]
     assert plan["steps"][1]["waits-for"] == [meters.id]
     assert plan["steps"][1]["name"] == "Forecast"
@@ -918,6 +933,47 @@ def test_the_plan_of_a_run_says_what_will_and_what_will_not_run(
     # What the user may read says when it last succeeded, which it has not yet.
     assert downwards["excluded"][0]["last-succeeded-at"] is None
     assert downwards["excluded"][0]["waited-for-by"] == []
+
+
+def test_a_plan_says_how_what_does_not_run_relates_to_the_steps(
+    fresh_db, make_automation
+):
+    """A step lists what it waits for that does not run, too, and what is left out along with it is listed, naming only what may be read."""
+    snapper = make_automation("Snap meter readings")
+    solar = make_automation("Solar forecast", depends_on=[snapper])
+    prices = make_automation("Check day-ahead prices")
+    other = make_automation("Operator's prices")
+    schedule = make_automation("Battery schedule", depends_on=[solar, prices, other])
+
+    plan = plan_automation_chain(
+        schedule,
+        "upstream",
+        exclude=[solar.id],
+        may_read=lambda automation: automation.id != other.id,
+        may_run=lambda automation: automation.id not in (prices.id, other.id),
+    )
+
+    assert [step["automation"] for step in plan["steps"]] == [schedule.id]
+    # The operator's automation may not be read, so it shows nowhere.
+    assert plan["steps"][0]["waits-for"] == [solar.id, prices.id]
+    assert [
+        (step["automation"], step["reason"], step["waited-for-by"])
+        for step in plan["excluded"]
+    ] == [
+        (solar.id, "You left it out.", [schedule.id]),
+        (prices.id, "You may not run this automation.", [schedule.id]),
+        (snapper.id, "Only runs for Solar forecast, which you left out.", []),
+    ]
+
+    # Downstream, what only waits for an automation that does not run is taken along, too.
+    report = make_automation("Battery report", depends_on=[schedule])
+    downwards = plan_automation_chain(
+        prices, "downstream", may_run=lambda automation: automation.id != schedule.id
+    )
+    assert [(step["automation"], step["reason"]) for step in downwards["excluded"]] == [
+        (schedule.id, "You may not run this automation."),
+        (report.id, "Waits for Battery schedule, which does not run."),
+    ]
 
 
 def test_a_plan_says_when_an_excluded_automation_last_succeeded(

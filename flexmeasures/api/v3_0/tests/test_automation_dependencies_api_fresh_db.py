@@ -395,7 +395,7 @@ def _downstream_of(fresh_db, upstream, sensor, *upstreams) -> Automation:
 def test_run_plan_tells_what_will_run_and_what_will_not(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """A public automation can be waited for but not run, which the plan says, and the plan runs nothing."""
+    """A public automation can be waited for but not run, which the plan says, another organisation's automation is left out, and the plan runs nothing."""
     battery, sensor, upstream = upstream_automations
     downstream = _downstream_of(
         fresh_db,
@@ -424,11 +424,11 @@ def test_run_plan_tells_what_will_run_and_what_will_not(
         excluded[upstream["public"].id]["reason"] == "You may not run this automation."
     )
     assert excluded[upstream["public"].id]["name"] == "Upstream on troposphere"
-    assert excluded[upstream["foreign"].id] == {
-        "automation": upstream["foreign"].id,
-        "reason": "You may not run this automation.",
-        "waited-for-by": [downstream.id],
-    }
+    assert upstream["foreign"].id not in excluded
+    assert response.json["steps"][1]["waits-for"] == [
+        upstream["own"].id,
+        upstream["public"].id,
+    ]
     assert excluded[upstream["public"].id]["last-succeeded-at"] is None
     assert fresh_db.session.scalars(select(AutomationRun)).all() == []
 
@@ -516,7 +516,7 @@ def test_trigger_automation_with_downstream(
 def test_trigger_automation_with_downstream_excludes_what_the_user_may_not_run(
     app, fresh_db, upstream_automations, requesting_user
 ):
-    """Another organisation's automation waiting for this one does not run on the user's say, and does not keep the rest from running."""
+    """Another organisation's automation waiting for this one does not run on the user's say, is not named, and does not keep the rest from running."""
     battery, sensor, upstream = upstream_automations
     upstream["own"].parameters = {"sensor": sensor.id}
     fresh_db.session.add(
@@ -534,11 +534,6 @@ def test_trigger_automation_with_downstream_excludes_what_the_user_may_not_run(
         )
     assert response.status_code == 202, response.json
     assert [run["automation"] for run in response.json["runs"]] == [upstream["own"].id]
-    assert response.json["excluded"] == [
-        {
-            "automation": upstream["foreign"].id,
-            "reason": "You may not run this automation.",
-        }
-    ]
+    assert response.json["excluded"] == []
     runs = fresh_db.session.scalars(select(AutomationRun)).all()
     assert [run.automation_id for run in runs] == [upstream["own"].id]

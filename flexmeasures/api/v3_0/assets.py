@@ -2404,7 +2404,8 @@ class AssetAPI(FlaskView):
             An automation that is inactive, or that you may not run, is excluded, along with what can only be reached through it.
             Pass `exclude` to exclude automations yourself, such as one of several branches.
             See the `run-plan` endpoint for what this would come down to.
-            The response lists the runs under `runs`, in chain order, and the excluded automations under `excluded`, each with the reason;
+            The response lists the runs under `runs`, in chain order, and the excluded automations under `excluded`, each with the reason,
+            including what does not run along with them, and leaving out those you may not read;
             its `job` is that of this automation's own run, if that started right away.
           security:
             - ApiKeyAuth: []
@@ -2605,12 +2606,14 @@ class AssetAPI(FlaskView):
           description: |
             Nothing is run.
             Runs always flow downstream; `include` says which part of the chain is included.
-            The automations that will run are listed under `steps`, in chain order, each saying what it waits for among these steps.
+            The automations that will run are listed under `steps`, in chain order,
+            each saying what it waits for among these steps and among the automations that will not run.
             The automations that will not run are listed under `excluded`, each with the reason,
-            which of the steps wait for it, and, if you may read it, when it last succeeded (null if it never did).
+            which of the steps wait for it, and when it last succeeded (null if it never did).
+            They include what does not run along with an automation that does not run, as it can only be reached through it.
             They still run on their own schedule, just not because of this request,
             and the steps that wait for them go by the results they last produced.
-            An automation you may not read stays a bare ID.
+            An automation you may not read is left out.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2704,7 +2707,11 @@ class AssetAPI(FlaskView):
             # One the user may not run is excluded, rather than refusing the whole chain,
             # as another organisation may wait for this automation, which reading it is enough for.
             runs, returns, excluded = run_automation_chain(
-                automation, include, exclude, may_run=_may_manage_automation
+                automation,
+                include,
+                exclude,
+                may_run=_may_manage_automation,
+                may_read=_may_read_automation,
             )
         except (
             NotImplementedError,

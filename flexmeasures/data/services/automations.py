@@ -3529,6 +3529,7 @@ def get_chain_automations(
     include: str,
     exclude: Collection[int] = (),
     may_run: Callable[[Automation], bool] | None = None,
+    may_read: Callable[[Automation], bool] | None = None,
 ) -> tuple[list[Automation], list[tuple[Automation, str]]]:
     """Return the automations to run along with this one, upstream or downstream of it, and those that do not run, with the reason.
 
@@ -3536,12 +3537,23 @@ def get_chain_automations(
     An automation that does not run takes along what can only be reached through it:
     upstream, nothing would use their results, and downstream, they would compute with results that were not renewed.
 
-    :param include: 'upstream' or 'downstream'.
-    :param exclude: IDs of automations not to run, as asked for.
-    :param may_run: whether an automation may be run, by default all of them.
-    :returns:       the automations that run, this one included, in the order they run (see `_in_chain_order`),
-                    and those that do not, for being left out, inactive or not allowed.
+    :param include:     'upstream' or 'downstream'.
+    :param exclude:     IDs of automations not to run, as asked for.
+    :param may_run:     whether an automation may be run, by default all of them.
+    :param may_read:    whether an automation may be named, in the reason another one does not run along with it; by default all of them.
+    :returns:           the automations that run, this one included, in the order they run (see `_in_chain_order`),
+                        and those that do not, for being left out, inactive or not allowed,
+                        followed by what they take along, each with the reason.
     """
+
+    def neighbours_of(current: Automation) -> list[Automation]:
+        if include == "upstream":
+            return sorted(
+                (dependency.upstream for dependency in current.dependencies),
+                key=lambda upstream: upstream.id,
+            )
+        return get_automations_waiting_for(current)
+
     reached = {automation.id}
     frontier = [automation]
     running = [automation]
@@ -3549,15 +3561,7 @@ def get_chain_automations(
     while frontier:
         found = []
         for current in frontier:
-            neighbours = (
-                sorted(
-                    (dependency.upstream for dependency in current.dependencies),
-                    key=lambda upstream: upstream.id,
-                )
-                if include == "upstream"
-                else get_automations_waiting_for(current)
-            )
-            for neighbour in neighbours:
+            for neighbour in neighbours_of(current):
                 if neighbour.id in reached:
                     continue
                 reached.add(neighbour.id)
@@ -3566,6 +3570,32 @@ def get_chain_automations(
                     excluded.append((neighbour, reason))
                     continue
                 running.append(neighbour)
+                found.append(neighbour)
+        frontier = found
+    # What can only be reached through an automation that does not run does not run either, which is said, too.
+    frontier = [step for step, _ in excluded]
+    while frontier:
+        found = []
+        for current in frontier:
+            if may_read is not None and not may_read(current):
+                name = "an automation"
+            else:
+                name = current.name
+            does_not_run = "you left out" if current.id in exclude else "does not run"
+            for neighbour in neighbours_of(current):
+                if neighbour.id in reached:
+                    continue
+                reached.add(neighbour.id)
+                excluded.append(
+                    (
+                        neighbour,
+                        (
+                            f"Only runs for {name}, which {does_not_run}."
+                            if include == "upstream"
+                            else f"Waits for {name}, which {does_not_run}."
+                        ),
+                    )
+                )
                 found.append(neighbour)
         frontier = found
     return _in_chain_order(running), excluded
@@ -3580,14 +3610,19 @@ def plan_automation_chain(
 ) -> dict[str, list[dict[str, Any]]]:
     """Say what running an automation along with what is upstream or downstream of it comes down to (see `get_chain_automations`).
 
-    :returns:   under 'steps', the automations that run, in the order they run, each with what it waits for among them,
+    :returns:   under 'steps', the automations that run, in the order they run,
+                each with what it waits for among them and among those that do not run,
                 and under 'excluded', those that do not run, each with the reason,
                 which of the steps wait for it, and when it last succeeded (null if never),
                 as the steps that wait for it go by the results it produced then.
-                One the user may not read stays a bare ID.
+                One the user may not read is left out of both.
     """
-    chain, excluded = get_chain_automations(automation, include, exclude, may_run)
-    involved = {step.id for step in chain}
+    chain, excluded = get_chain_automations(
+        automation, include, exclude, may_run, may_read
+    )
+    if may_read is not None:
+        excluded = [(step, reason) for step, reason in excluded if may_read(step)]
+    involved = {step.id for step in chain} | {step.id for step, _ in excluded}
 
     def describe(step: Automation) -> dict[str, Any]:
         if may_read is not None and not may_read(step):
@@ -3728,6 +3763,7 @@ def run_automation_chain(
     may_run: Callable[[Automation], bool] | None = None,
     now: datetime | None = None,
     owner: str | None = None,
+    may_read: Callable[[Automation], bool] | None = None,
 ) -> tuple[list[AutomationRun], dict[str, Any] | None, list[tuple[Automation, str]]]:
     """Run an automation now, along with what is upstream or downstream of it (see `get_chain_automations`), each once the runs it waits for ended.
 
@@ -3742,6 +3778,7 @@ def run_automation_chain(
     :param include: 'upstream' or 'downstream', or None to run the automation on its own.
     :param exclude: IDs of automations not to run.
     :param may_run: whether an automation may be run, by default all of them.
+    :param may_read: whether an automation may be named, and listed among those that do not run; by default all of them.
     :returns:       the runs in the order they run,
                     what this automation's own run dispatched if it started right away (see `dispatch_automation_run`),
                     and the automations that do not run, with the reason.
@@ -3751,7 +3788,11 @@ def run_automation_chain(
     if include is None:
         chain, excluded = [automation], []
     else:
-        chain, excluded = get_chain_automations(automation, include, exclude, may_run)
+        chain, excluded = get_chain_automations(
+            automation, include, exclude, may_run, may_read
+        )
+        if may_read is not None:
+            excluded = [(step, reason) for step, reason in excluded if may_read(step)]
     runs, claimed_runs = _start_on_demand_runs(
         chain,
         floor_to_minute(now or claimed_at),
