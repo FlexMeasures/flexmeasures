@@ -2693,7 +2693,9 @@ def test_run_one_automation_without_queued_job_is_an_error(
     )
     assert add_result.exit_code == 0, add_result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
-    mocker.patch("flexmeasures.cli.jobs.run_automation", return_value=None)
+    mocker.patch(
+        "flexmeasures.data.services.automations.run_automation", return_value=None
+    )
 
     result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
 

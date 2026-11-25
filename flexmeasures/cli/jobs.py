@@ -46,7 +46,6 @@ from flexmeasures.data.services.automations import (
     dispatch_automation_run,
     floor_to_minute,
     get_dispatchable_automation_runs,
-    run_automation,
     run_automation_chain,
 )
 from flexmeasures.data.services.data_sources import (
@@ -243,7 +242,8 @@ def run_one_automation(
         )
         return
     try:
-        returns = run_automation(automation)
+        # Recorded as a run on demand, so that it shows in the run history and counts for when the automation last succeeded.
+        _, returns, _ = run_automation_chain(automation, None)
     except (
         NotImplementedError,
         ValueError,

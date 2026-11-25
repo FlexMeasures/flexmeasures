@@ -3433,6 +3433,8 @@ def dispatch_automation_run(
         "run_id": run.id,
         "job_id": returns.get("job_id") if returns else None,
         "n_jobs": returns.get("n_jobs") if returns else 0,
+        # Why it queued nothing, if it says so.
+        "message": returns.get("message") if returns else None,
         "dispatch_state": "queued",
     }
 
@@ -3721,7 +3723,7 @@ def _start_on_demand_runs(
 
 def run_automation_chain(
     automation: Automation,
-    include: str,
+    include: str | None,
     exclude: Collection[int] = (),
     may_run: Callable[[Automation], bool] | None = None,
     now: datetime | None = None,
@@ -3735,8 +3737,9 @@ def run_automation_chain(
     and is skipped if one of those failed, as a scheduled run is, unless its dependency allows for failure.
     An automation that does not run is simply not waited for, so what waits for it goes by the results it already has.
     None of these runs affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue.
+    With nothing to include, the automation runs on its own, which is still recorded as a run, so its run history and when it last succeeded show it.
 
-    :param include: 'upstream' or 'downstream'.
+    :param include: 'upstream' or 'downstream', or None to run the automation on its own.
     :param exclude: IDs of automations not to run.
     :param may_run: whether an automation may be run, by default all of them.
     :returns:       the runs in the order they run,
@@ -3745,7 +3748,10 @@ def run_automation_chain(
     :raises:        whatever this automation's own run raised while queueing its jobs, if it started right away.
     """
     claimed_at = _now_utc()
-    chain, excluded = get_chain_automations(automation, include, exclude, may_run)
+    if include is None:
+        chain, excluded = [automation], []
+    else:
+        chain, excluded = get_chain_automations(automation, include, exclude, may_run)
     runs, claimed_runs = _start_on_demand_runs(
         chain,
         floor_to_minute(now or claimed_at),

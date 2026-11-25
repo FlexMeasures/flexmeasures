@@ -10,7 +10,7 @@ from flask import url_for
 from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import func, select
 
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
@@ -1410,7 +1410,7 @@ def test_trigger_automation_auth(
     battery = add_battery_assets["Test battery"]
     automation = add_automations[0]
     run_automation = mocker.patch(
-        "flexmeasures.api.v3_0.assets.run_automation",
+        "flexmeasures.data.services.automations.run_automation",
         return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
     )
     with app.test_client() as client:
@@ -1439,12 +1439,12 @@ def test_trigger_automation(
     requesting_user,
     mocker,
 ):
-    """Triggering a run reports the queued job, and leaves the automation's recurrence alone."""
+    """Triggering a run reports the queued job, records it as a run on demand, and leaves the automation's recurrence alone."""
     battery = add_battery_assets["Test battery"]
     automation = add_automations[1]  # inactive automations can be triggered, too.
     cursor_before = automation.cursor
     mocker.patch(
-        "flexmeasures.api.v3_0.assets.run_automation",
+        "flexmeasures.data.services.automations.run_automation",
         return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
     )
     with app.test_client() as client:
@@ -1462,6 +1462,13 @@ def test_trigger_automation(
     db.session.expire_all()
     assert automation.cursor == cursor_before
     assert automation.active is False
+    # Recorded, so that it shows in the run history and counts for when the automation last succeeded.
+    run = db.session.scalars(
+        select(AutomationRun).filter_by(
+            automation_id=automation.id, trigger="on-demand"
+        )
+    ).one()
+    assert run.dispatch_state == "queued"
 
 
 @pytest.mark.parametrize(
@@ -1478,7 +1485,7 @@ def test_trigger_automation_that_cannot_run(
     battery = add_battery_assets["Test battery"]
     automation = add_automations[0]
     mocker.patch(
-        "flexmeasures.api.v3_0.assets.run_automation",
+        "flexmeasures.data.services.automations.run_automation",
         side_effect=ValueError(
             "Forecast automation output sensor 3 must belong to asset 1 or one of its descendants."
         ),
@@ -1508,7 +1515,9 @@ def test_trigger_unknown_automation(
     mocker,
 ):
     """Triggering an automation the asset does not have returns 404, without running anything."""
-    run_automation = mocker.patch("flexmeasures.api.v3_0.assets.run_automation")
+    run_automation = mocker.patch(
+        "flexmeasures.data.services.automations.run_automation"
+    )
     if via_other_asset:
         # an existing automation, requested through an asset it does not belong to.
         asset = add_battery_assets["Test small battery"]

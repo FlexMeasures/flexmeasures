@@ -71,7 +71,6 @@ from flexmeasures.data.services.automations import (
     automation_min_interval,
     refuse_too_frequent_cron,
     resolve_automation_sensors,
-    run_automation,
     run_automation_chain,
     update_automation,
     user_may_change_monitoring,
@@ -2527,7 +2526,8 @@ class AssetAPI(FlaskView):
                 "Use exclude along with with-upstream or with-downstream."
             )
         try:
-            returns = run_automation(automation)
+            # Recorded as a run on demand, so that it shows in the run history and counts for when the automation last succeeded.
+            _, returns, _ = run_automation_chain(automation, None)
         except (
             NotImplementedError,
             ValueError,
