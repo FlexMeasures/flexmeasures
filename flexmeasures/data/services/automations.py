@@ -2581,13 +2581,13 @@ def current_sensor_ids(automation: Automation) -> dict[str, set[int]]:
 
 
 def _check_run_user_access(automation: Automation, prepared: PreparedAutomation):
-    """Require the user whom an automation runs as to have access to the sensors of its edited definition, too.
+    """Require the user whom an automation runs as to have access to the sensors of its edited definition, and the annotations it reads, too.
 
     The editor's access was checked while preparing the edit.
     Checking the run user as well keeps an edit from pointing the automation at sensors which only the editor may use,
     while its runs go on being checked against someone else.
 
-    :raises RunUserLacksAccess: if the run user is missing or inactive, or lacks access to a sensor.
+    :raises RunUserLacksAccess: if the run user is missing or inactive, or lacks access to a sensor or to annotations the data generator reads.
     """
     from flask_security import current_user
 
@@ -2618,6 +2618,28 @@ def _check_run_user_access(automation: Automation, prepared: PreparedAutomation)
                     ),
                     editor,
                 )
+    # Runs also read the annotations that a forecaster's config names (see `check_run_access`).
+    kept_sources = {
+        (type(source).__name__, source.id)
+        for source in annotation_sources(
+            automation.generator.data_generator if automation.generator else None
+        )
+    }
+    for source in annotation_sources(prepared.data_generator):
+        if not user_has_permission(run_user, source, "read"):
+            kind = {"Account": "account", "GenericAsset": "asset"}.get(
+                type(source).__name__, "sensor"
+            )
+            involvement = (
+                f"it reads the annotations of {kind} {source.id} (already in its configuration)"
+                if (type(source).__name__, source.id) in kept_sources
+                else f"it would then read the annotations of {kind} {source.id}"
+            )
+            raise RunUserLacksAccess(
+                f"You cannot change this automation, because {involvement},"
+                f" which {describe_run_user(run_user.id)}, whom it runs as, cannot read.",
+                editor,
+            )
 
 
 def _apply_automation_edit(

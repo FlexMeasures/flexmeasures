@@ -2233,6 +2233,45 @@ def test_patch_automation_refused_for_the_run_user_unless_taken_over(
     assert automation.parameters == new_parameters
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_automation_refused_for_annotations_the_run_user_cannot_read(
+    app,
+    db,
+    add_battery_assets,
+    setup_accounts,
+    setup_roles_users,
+    requesting_user,
+):
+    """Runs check the annotations a forecaster reads against the user the automation runs as, so an edit adding ones that user cannot read is refused."""
+    battery = add_battery_assets["Test battery"]
+    run_user_id = setup_roles_users["Test Prosumer User"]
+    supplier_id = setup_accounts["Supplier"].id
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = run_user_id
+    db.session.commit()
+    new_config = {"annotation-regressors": [{"account": supplier_id}]}
+
+    # The admin making the edit may read the Supplier's annotations, but the user the automation runs as may not.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": new_config}
+        )
+    assert response.status_code == 403, response.json
+    assert response.json["reason"] == "run-user-lacks-access"
+    assert response.json["refusal"] == (
+        f"You cannot change this automation, because it would then read the annotations of account {supplier_id},"
+        f" which Test Prosumer User (user {run_user_id}), whom it runs as, cannot read."
+    )
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": new_config, "run-as-me": True}
+        )
+    assert response.status_code == 200, response.json
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
