@@ -883,6 +883,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
   }
 
+  // A plugin type is created from the form like any other, so only a built-in type's hint mentions the CLI as well.
+  function createOneHint(automationType) {
+    return BUILTIN_AUTOMATION_TYPES.includes(automationType)
+      ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
+      : " Create one with the 'New automation' button.";
+  }
+
   function makeAutomationsTable(automationType, automations) {
     const scope = includeChildAssets && assetHasChildren ? "on this asset or below it" : "on this asset";
     const columns = [
@@ -915,7 +922,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         emptyTable: monitoringFilter !== "all"
           ? `No ${monitoringFilter} automations of type '${esc(automationTypes[automationType] || automationType)}' ${scope}.`
           : `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
-          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
+          + (userCanManage ? createOneHint(automationType) : ""),
       },
       columns: columns,
       data: automations.map(AutomationRow),
@@ -1086,8 +1093,53 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  // A toast raised just before the page reloads would vanish with it, so it waits in session storage until the page is back.
+  const TOAST_AFTER_RELOAD_KEY = "automationsPageToastAfterReload";
+
+  function rememberToastAfterReload(message) {
+    if (!message) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(TOAST_AFTER_RELOAD_KEY, message);
+    } catch (e) {
+      // Without session storage, the toast is skipped; the deletion itself went through.
+    }
+  }
+
+  function showToastLeftBeforeReload() {
+    let message = null;
+    try {
+      message = sessionStorage.getItem(TOAST_AFTER_RELOAD_KEY);
+      sessionStorage.removeItem(TOAST_AFTER_RELOAD_KEY);
+    } catch (e) {
+      return;
+    }
+    if (message) {
+      showToast(message, "info");
+    }
+  }
+
+  /* Deleting the last automation of a plugin type takes its tab away, which can look as if the type itself is gone,
+     so the user is told where to make one again. A type whose tab always shows, or whose plugin is gone, needs no such word. */
+  function lastOfItsTypeDeletedMessage(automationId) {
+    const automation = automationsById.get(Number(automationId));
+    if (!automation || alwaysShownAutomationTypes.has(automation.type) || !formOffersType(automation.type)) {
+      return null;
+    }
+    const othersOfItsType = lastListedAutomations.filter(
+      other => other.type === automation.type && other.id !== automation.id
+    );
+    if (othersOfItsType.length) {
+      return null;
+    }
+    const displayName = automationTypes[automation.type] || automation.type;
+    return `That was the last ${displayName} automation here. To make a new one, use New automation.`;
+  }
+
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
+    showToastLeftBeforeReload();
     // The field labels carry their reference text on an info icon, which Bootstrap only turns into a tooltip once asked.
     // A tooltip is appended to the body by default, at a z-index far below the one the theme gives a modal,
     // so one raised from inside a modal is painted behind it. Anchor it to the modal to put it in the same stacking context.
@@ -1255,10 +1307,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const automationId = $(this).data("id");
       const name = $(this).data("name");
       if (!confirm(`Delete automation '${name}'?`)) return;
+      const lastOfItsTypeMessage = lastOfItsTypeDeletedMessage(automationId);
       $.ajax({
         url: automationUrl(automationId),
         method: "DELETE",
-        success: () => location.reload(),
+        success: () => {
+          rememberToastAfterReload(lastOfItsTypeMessage);
+          location.reload();
+        },
         error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
       });
     });

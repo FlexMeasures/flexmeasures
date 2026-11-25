@@ -327,6 +327,30 @@ def test_a_new_automation_starts_as_the_type_of_the_tab_in_front(assert_js):
     """)
 
 
+def test_deleting_the_last_automation_of_a_plugin_type_says_how_to_make_one_again(
+    assert_js,
+):
+    """Its tab goes with it, so the user is told that New automation still makes one."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html())};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ lastOfItsTypeDeletedMessage, list: (automations) => {{"
+            + " lastListedAutomations = automations; automations.forEach(a => automationsById.set(a.id, a)); }} }};")();
+
+        page.list([{{id: 1, type: "mock-ingestion"}}, {{id: 2, type: "mock-ingestion"}}, {{id: 3, type: "forecasting"}}, {{id: 4, type: "gone-plugin"}}]);
+        eq("deleting one of two says nothing", page.lastOfItsTypeDeletedMessage(1), null);
+        eq("nor does deleting the last of a type whose tab always shows", page.lastOfItsTypeDeletedMessage(3), null);
+        eq("nor the last of a type whose plugin is gone, which cannot be made again", page.lastOfItsTypeDeletedMessage("4"), null);
+
+        page.list([{{id: 2, type: "mock-ingestion"}}]);
+        eq("deleting the last one says where to make a new one", page.lastOfItsTypeDeletedMessage("2"),
+           "That was the last Mock ingestion automation here. To make a new one, use New automation.");
+    """)
+
+
 def test_only_admins_can_switch_monitoring_in_the_form(assert_js):
     """Someone who may not switch monitoring off finds the checkbox disabled, and a copy of an unmonitored automation monitored."""
     assert_js(f"""
