@@ -248,6 +248,7 @@ class SensorAPI(FlaskView):
             beliefs_after=kwargs.get("beliefs_after", None),
             beliefs_before=kwargs.get("beliefs_before", None),
             include_asset_annotations=True,
+            most_recent_beliefs_only=True,
             as_frame=True,
         )
         if kwargs["clip"]:

@@ -480,6 +480,23 @@ This allows you to:
 See :ref:`ui_support_api` for the documentation of the sensor chart endpoints.
 
 
+Versions of an annotation
+-------------------------
+
+Annotations are versioned, as beliefs are.
+An annotation is identified by its subject (the account, asset or sensor it is attached to), its source and its start.
+Annotations sharing these are versions of one annotation, which may differ in their end, type and content,
+and the most recent version is the one with the latest prior (or, among versions without one, the one recorded last).
+
+The charts show only the most recent version of each annotation.
+When replaying data, they show the most recent version as known at the replayed moment.
+Searching annotations in code returns every version, unless ``most_recent_beliefs_only=True`` is passed to ``search_annotations``.
+
+Note that two annotations without a prior that share their subject, source and start are versions of one annotation, too,
+so only the one recorded last is shown on the charts.
+For instance, the workalendar import of German holidays for 2008 gives Ascension Day and Labour Day both on May 1st.
+
+
 See also
 --------
 
