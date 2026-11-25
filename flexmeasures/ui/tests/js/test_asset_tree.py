@@ -164,3 +164,17 @@ def test_children_of_other_organisations_are_marked(assert_js):
         eq("an own child has a solid border", box(option, 2).itemStyle.borderType, "solid");
         eq("the current asset keeps its own border", box(option, 1).itemStyle.borderType, "solid");
         """)
+
+
+def test_a_hidden_assets_icon_is_drawn_rather_than_printed(assert_js):
+    """A hidden asset's id holds hyphens, which ECharts does not accept in a style name, so it would print the icon tag literally."""
+    assert_js(TREE + """
+        const option = layout([
+            {id: 1, name: "site"},
+            {id: "hidden-children-of-1", name: "(another organisation)", parent: 1, icon: "/icons/lock.svg"},
+        ]);
+        const label = box(option, "hidden-children-of-1").label;
+        const styleName = label.formatter().match(/^\\{(\\w+)\\|\\}/)?.[1];
+        check("the icon is named by a style ECharts accepts", styleName !== undefined, label.formatter());
+        check("and that style holds the icon", label.rich[styleName]?.backgroundColor?.image === "/icons/lock.svg", JSON.stringify(Object.keys(label.rich)));
+        """)

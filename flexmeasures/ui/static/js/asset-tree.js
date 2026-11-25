@@ -258,8 +258,10 @@ export function buildAssetTreeOption(rootNodes, assetMap, options) {
         padding: [2, 0, 0, 0],
       },
     };
+    // ECharts style names allow only letters, digits and _, and a hidden node's id holds hyphens, which would print the tag literally.
+    const iconKey = "icon_" + String(node.id).replace(/\W/g, "_");
     if (node.icon) {
-      rich["icon_" + node.id] = {
+      rich[iconKey] = {
         backgroundColor: { image: node.icon },
         height: ICON_SIZE,
         width: ICON_SIZE,
@@ -281,7 +283,7 @@ export function buildAssetTreeOption(rootNodes, assetMap, options) {
         // so that ECharts does not substitute its template variables ({a}, {b}, {c}) in asset names.
         formatter: () =>
           node.icon
-            ? "{icon_" + node.id + "|}\n{text|" + displayName + "}"
+            ? "{" + iconKey + "|}\n{text|" + displayName + "}"
             : "{text|" + displayName + "}",
         rich: rich,
       },
