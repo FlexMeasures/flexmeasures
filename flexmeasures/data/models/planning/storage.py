@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import operator
 import re
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -125,7 +126,9 @@ class MetaStorageScheduler(Scheduler):
 
         return self.compute()
 
-    def _get_commodity_contexts(self) -> dict[str, dict]:
+    def _get_commodity_contexts(
+        self, commodities: Iterable[str] = ()
+    ) -> dict[str, dict]:
         """Return commodity-specific flex-contexts.
 
         Supports the new format:
@@ -136,6 +139,9 @@ class MetaStorageScheduler(Scheduler):
             ]
 
         and keeps backwards compatibility with old top-level fields.
+
+        :param commodities: Commodities in use by devices, each of which gets a bare context if the flex-context lists none for it,
+                            as if the flex-context listed just {"commodity": ...} (see _bare_commodity_context).
         """
 
         commodity_contexts = {}
@@ -148,7 +154,27 @@ class MetaStorageScheduler(Scheduler):
         if "electricity" not in commodity_contexts:
             commodity_contexts["electricity"] = self.flex_context
 
+        for commodity in commodities:
+            if commodity not in commodity_contexts:
+                commodity_contexts[commodity] = self._bare_commodity_context(commodity)
+
         return commodity_contexts
+
+    def _bare_commodity_context(self, commodity: str) -> dict:
+        """Return the context of a commodity that the flex-context lists no context for.
+
+        Such a commodity has no grid connection or prices, which makes it an internal node whose devices balance each other,
+        e.g. the steam between a device turning electricity into steam and a device consuming that steam.
+        Its devices relax their constraints as a bare commodity context does by default,
+        rather than following the breach prices and relax flags at the top level of the flex-context, which concern electricity.
+        """
+        schema = CommodityFlexContextSchema()
+        context = schema.load({"commodity": commodity})
+        shared_currency_unit = self.flex_context.get("shared_currency_unit")
+        if shared_currency_unit and is_currency_unit(shared_currency_unit):
+            SharedSchema._rebase_default_context_currency(context, shared_currency_unit)
+        schema.set_default_breach_prices_where_relaxed(context)
+        return context
 
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
@@ -439,7 +465,7 @@ class MetaStorageScheduler(Scheduler):
         # `_compute_commodity_aggregate_schedules` relies on.
         commodity_to_devices = inventory.commodity_to_devices
 
-        commodity_contexts = self._get_commodity_contexts()
+        commodity_contexts = self._get_commodity_contexts(commodity_to_devices)
         price_frames_by_commodity = {}
 
         for commodity, devices in commodity_to_devices.items():
@@ -3401,7 +3427,7 @@ class StorageScheduler(MetaStorageScheduler):
         commodity_to_devices = self._reconstruct_commodity_to_devices()
 
         # Get commodity contexts (handles backwards compatibility)
-        commodity_contexts = self._get_commodity_contexts()
+        commodity_contexts = self._get_commodity_contexts(commodity_to_devices)
 
         # Process each commodity
         for commodity, devices in commodity_to_devices.items():

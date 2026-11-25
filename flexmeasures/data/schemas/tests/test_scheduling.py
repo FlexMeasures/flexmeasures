@@ -1668,6 +1668,23 @@ def test_commodity_flex_context_internal_node_flag(
 
 
 @pytest.mark.parametrize(
+    "field", ["consumption-price-sensor", "production-price-sensor"]
+)
+def test_commodity_context_forbids_deprecated_price_sensors(field):
+    """Only the top level of a flex-context still supports the deprecated price sensor fields."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    with pytest.raises(ValidationError) as excinfo:
+        CommodityFlexContextSchema().load({"commodity": "gas", field: 1})
+    assert "deprecated" in str(excinfo.value.messages[field])
+
+    with pytest.raises(ValidationError) as excinfo:
+        FlexContextSchema().load({"commodities": [{"commodity": "gas", field: 1}]})
+    # Marshmallow reports errors raised before loading a nested list's entries without their index.
+    assert "deprecated" in str(excinfo.value.messages["commodities"][field])
+
+
+@pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
         # Test flex-context listing with mixed currencies should fail

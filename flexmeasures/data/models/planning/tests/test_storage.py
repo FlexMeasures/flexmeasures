@@ -3412,6 +3412,43 @@ def test_soc_breach_price_per_commodity(db, charge_point, form):
 
 
 @pytest.mark.parametrize(
+    "electricity_context",
+    [
+        {"soc-minima-breach-price": "777 EUR/kWh"},
+        {"relax-soc-constraints": False},
+    ],
+)
+@pytest.mark.parametrize("form", ["dict", "commodities", "list"])
+def test_soc_breach_price_of_a_commodity_without_a_context(
+    db, charge_point, form, electricity_context
+):
+    """A device of a commodity without a context of its own relaxes its constraints as a bare commodity context does by default.
+
+    EV B (steam, for the sake of the test) has no steam context, so steam is an internal node without a grid connection.
+    With no other steam device to balance it, EV B cannot charge, and falls short of its 3 kWh at the default SoC breach price,
+    rather than at the breach price or under the relax flags of electricity.
+    """
+    charged, costs = _schedule_two_evs(
+        db,
+        charge_point,
+        name=f"SoC breach price without a context, given {electricity_context} in the {form} form",
+        flex_context=_in_form(
+            form,
+            {
+                "consumption-price": "100 EUR/MWh",
+                "production-price": "0 EUR/MWh",
+                **electricity_context,
+            },
+        ),
+        commodity_of_ev_b="steam",
+        **{"soc-minima": "3 kWh"},
+    )
+
+    assert charged == pytest.approx([3, 0], abs=1e-3)
+    assert costs["any soc minima"] == pytest.approx(1000 * 3, rel=1e-3)
+
+
+@pytest.mark.parametrize(
     "deadline_of_ev_b, charged_by_ev_a",
     [
         # EV B takes 1 kW for 3 hours, leaving EV A 0.25 kW, and then 1 kW in the last hour.
