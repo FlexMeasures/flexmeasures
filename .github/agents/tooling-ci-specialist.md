@@ -110,7 +110,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### CI Matrix
 
-- [ ] **Python versions**: Test on supported versions (3.10-3.12)
+- [ ] **Python versions**: Test on supported versions (3.11-3.12)
 - [ ] **Service versions**: PostgreSQL version matches production
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
@@ -202,7 +202,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 **GitHub Actions workflows** (`.github/workflows/`):
 
 1. **lint-and-test.yml**
-   - Python versions: 3.10, 3.11, 3.12
+   - Python versions: 3.11, 3.12
    - PostgreSQL: 17.4 service container
    - Coverage: Python 3.11 only
    - Caching: pip dependencies
@@ -348,6 +348,9 @@ or Python version support changes. Edit the relevant section in place — don't 
 `numba`/`llvmlite`) introduced fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`),
 breaking the coverage check. Fix by adding `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms,
 then regenerating `uv.lock`. After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0 before committing.
+
+**A `uv.lock` merge conflict**: never merge the lockfile by hand; take main's and lock again with the required `uv` version.
+See `.github/instructions/dependencies.instructions.md`.
 
 Before claiming a CI/tooling change works: run `pre-commit run --all-files` locally, and if it's a workflow change,
 verify it actually passes in CI on a branch — don't assume.

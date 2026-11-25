@@ -253,16 +253,29 @@ def test_profit_reporter_parameters_schema(
 def test_specialized_reporter_schemas_preserve_required_dataflow_fields(
     db, app, setup_dummy_sensors
 ):
-    """Overridden input/output fields remain required by the reporter contract."""
-    with pytest.raises(ValidationError) as aggregator_error:
+    """Overridden input/output fields remain required by the reporter contract.
+
+    The AggregatorReporter is the exception, and deliberately so: a report over a device group takes both
+    the sensors to aggregate and the sensor to record on from the flex-config, so its schema accepts
+    parameters naming neither, and the reporter itself says what is missing when it can find neither
+    there (see test_aggregator.py). What the schema still holds it to is recording on at most one sensor.
+    """
+    AggregatorParametersSchema().load(
+        {
+            "input": [{"sensor": 1}],
+            "start": start,
+            "end": end,
+        }
+    )
+    with pytest.raises(ValidationError) as too_many_outputs:
         AggregatorParametersSchema().load(
             {
-                "input": [{"sensor": 1}],
+                "output": [{"sensor": 1}, {"sensor": 3}],
                 "start": start,
                 "end": end,
             }
         )
-    assert "output" in aggregator_error.value.messages
+    assert "output" in too_many_outputs.value.messages
 
     with pytest.raises(ValidationError) as profit_error:
         ProfitOrLossReporterParametersSchema().load(
@@ -374,3 +387,89 @@ def test_report_parameters_prefer_prior_over_a_leftover_belief_time(
         }
     )
     assert loaded["belief_time"].isoformat() == "2023-04-12T06:00:00+00:00"
+
+
+def _single_transformation_config(transformation: dict) -> dict:
+    return {
+        "required_input": [{"name": "sensor_1"}],
+        "required_output": [{"name": "final_output"}],
+        "transformations": [
+            {"df_input": "sensor_1", "df_output": "final_output", **transformation}
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "transformation",
+    [
+        # File writes
+        {"method": "to_csv", "args": ["/tmp/x.py"], "kwargs": {"index": False}},
+        {"method": "to_pickle", "args": ["/tmp/x.pkl"]},
+        {"method": "to_json", "args": ["/tmp/x.json"]},
+        # Expression evaluation
+        {"method": "eval", "args": ["event_value > 3"]},
+        {"method": "query", "args": ["event_value > 3"]},
+        # Methods that call another method or function named by a string
+        {"method": "apply", "args": ["to_csv"]},
+        {"method": "agg", "args": ["to_csv"]},
+        {"method": "aggregate", "args": ["to_csv"]},
+        {"method": "transform", "args": ["to_csv"]},
+        {"method": "pipe", "args": ["to_csv"]},
+        {"method": "pipe", "args": ["sum"]},
+        # ... also when the name is hidden in a list, a dict or a keyword argument
+        {"method": "agg", "args": [["min", "to_csv"]]},
+        {"method": "agg", "args": [{"event_value": "to_pickle"}]},
+        {"method": "agg", "args": [{"event_value": ["max", "eval"]}]},
+        {"method": "transform", "kwargs": {"func": "to_json"}},
+        {"method": "apply", "args": ["query"]},
+        # ... or names one of these methods, a pseudo-method or no name at all
+        {"method": "apply", "args": ["apply"]},
+        {"method": "agg", "args": ["get_attribute"]},
+        {"method": "agg", "args": [[1]]},
+        {"method": "agg", "args": [None]},
+        {"method": "agg"},
+        {"method": "agg", "args": ["sum"], "kwargs": {"func": "max"}},
+        # Attributes that are not data
+        {"property": "to_csv"},
+        {"property": "__class__"},
+        {"property": "_data"},
+        # Attributes that lead from the sensor or asset to other objects
+        {"property": "owner"},
+        {"property": "secrets"},
+        {"property": "account"},
+        {"property": "consultancy_account"},
+        {"property": "users"},
+        {"property": "attributes"},
+    ],
+)
+def test_pandas_reporter_config_refuses_io_and_evaluation(
+    transformation, db, app, setup_dummy_sensors
+):
+    """A reporter config is user input (report triggers and automations), so it may only name pure transformations, not file writes or expression evaluation."""
+    with pytest.raises(ValidationError):
+        PandasReporterConfigSchema().load(_single_transformation_config(transformation))
+
+
+@pytest.mark.parametrize(
+    "transformation",
+    [
+        {"method": "sum", "kwargs": {"axis": 1}},
+        {"method": "where", "args": [True]},
+        {"method": "shift", "kwargs": {"periods": -1}},
+        {"method": "get_attribute", "args": ["capacity_in_mw"]},
+        # methods called by name, if those are allowed too
+        {"method": "agg", "args": ["sum"]},
+        {"method": "aggregate", "args": [["min", "max"]]},
+        {"method": "agg", "args": [{"event_value": ["min", "max"]}]},
+        {"method": "agg", "kwargs": {"func": {"event_value": "mean"}}},
+        {"method": "apply", "args": ["abs"]},
+        {"method": "transform", "args": ["cumsum"]},
+        {"property": "index"},
+        {"property": "sensor"},
+        {"property": "generic_asset"},
+    ],
+)
+def test_pandas_reporter_config_allows_pure_transformations(
+    transformation, db, app, setup_dummy_sensors
+):
+    PandasReporterConfigSchema().load(_single_transformation_config(transformation))

@@ -4,6 +4,7 @@ Backoffice user interface & charting support.
 
 import json
 import os
+import threading
 from datetime import date, datetime
 
 from flask import current_app, Flask, Blueprint, send_from_directory, request
@@ -14,7 +15,7 @@ import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, MethodNotAllowed
 
 from flexmeasures.auth import policy as auth_policy
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
@@ -32,9 +33,40 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
+from flexmeasures.ui.utils.vendor_assets import (
+    APP_EXTENSION,
+    active_libraries,
+    fetch_unless_fetching,
+    fetched_before,
+    libraries_with_overrides,
+    missing_files,
+    unhashed_libraries,
+    vendor_attrs,
+    vendor_url,
+)
+
+
+class UIBlueprint(Blueprint):
+    """A blueprint whose vendored files, under static/vendor/<lib>/<version>/, browsers may keep for a year."""
+
+    def send_static_file(self, filename: str):
+        response = super().send_static_file(filename)
+        parts = filename.split("/")
+        libraries = active_libraries()
+        # A new version of a library gets a new path, so a cached copy is never stale.
+        if (
+            len(parts) > 3
+            and parts[0] == "vendor"
+            and parts[1] in libraries
+            and libraries[parts[1]].version == parts[2]
+        ):
+            response.cache_control.max_age = 31536000
+            response.cache_control.immutable = True
+        return response
+
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
-flexmeasures_ui = Blueprint(
+flexmeasures_ui = UIBlueprint(
     "flexmeasures_ui",
     __name__,
     static_folder="static",
@@ -81,8 +113,84 @@ def register_at(app: Flask):
     from flexmeasures.ui.error_handlers import add_html_error_views
 
     add_html_error_views(app)
+    load_vendor_libraries(app)
     add_jinja_filters(app)
     add_jinja_variables(app)
+    log_where_vendor_files_load_from(app)
+    fetch_vendor_files_on_first_request(app)
+
+
+def load_vendor_libraries(app: Flask):
+    """Settle which versions of the UI's libraries the app loads, applying the FLEXMEASURES_JS_VERSIONS setting."""
+    app.extensions[APP_EXTENSION] = libraries_with_overrides(
+        app.config.get("FLEXMEASURES_JS_VERSIONS")
+    )
+
+
+def log_where_vendor_files_load_from(app: Flask):
+    """Tell hosts whether browsers load the UI's libraries from CDNs, and how to serve them from FlexMeasures instead."""
+    libraries = app.extensions[APP_EXTENSION]
+    missing = missing_files(libraries)
+    if missing and app.config.get("FLEXMEASURES_FETCH_UI_LIBRARIES"):
+        app.logger.info(
+            f"{len(missing)} file(s) of the UI's libraries were not fetched yet, so browsers load them from CDNs. "
+            "FlexMeasures fetches them in the background once it serves its first request."
+        )
+    elif missing:
+        # Files fetched before, but missing now, most likely belong to versions which an upgrade bumped.
+        log = app.logger.warning if fetched_before() else app.logger.info
+        log(
+            f"{len(missing)} file(s) of the UI's libraries were not fetched, so browsers load them from CDNs. "
+            "To serve them from FlexMeasures, for example without internet access, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
+        )
+    for key in unhashed_libraries(libraries):
+        version = libraries[key].version
+        app.logger.warning(
+            f"FLEXMEASURES_JS_VERSIONS sets {key} to {version} without hashes, so browsers load it from its CDN without checking it, and it is not fetched. "
+            f"To have it checked, set the hashes printed by: python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes {key} --version {version}"
+        )
+
+
+def fetch_vendor_files_on_first_request(app: Flask):
+    """Have the first request which a process serves start fetching the UI's missing library files, in the background.
+
+    Only web processes serve requests, so CLI commands and job workers never fetch.
+    The request does not wait for the fetch, and browsers load the files from CDNs until they are fetched.
+    Of the web processes on a host, only the first one to get the lock fetches.
+    """
+    if not app.config.get("FLEXMEASURES_FETCH_UI_LIBRARIES"):
+        return
+    libraries = app.extensions[APP_EXTENSION]
+    # Each web process has its own copy of this, also when gunicorn forks them from a process which loaded the app.
+    started = threading.Lock()
+
+    @app.before_request
+    def start_fetching_vendor_files():
+        if not started.acquire(blocking=False):
+            return
+        thread = threading.Thread(
+            target=_fetch_vendor_files,
+            args=(app, libraries),
+            name="fetch-ui-libraries",
+            daemon=True,
+        )
+        app.extensions["flexmeasures_vendor_fetch"] = thread
+        thread.start()
+
+
+def _fetch_vendor_files(app: Flask, libraries):
+    try:
+        written = fetch_unless_fetching(libraries)
+    except (OSError, ValueError) as exc:
+        app.logger.warning(
+            f"Could not fetch the UI's libraries, so browsers keep loading them from CDNs: {exc}. "
+            "To fetch them by hand, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
+        )
+        return
+    if written:
+        app.logger.info(
+            f"Fetched {written} file(s) of the UI's libraries, which FlexMeasures serves itself from now on."
+        )
 
 
 def _tolerate_non_json_job_data():
@@ -113,6 +221,26 @@ def _tolerate_non_json_job_data():
     rq_dashboard.web.json = TolerantJson()
 
 
+@login_required
+@roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
+def rq_dashboard_admin_auth():
+    """Allow only admins to use the task dashboard, and admin-readers only to look."""
+
+    # Requeueing runs jobs again (which write data), so it is not done on GET (or HEAD, which Flask routes to the same view),
+    # which a link or an image could trigger. The dashboard's own buttons use POST.
+    if request.method in ("GET", "HEAD") and "/requeue" in request.path:
+        raise MethodNotAllowed(
+            valid_methods=["POST"],
+            description="Requeueing jobs is only possible with POST.",
+        )
+    if current_user.has_role(ADMIN_READER_ROLE) and (request.method != "GET"):
+        raise Forbidden(
+            f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Requeueing, editing or deleting is forbidden."
+        )
+
+    return
+
+
 def register_rq_dashboard(app):
     _tolerate_non_json_job_data()
     app.config.update(
@@ -128,33 +256,15 @@ def register_rq_dashboard(app):
         ]
     )
 
-    @login_required
-    def basic_auth():
-        """Ensure basic authorization."""
-        return
-
-    @login_required
-    @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
-    def basic_admin_auth():
-        """Ensure basic admin authorization."""
-
-        if (
-            current_user.has_role(ADMIN_READER_ROLE)
-            and (request.method != "GET")
-            and ("requeue" not in request.path)
-        ):
-            raise Forbidden(
-                f"User with `{ADMIN_READER_ROLE}` role is only allowed to list/inspect tasks, queues and workers. Edition or deletion operations are forbidden."
-            )
-
-        return
-
-    # Logged-in users can view queues on the demo server, but only admins can view them on other servers
-    if app.config.get("FLEXMEASURES_ENV") != "documentation":
-        if app.config.get("FLEXMEASURES_MODE", "") == "demo":
-            rq_dashboard.blueprint.before_request(basic_auth)
-        else:
-            rq_dashboard.blueprint.before_request(basic_admin_auth)
+    # Only admins (and admin-readers, to look) may use the dashboard, in every mode and environment:
+    # it shows the arguments, results and errors of every account's jobs, and can delete them.
+    # The blueprint is shared by every app created in the same process (the documentation build creates one per API page),
+    # and Flask refuses new hooks on a blueprint that is already registered, so the hook is added only once.
+    # It is added before the first registration, so no app serves the dashboard without it.
+    if rq_dashboard_admin_auth not in rq_dashboard.blueprint.before_request_funcs.get(
+        None, []
+    ):
+        rq_dashboard.blueprint.before_request(rq_dashboard_admin_auth)
 
     # To set template variables, use set_global_template_variables in app.py
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
@@ -211,6 +321,8 @@ def add_jinja_filters(app):
 
 
 def add_jinja_variables(app):
+    from flexmeasures.data.models.charts.belief_charts import CHARGE_POINT_CHART_NAMES
+
     # Set variables for Jinja template context
     for v, d in (
         ("FLEXMEASURES_MODE", ""),
@@ -221,6 +333,13 @@ def add_jinja_variables(app):
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
+    # A global rather than a per-render variable, so pages rendered without render_flexmeasures_template (e.g. login, errors) also get it.
+    app.jinja_env.globals["js_versions"] = {
+        key: library.version for key, library in app.extensions[APP_EXTENSION].items()
+    }
+    app.jinja_env.globals["charge_point_chart_names"] = CHARGE_POINT_CHART_NAMES
+    app.jinja_env.globals["vendor_url"] = vendor_url
+    app.jinja_env.globals["vendor_attrs"] = vendor_attrs
     app.jinja_env.globals["sphinx_docs_exist"] = (
         True
         if os.path.exists(

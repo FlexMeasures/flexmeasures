@@ -9,7 +9,6 @@ from flask import current_app
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
-from flask_security import current_user
 from sqlalchemy import select
 
 if TYPE_CHECKING:
@@ -25,8 +24,6 @@ from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
 )
-from flexmeasures.auth.policy import user_has_admin_access
-from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.utils.unit_utils import split_into_magnitude_and_unit
 
 
@@ -316,7 +313,7 @@ class SensorsToShowSchema(fields.Field):
            `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
         6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
            containing a field name or a list of field names:
-            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+           `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
         7. Mixed formats:
            `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
@@ -533,8 +530,8 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Validate the `parent_asset_id`.
 
         Ensures the referenced parent GenericAsset exists. When editing an existing
-        asset (available in `self.context.get("asset")`), also ensures the parent
-        belongs to the same `Account` as the asset being edited.
+        asset (available in `self.context.get("asset")`) and its parent changes to one in another
+        `Account`, also ensures the user may place the asset there (see `check_parent_asset_access`).
 
         Parameters
         ----------
@@ -545,7 +542,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         ------
         ValidationError
             If the parent asset does not exist, or if the parent belongs to a different
-            account than the current asset.
+            account than the current asset, and the user may not place the asset under it.
         """
         if parent_asset_id is None:
             return
@@ -560,29 +557,39 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         # Safely get the asset from context, defaulting to None if creating new
         current_asset = self.context.get("asset") if hasattr(self, "context") else None
 
-        # If editing an existing asset (context exists)
-        if current_asset and current_asset.account_id:
-            if parent_asset.account_id != current_asset.account_id:
-                raise ValidationError(
-                    "Parent asset must belong to the same account as the child asset."
-                )
+        # If editing an existing asset (context exists), and its parent changes
+        if (
+            current_asset is not None
+            and current_asset.parent_asset_id != parent_asset_id
+        ):
+            from flexmeasures.data.services.generic_assets import (
+                validate_parent_asset_access,
+            )
+
+            validate_parent_asset_access(parent_asset, current_asset.account_id)
+
+    @validates_schema
+    def validate_parent_account_on_creation(self, data, **kwargs):
+        """A new asset may be in another account than its parent, if the user may place it there (see `check_parent_asset_access`)."""
+        if self.partial or getattr(self, "context", {}).get("asset") is not None:
+            return
+        parent_id = data.get("parent_asset_id")
+        if parent_id is None:
+            return
+        parent = db.session.get(GenericAsset, parent_id)
+        if parent:
+            from flexmeasures.data.services.generic_assets import (
+                validate_parent_asset_access,
+            )
+
+            validate_parent_asset_access(parent, data.get("account_id"))
 
     @validates("account_id")
     def validate_account(self, account_id: int | None, **kwargs):
-        if account_id is None and (
-            running_as_cli() or user_has_admin_access(current_user, "update")
-        ):
+        if account_id is None:
             return
-        account = db.session.get(Account, account_id)
-        if not account:
+        if db.session.get(Account, account_id) is None:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
-        if not running_as_cli() and (
-            not user_has_admin_access(current_user, "update")
-            and account_id != current_user.account_id
-        ):
-            raise ValidationError(
-                "User is not allowed to create assets for this account."
-            )
 
     @validates("attributes")
     def validate_attributes(self, attributes: dict, **kwargs):

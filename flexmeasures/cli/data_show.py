@@ -33,10 +33,15 @@ from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    TimezoneField,
+)
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     describe_cronstr,
+    get_automations_waiting_for,
     resolve_automation_sensors,
 )
 from flexmeasures.data.services.time_series import simplify_index
@@ -110,7 +115,6 @@ def list_plans():
             plan.name,
             plan.default_rate_limit,
             plan.trigger_rate_limit,
-            plan.rate_limit_key.value if plan.rate_limit_key else None,
             "yes" if plan.legacy else "no",
         )
         for plan in plans
@@ -123,7 +127,6 @@ def list_plans():
                 "Name",
                 "Default rate limit",
                 "Trigger rate limit",
-                "Rate limit key",
                 "Legacy",
             ],
         )
@@ -184,6 +187,32 @@ def show_account(account):
         )
     else:
         click.secho("Account has no roles.", **MsgStyle.WARN)
+    click.echo()
+
+    plan = account.plan
+    plan_name = (
+        f"{plan.name}{' (legacy)' if plan.legacy else ''}"
+        if plan is not None
+        else "No plan (server defaults apply)"
+    )
+    click.echo(f"Plan: {plan_name}")
+    click.echo("------")
+    click.echo(
+        "Default API rate limit: "
+        + (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+    )
+    click.echo(
+        "Trigger rate limit: "
+        + (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+    )
     click.echo()
 
     users = db.session.scalars(
@@ -507,6 +536,7 @@ def list_automations(
                         else f"{automation.type} (plugin unavailable)"
                     ),
                     "yes" if automation.active else "no",
+                    "yes" if automation.monitored else "no",
                     automation.cronstr,
                     automation.timezone,
                 )
@@ -518,6 +548,7 @@ def list_automations(
                 "Name",
                 "Type",
                 "Active",
+                "Monitored",
                 "Cron",
                 "Timezone",
             ],
@@ -526,7 +557,7 @@ def list_automations(
 
 
 def _show_automation(automation: Automation):
-    """Show one automation in detail, including the sensors it reads from and writes to."""
+    """Show one automation in detail, including the automations it waits for and that wait for it, and the sensors it reads and writes."""
     title = f"Automation {automation.id}: {automation.name}"
     click.echo("=" * len(title))
     click.echo(title)
@@ -539,6 +570,7 @@ def _show_automation(automation: Automation):
                 ("Asset", f"{automation.asset.name} (ID: {automation.asset_id})"),
                 ("Type", automation.type),
                 ("Active", "yes" if automation.active else "no"),
+                ("Monitored", "yes" if automation.monitored else "no"),
                 (
                     "Recurrence",
                     f"{automation.cronstr} ({describe_cronstr(automation.cronstr)})",
@@ -555,6 +587,24 @@ def _show_automation(automation: Automation):
                     ),
                 ),
                 ("Parameters", json.dumps(automation.parameters, indent=4)),
+                (
+                    "Waits for",
+                    # Their recurrence says which of their runs this automation's runs wait for.
+                    "\n".join(
+                        f"{dependency.upstream.name} (ID: {dependency.upstream_id}, {dependency.upstream.cronstr} in {dependency.upstream.timezone})"
+                        + (", also when it fails" if dependency.allow_failure else "")
+                        for dependency in automation.dependencies
+                    )
+                    or "none",
+                ),
+                (
+                    "Waited for by",
+                    "\n".join(
+                        f"{waiting.name} (ID: {waiting.id})"
+                        for waiting in get_automations_waiting_for(automation)
+                    )
+                    or "none",
+                ),
             ],
             headers=["Field", "Value"],
         )
@@ -578,8 +628,8 @@ def _show_automation(automation: Automation):
         )
         return
     for role, header in (
-        ("input_sensors", "Reads from"),
-        ("output_sensors", "Writes to"),
+        ("input_sensors", "Sensors it reads"),
+        ("output_sensors", "Sensors it writes"),
     ):
         click.echo(f"\n{header}:\n")
         if not sensors[role]:
@@ -948,9 +998,9 @@ def chart(
 @click.option(
     "--timezone",
     "timezone",
-    type=str,
+    type=TimezoneField(),
     required=False,
-    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
+    help="Timezone of the plot, and of the data exported with --to-file. If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
@@ -1054,9 +1104,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    if timezone is not None:
-        timezone = sensors[0].timezone
-    df.index = df.index.tz_convert(timezone)
+    df.index = df.index.tz_convert(timezone or sensors[0].timezone)
 
     # Build title
     if len(sensors) == 1:
@@ -1072,6 +1120,7 @@ def plot_beliefs(
 
     uniplot.plot(
         ys=[df[col] for col in df.columns],
+        # uniplot labels the axis in the timezone of the index.
         xs=[df.index for _ in df.columns],
         title=title,
         color=True,

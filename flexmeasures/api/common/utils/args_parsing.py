@@ -57,7 +57,34 @@ def request_entity_too_large_handler(error: RequestEntityTooLarge):
 
 def _enforce_request_size_limit(request: Request, config_key: str):
     max_size = current_app.config.get(config_key)
-    if max_size is None or request.content_length is None:
+    if max_size is None:
+        return
+    max_size = int(max_size)
+    if request.content_length is None:
+        # A body without a Content-Length header (chunked transfer encoding) is measured by reading it,
+        # but never more than one byte past the limit.
+        body = getattr(request, "_cached_data", None)
+        if body is None:
+            # A read may return less than asked for, so read until the stream ends or the limit is passed.
+            # (If MAX_CONTENT_LENGTH is the same limit, the stream itself raises RequestEntityTooLarge once it is passed.)
+            body = b""
+            while len(body) <= max_size:
+                chunk = request.stream.read(max_size + 1 - len(body))
+                if not chunk:
+                    break
+                body += chunk
+            # Keep what was read for parsing the body later on (Werkzeug's get_data reads this cache).
+            request._cached_data = body
+        elif len(body) >= max_size:
+            # Read before, possibly cut off at MAX_CONTENT_LENGTH: anything left on the stream means it was too large.
+            # (A stream limited by MAX_CONTENT_LENGTH raises RequestEntityTooLarge itself here.)
+            body += request.stream.read(1)
+        if len(body) > max_size:
+            raise RequestEntityTooLarge(
+                description=(
+                    f"Request body exceeds the configured limit of {max_size} bytes."
+                )
+            )
         return
     if request.content_length > max_size:
         raise RequestEntityTooLarge(
@@ -107,7 +134,7 @@ def combined_sensor_data_upload(request: Request, schema):
     uploaded file data (`request.files`) into a single MultiDict, which is then passed to
     webargs for validation and deserialization.
 
-    It also injects the field  "belief-time-measured-instantly" from the form data into the dict.
+    It also injects the fields "belief-time-measured-instantly" and "prior" from the form data into the dict.
 
     Note:
         If any keys are present in both `request.view_args` and `request.files`,
@@ -127,6 +154,9 @@ def combined_sensor_data_upload(request: Request, schema):
     data.update(request.files)
     belief_time = request.form.get("belief-time-measured-instantly")
     data.update({"belief-time-measured-instantly": belief_time})
+    prior = request.form.get("prior")
+    if prior:
+        data.update({"prior": prior})
     unit = request.form.get("unit")
     if unit is not None:
         data.update({"unit": unit})

@@ -12,7 +12,9 @@ from redis.exceptions import ConnectionError
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.services.job_map import JobMap, NoRedisConfigured
+from rq.job import Job
 from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
 from flexmeasures.utils.time_utils import as_server_time
 
 
@@ -127,32 +129,61 @@ class TestJobMap(unittest.TestCase):
         )
         self.connection.sadd.assert_called_with(self.index_key, "job_id")
 
-    def test_get_empty_queue(self):
-        """Missing RQ jobs are removed from the Redis index."""
-        self.job_map.add(
-            "sensor_id", "job_id", queue="forecasting", asset_or_sensor_type="sensor"
-        )
-        self.connection.smembers.return_value = [b"job_id"]
 
-        self.mock_redis_job.fetch_many.return_value = [None]
-        with patch("flexmeasures.data.services.job_map.Job", new=self.mock_redis_job):
-            assert self.job_map.get("sensor_id", "forecasting", "sensor") == []
-            self.mock_redis_job.fetch_many.assert_called_once_with(
-                ["job_id"], connection=self.connection
-            )
-            assert self.connection.srem.call_count == 1
+@pytest.fixture
+def fake_redis():
+    return RQCompatibleFakeStrictRedis()
 
-    def test_get_non_empty_queue(self):
-        """Fetch indexed jobs when RQ still has their records."""
-        self.job_map.add(
-            "sensor_id", "job_id", queue="forecasting", asset_or_sensor_type="sensor"
-        )
-        forecasting_job = MagicMock()
-        self.connection.smembers.return_value = [b"job_id"]
 
-        self.mock_redis_job.fetch_many.return_value = [forecasting_job]
-        with patch("flexmeasures.data.services.job_map.Job", new=self.mock_redis_job):
-            assert self.job_map.get("sensor_id", "forecasting", "sensor") == [
-                forecasting_job
-            ]
-            assert self.connection.srem.call_count == 0
+def _saved_job(connection) -> Job:
+    job = Job.create("flexmeasures.utils.time_utils.server_now", connection=connection)
+    job.save()
+    return job
+
+
+def test_get_drops_expired_jobs(fake_redis):
+    """Jobs that expired from Redis are left out, and their IDs are removed from the index."""
+    job_map = JobMap(fake_redis)
+    kept, expired = _saved_job(fake_redis), _saved_job(fake_redis)
+    for job in (kept, expired):
+        job_map.add("sensor_id", job.id, "forecasting", "sensor")
+    expired.delete()
+
+    assert job_map.get("sensor_id", "forecasting", "sensor") == [kept]
+    assert fake_redis.smembers("forecasting:sensor:sensor_id") == {kept.id.encode()}
+
+
+def test_get_many_takes_a_fixed_number_of_round_trips(fake_redis):
+    """Reading several entries costs a ping and a few pipelines, however many entries and jobs there are.
+
+    Commands sent in a pipeline share one round trip, so only direct commands and pipelines are counted.
+    """
+    job_map = JobMap(fake_redis)
+    entries = [(sensor_id, "scheduling", "sensor") for sensor_id in (1, 2, 3)]
+    jobs = {entry: [_saved_job(fake_redis) for _ in range(4)] for entry in entries}
+    # A job indexed under two entries is returned under both.
+    shared = _saved_job(fake_redis)
+    jobs[entries[0]].append(shared)
+    jobs[entries[1]].append(shared)
+    for entry, entry_jobs in jobs.items():
+        for job in entry_jobs:
+            job_map.add(entry[0], job.id, entry[1], entry[2])
+    expired = _saved_job(fake_redis)
+    job_map.add(3, expired.id, "scheduling", "sensor")
+    expired.delete()
+
+    with (
+        patch.object(
+            fake_redis, "execute_command", wraps=fake_redis.execute_command
+        ) as direct_commands,
+        patch.object(fake_redis, "pipeline", wraps=fake_redis.pipeline) as pipelines,
+    ):
+        result = job_map.get_many(entries)
+
+    assert {entry: set(entry_jobs) for entry, entry_jobs in result.items()} == {
+        entry: set(entry_jobs) for entry, entry_jobs in jobs.items()
+    }
+    # One ping, then one pipeline each to read the job IDs, read the jobs and remove the expired ID.
+    assert direct_commands.call_count == 1
+    assert pipelines.call_count == 3
+    assert expired.id.encode() not in fake_redis.smembers("scheduling:sensor:3")

@@ -5,14 +5,54 @@ applyTo: "flexmeasures/**/tests/**/*.py"
 
 ## Run the full test suite
 
-Before finishing a session and requesting a review, run the complete test suite — partial test runs are insufficient because FlexMeasures has interconnected systems where changes in one area affect others:
+Before finishing a session and requesting a review, run the complete test suite:
+partial test runs are insufficient, because FlexMeasures has interconnected systems where changes in one area affect others.
 
 ```bash
 uv sync --group test
 uv run poe test
 ```
 
-Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor). During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration but must not substitute for the full suite at session close.
+Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor).
+During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration,
+but must not substitute for the full suite at session close.
+
+## Run the doctests too
+
+CI runs `pytest --doctest-modules`, with a list of `--ignore`s and a `-k` filter (see the test step in `.github/workflows/lint-and-test.yml`).
+Neither `poe test` nor the `addopts` in `pyproject.toml` include doctests,
+so a green local run can still fail in CI on a docstring example alone, for instance after a dependency upgrade.
+Before pushing a dependency change or a docstring example, run the doctests with the same `--ignore` and `-k` arguments as the workflow.
+
+A doctest that shows a pint `Quantity` should `print()` it rather than rely on its `repr`,
+because the `repr` differs between pint versions.
+
+## Never migrate the test database
+
+Do not run `flexmeasures db upgrade` (or `flask db upgrade`) against the test database to check a migration.
+Pytest owns that database: the `db` fixture runs `drop_all()` and `create_all()` and expects nothing else in it.
+The migration chain creates legacy tables (`power`, `price`, `weather`, `market`, `asset`, …) that are not in the current models,
+so `drop_all()` leaves them behind, and since `market` holds a foreign key onto `sensor`,
+every later `drop_all()` fails with `DependentObjectsStillExist` and the whole suite errors at setup.
+`flexmeasures db downgrade base` does not undo it either: an early revision's downgrade recreates a table that still exists, and the chain stops halfway.
+
+Verify a migration on a scratch database instead.
+If the test database was migrated by accident, drop the legacy tables explicitly:
+
+```sql
+DROP TABLE IF EXISTS power, price, weather, market, market_type, weather_sensor, weather_sensor_type,
+    asset, asset_type, role, roles_users, alembic_version CASCADE;
+```
+
+Pytest's own `drop_all()` then clears the model tables, and the database is empty again.
+
+## Failures that only show up in a subset run
+
+Some tests assert on warnings or on the deduplication of log records,
+which is process-global state that depends on what ran before them in the same process.
+Such tests can fail when only part of the suite runs (e.g. `pytest flexmeasures/utils flexmeasures/data`), yet pass in a full run.
+Before attributing a failure in a subset run to your change, run the same subset on the merge base and compare,
+or run the full suite.
 
 ## Run the full module after changing any test
 
@@ -35,7 +75,9 @@ Using `db` when data is mutated causes `DetachedInstanceError` and flaky cross-t
 
 ### Never mix `fresh_db` and `db` in the same module
 
-`fresh_db` is function-scoped and calls `_db.drop_all()` before and after each test. If a `db` test (module-scoped) is open at the same time, `drop_all()` will block forever waiting for the module-scoped connection to release its locks — **hanging CI indefinitely**.
+`fresh_db` is function-scoped and calls `_db.drop_all()` before and after each test.
+If a `db` test (module-scoped) is open at the same time,
+`drop_all()` will block forever waiting for the module-scoped connection to release its locks — **hanging CI indefinitely**.
 
 **Rule:** every test module must use either `db` OR `fresh_db` — never both.
 
@@ -55,10 +97,10 @@ test_utils.py               ← uses `db` AND `fresh_db`  ← CI will hang
 
 ## Running two suites at once
 
-Two pytest processes need a database *and* a Redis database of their own. Pointing them at
-separate Postgres databases is not enough: `FLEXMEASURES_REDIS_DB_NR` defaults to `0` for
-every run, and the `clean_redis` fixtures call `flushdb()`, so each run erases the other's
-keys and both hang. Set both:
+Two pytest processes need a database *and* a Redis database of their own.
+Pointing them at separate Postgres databases is not enough: `FLEXMEASURES_REDIS_DB_NR` defaults to `0` for every run,
+and the `clean_redis` fixtures call `flushdb()`, so each run erases the other's keys and both hang.
+Set both:
 
 ```python
 # a pytest plugin on PYTHONPATH, run with `pytest -p <plugin>`
@@ -73,18 +115,17 @@ Redis offers databases 0-15 per default, so there are plenty to hand out.
 ### After killing a stalled run
 
 A pytest process that is killed leaves its Postgres backends behind, `idle in transaction`,
-holding the locks that the next run's `drop_all()` waits for. Before terminating anything,
-look at what is actually blocking:
+holding the locks that the next run's `drop_all()` waits for.
+Before terminating anything, look at what is actually blocking:
 
 ```sql
 SELECT pid, state, pg_blocking_pids(pid), backend_start, now() - state_change AS idle_for
 FROM pg_stat_activity WHERE datname LIKE 'fm_test%';
 ```
 
-A blocked pair usually belongs to the *running* suite rather than a dead one, and terminating
-a live backend kills the connection a fixture is using, so a test errors with `server closed
-the connection unexpectedly`. Terminate only where the owning pytest is gone and the session
-has been idle for minutes.
+A blocked pair usually belongs to the *running* suite rather than a dead one,
+and terminating a live backend kills the connection a fixture is using, so a test errors with `server closed the connection unexpectedly`.
+Terminate only where the owning pytest is gone and the session has been idle for minutes.
 
 ## API test isolation
 
@@ -115,14 +156,26 @@ Before calling a new test done, break what it covers — comment out the constra
 
 Watch for assertions that depend on the problem having a unique answer.
 An optimisation test over devices with no incentive to move has the same optimum with or without the constraint, so it passes either way.
-In `test_highspy_equivalence.py`, where two backends are compared, also disable the new code path on one side: a scenario that survives that is comparing two no-ops.
+In `test_highspy_equivalence.py`, where two backends are compared, also disable the new code path on one side:
+a scenario that survives that is comparing two no-ops.
 Both traps have been hit — a balance-group scenario there passed with the constraint it was named after entirely disabled.
 
 Say in the PR description what you broke to prove it — a reviewer cannot tell a binding test from a vacuous one by reading it.
 
+## Tests of a data migration
+
+A migration that moves, merges or rewrites data deserves tests that run its functions against a real database,
+such as `test_duplicate_source_ranking_fresh_db.py` does for migration `7c4e1a9d2b58`.
+
+Keep such tests as long as the migration is unreleased: it is still being changed, and they are what catches a change that breaks it.
+Remove them in the release cycle after the release that ships the migration.
+From then on the migration no longer changes, while the models these tests build their data with keep moving,
+so they would only break for reasons nobody should fix in a migration that has shipped.
+
 ## Module-scoped fixture state
 
-Module-scoped fixtures are shared across tests. When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:
+Module-scoped fixtures are shared across tests.
+When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:
 
 ```python
 # ✅ Reset to column default (empty list)
@@ -131,6 +184,18 @@ asset.sensors_to_show = []
 # ❌ Reset to None (may cause unexpected ValidationError downstream)
 asset.sensors_to_show = None
 ```
+
+## Scheduling tests: give each its own parent asset
+
+`Sensor.__init__` moves legacy sensor attributes (such as `capacity_in_mw`) into the flex-model of the sensor's asset,
+and the module-scoped `flexible_devices` and `inflexible_devices` fixtures do this to the shared `building` asset.
+A scheduler triggered on `building` then merges `asset.get_flex_model()` (that asset and all its descendants) into the flex-model it was given,
+so a later test in the same module schedules an extra device it never asked for.
+Such tests pass on their own and fail in module order.
+
+A test that schedules a multi-device flex-model should create a fresh parent asset of its own
+(see `_add_parent_site` in `flexmeasures/data/models/planning/tests/test_solver.py`),
+and pass `flex_context={}` explicitly.
 
 ## Authentication failures in tests
 

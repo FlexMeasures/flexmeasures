@@ -1,7 +1,7 @@
 .. _api_introduction:
 
 API Introduction
-============
+================
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
 
@@ -23,7 +23,7 @@ So if you are running FlexMeasures on your computer, it would be:
 
 .. code-block:: html
 
-    https://localhost:5000/api
+    http://localhost:5000/api
 
 Let's assume we are running a server for a client at:
 
@@ -61,6 +61,7 @@ All API responses include a ``FlexMeasures-Version`` header with the current ser
 
 .. code-block:: http
 
+    HTTP/1.1 200 OK
     FlexMeasures-Version: 0.32.0
     API-Version: v3_0
 
@@ -77,6 +78,8 @@ Service usage is only possible with a user access token specified in the request
     {
         "Authorization": "<token>"
     }
+
+Tokens sent in the URL (e.g. as ``?auth_token=<token>``) are refused with ``400 (Bad Request)``, as URLs end up in logs and browser histories.
 
 A fresh "<token>" can be generated on the user's profile after logging in:
 

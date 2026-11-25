@@ -65,6 +65,7 @@ def data_to_bdf(
     target_sensor: Sensor | SensorReference,
     sensor_to_save: Sensor,
     data_source: DataSource,
+    refresh_source: bool = True,
 ) -> tb.BeliefsDataFrame:
     """
     Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
@@ -80,6 +81,7 @@ def data_to_bdf(
     :param target_sensor:   The Sensor object for which the predictions are made, or a source-filtered reference to it.
     :param sensor_to_save:  The Sensor object to save the forecasts to.
     :param data_source:     The DataSource object to attribute the forecasts to.
+    :param refresh_source:  Resolve the source in the database for legacy callers. Disable for computation without writes.
     :returns:               A formatted BeliefsDataFrame ready for database insertion.
     """
     df = data.copy()
@@ -154,7 +156,7 @@ def data_to_bdf(
     #     source_type="forecaster",
     #     attributes=self.data_source.attributes,
     # )
-    source = refresh_data_source(data_source)
+    source = refresh_data_source(data_source) if refresh_source else data_source
 
     # Convert to BeliefsDataFrame
     bdf = tb.BeliefsDataFrame(

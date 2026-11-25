@@ -8,13 +8,70 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
-PERMISSIONS = ["create-children", "read", "update", "delete"]
+# Permissions that custom-role ACLs could grant before role grants were introduced.
+LEGACY_ACL_PERMISSIONS = frozenset({"read", "create-children", "update", "delete"})
+
+PERMISSIONS = (
+    frozenset(
+        {
+            "post-data",
+            "annotate",
+            "trigger-schedules",
+            "trigger-forecasts",
+            "trigger-reports",
+            "manage-automations",
+            "edit-flex-config",
+            "edit-assets",
+            "edit-sensors",
+            "delete-data",
+            "manage-users",
+            "edit-profile",
+            "reset-password",
+            "edit-account",
+        }
+    )
+    | LEGACY_ACL_PERMISSIONS
+)
 
 # User Roles
-ADMIN_ROLE = "admin"
-ADMIN_READER_ROLE = "admin-reader"
-ACCOUNT_ADMIN_ROLE = "account-admin"
-CONSULTANT_ROLE = "consultant"
+ADMIN_ROLE = "admin"  # Site-wide full access.
+ADMIN_READER_ROLE = "admin-reader"  # Site-wide read access.
+ACCOUNT_ADMIN_ROLE = "account-admin"  # Manage one home organisation and its users.
+CONSULTANT_ROLE = "consultant"  # Work in client organisations of a consultancy.
+ACCOUNT_MEMBER_ROLE = "account-member"  # Operate resources in the home organisation.
+ACCOUNT_READER_ROLE = "account-reader"  # Read home organisation resources.
+# Post home organisation data and reset one's own password.
+ACCOUNT_DATA_INTEGRATOR_ROLE = "account-data-integrator"
+
+# From home-account reading to site-wide administration. The later roles can
+# change resource scope, so this is a display order rather than an inheritance chain.
+ROLE_DISPLAY_ORDER = (
+    ACCOUNT_READER_ROLE,
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+    ADMIN_READER_ROLE,
+    ADMIN_ROLE,
+)
+
+# How roles map to named permissions. This is the main source of truth for our auth policy.
+# However, the ACL system allows for more fine-grained control of permissions on a per-resource basis,
+# and logic in API endpoints and schemas can further restrict access to certain resources or actions.
+# Examples: an account-admin can manage users in their own account, but not in other accounts;
+#           a consultant can manage users in their client accounts, but not in other accounts;
+#           a consultant can not change the plans for client accounts, nor assign the admin-reader
+#           role or the consultant role to client users (see can_modify_role() below).
+ROLE_PERMISSION_GRANTS = {
+    ACCOUNT_READER_ROLE: frozenset({"read"}),
+    ACCOUNT_DATA_INTEGRATOR_ROLE: frozenset({"read", "post-data", "reset-password"}),
+    ACCOUNT_MEMBER_ROLE: PERMISSIONS
+    - {"delete-data", "manage-users", "delete", "edit-account"},
+    ACCOUNT_ADMIN_ROLE: PERMISSIONS,
+    CONSULTANT_ROLE: PERMISSIONS,
+    ADMIN_READER_ROLE: frozenset({"read"}),
+    ADMIN_ROLE: PERMISSIONS,
+}
 
 # Account Roles
 CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
@@ -30,8 +87,10 @@ class AuthModelMixin(object):
         This function returns an access control list (ACL) for an instance of a model which is relevant for authorization.
 
         ACLs in FlexMeasures are inspired by Pyramid's resource ACLs.
-        In an ACL, we list which principal (security contexts, see below) allow certain kinds of actions
-        ― by mapping supported permissions to the required principals.
+        Each ACL key is a named permission (for example, ``trigger-schedules``).
+        The user needs that permission from an eligible role and must match a
+        principal under the same key. Home roles apply to the user's own account;
+        consultant applies through a consultancy principal on client resources.
 
         # What is a principal / security context?
 
@@ -93,14 +152,17 @@ class FlexMeasuresPlatform(AuthModelMixin):
         return cls()
 
     def __acl__(self):
+        create_accounts = [  # this applies to accounts
+            f"role:{ADMIN_ROLE}",
+            (  # FM makes sure the new accounts are clients of the consultant account
+                f"role:{CONSULTANT_ROLE}",
+                f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
+            ),
+        ]
         return {
-            "create-children": [  # this applies to accounts
-                f"role:{ADMIN_ROLE}",
-                (  # FM makes sure the new accounts are clients of the consultant account
-                    f"role:{CONSULTANT_ROLE}",
-                    f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
-                ),
-            ]
+            "edit-account": create_accounts,
+            # Compatibility for callers still checking the broad CRUD permission.
+            "create-children": create_accounts,
         }
 
 
@@ -134,13 +196,18 @@ def check_access(context: AuthModelMixin, permission: str):
         f"Looking for {permission}-permission on {context} ... Principals: {principals}"
     )
 
-    # check access
+    # A role grant and an ACL alternative must match in the same scope.
     if not user_has_admin_access(
         current_user, permission
-    ) and not user_matches_principals(current_user, principals):
+    ) and not user_has_scoped_permission(current_user, permission, principals):
         raise Forbidden(
             f"Authorization failure (accessing {context} to {permission}) ― cannot match {current_user} against {principals}!"
         )
+
+
+def user_can_reset_own_password(user) -> bool:
+    """Allow self-service password recovery only with an eligible role grant."""
+    return any("reset-password" in role.permissions for role in user.roles)
 
 
 def user_has_admin_access(user, permission: str) -> bool:
@@ -148,6 +215,58 @@ def user_has_admin_access(user, permission: str) -> bool:
         user.has_role(ADMIN_READER_ROLE) and permission == "read"
     ):
         return True
+    return False
+
+
+def _custom_role_grants_legacy_permission(
+    user, permission: str, principals: tuple[str, ...], explicit_roles: set[str]
+) -> bool:
+    """Keep explicit custom-role grants on preexisting ACL permissions."""
+    if permission not in LEGACY_ACL_PERMISSIONS:
+        return False
+    custom_roles = explicit_roles - ROLE_PERMISSION_GRANTS.keys()
+    if not any(user.has_role(role) for role in custom_roles):
+        return False
+    # Check the whole tuple because the principal matcher short-circuits on this wildcard.
+    required_principals = tuple(
+        principal for principal in principals if principal != EVERY_LOGGED_IN_USER
+    )
+    return user_matches_principals(user, required_principals)
+
+
+def user_has_scoped_permission(
+    user, permission: str, principals: PRINCIPALS_TYPE
+) -> bool:
+    """Require a scoped role grant or an explicit legacy custom-role ACL grant."""
+    alternatives = principals if isinstance(principals, list) else [principals]
+    for alternative in alternatives:
+        if not alternative or not user_matches_principals(user, alternative):
+            continue
+        alternative_principals = (
+            (alternative,) if isinstance(alternative, str) else alternative
+        )
+        explicit_roles = {
+            principal.removeprefix("role:")
+            for principal in alternative_principals
+            if principal.startswith("role:")
+        }
+        if explicit_roles:
+            if _custom_role_grants_legacy_permission(
+                user, permission, alternative_principals, explicit_roles
+            ):
+                return True
+            eligible_roles = explicit_roles
+        elif EVERY_LOGGED_IN_USER in alternative_principals:
+            eligible_roles = {role.name for role in user.roles}
+        else:
+            eligible_roles = {
+                role.name for role in user.roles if role.name != CONSULTANT_ROLE
+            }
+        if any(
+            role.name in eligible_roles and permission in role.permissions
+            for role in user.roles
+        ):
+            return True
     return False
 
 
@@ -238,7 +357,10 @@ def can_modify_role(  # noqa: C901
     - admin: can only be changed in CLI / directly in the DB, so not here
     - admin-reader: can be added and removed by admins
     - account-admin: can be added and removed by admins and consultants (in consultancy account)
-    - consultant: can be added and removed by admins and account-admins (in same account)
+    - consultant: can be added and removed by admins and account-admins (in same account);
+      account-admins can only add it in an account with the Consultancy account role
+    - account-member, account-reader, account-data-integrator: can be changed by admins, account-admins
+      of the user's account, and consultants of its consultancy account
 
     """
     roles = []
@@ -282,11 +404,58 @@ def can_modify_role(  # noqa: C901
             if (
                 user.has_role(ACCOUNT_ADMIN_ROLE)
                 and user.account.id == modified_user.account.id
+                and (
+                    # account-admins may only hand out the consultant role in a consultancy account
+                    modified_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE)
+                    # but they may always take it away
+                    or role.name in [r.name for r in modified_user.flexmeasures_roles]
+                )
+            ):
+                continue
+            return False
+        if role.name in (
+            ACCOUNT_MEMBER_ROLE,
+            ACCOUNT_READER_ROLE,
+            ACCOUNT_DATA_INTEGRATOR_ROLE,
+        ):
+            if user.has_role(ADMIN_ROLE):
+                continue
+            if (
+                user.has_role(ACCOUNT_ADMIN_ROLE)
+                and user.account.id == modified_user.account.id
+            ):
+                continue
+            if (
+                user.has_role(CONSULTANT_ROLE)
+                and modified_user.account.consultancy_account_id == user.account.id
             ):
                 continue
             return False
         return False
 
+    return True
+
+
+def can_manage_user_with_roles(user, managed_user) -> bool:
+    """Check that a user is at least as privileged as the user they manage.
+
+    Used for changes that could hand over or lock out another user's account,
+    such as their email address, their active status or a password reset.
+    For every role of the managed user, the managing user must either have that role themselves,
+    or be allowed to add and remove it (see can_modify_role).
+    So an account-admin cannot change the email address of an admin in their account,
+    while an admin can manage another admin.
+
+    :param user: The user attempting the change.
+    :param managed_user: The user whose account would be changed.
+    :return: True if the managing user may make such changes, False otherwise.
+    """
+    for role in managed_user.flexmeasures_roles:
+        if user.has_role(role.name):
+            continue
+        if can_modify_role(user, [role], managed_user):
+            continue
+        return False
     return True
 
 

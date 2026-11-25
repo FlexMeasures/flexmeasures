@@ -9,6 +9,7 @@ The asset page is divided into different views. The default selection is the "Co
 .. contents::
     :local:
     :depth: 1
+
 |
 
 
@@ -155,6 +156,28 @@ An example would be:
     ]
 
 
+
+.. _view_replay:
+
+Replaying how data became known
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The play button beside the graphs replays the selected period as it unfolded:
+a vertical ruler moves through belief time, and the graphs show only the data that was known at the ruler's position.
+That makes it easy to see how forecasts and schedules were revised over time.
+
+Two settings below the play button control the replay:
+
+- **Step** sets how far belief time moves when stepping with the ``n`` and ``b`` keys.
+  By default (*Auto*), it follows how often new data was recorded, such as every 15 minutes for a forecast that is renewed every 15 minutes,
+  rounded down to a step that fits a whole number of times in an hour or a day.
+  While playing, the graphs update whenever new data becomes known, whatever the step,
+  except with the *Fast chart* switch turned off: then they move on one step at a time.
+- **Speed** sets how fast belief time passes. At 1×, 6 hours pass per second.
+
+Press ``p`` to play or pause, ``s`` to stop, ``n`` to move one step ahead, ``b`` to move one step back, ``r`` to rewind (play backward), and ``+`` or ``-`` to speed up or slow down.
+The sensor page offers the same replay.
+
 .. _view_asset_properties:
 
 Properties page
@@ -175,7 +198,7 @@ You can also delete the asset by clicking on the "Delete this asset" button.
 Editing an asset's flex-model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+Per asset, you can set fields in :ref:`the flex-model <flex_models_and_schedulers>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
     :align: center
@@ -205,6 +228,7 @@ Setting a field value
     * Other fields may accept either a sensor or a fixed value.
 
 |
+
 .. _view_asset_status:
 
 Status page
@@ -244,7 +268,7 @@ was configured. Here is an example:
 .. _view_asset_auditlog:
 
 Audit log 
----------
+----------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:

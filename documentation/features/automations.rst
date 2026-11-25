@@ -16,7 +16,7 @@ Creating an automation
 ----------------------
 
 In the UI, the *New automation* button on the asset's *Automations* page opens a form for a new automation on that asset.
-It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the data generator and its configuration, and the task's parameters.
+It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the task's parameters, and either an existing data source to reuse or the data generator and its configuration.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_new.png
     :align: center
@@ -39,6 +39,13 @@ That data source is required while the automation exists, so it cannot be delete
 
 The API takes the same choice as the ``source`` field of `[POST] /assets/(id)/automations <../api/v3_0.html#post--api-v3_0-assets-id-automations>`_, which cannot be combined with ``data-generator`` or ``config``.
 In the UI, the asset's *Automations* page searches the data sources you may work with, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_source_search.png
+    :align: center
+..    :scale: 40%
+
+|
+
 A data source is yours to work with when it belongs to your organisation, or when an automation you may read already computes under it, which is how a source becomes yours before it has recorded anything.
 Those are the sources you may name, and the only ones whose stored configuration you are shown.
 Reading a data source is allowed more widely: one that has recorded data on a sensor you may read answers the question of what computed a number you can see.
@@ -108,7 +115,8 @@ A run that only happens after midnight, because the runner was delayed, still co
 A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
 A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
-An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+An automation's forecast is believed at the time its run is dispatched, also when the period it covers starts later,
+and it uses only the data recorded by then, also when its jobs wait in the queue for a while.
 
 A single field can also be given alone, where the automation has a default for the rest.
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
@@ -216,6 +224,81 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
 
 .. _running_automations:
 
+.. _automation_dependencies:
+
+Waiting for other automations
+-----------------------------
+
+Some automations use what another automation produces.
+For example, a report that computes flows from a stock is only correct once another report has snapped the raw meter readings of that stock to a regular grid.
+Rather than staggering their cron strings and hoping the first one finishes in time, let the second automation wait for the first:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Flows" --cron "*/5 * * * *" --timezone UTC \
+        --type reporting --reporter PandasReporter --config flows-config.yml --parameters flows-parameters.yml \
+        --depends-on 7
+
+Each run of the waiting automation then waits for the latest run of automation 7 that is due at or before its own scheduled time.
+It queues its jobs as soon as that run has ended successfully, and is *skipped* if it failed, so that it never computes on input that was never produced.
+A skipped run says which upstream run it was skipped for, and anything waiting for a skipped run is skipped, too.
+A job that gets killed cannot report how it ended, so the runner looks that up in Redis on each tick: its run counts as failed, rather than leaving what waits for it waiting forever.
+To have a run go ahead even when the run it waits for failed, also pass ``--allow-failure-of 7``.
+
+An automation can wait for several others (repeat ``--depends-on``), and these can be on any asset you can read.
+They may recur on another schedule, as each run waits for the latest upstream run due at or before its own scheduled time, by the upstream automation's own cron string and timezone.
+For instance, an hourly forecast that waits for meter data pulled every 15 minutes runs at 10:00 once the pull due at 10:00 ended.
+The other way around, a forecast every 15 minutes that waits for an hourly pull runs at 10:15, 10:30 and 10:45 on the pull due at 10:00, so a failure of that one pull has all three of them skipped.
+A dependency that would have an automation end up waiting for itself is refused.
+
+Some cases where the upstream run does not happen:
+
+- If the upstream automation missed that time while the runner was down, its missed runs were coalesced into the run it caught up with, so the waiting run waits for that one instead.
+- If the upstream automation was never going to run at that time, because it is inactive, did not exist yet, or its recurrence was reset since (by reactivating it, or by giving it another cron string or timezone), the waiting run goes ahead without it. Its run record says so.
+- If the upstream automation moved past that time without any run, the waiting run is skipped (unless failure is allowed for).
+
+Deactivating an automation cancels its scheduled runs that are still waiting, rather than having them go ahead late once it is reactivated, and what waits for them goes ahead without them.
+
+The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for.
+By default, you pick among those listed on the page, which are those on this asset and, if you include them, on the assets below it, and you can switch to this asset only, to public assets, or to every automation you can see.
+The chain in an automation's details follows the same choice, and can show all of these automations rather than only those linked to this one.
+Deleting an automation others wait for warns you first, as they then run without it.
+
+When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.
+
+Runs always flow downstream, from the automations that are waited for to those that wait for them.
+To re-run a whole chain, for instance once the data at its start was backfilled, run its first automation along with what is downstream of it:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 7 --with-downstream
+
+Automation 7 runs right away, and each active automation that waits for it, directly or through others, gets a run that waits for the runs started along with it,
+and is skipped if one of those failed, just like scheduled runs.
+These runs on demand do not affect the automations' recurrence, and the runner does not retry them if their jobs failed to queue, as whoever started them is told.
+
+To bring one automation up to date instead, run what is upstream of it first, and stop at this automation:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 9 --with-upstream
+
+The automations it waits for, directly or through others, run first, and each run waits for the runs started along with it, as above.
+What waits for automation 9 does not run.
+
+Either way, the included automations run in chain order.
+With several branches, all of them run, unless you exclude one with ``--exclude``.
+An automation that does not run, because you excluded it, because it is inactive, or because you may not run it, such as one on a public asset, is excluded along with what can only be reached through it.
+It still runs on its own schedule, just not because of this request, and what waits for it goes by the results it already has.
+The API does the same with ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger?with-upstream=true`` (or ``with-downstream=true``) and ``exclude``,
+and ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream`` (or ``include=downstream``) tells what that would come down to.
+On the *Automations* page, *Run up to here* and *Run from here* show this before anything runs.
+
+The details of an automation on the *Automations* page draw the chain it is part of, among the automations listed there:
+what it waits for on the left, what waits for it on the right, and a dashed arrow where the waiting automation runs even when the one it waits for failed.
+Hovering over an automation there tells its type, asset and recurrence, hovering over an arrow tells what a failure does, and clicking an automation opens its details, on the page of its own asset.
+An automation that is not listed there, but that you may read, is named and can be clicked as well.
+
 Running automations
 -------------------
 
@@ -253,7 +336,7 @@ Runs and retries
 ----------------
 
 Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
-The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and schedule revision, so two runners started in the same minute cannot both execute it.
+The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and revision, so two runners started in the same minute cannot both execute it.
 A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
 
 Before queueing anything, the runner writes down the plan for the run: the parameters it will use and the individual jobs it intends to create, each with its own logical name and a job ID derived from the run.
@@ -261,24 +344,70 @@ This is what makes a retry safe.
 A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
 Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
-Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
+A forecast start the automation left to the run time is resolved on the first attempt and stored with those parameters, so a run resumed hours later still forecasts the window its first attempt started on.
+The same goes for the time up to which a forecast uses recorded data, so a resumed run forecasts with the data its first attempt had, not with data recorded since.
 
 A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
 A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
 and the run's record says what went wrong on each attempt.
 
-Retrying a failed dispatch this way is what a forecast run does.
-A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
+A forecast run and a schedule run are both retried this way.
+Each names its jobs after the run it belongs to, rather than letting them take a fresh identity on every dispatch,
+which is what lets a second attempt tell the jobs the first one queued from the ones it still owes:
+a schedule run that queued two of its three devices queues the third, and schedules no device twice.
+A schedule start the automation left to the run time is resolved on the first attempt and stored with the run's parameters,
+so the devices a resumed run still owes are scheduled for the same window as the devices it already queued.
 
-A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
-A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+A run also records each job it created, and how that job ended, which is what its *execution* state describes.
+This holds for every type of automation: a schedule run records its scheduling job (or, for a sequential schedule, each device job and the job wrapping them up),
+a report run its reporting job, and a plugin run the job its plugin queued.
+A run which queued no jobs, such as a report run with nothing new to report on, has succeeded.
+A job which a schedule queues to fall back on a simpler scheduler is not one of the run's jobs, so a run whose schedule fell back has failed, with the error that made it fall back.
 
-A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
+A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``waiting``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed``, ``canceled`` or ``skipped``).
+A run is ``waiting`` while the runs it depends on have not ended yet, and ``skipped`` if one of them failed (see :ref:`automation_dependencies`).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
-Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
+Editing an automation's cron string or timezone, or reactivating it, counts up its revision.
 Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
+
+.. _monitoring_automations:
+
+Monitoring automation runs
+--------------------------
+
+As a host, you can have FlexMeasures email you a digest of the automation runs that failed, by running ``flexmeasures monitor automations`` regularly, for instance every hour:
+
+.. code-block:: bash
+
+    0 * * * * flexmeasures monitor automations
+
+A run is reported when its execution failed, when it has been executing for longer than six hours, or when its dispatch failed and will not be attempted again.
+A forecast run therefore counts once its five dispatch attempts are used up, and a run of any other type after its first failed attempt.
+The six hours are set by :ref:`monitor_automations_stuck_after`, and ``--stuck-after-minutes`` overrides that setting.
+
+Each run is reported once, so if one monitoring run is missed, the next one still reports what failed in the meantime.
+Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it first and last did, and with which error.
+No email is sent when nothing failed.
+
+Every automation is monitored, unless it opts out, for instance an experiment whose failures nobody needs to hear about.
+Untick *Monitored* on the Automations page, create it with ``flexmeasures add automation --unmonitored``, switch it with ``flexmeasures edit automation --monitored/--unmonitored``, or send ``"monitored": false`` to the API.
+Its runs are then left out of every digest.
+They are not marked as reported, though, so once the automation is monitored again, the next digest reports the runs that failed in the meantime,
+saying how many of them failed while it was not monitored, and when monitoring was switched back on.
+Only the host's admins and the account-admins of the asset's organisation may switch monitoring off or on, as it decides what the recipients of the digest hear about.
+Switching it off only keeps the automation out of these digests; the automation runs as before.
+
+The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
+The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
+
+The people responsible for the assets can receive a digest of their own, once you add ``--notify-users`` to the command.
+Each user with the ``account-admin`` role in an asset's organisation, and each user with the ``consultant`` role in its consultancy organisation, then receives one email per monitoring run,
+listing only the automations they can see.
+Inactive users and users without an email address are skipped.
+Automations on public assets belong to no organisation, so they only appear in your digest, which keeps listing every failed run.
+A run counts as reported once your digest is sent, so a user digest that cannot be delivered is logged, and not sent again.
 
 Running one automation on demand
 --------------------------------
@@ -291,7 +420,7 @@ This is useful to try out a new automation, to re-run one after fixing what made
     flexmeasures jobs run-automation --automation 4
 
 The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as *Run now* in the automation's *Actions* menu on the asset's *Automations* page.
-That menu also lets you edit, deactivate (or activate) and delete the automation.
+That menu also lets you edit, copy, deactivate (or activate) and delete the automation.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_actions.png
     :align: center
@@ -302,6 +431,7 @@ That menu also lets you edit, deactivate (or activate) and delete the automation
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
 Inactive automations can be run this way, too, which is how you can try one out before activating it.
+An on-demand run does not wait for the automations this one depends on, as it is meant to run now.
 
 Unlike a recurring run, an on-demand run is not protected against being started twice: asking for two runs in a row queues two runs.
 

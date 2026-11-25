@@ -260,7 +260,7 @@ function numericRows(data) {
  * @param {Object[]} [groupSpec] - Optional subplot structure: [{ title, sensorIds, sensorType }].
  * @returns {Object[]} - List of groups: { title, units, sensorType, multiSensor, series }.
  */
-function groupData(data, groupSpec) {
+export function groupData(data, groupSpec) {
   const groups = [];
   // A sensor may be configured in several subplots (sensors_to_show rows), and
   // then its data must show in each of them, as in the Vega-Lite charts.
@@ -306,6 +306,7 @@ function groupData(data, groupSpec) {
       const seriesKey = sensor.id + "|" + source.id;
       if (!group.series.has(seriesKey)) {
         group.series.set(seriesKey, {
+          sensorId: sensor.id,
           sensorName: sensor.name || "sensor " + sensor.id,
           sensorDescription: sensor.description || sensor.name || "",
           sourceLabel: sourceLabel(source),
@@ -440,6 +441,21 @@ export function barIntervalMs(series) {
   const sec = series.eventResolutionSec;
   if (typeof sec === "number" && sec > 0) return sec * 1000;
   return inferResolutionMs(series.eventStarts || []);
+}
+
+// Match Vega-Lite (`create_line_layer` in belief_charts.py): use linear interpolation if any of a row's real sensors is instantaneous (event_resolution 0),
+// otherwise use step-after.
+// Only real sensors determine interpolation; fixed-value sensors (negative sensorId) always have event_resolution=0 by construction,
+// and must not force a mixed row to linear (#2253).
+export function isGroupInstantaneous(group) {
+  const realSeries = (group.series || []).filter(
+    (s) => typeof s.sensorId !== "number" || s.sensorId >= 0
+  );
+  return realSeries.some((s) =>
+    typeof s.eventResolutionSec === "number"
+      ? s.eventResolutionSec === 0
+      : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
+  );
 }
 
 // How wide (in pixels) a bar covering `intervalMs` must be drawn on a time axis spanning `spanMs` across `gridWidthPx` pixels.
@@ -581,26 +597,16 @@ function refreshRoundedSteps(instance) {
   const list = instance._roundedSeries;
   if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0) return;
   const perPixelByGrid = new Map();
-  const dataPerPixel = (gridIndex) => {
-    if (perPixelByGrid.has(gridIndex)) return perPixelByGrid.get(gridIndex);
-    let result = null;
-    try {
-      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
-      const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
-      const rx = Math.abs(xa(200) - xa(100)) / 100;
-      const ry = Math.abs(ya(200) - ya(100)) / 100;
-      if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) result = { rx: rx, ry: ry };
-    } catch (e) {
-      result = null;
-    }
-    perPixelByGrid.set(gridIndex, result);
-    return result;
-  };
+  for (const r of list) {
+    if (!perPixelByGrid.has(r.gridIndex)) perPixelByGrid.set(r.gridIndex, roundedStepScale(chart, r.gridIndex));
+  }
+  // Remembered, so the next render can cut its corners up front (see preRoundSteps).
+  instance._roundedScale = perPixelByGrid;
 
   const dataByIndex = new Map();
   let maxIdx = -1;
   for (const r of list) {
-    const pp = dataPerPixel(r.gridIndex);
+    const pp = perPixelByGrid.get(r.gridIndex);
     if (!pp) continue;
     dataByIndex.set(
       r.seriesIndex,
@@ -612,6 +618,47 @@ function refreshRoundedSteps(instance) {
   const patch = [];
   for (let i = 0; i <= maxIdx; i++) patch.push(dataByIndex.has(i) ? { data: dataByIndex.get(i) } : {});
   chart.setOption({ series: patch });
+}
+
+// The data per pixel along a subplot's axes, as the chart currently lays them out, or null if they can't be told.
+function roundedStepScale(chart, gridIndex) {
+  try {
+    const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+    const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
+    const rx = Math.abs(xa(200) - xa(100)) / 100;
+    const ry = Math.abs(ya(200) - ya(100)) / 100;
+    if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) return { rx: rx, ry: ry };
+  } catch (e) {
+    // the axes are not laid out
+  }
+  return null;
+}
+
+// Cut the corners of the rounded series in a new option at the scale the previous render ended up with,
+// so they need no second pass when the new render keeps that scale (see roundedStepsNeedRefresh),
+// as during a replay, where the data changes but the axes mostly do not.
+function preRoundSteps(instance, option) {
+  const scale = instance._roundedScale;
+  if (!scale) return;
+  const series = [].concat(option.series || []);
+  for (const r of instance._roundedSeries || []) {
+    const pp = scale.get(r.gridIndex);
+    if (!pp || !series[r.seriesIndex]) continue;
+    series[r.seriesIndex].data = roundedStepDataPx(r.points, STEP_ROUND_RADIUS_PX * pp.rx, STEP_ROUND_RADIUS_PX * pp.ry);
+  }
+}
+
+// Whether the rounded series' corners have to be cut again, because they were cut at another scale than the chart now has.
+function roundedStepsNeedRefresh(instance) {
+  const scale = instance._roundedScale;
+  if (!scale) return true;
+  const same = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+  for (const r of instance._roundedSeries || []) {
+    const before = scale.get(r.gridIndex);
+    const now = roundedStepScale(instance.chart, r.gridIndex);
+    if (!before || !now || !same(before.rx, now.rx) || !same(before.ry, now.ry)) return true;
+  }
+  return false;
 }
 
 // Recompute every bar series' width so each bar still covers exactly one event resolution at the current zoom,
@@ -677,14 +724,26 @@ function niceTimeStep(span, target) {
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
-  const dz = (chart.getOption().dataZoom || [])[0];
-  const start = dz && typeof dz.start === "number" ? dz.start : 0;
-  const end = dz && typeof dz.end === "number" ? dz.end : 100;
-  const span = (instance._xDomainSpan * (end - start)) / 100;
-  const maxInterval = niceTimeStep(span, 4); // ~4+ major gridlines across the visible span
+  const maxInterval = timeTickInterval(instance._xDomainSpan, (chart.getOption().dataZoom || [])[0]);
   const xAxis = chart.getOption().xAxis || [];
   const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { maxInterval: maxInterval } : {}));
   chart.setOption({ xAxis: patch });
+}
+
+// The cap on the time between major gridlines, for a time axis spanning the given time, zoomed into by the given dataZoom (if any).
+function timeTickInterval(domainSpan, dz) {
+  const start = dz && typeof dz.start === "number" ? dz.start : 0;
+  const end = dz && typeof dz.end === "number" ? dz.end : 100;
+  return niceTimeStep((domainSpan * (end - start)) / 100, 4); // ~4+ major gridlines across the visible span
+}
+
+// Set the gridline cap of refreshTimeTicks in a new option up front, rather than in a second pass after rendering it.
+function presetTimeTicks(instance, option) {
+  if (!(instance._xDomainSpan > 0)) return;
+  const maxInterval = timeTickInterval(instance._xDomainSpan, [].concat(option.dataZoom || [])[0]);
+  [].concat(option.xAxis || []).forEach((ax) => {
+    if (ax && ax.type === "time") ax.maxInterval = maxInterval;
+  });
 }
 
 // Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
@@ -705,7 +764,9 @@ function wireZoomRefresh(instance) {
     if (hasBars) refreshBarWidths(instance);
     if (hasTimeTicks) refreshTimeTicks(instance);
   };
-  refresh(); // initial pass
+  // Initial pass: the time ticks are already set in the option (presetTimeTicks), and the rounded corners usually are, too (preRoundSteps).
+  if (hasRounded && roundedStepsNeedRefresh(instance)) refreshRoundedSteps(instance);
+  if (hasBars) refreshBarWidths(instance);
   instance.onZoomRefresh = refresh;
   chart.on("dataZoom", instance.onZoomRefresh);
 }
@@ -842,20 +903,24 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
 
 // Apply the current mode: turn the marquee on when zoom is effectively active (mode XOR
 // Ctrl), and recolour the Zoom/Pan buttons so the active one is blue.
-function applyChartMode(instance) {
+//
+// A freshly rendered option already has the buttons coloured by toolboxFeatures, so recolouring them can be skipped then.
+function applyChartMode(instance, { recolour = true } = {}) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
   const selectActive = effectiveSelect(instance);
-  const feature = {
-    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-    myPan: { iconStyle: { borderColor: panColor(instance) } },
-  };
-  if (instance._selectable) {
-    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  if (recolour) {
+    const feature = {
+      myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+      myPan: { iconStyle: { borderColor: panColor(instance) } },
+    };
+    if (instance._selectable) {
+      feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+    }
+    // Recolour the buttons first, then set the marquee (so the merge can't clear it).
+    chart.setOption({ toolbox: { feature: feature } });
   }
-  // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({ toolbox: { feature: feature } });
   // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
   if (selectActive && instance.lastOption && instance.lastOption.brush) {
     chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
@@ -921,9 +986,12 @@ function exportCSV(elementId, datasetName) {
 // exported canvas grows to the right by just enough for them — otherwise the
 // extra columns would spill over the plot (see #2513).
 //
+// While replaying, the export also shows the replay ruler at the given belief time
+// (on screen it is laid over the chart, see drawReplayRuler).
+//
 // Returns the option together with the canvas size the export should use.
 // (Exported for the JavaScript tests, which check the legend never covers a plot.)
-export function buildExportOption(lastOption, width, height) {
+export function buildExportOption(lastOption, width, height, replayTime = null) {
   const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
   const grids = asList(lastOption.grid);
   // The room the on-screen layout reserves beside the plots for the legend
@@ -983,6 +1051,9 @@ export function buildExportOption(lastOption, width, height) {
   const series = asList(lastOption.series).map((s) =>
     Object.assign({}, s, { progressive: 0, animation: false })
   );
+  if (replayTime != null) {
+    series.push(...replayRulerExportSeries(lastOption, replayTime));
+  }
   // Widening the canvas must not stretch the plots: every grid keeps its width
   // by giving the added space to its right margin.
   const option = Object.assign({}, lastOption, {
@@ -998,6 +1069,37 @@ export function buildExportOption(lastOption, width, height) {
   return { option: option, width: width + extraWidth, height: height };
 }
 
+// The replay ruler as data-less series with a markLine, one per time-axis subplot, drawn above the data.
+function replayRulerExportSeries(lastOption, replayTime) {
+  const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+  const yAxes = asList(lastOption.yAxis);
+  const series = [];
+  asList(lastOption.xAxis).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridIndex = xAxis.gridIndex || 0;
+    const yAxisIndex = yAxes.findIndex((y) => (y.gridIndex || 0) === gridIndex);
+    if (yAxisIndex < 0) return;
+    series.push({
+      type: "line",
+      xAxisIndex: i,
+      yAxisIndex: yAxisIndex,
+      data: [],
+      silent: true,
+      animation: false,
+      itemStyle: { color: "transparent" }, // keeps this empty series from consuming a data palette slot
+      markLine: {
+        z: REPLAY_RULER_Z,
+        silent: true,
+        animation: false,
+        symbol: "none",
+        label: { show: false },
+        data: [{ xAxis: replayTime, lineStyle: { color: REPLAY_RULER_COLOR, width: REPLAY_RULER_WIDTH, type: "solid" } }],
+      },
+    });
+  });
+  return series;
+}
+
 function exportSVG(elementId, datasetName) {
   const instance = instances[elementId];
   if (!instance || !instance.lastOption || typeof echarts === "undefined") {
@@ -1007,7 +1109,8 @@ function exportSVG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    replayRulerTime(instance)
   );
   const svgChart = echarts.init(null, null, {
     renderer: "svg",
@@ -1033,7 +1136,8 @@ function exportPNG(elementId, datasetName) {
   const exported = buildExportOption(
     instance.lastOption,
     instance.chart.getWidth(),
-    instance.chart.getHeight()
+    instance.chart.getHeight(),
+    replayRulerTime(instance)
   );
   const holder = document.createElement("div");
   holder.style.width = exported.width + "px";
@@ -1173,6 +1277,22 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
   });
 }
 
+// Whether a point belongs to the subplot the pointer is in.
+// The ruler is linked across subplots, so ECharts also reports the points of the other subplots at the ruler's time,
+// and a tooltip must describe the subplot being hovered, not a neighbour.
+// With no known pointer (or nothing to say which subplot a series is in), the point is kept.
+function paramInPointerSubplot(param, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  const lastOption = (instance && instance.lastOption) || {};
+  const xAxisIndex = ((lastOption.series || [])[param.seriesIndex] || {}).xAxisIndex;
+  const gridIndex = ((lastOption.xAxis || [])[xAxisIndex] || {}).gridIndex;
+  if (!pointer || !chart || gridIndex == null) {
+    return true;
+  }
+  return chart.containPixel({ gridIndex: gridIndex }, pointer);
+}
+
 function seriesTooltipFormatter(seriesMeta, instance) {
   const tooltipOptions = () => ({
     showSensor: !(instance && instance.isSensorPage),
@@ -1183,6 +1303,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     // trigger passes a single point. In both cases we show just the nearest one,
     // as in the Vega-Lite charts (which snap to the nearest data point on hover).
     if (Array.isArray(params)) {
+      params = params.filter((p) => paramInPointerSubplot(p, instance));
       if (params.length === 0) {
         return "";
       }
@@ -1193,6 +1314,9 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
+    }
+    if (!paramInPointerSubplot(params, instance)) {
+      return "";
     }
     const meta = seriesMeta[params.seriesIndex];
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
@@ -1296,10 +1420,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 }
 
 // Build the markLine config for one subplot: instant (zero-duration) annotations
-// as a thin vertical rule with an enlarged triangle marker at the top, plus the
-// replay ruler at the current belief time (when replaying). Returns null when
+// as a thin vertical rule with an enlarged triangle marker at the top. Returns null when
 // there is nothing to draw.
-function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx) {
   const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
@@ -1319,21 +1442,11 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
       };
     })
     .filter(Boolean);
-  if (replayTime != null) {
-    // Replay ruler: a vertical line at the current belief time
-    data.push({
-      xAxis: replayTime,
-      symbol: "none",
-      lineStyle: { color: "#555", width: 1.5, type: "solid" },
-      blur: { lineStyle: { color: "#555", width: 1.5, type: "solid" } },
-      label: { show: false },
-    });
-  }
   if (data.length === 0) return null;
   return {
     silent: true,
     animation: false,
-    // Downward triangle at the top of each rule (the replay ruler opts out per item)
+    // Downward triangle at the top of each rule
     symbol: ["none", "path://M-6,-5 L6,-5 L0,5 Z"],
     symbolSize: 13,
     data: data,
@@ -1546,16 +1659,9 @@ function buildLineBarOption(elementId, groups, opts) {
       minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
-    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation for
-    // the whole row if ANY of its sensors is instantaneous (event_resolution 0),
-    // otherwise step-after. Prefer the sensor's real resolution; fall back to
-    // inferring it from event spacing only for legacy data without it.
-    const groupIsInstantaneous = group.series.some((s) =>
-      typeof s.eventResolutionSec === "number"
-        ? s.eventResolutionSec === 0
-        : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
-    );
-    // Annotation marks (shaded bands, instant rules) and the replay ruler live
+    // Linear or step-after for the whole row, as in Vega-Lite (see isGroupInstantaneous).
+    const groupIsInstantaneous = isGroupInstantaneous(group);
+    // Annotation marks (shaded bands, instant rules) live
     // on a dedicated, data-less carrier series, so they also show in subplots
     // that (still) have no data — parity with the Vega-Lite annotation layers.
     // The marks are silent and drawn behind the data, so the data tooltip keeps
@@ -1582,14 +1688,17 @@ function buildLineBarOption(elementId, groups, opts) {
         silent: true,
         animation: false,
         legendHoverLink: false, // not in any legend (legends list explicit entries only)
+        // An explicit color keeps this empty carrier from consuming a data palette slot.
+        // Annotation marks specify their own colors.
+        itemStyle: { color: "transparent" },
         markArea: buildAnnotationMarkArea(annotations, -1, -1),
       };
-      const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, -1, -1);
       if (markLine) carrier.markLine = markLine;
       series.push(carrier);
       seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
     }
-    group.series.forEach((s, j) => {
+    group.series.forEach((s) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
         name: s.name,
@@ -1658,12 +1767,6 @@ function buildLineBarOption(elementId, groups, opts) {
             lineStyle: lineStyle,
           });
         }
-      }
-      // Without annotations there is no carrier series, so the replay ruler
-      // rides on the subplot's first data series (as before).
-      if (j === 0 && annotations.length === 0) {
-        const markLine = buildAnnotationMarkLine([], -1, -1, instance.replayTime);
-        if (markLine) entry.markLine = markLine;
       }
       series.push(entry);
       seriesMeta.push(s);
@@ -2073,7 +2176,11 @@ function computeAssetLabels(sessions) {
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
 // Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
-function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash, fromLabel, toLabel) {
+// Every point carries both ends of its segment as x-dimensions (encode: x [0, 2]),
+// and the zoom's weakFilter drops a point only when all of its x-dimensions are out of the window on the same side,
+// so zooming into the middle of a long segment keeps it, where plain points would both be dropped and the segment vanish.
+// The segments are silent: hover is handled by the session's own hit area (see buildSessionHitSeries).
+function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash) {
   const series = [];
   for (const s of sessions) {
     const from = s[fromKey];
@@ -2081,51 +2188,6 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
     if (typeof from !== "number" || typeof to !== "number") continue;
     const catIdx = categoryIndex.get(s.assetId);
     const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
-    const data = [[from, catIdx], [to, catIdx]];
-    const tooltip = {
-      formatter: () =>
-        tooltipTable([
-          [fromLabel, formatFullDate(from)],
-          [toLabel, formatFullDate(to)],
-          ["Asset", s.assetLabel],
-        ]),
-    };
-    // Regular time-series lines (e.g. the companion subplots) have a data point
-    // every few pixels, so ECharts' "nearest point" hover snap always finds one
-    // close to the cursor anywhere along the line. A session segment only has 2
-    // points — its start and end, often hours apart — so that snap logic finds
-    // nothing nearby over most of a long bar. Densely interpolate the invisible
-    // hit-area line (kept off the visible line) so hovering anywhere along the
-    // bar's length has a point within range, not just right at its endpoints.
-    const hitPointCount = 40;
-    const hitData = [];
-    for (let i = 0; i <= hitPointCount; i++) {
-      hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
-    }
-    // Invisible companion line, much wider than the visible stroke, purely to
-    // widen the hoverable hit area: thin session bars (down to 1.5px) are
-    // otherwise very hard to hover precisely. Shares the visible line's name
-    // so it doesn't add its own legend entry or get toggled independently.
-    // Its OWN tooltip is disabled (tooltip.show: false): ECharts' tooltip box
-    // renders at zero size for a near-transparent series even though hover/hit
-    // -test work fine on it, so hovering it instead redirects (via the
-    // __hitAreaFor marker + the mouseover listener in wireSessionTooltipRedirect)
-    // to dispatch the visible sibling series' tooltip.
-    series.push({
-      name: s.assetLabel,
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      symbol: "none",
-      showSymbol: false,
-      animation: false,
-      legendHoverLink: false,
-      lineStyle: { width: Math.max(lineWidth, 16), opacity: 0.001 },
-      data: hitData,
-      tooltip: { show: false },
-      __hitAreaFor: true,
-      z: 1,
-    });
     series.push({
       name: s.assetLabel,
       type: "line",
@@ -2137,26 +2199,96 @@ function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, line
       color: color,
       lineStyle: { width: lineWidth, type: lineDash || "solid" },
       emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
-      data: data,
-      tooltip: tooltip,
+      encode: { x: [0, 2], y: 1 },
+      data: [[from, catIdx, to], [to, catIdx, from]],
+      silent: true,
       z: 2,
     });
   }
   return series;
 }
 
-// The two companion subplots Vega-Lite shows alongside the sessions chart (when
-// present in the dashboard config), restricted the same way the Python chart
-// builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
-const CHARGEPOINT_COMPANION_TITLES = ["Power flow by type", "Prices"];
-const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
-// Title of the dashboard group holding the raw session-marker sensors (arrival,
-// departure, plug in/out, start/stop charging). Their values are epoch timestamps,
-// not plottable quantities, so — like Vega-Lite — only the dedicated Charge Point
-// sessions chart type shows them; the default multi-sensor view hides this group.
-const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
+// Height in pixels of a session's hover area, much taller than its thinnest line so that the lines are easy to hover.
+const SESSION_HIT_HEIGHT = 16;
+
+// The timestamps a session tooltip lists, in the order a session runs through them.
+const SESSION_TOOLTIP_ROWS = [
+  ["arrival", "Arrival"], ["plug in", "Plug-in"], ["start charging", "Start charging"],
+  ["stop charging", "Stop charging"], ["plug out", "Plug-out"], ["departure", "Departure"],
+];
+
+// One invisible hit area per session, spanning the whole session (its earliest to its latest timestamp),
+// so hovering anywhere along it, including between its layers, shows one tooltip with all of its timestamps.
+// A custom series draws a rectangle in pixel space, so the area stays hoverable at every zoom level
+// (a line's symbols are spaced in time, and leave gaps once zoomed in), and its items carry the data index the item tooltip needs.
+// It is named after the asset, like the visible lines, so it adds no legend entry and follows the legend's toggling.
+function buildSessionHitSeries(sessions, categoryIndex) {
+  const series = [];
+  for (const s of sessions) {
+    const times = SESSION_TOOLTIP_ROWS.map(([key]) => s[key]).filter((t) => typeof t === "number");
+    if (times.length === 0) continue;
+    const from = Math.min(...times);
+    const to = Math.max(...times);
+    const catIdx = categoryIndex.get(s.assetId);
+    const rows = SESSION_TOOLTIP_ROWS.filter(([key]) => typeof s[key] === "number").map(([key, label]) => [label, formatFullDate(s[key])]);
+    rows.push(["Asset", s.assetLabel]);
+    series.push({
+      name: s.assetLabel,
+      type: "custom",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      color: SENSOR_COLORS[catIdx % SENSOR_COLORS.length],
+      animation: false,
+      legendHoverLink: false,
+      clip: true,
+      emphasis: { disabled: true },
+      encode: { x: [0, 1], y: 2 },
+      data: [[from, to, catIdx]],
+      tooltip: { formatter: () => tooltipTable(rows) },
+      renderItem: (params, api) => {
+        const start = api.coord([api.value(0), api.value(2)]);
+        const end = api.coord([api.value(1), api.value(2)]);
+        const half = SESSION_HIT_HEIGHT / 2;
+        const shape = echarts.graphic.clipRectByRect(
+          { x: start[0], y: start[1] - half, width: Math.max(end[0] - start[0], 1), height: SESSION_HIT_HEIGHT },
+          { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height }
+        );
+        return shape ? { type: "rect", shape: shape, style: { fill: "rgba(0,0,0,0.001)" } } : null;
+      },
+      z: 3,
+    });
+  }
+  return series;
+}
+
+// The graph titles and sensor name that the Charge Points chart goes by come in as opts.chargePointChart,
+// from the same constants the Python chart builder uses (CHARGE_POINT_CHART_NAMES in belief_charts.py):
+// - sessionsTitle: the dashboard group holding the raw session-marker sensors (arrival, departure, plug in/out, start/stop charging).
+//   Their values are epoch timestamps, not plottable quantities, so (like Vega-Lite) only the Charge Points chart type shows them;
+//   the default multi-sensor view hides this group.
+// - companionTitles: the two companion subplots Vega-Lite shows alongside the sessions chart (when present in the dashboard config),
+//   restricted the same way the Python chart builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
+// - powerFlowTitle and powerSensorName: of the power flows, only this sensor is shown.
+
+// Graph titles are matched as the Vega-Lite chart shows them, i.e. with a capital first letter,
+// so a graph titled "prices" counts as a Prices graph (see charge_point_companion_graph in belief_charts.py).
+function capitalizeTitle(title) {
+  return title ? title[0].toUpperCase() + title.slice(1) : title;
+}
+
+/**
+ * Whether the Charge Points chart shows this graph below its sessions.
+ *
+ * @param {string} title - The graph's title, as in sensors_to_show.
+ * @param {Object} chargePointChart - The names the Charge Points chart goes by (CHARGE_POINT_CHART_NAMES in belief_charts.py).
+ * @returns {boolean}
+ */
+export function isChargePointCompanionTitle(title, chargePointChart) {
+  return ((chargePointChart || {}).companionTitles || []).includes(capitalizeTitle(title));
+}
 
 export function buildChargePointSessionsOption(elementId, data, opts) {
+  const chargePointChart = opts.chargePointChart || {};
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2177,23 +2309,24 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   }
 
   const sessionSeries = [
-    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed", "Arrival", "Departure"),
-    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid", "Plug-in", "Plug-out"),
-    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid", "Start charging", "Stop charging"),
+    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed"),
+    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid"),
+    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid"),
+    ...buildSessionHitSeries(sessions, categoryIndex),
   ];
 
   // Same two companion subplots Vega-Lite stacks below the sessions chart, built
   // via the normal multi-sensor line-chart renderer and spliced in underneath.
-  const companionSpec = (opts.groupSpec || []).filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title));
+  const companionSpec = (opts.groupSpec || []).filter((g) => isChargePointCompanionTitle(g.title, chargePointChart));
   let companionGroups = companionSpec.length > 0 ? groupData(data, companionSpec) : [];
   // groupData() falls back to grouping any row not covered by companionSpec's
   // sensorIds by unit, producing extra ad-hoc groups for the asset's other
   // sensors (soc, power, ...) — drop everything except the two intended titles.
   companionGroups = companionGroups
-    .filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title))
+    .filter((g) => isChargePointCompanionTitle(g.title, chargePointChart))
     .map((g) =>
-      g.title === "Power flow by type"
-        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === CHARGEPOINT_POWER_SENSOR_NAME) })
+      capitalizeTitle(g.title) === chargePointChart.powerFlowTitle
+        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === chargePointChart.powerSensorName) })
         : g
     )
     .filter((g) => g.series.length > 0);
@@ -2250,7 +2383,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
     type: "time", // nice-aligned clock-time ticks (see line chart); minInterval biases granularity
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true },
+    // The ruler would highlight the session point nearest in time, which is often another charger's session.
+    // Hover over a session is answered by its own hit area instead (see buildSessionHitSeries).
+    axisPointer: { show: true, triggerEmphasis: false },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
@@ -2266,7 +2401,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
     splitLine: { show: false },
   }];
   const titles = [{
-    text: "Charge Point sessions",
+    text: chargePointChart.sessionsTitle,
     left: plotCenter,
     textAlign: "center",
     top: sessionsTop - TITLE_RAISE,
@@ -2341,6 +2476,9 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
+  // A session is one item spanning its start to its end, which the default filter would drop once both ends are out of the window.
+  // weakFilter keeps an item that overlaps the window, and still rescales the companion subplots' y-axes to the visible data.
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.filterMode = "weakFilter";
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2367,6 +2505,7 @@ export function buildChargePointSessionsOption(elementId, data, opts) {
       {
         type: "inside",
         xAxisIndex: allAxisIndices,
+        filterMode: "weakFilter", // see the toolbox zoom above
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
@@ -2403,7 +2542,7 @@ export function renderFastChart(elementId, data, options) {
   let instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) {
     const chart = echarts.init(container, null, { renderer: "canvas" });
-    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayTime: null };
+    instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayMotion: null };
     instance._lastWidth = container.clientWidth;
     // Re-render on resize (debounced), so centered titles stay centered — but ONLY when
     // the WIDTH changed. A height-only resize (mobile browsers fire one when the address
@@ -2432,6 +2571,8 @@ export function renderFastChart(elementId, data, options) {
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
+  // Ctrl is taken to be released by a re-render (see wireZoomInteractions), so the button colours are set accordingly.
+  instance._ctrlHeld = false;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._barSeries = []; // rebuilt by buildLineBarOption for bar charts (see refreshBarWidths)
@@ -2446,7 +2587,8 @@ export function renderFastChart(elementId, data, options) {
   } else if (opts.chartType === "chart_for_chargepoint_sessions") {
     option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
-    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== CHARGE_POINT_SESSIONS_GROUP_TITLE);
+    const sessionsTitle = (opts.chargePointChart || {}).sessionsTitle;
+    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== sessionsTitle);
     const groups = groupData(data, groupSpec);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
   }
@@ -2456,17 +2598,97 @@ export function renderFastChart(elementId, data, options) {
   if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
     option.brush = selectionBrush(option);
   }
+  // Settle what would otherwise take extra passes over the rendered chart, each about as costly as the render itself.
+  presetTimeTicks(instance, option);
+  preRoundSteps(instance, option);
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
 
   wireAnnotationHover(instance);
-  wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
   wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+  wireReplayRuler(instance);
+}
+
+/* ============================== replay ruler ============================== */
+
+const REPLAY_RULER_COLOR = "#555";
+const REPLAY_RULER_WIDTH = 1.5;
+// In exports, the ruler is a markLine above the series (z 2), so it stays visible inside bars and filled areas,
+// at the default z of a markLine, where the ruler was drawn when it was one (as the Vega-Lite chart draws its ruler last).
+const REPLAY_RULER_Z = 5;
+
+// The replay's belief time at the given wall time, following the ruler's motion, or null when not replaying.
+function replayRulerTime(instance, now = performance.now()) {
+  const motion = instance.replayMotion;
+  if (!motion) return null;
+  const time = motion.time + (now - motion.wallTime) * motion.rate;
+  // The ruler stops at the end of its motion, which lies before it while rewinding.
+  return motion.rate < 0 ? Math.max(motion.end, time) : Math.min(motion.end, time);
+}
+
+// Draw the replay ruler: a vertical rule at the replay's belief time in each time-axis subplot, above the data, or clear it.
+// The rules are HTML elements laid over the chart, moved by a CSS transform animation,
+// which the browser runs off the main thread: so the ruler keeps moving at a steady speed while the chart redraws its data,
+// which can block the main thread for a hundred milliseconds or more on a crowded chart.
+// Each rule sits in a lane the size of its subplot, which hides it outside the subplot (also when zoomed in).
+function drawReplayRuler(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed()) return;
+  if (instance._replayRuler) {
+    instance._replayRuler.remove();
+    instance._replayRuler = null;
+  }
+  const motion = instance.replayMotion;
+  if (!motion || !instance.lastOption) return;
+  const now = performance.now();
+  const time = replayRulerTime(instance, now);
+  const holder = document.createElement("div");
+  holder.className = "replay-ruler";
+  holder.style.cssText = "position: absolute; inset: 0; pointer-events: none; z-index: 1;";
+  const model = chart.getModel();
+  [].concat(instance.lastOption.xAxis || []).forEach((xAxis, i) => {
+    if (!xAxis || xAxis.type !== "time") return;
+    const gridModel = model.getComponent("grid", xAxis.gridIndex || 0);
+    const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+    // A time axis maps time to pixels linearly, so the ruler moves at a constant pixel speed, too.
+    const x = (t) => chart.convertToPixel({ xAxisIndex: i }, t) - rect.x - REPLAY_RULER_WIDTH / 2;
+    if (!rect || !isFinite(x(time))) return;
+    const lane = document.createElement("div");
+    lane.style.cssText = `position: absolute; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.width}px; height: ${rect.height}px; overflow: hidden;`;
+    const rule = document.createElement("div");
+    rule.style.cssText = `position: absolute; left: 0; top: 0; width: ${REPLAY_RULER_WIDTH}px; height: 100%; background: ${REPLAY_RULER_COLOR}; will-change: transform;`;
+    rule.style.transform = `translateX(${x(time)}px)`;
+    if (motion.rate !== 0 && time !== motion.end && typeof rule.animate === "function") {
+      const animation = rule.animate(
+        [{ transform: `translateX(${x(time)}px)` }, { transform: `translateX(${x(motion.end)}px)` }],
+        { duration: (motion.end - time) / motion.rate, easing: "linear", fill: "forwards" }
+      );
+      // Start from the moment the position was read, rather than from the next frame,
+      // which comes late exactly when the chart is busy redrawing.
+      animation.startTime = now;
+    }
+    lane.appendChild(rule);
+    holder.appendChild(lane);
+  });
+  // ECharts' own root, positioned relative to the chart, whose pixel coordinates the lanes use
+  chart.getZr().painter.getViewportRoot().appendChild(holder);
+  instance._replayRuler = holder;
+}
+
+// Redraw the replay ruler now, and whenever zooming or panning moves the time axes.
+function wireReplayRuler(instance) {
+  const chart = instance.chart;
+  if (instance.onReplayRulerZoom) {
+    chart.off("dataZoom", instance.onReplayRulerZoom);
+  }
+  instance.onReplayRulerZoom = () => drawReplayRuler(instance);
+  chart.on("dataZoom", instance.onReplayRulerZoom);
+  drawReplayRuler(instance);
 }
 
 /* ============================== range selection ============================== */
@@ -2757,8 +2979,8 @@ function wireZoomInteractions(instance, opts) {
   // resets. Ctrl temporarily inverts the mode — the blue highlight jumps to the other
   // button and the marquee flips — restored on release.
   if (instance._zoomMode === undefined) instance._zoomMode = true;
-  instance._ctrlHeld = false;
-  applyChartMode(instance);
+  instance._ctrlHeld = false; // as already assumed in the option's button colours (see renderFastChart)
+  applyChartMode(instance, { recolour: false });
   instance.onDblClickReset = () => resetZoom();
   zr.on("dblclick", instance.onDblClickReset);
   instance.onCtrlDown = (e) => {
@@ -2836,31 +3058,6 @@ function wirePointerTracking(instance) {
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
   zr.on("globalout", instance.onPointerOut);
-}
-
-// The wide invisible hit-area series added per session segment (see
-// buildSessionSegmentSeries) has its own tooltip disabled, because ECharts
-// renders a broken zero-size tooltip box for a near-transparent line series
-// even though hover/hit-testing on it work fine. Redirect hover on those
-// series to dispatch the visible sibling series' (real) tooltip instead.
-function wireSessionTooltipRedirect(instance, opts) {
-  const chart = instance.chart;
-  if (instance.onSessionHitHover) {
-    chart.off("mouseover", instance.onSessionHitHover);
-    instance.onSessionHitHover = null;
-  }
-  if (opts.chartType !== "chart_for_chargepoint_sessions") {
-    return;
-  }
-  instance.onSessionHitHover = (ev) => {
-    if (ev.componentType !== "series") return;
-    const series = chart.getOption().series || [];
-    const hovered = series[ev.seriesIndex];
-    if (!hovered || !hovered.__hitAreaFor) return;
-    // The visible sibling is always pushed immediately after its hit-area series.
-    chart.dispatchAction({ type: "showTip", seriesIndex: ev.seriesIndex + 1, dataIndex: 0 });
-  };
-  chart.on("mouseover", instance.onSessionHitHover);
 }
 
 // Highlight the annotation band/rule under the cursor and show its text below the
@@ -3067,7 +3264,7 @@ export function wireAnnotationHover(instance) {
       const after = stateFor(g, newHover, newPins);
       if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
-      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
+      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p);
       if (markLine) marks.markLine = markLine;
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
@@ -3118,12 +3315,22 @@ export function wireAnnotationHover(instance) {
 
 /**
  * Set (or clear, with null) the replay belief time, shown as a vertical ruler.
- * Takes effect on the next renderFastChart call.
+ *
+ * While the replay plays, pass its rate and end: the ruler then moves on by itself, at that rate, until the end,
+ * so this needs calling only when the replay starts, pauses, resumes, seeks or changes speed, not on every frame.
+ *
+ * @param {string} elementId          The chart's element id.
+ * @param {?number} beliefTimeMs      The replay's belief time, in ms, or null to clear the ruler.
+ * @param {Object} motion             How the ruler moves on from there:
+ * @param {number} motion.rate        Belief time passing per ms of wall time (0 while paused, negative while rewinding).
+ * @param {number} motion.end         The belief time at which the ruler stops, in ms.
+ * @param {number} motion.now         The wall time at which the belief time was read, in ms, such as performance.now().
  */
-export function setFastChartReplayTime(elementId, beliefTimeMs) {
+export function setFastChartReplayTime(elementId, beliefTimeMs, { rate = 0, end = Infinity, now = performance.now() } = {}) {
   const instance = instances[elementId];
   if (instance) {
-    instance.replayTime = beliefTimeMs;
+    instance.replayMotion = beliefTimeMs == null ? null : { time: beliefTimeMs, rate: rate, end: end, wallTime: now };
+    drawReplayRuler(instance);
   }
 }
 

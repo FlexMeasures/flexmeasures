@@ -17,7 +17,7 @@ This is a small guide for creating new versions of the API and its docs.
 
 
 Introducing a new API version
----------------------
+-----------------------------
 
 Larger changes to the API, other than fixes and refactoring, should be done by creating a new API version.
 In the guide we're assuming the new version is ``v1.1``.
@@ -75,7 +75,7 @@ In ``flexmeasures/api/__init__.py`` update the version listing in ``get_versions
 
 
 New or updated endpoint implementations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Write functionality of new or updated endpoints in:
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pandas as pd
 import pytest
 from rq.job import Job
 from sqlalchemy import event, select, text
@@ -295,6 +296,93 @@ def test_run_plan_snapshot_is_immutable_after_automation_edit(
     assert run.parameters == original_parameters
     assert run.schedule_revision == original_revision
     assert run.plan["cronstr"] == "0 1 * * *"
+
+
+def test_a_resumed_run_forecasts_the_window_it_started_on(
+    app, fresh_db, clean_redis, due_forecast_automation, mocker, freeze_server_now
+):
+    """A run resumed hours later queues its remaining jobs for the window and data its first attempt resolved.
+
+    The automation gives no start, so each dispatch attempt would resolve one from the clock,
+    and the jobs of one run would disagree about what they are forecasting.
+    Neither does it give a prior, so a resumed job would forecast with data recorded hours after the time it is believed at.
+    """
+    from flexmeasures.cli.jobs import run_automations
+
+    queue = app.queues["forecasting"]
+    original_enqueue_job = queue.enqueue_job
+    calls: list[str] = []
+
+    def enqueue_once_then_fail(job):
+        calls.append(job.id)
+        if len(calls) == 1:
+            return original_enqueue_job(job)
+        raise RuntimeError("lost connection after first job")
+
+    patched = mocker.patch.object(
+        queue, "enqueue_job", side_effect=enqueue_once_then_fail
+    )
+    runner = app.test_cli_runner()
+    runner.invoke(run_automations)
+
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    assert run.dispatch_state == "partially_queued"
+    assert run.parameters["start"] == "2026-08-05T01:00:00+00:00"
+    assert run.parameters["prior"] == "2026-08-05T01:00:00+00:00"
+
+    # Resume the run two hours later, when the clock would resolve a start of 03:00.
+    patched.side_effect = lambda job: original_enqueue_job(job)
+    freeze_server_now(datetime(2026, 8, 5, 3, 0, tzinfo=timezone.utc))
+    retry_result = runner.invoke(run_automations)
+
+    assert retry_result.exit_code == 0, retry_result.output
+    fresh_db.session.refresh(run)
+    assert run.dispatch_state == "queued"
+    job_starts = {
+        intent.logical_job_key: queue.fetch_job(intent.rq_job_id).meta["start"]
+        for intent in run.job_intents
+    }
+    assert len(job_starts) > 2, "a run of one cycle cannot disagree with itself"
+    assert set(job_starts.values()) == {"2026-08-05T01:00:00+00:00"}, job_starts
+    first_attempt = pd.Timestamp("2026-08-05T01:00:00+00:00")
+    for intent in run.job_intents:
+        if intent.kind != "forecast-cycle":
+            continue
+        parameters = queue.fetch_job(intent.rq_job_id).kwargs["parameters"]
+        assert parameters["save_belief_time"] == first_attempt, intent.logical_job_key
+        assert parameters["beliefs_before"] == first_attempt, intent.logical_job_key
+
+
+def test_a_run_with_offsets_pins_only_its_prior(fresh_db, due_forecast_automation):
+    """A run's offsets apply to the time it was due, which a retry shares, so only its prior needs pinning."""
+    from flexmeasures.data.services.automations import (
+        claim_due_automation_run,
+        get_due_automations,
+        pin_automation_run_effective_start,
+    )
+
+    due = get_due_automations(datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc))[0]
+    run = claim_due_automation_run(due, owner="runner").run
+    run.parameters = {
+        **run.parameters,
+        "start-offset": "1D,DB",
+        "duration": "P1D",
+    }
+    fresh_db.session.commit()
+    first_attempt = datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc)
+    pin_automation_run_effective_start(run.id, start=first_attempt, prior=first_attempt)
+    fresh_db.session.refresh(run)
+    assert "start" not in run.parameters
+    assert run.parameters["prior"] == "2026-08-05T01:00:00+00:00"
+
+    # A retry leaves the prior its first attempt pinned.
+    pin_automation_run_effective_start(
+        run.id,
+        start=first_attempt + timedelta(hours=2),
+        prior=first_attempt + timedelta(hours=2),
+    )
+    fresh_db.session.refresh(run)
+    assert run.parameters["prior"] == "2026-08-05T01:00:00+00:00"
 
 
 def test_live_partial_dispatch_claim_is_not_stolen(fresh_db, due_forecast_automation):
@@ -822,13 +910,13 @@ def _add_partially_queued_run(
     return run
 
 
-def test_only_a_forecast_run_is_dispatched_a_second_time(
+def test_a_schedule_run_is_dispatched_a_second_time_as_a_forecast_run_is(
     fresh_db, due_forecast_automation, freeze_server_now
 ):
-    """A forecast run resumes where it stopped, while a schedule run is left where it failed.
+    """Both kinds of run resume where they stopped, now that a schedule run's jobs carry IDs derived from the run.
 
-    A forecast run's jobs carry IDs derived from the run, so a retry can tell which of them it already queued,
-    whereas a schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules.
+    They used to differ: a schedule run's jobs got a fresh ID on every dispatch, so a retry could not tell
+    an already queued schedule from a missing one, and such a run was recorded and reported but left where it failed.
     """
     from flexmeasures.data.services.automations import (
         get_dispatchable_automation_runs,
@@ -853,7 +941,35 @@ def test_only_a_forecast_run_is_dispatched_a_second_time(
     }
 
     assert forecast_run.id in claimed_ids
-    assert schedule_run.id not in claimed_ids
+    assert schedule_run.id in claimed_ids
+
+
+@pytest.mark.parametrize("automation_type", ("reporting", "my-plugin-type"))
+def test_a_run_of_another_type_is_not_dispatched_a_second_time(
+    fresh_db, due_forecast_automation, freeze_server_now, automation_type
+):
+    """Only forecast and schedule runs are retried, as only their jobs carry IDs derived from the run.
+
+    A report or plugin run whose dispatch stopped halfway is left where it failed,
+    since its jobs take a fresh ID on every dispatch, and a retry could queue the same work twice.
+    """
+    from flexmeasures.data.services.automations import (
+        get_dispatchable_automation_runs,
+    )
+
+    freeze_server_now(datetime(2026, 8, 5, 2, 0, tzinfo=timezone.utc))
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        automation_type,
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+
+    claimed_ids = {
+        claimed.run.id for claimed in get_dispatchable_automation_runs(owner="runner:1")
+    }
+
+    assert run.id not in claimed_ids
 
 
 def test_a_dispatch_that_keeps_failing_is_given_up_on(
@@ -1128,3 +1244,93 @@ def test_a_job_failure_is_recorded_once(fresh_db, due_forecast_automation):
     fresh_db.session.refresh(intent)
     assert intent.finished_at == failed_at
     assert intent.last_error_message == error
+
+
+@pytest.mark.parametrize("checked", [True, False])
+def test_a_forecast_cycle_records_only_on_the_sensors_its_automation_was_checked_against(
+    app,
+    fresh_db,
+    clean_redis,
+    due_forecast_automation,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+    tmp_path,
+    checked,
+):
+    """A cycle job queued by a forecast automation is refused before saving, when the sensor it records on was not checked.
+
+    The computation itself is stubbed out, since what is under test is the check between computing and saving.
+    Narrowing the automation's output sensors to none stands in for a sensor nobody was checked against.
+    """
+    import pandas as pd
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+        ForecastCycleResult,
+        TrainPredictPipeline,
+    )
+    from flexmeasures.data.models.time_series import TimedBelief
+    from flexmeasures.data.services import automations as automations_service
+    from flexmeasures.data.services.forecasting import handle_forecasting_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    def compute_two_beliefs(pipeline, *args, **kwargs):
+        sensor = pipeline._parameters["sensor_to_save"]
+        model_path = tmp_path / "model.pkl"
+        model_path.touch()
+        data = tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=pipeline.forecast_source(),
+                    event_start=pd.Timestamp("2026-08-05T01:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-08-05T01:00:00+00:00"),
+                    event_value=float(i + 1),
+                )
+                for i in range(2)
+            ]
+        )
+        return ForecastCycleResult(
+            data=data, runtime=0.0, output_path=None, model_path=str(model_path)
+        )
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute_cycle", compute_two_beliefs)
+    if not checked:
+        resolve = automations_service.resolve_automation_sensors
+
+        def resolve_without_outputs(automation):
+            return {**resolve(automation), "output_sensors": []}
+
+        monkeypatch.setattr(
+            automations_service, "resolve_automation_sensors", resolve_without_outputs
+        )
+
+    assert app.test_cli_runner().invoke(run_automations).exit_code == 0
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    cycle = next(i for i in run.job_intents if i.kind == "forecast-cycle")
+    sensor_id = setup_fresh_test_forecast_data["solar-sensor"].id
+    beliefs_before = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == sensor_id)
+    ).all()
+
+    queue = app.queues["forecasting"]
+    work_on_rq(queue, exc_handler=handle_forecasting_exception, job=cycle.rq_job_id)
+    job = Job.fetch(cycle.rq_job_id, connection=queue.connection)
+    beliefs_after = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == sensor_id)
+    ).all()
+
+    if checked:
+        assert job.is_finished, job.meta.get("exception")
+        assert len(beliefs_after) == len(beliefs_before) + 2
+    else:
+        assert job.is_failed
+        assert job.meta["exception"]["type"] == "GeneratorWritesUncheckedSensor"
+        assert (
+            f"automation {due_forecast_automation.id}"
+            in job.meta["exception"]["message"]
+        )
+        assert str(sensor_id) in job.meta["exception"]["message"]
+        assert len(beliefs_after) == len(beliefs_before)

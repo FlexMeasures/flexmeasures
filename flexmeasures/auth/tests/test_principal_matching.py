@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import select
+from flexmeasures.data.models.user import Role
 
 from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
@@ -39,6 +41,10 @@ class MockUser:
 
     def has_role(self, role):
         return role in self.roles
+
+    @property
+    def flexmeasures_roles(self):
+        return [SimpleNamespace(name=role) for role in self.roles]
 
 
 def make_mock_user(
@@ -171,10 +177,24 @@ def test_principals_match(mock_user, principals, should_match):
             [3],
             False,
         ),
-        # Account-admin user should be able to modify (consultant) role
+        # Account-admin user should be able to remove the (consultant) role
         (
             make_mock_user(18, ["account-admin"], 4, []),
             make_mock_user(24, ["consultant"], 4, []),
+            [4],
+            True,
+        ),
+        # Account-admin user should not be able to give the consultant role in an account without the Consultancy role
+        (
+            make_mock_user(18, ["account-admin"], 4, []),
+            make_mock_user(24, [], 4, []),
+            [4],
+            False,
+        ),
+        # Account-admin user should be able to give the consultant role in a consultancy account
+        (
+            make_mock_user(18, ["account-admin"], 4, ["Consultancy"]),
+            make_mock_user(24, [], 4, ["Consultancy"]),
             [4],
             True,
         ),
@@ -197,6 +217,15 @@ def test_principals_match(mock_user, principals, should_match):
 def test_can_modify_role(
     db, setup_roles_users, mock_user, roles_to_modify, can_modify_roles, modified_user
 ):
+    old_role_ids = {1: "account-admin", 3: "admin-reader", 4: "consultant"}
+    roles_to_modify = [
+        (
+            db.session.scalar(select(Role.id).where(Role.name == old_role_ids[role]))
+            if isinstance(role, int)
+            else role
+        )
+        for role in roles_to_modify
+    ]
     assert (
         can_modify_role(mock_user, roles_to_modify, modified_user) == can_modify_roles
     )

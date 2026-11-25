@@ -9,7 +9,7 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
 .. note:: 
     Currently, FlexMeasures comes with the following reporters:
-        - `PandasReporter`: applies arbitrary `Pandas <https://pandas.pydata.org>`_ methods to sensor data. 
+        - `PandasReporter`: applies `Pandas <https://pandas.pydata.org>`_ methods to sensor data (pure transformations only: no file output or expression evaluation).
         - `AggregatorReporter`: combines data from multiple sensors into one using any of the methods supported by the Pandas `aggregate` function (e.g. sum, average, max, min...).
         - `ProfitOrLossReporter`: computes the profit/loss due to an energy flow under a specific tariff.
 
@@ -69,7 +69,7 @@ Run the command below to show the values for our newly-created `grid connection 
     │                                                            │
     │                                                            │ 499.0kW
     └────────────────────────────────────────────────────────────┘
-                       06:00           12:00           18:00
+        00:00         06:00           12:00          18:00
               ██ grid connection capacity (toy-building)
 
 
@@ -120,13 +120,13 @@ In practice, we need to create the `config` and `parameters`:
     $ echo "
     $ {
     $     'input': [{'name': 'grid connection capacity', 'sensor': ${FM_TOY_GRID_CAPACITY_SENSOR_ID}},
-    $                {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'sources': [2]}],
+    $                {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'source_types': ['forecaster']}],
     $     'output': [{'sensor': ${FM_TOY_HEADROOM_SENSOR_ID}}]
     $ }" > headroom-parameters.json
 
 The output sensor (ID: 14) is actually the one created just to store that information - the headroom our battery has when considering solar production.
 
-We limit the PV input to data with source 2, which is the one created for our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
+We limit the PV input to sources of type ``forecaster``, which includes our solar forecasts without relying on a fixed source ID. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
 
 Finally, we can create the report with the following command:
 
@@ -141,6 +141,7 @@ Now we can visualize the diminished headroom in the following `link <http://loca
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
+
 |
 
 The graph shows that the capacity of the grid is at full disposal for the battery when there's no sun (thus no PV generation), while at noon the battery can only discharge at 280kW max.
@@ -196,6 +197,7 @@ Check the results `here <http://localhost:5000/sensors/15>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-inflexible.png
     :align: center
+
 |
 
 
@@ -224,6 +226,7 @@ Check the results `here <http://localhost:5000/sensors/16>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-breakable.png
     :align: center
+
 |
 
 Shiftable process
@@ -252,6 +255,7 @@ Check the results `here <http://localhost:5000/sensors/17>`_. The image should b
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png
     :align: center
+
 |
 
 

@@ -1,18 +1,160 @@
 from typing import Any
 
 from flask import current_app
+from marshmallow import ValidationError
 from sqlalchemy import delete
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import (
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from flexmeasures.data.services.group_membership_audit import (
+    note_deletion as note_group_membership_deletion,
+)
+from flexmeasures.auth.loaders import (
+    flex_config_sensor_reference_paths,
+    flex_config_sensor_references,
+)
+from flexmeasures.auth.policy import check_access
+from flexmeasures.data.services.data_generators import check_sensor_access
 
 """Services for managing assets"""
+
+
+def _validate_kpi_sensors_for_access(kpis: Any, permission: str) -> None:
+    """Validate KPI entries and check access to each referenced sensor."""
+    if not isinstance(kpis, list):
+        raise ValidationError(
+            "sensors_to_show_as_kpis must be a list.",
+            field_name="sensors_to_show_as_kpis",
+        )
+    for kpi in kpis:
+        if (
+            not isinstance(kpi, dict)
+            or not isinstance(kpi.get("title"), str)
+            or type(kpi.get("sensor")) is not int
+            or kpi.get("function") not in (None, "sum", "min", "max", "mean")
+        ):
+            raise ValidationError(
+                "Invalid sensors_to_show_as_kpis entry.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        sensor = db.session.get(Sensor, kpi["sensor"])
+        if sensor is None:
+            raise ValidationError(
+                f"Sensor {kpi['sensor']} in sensors_to_show_as_kpis does not exist.",
+                field_name="sensors_to_show_as_kpis",
+            )
+        check_access(sensor, permission)
+
+
+def _validate_flex_config_sensors_for_access(flex_config: Any) -> None:
+    """Check access to every sensor a flex-context or flex-model refers to, before it is stored.
+
+    Scheduling reads from the referenced sensors and records results on the output ones,
+    for whoever triggers it later and without checking them again,
+    so storing a reference needs the access a data generator needs (see check_sensor_access):
+    read access to every referenced sensor, and create-children access (recording data) to the output sensors.
+    """
+    all_sensors, output_sensors = flex_config_sensor_references(flex_config)
+    check_sensor_access(input_sensors=all_sensors, output_sensors=output_sensors)
+
+
+def _stored_flex_config_references(
+    flex_config: Any,
+) -> set[tuple[tuple[str, ...], int]]:
+    """The (field path, sensor id) pairs a stored flex-context or flex-model refers to.
+
+    A stored config that cannot be read (e.g. it refers to a sensor that no longer exists) counts as referring to nothing.
+    """
+    try:
+        references = flex_config_sensor_reference_paths(flex_config)
+    except Exception:
+        return set()
+    return {(path, sensor.id) for path, sensor, _ in references}
+
+
+def _validate_updated_flex_config_sensors(stored_config: Any, new_config: Any) -> None:
+    """Check access to the sensors an updated flex-context or flex-model refers to, where they were not referred to before.
+
+    A reference counts as new unless the stored config has the same sensor under the same field path.
+    So a stored reference the editor may not use themselves (e.g. a price sensor set by a host admin) can stay
+    when the editor changes other fields, as the UI's flex-context editor always sends the whole config,
+    while a stored sensor moved to another field, such as from an input to an output field, is checked again.
+    """
+    stored = _stored_flex_config_references(stored_config)
+    new_references = [
+        (sensor, is_output)
+        for path, sensor, is_output in flex_config_sensor_reference_paths(new_config)
+        if (path, sensor.id) not in stored
+    ]
+    check_sensor_access(
+        input_sensors=[sensor for sensor, _ in new_references],
+        output_sensors=[sensor for sensor, is_output in new_references if is_output],
+    )
+
+
+def _validate_updated_kpi_sensors(db_asset: GenericAsset, asset_data: dict) -> None:
+    """Validate changed KPI references before patching the asset."""
+    if (
+        "sensors_to_show_as_kpis" in asset_data
+        and asset_data["sensors_to_show_as_kpis"] != db_asset.sensors_to_show_as_kpis
+    ):
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
+
+
+def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
+    """Return whether an asset subtree holds beliefs or annotations.
+
+    The subtree's assets and sensors are looked up first, and the probes name them by ID.
+    Probing ``timed_belief`` with a subquery for its sensors instead lets Postgres plan a join that reads the whole table's index,
+    which takes seconds on a large database whenever the subtree holds no beliefs.
+    """
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    subtree = (
+        sa.select(GenericAsset.id)
+        .where(GenericAsset.id == asset.id)
+        .cte(recursive=True)
+    )
+    subtree = subtree.union_all(
+        sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
+    )
+    asset_query = sa.select(GenericAsset.id).where(
+        GenericAsset.id.in_(sa.select(subtree.c.id))
+    )
+    if lock:
+        asset_query = asset_query.with_for_update()
+    asset_ids = db.session.scalars(asset_query).all()
+    sensor_query = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        sensor_query = sensor_query.with_for_update()
+    sensor_ids = db.session.scalars(sensor_query).all()
+    for model, condition in (
+        (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
+        (
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id.in_(asset_ids),
+        ),
+        (
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.sensor_id.in_(sensor_ids),
+        ),
+    ):
+        if db.session.scalar(
+            sa.select(sa.literal(True)).select_from(model).where(condition).limit(1)
+        ):
+            return True
+    return False
 
 
 def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
@@ -22,8 +164,6 @@ def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
     so each one is checked on its own.
     """
     from werkzeug.exceptions import Forbidden, Unauthorized
-
-    from flexmeasures.auth.policy import check_access
 
     readable = []
     for descendant in asset.offspring:
@@ -39,9 +179,15 @@ def create_asset(asset_data: dict) -> GenericAsset:
     """
     Create an asset.
 
-    Does not validate data or commit the session.
+    Validates KPI sensor references, but assumes other data was validated by the caller.
+    Does not commit the session.
     Creates an audit log.
     """
+    if "sensors_to_show_as_kpis" in asset_data:
+        _validate_kpi_sensors_for_access(asset_data["sensors_to_show_as_kpis"], "read")
+    for flex_config_field in ("flex_context", "flex_model"):
+        if asset_data.get(flex_config_field):
+            _validate_flex_config_sensors_for_access(asset_data[flex_config_field])
     if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
         asset_data.pop("external_id")  # nothing to set, leave it as None
     asset = GenericAsset(**asset_data)
@@ -563,6 +709,115 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
         return f"Updated {field_name}: {old_value} → {new_value}"
 
 
+def check_parent_asset_access(parent: GenericAsset, account_id: int | None) -> None:
+    """Check that the current user may put an asset of the given account under this parent asset.
+
+    A parent in the same account needs nothing more than the caller already checks.
+    A parent in another account (asset trees may span organisations) needs permission to add children
+    under the parent, and to create assets in the child's account (only admins may for public assets).
+    The CLI may do anything.
+
+    :raises Forbidden or Unauthorized: if the user may not.
+    """
+    from flask_security import current_user
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.auth.policy import user_has_admin_access
+    from flexmeasures.cli import is_running as running_as_cli
+    from flexmeasures.data.models.user import Account
+
+    if parent.account_id == account_id or running_as_cli():
+        return
+    check_access(parent, "create-children")
+    if account_id is not None:
+        check_access(db.session.get(Account, account_id), "edit-assets")
+    elif not user_has_admin_access(current_user, "update"):
+        raise Forbidden("Only site admins may create public assets (account_id=None).")
+
+
+def cross_account_parent_warning(
+    asset: GenericAsset, parent: GenericAsset | None, account_id: int | None
+) -> str | None:
+    """Describe placing an asset of the given account under a parent asset of another organisation.
+
+    The CLI may do this without the checks of check_parent_asset_access, so it warns instead.
+    A parent in the same account, no parent and a public parent need no warning;
+    a public asset under a parent of an account does (it shows up in that account's tree).
+
+    :param asset:       the asset placed under the parent (its name and id are used)
+    :param parent:      its (new) parent asset, if any
+    :param account_id:  the (new) account of the asset (None for a public asset)
+    :returns:           the warning text, or None if nothing crosses organisations
+    """
+    from flexmeasures.data.models.user import Account
+
+    if parent is None or parent.account_id is None or parent.account_id == account_id:
+        return None
+    parent_account = db.session.get(Account, parent.account_id)
+    parent_text = f"parent '{parent.name}' (id {parent.id})"
+    parent_account_text = f"'{parent_account.name}' (id {parent_account.id})"
+    tree_text = f"Users of '{parent_account.name}' will see it in their asset tree"
+    if account_id is None:
+        return (
+            f"Warning: public asset '{asset.name}' (id {asset.id}) gets {parent_text}"
+            f" from organisation {parent_account_text}. {tree_text}."
+        )
+    account = db.session.get(Account, account_id)
+    return (
+        f"Warning: asset '{asset.name}' (id {asset.id}) of organisation '{account.name}' (id {account.id})"
+        f" gets {parent_text} from another organisation, {parent_account_text}."
+        f' {tree_text} (as "(another organisation)" where they may not read it).'
+    )
+
+
+def validate_parent_asset_access(
+    parent: GenericAsset, account_id: int | None, field_name: str = "parent_asset_id"
+) -> None:
+    """As check_parent_asset_access, for validators: refusal is a validation error.
+
+    :raises ValidationError: if the user may not put an asset of this account under the parent.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    try:
+        check_parent_asset_access(parent, account_id)
+    except (Forbidden, Unauthorized):
+        raise ValidationError(
+            f"Asset {parent.id} belongs to another organisation. Placing an asset under it needs permission"
+            " to add assets under it, and to create assets in the organisation of the asset placed under it.",
+            field_name,
+        )
+
+
+def _validate_updated_parent_account(db_asset: GenericAsset, asset_data: dict):
+    """Check a new parent asset (or a new account under the same parent), whichever caller patches the asset.
+
+    :raises ValidationError: if the new parent does not exist, or belongs to another account
+                             and the user may not place the asset under it (see check_parent_asset_access).
+    """
+    parent_changed = (
+        "parent_asset_id" in asset_data
+        and asset_data["parent_asset_id"] != db_asset.parent_asset_id
+    )
+    account_changed = (
+        "account_id" in asset_data and asset_data["account_id"] != db_asset.account_id
+    )
+    if not (parent_changed or account_changed):
+        return
+    parent_id = asset_data.get("parent_asset_id", db_asset.parent_asset_id)
+    if parent_id is None:
+        return
+    parent = db.session.get(GenericAsset, parent_id)
+    if parent is None:
+        raise ValidationError(
+            f"Parent GenericAsset with id {parent_id} doesn't exist.",
+            "parent_asset_id",
+        )
+    validate_parent_asset_access(
+        parent, asset_data.get("account_id", db_asset.account_id)
+    )
+
+
 def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     """
     Patch an asset.
@@ -572,6 +827,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     Creates an audit log.
     """
     audit_log_data = list()
+    _validate_updated_kpi_sensors(db_asset, asset_data)
+    _validate_updated_parent_account(db_asset, asset_data)
 
     # first special content
     schema_map = dict(
@@ -595,6 +852,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             # Validate the JSON field against the given schema
             if k != "sensors_to_show":
                 schema_map[k]().load(v)
+                _validate_updated_flex_config_sensors(getattr(db_asset, k), v)
             else:
                 # we use `deserialize here because the `SensorsToShowSchema` is a "fields.Field" object rather than a "Schema" object
                 schema_map[k]().deserialize(v)
@@ -605,6 +863,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             audit_log_data.append(
                 f"Updated: {k}, From: {getattr(db_asset, k)}, To: {v}"
             )
+
+    _refuse_parent_cycle(db_asset, asset_data)
 
     # Iterate over each field or attribute updates and create a separate audit log entry for each.
     for event in audit_log_data:
@@ -630,6 +890,32 @@ def delete_asset(asset: GenericAsset):
     asset_name, asset_id = asset.name, asset.id
     cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
+    # the statement below deletes the asset, its offspring and their sensors without a flush, which is where group changes are noted otherwise
+    note_group_membership_deletion(asset)
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     current_app.logger.info("Deleted asset '%s'." % asset_name)
+
+
+def _refuse_parent_cycle(db_asset: GenericAsset, asset_data: dict):
+    """Refuse a new parent that is the asset itself or one of its descendants.
+
+    Such a parent would make the asset tree a cycle, which code walking up or down the tree would follow forever.
+
+    :raises ValidationError: if the new parent would close a cycle.
+    """
+    parent_id = asset_data.get("parent_asset_id")
+    if parent_id is None or parent_id == db_asset.parent_asset_id:
+        return
+    seen: set[int] = set()
+    ancestor_id: int | None = parent_id
+    while ancestor_id is not None and ancestor_id not in seen:
+        if ancestor_id == db_asset.id:
+            raise ValidationError(
+                "The parent asset cannot be the asset itself or one of its descendants.",
+                "parent_asset_id",
+            )
+        seen.add(ancestor_id)
+        ancestor_id = db.session.execute(
+            sa.select(GenericAsset.parent_asset_id).filter_by(id=ancestor_id)
+        ).scalar_one_or_none()

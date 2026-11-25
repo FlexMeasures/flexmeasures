@@ -248,6 +248,97 @@ def test_get_assets_sort_with_search_filter(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_paging_without_sort_sees_all_assets(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Paging through the asset list without a sort order must not skip assets.
+
+    Regression test: without a sort order (or when sorting ties on e.g. owner),
+    the query had no total order, so Postgres was free to return rows in
+    whatever order each query plan produced. Walking LIMIT/OFFSET pages then
+    showed some assets twice and never showed others (#2572).
+    """
+    account = setup_accounts["Prosumer"]
+    asset_type = db.session.query(GenericAssetType).first()
+    for i in range(30):
+        db.session.add(
+            GenericAsset(
+                name=f"paging-test asset {i:02d}",
+                generic_asset_type_id=asset_type.id,
+                account_id=account.id,
+            )
+        )
+    db.session.commit()
+
+    per_page = 3
+    seen_ids: list[int] = []
+    page = 1
+    total_pages = None
+    while total_pages is None or page <= total_pages:
+        response = client.get(
+            url_for("AssetAPI:index"),
+            query_string={"page": page, "per_page": per_page, "all_accessible": True},
+        )
+        assert response.status_code == 200
+        seen_ids.extend(asset["id"] for asset in response.json["data"])
+        total_pages = -(-response.json["filtered-records"] // per_page)
+        page += 1
+        assert page <= 100  # pagination terminates
+
+    duplicates = len(seen_ids) - len(set(seen_ids))
+    assert duplicates == 0, f"unsorted paging duplicated {duplicates} rows"
+    num_assets = db.session.query(GenericAsset).count()
+    assert (
+        len(set(seen_ids)) == num_assets
+    ), f"unsorted paging skipped {num_assets - len(set(seen_ids))} assets"
+
+    # Clean up: later tests count the assets the fixtures seeded.
+    db.session.query(GenericAsset).filter(
+        GenericAsset.name.like("paging-test asset%")
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_unsupported_sort_by_still_orders_by_id(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """An unsupported sort_by must not silently drop the ordering.
+
+    The public API validates sort_by, but query_assets_by_search_terms is a utility other callers
+    may use; an unsupported field used to leave the query unordered, which reintroduces the unstable
+    paging from #2572. We assert the ordering on the compiled statement rather than on observed row
+    order, since an unordered query may happen to return ascending ids.
+    """
+    from flexmeasures.data.queries.generic_assets import (
+        query_assets_by_search_terms,
+    )
+
+    for search_terms, filter_statement in (
+        (None, True),
+        (["e"], GenericAsset.account_id.isnot(None)),
+    ):
+        for sort_dir in ("asc", "desc"):
+            query = query_assets_by_search_terms(
+                search_terms=search_terms,
+                filter_statement=filter_statement,
+                sort_by="unsupported_field",
+                sort_dir=sort_dir,
+            )
+            compiled = query.compile(compile_kwargs={"literal_binds": False})
+            compiled_str = str(compiled)
+            assert "ORDER BY" in compiled_str, compiled_str[-200:]
+            order_by_clause = compiled_str.split("ORDER BY")[-1]
+            # exactly one ordering expression: the asset id, ascending
+            assert order_by_clause.strip() in (
+                "anon_1.id ASC",
+                "anon_1.id",
+                "generic_asset.id ASC",
+                "generic_asset.id",
+            ), order_by_clause
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
@@ -564,24 +655,30 @@ def test_alter_an_asset(
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
-    # ... or deleted ...
-    asset_delete_response = client.delete(
-        url_for("AssetAPI:delete", id=prosumer_asset.id),
-        json={},
-    )
-    print(f"Deletion Response: {asset_delete_response.json}")
-    assert asset_delete_response.status_code == 403
-    # ... but editing is allowed.
+    # Editing is allowed. Deletion of an empty asset is tested separately.
     latitude, name = prosumer_asset.latitude, prosumer_asset.name
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
         json={
             "latitude": 11.1,
             "name": "other",
+            "account_id": prosumer_id,
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
+    assert asset_edit_response.json["account_id"] == prosumer_id
+
+    for other_account_id in (None, setup_accounts["Supplier"].id):
+        ownership_change_response = client.patch(
+            url_for("AssetAPI:patch", id=prosumer_asset.id),
+            json={"account_id": other_account_id},
+        )
+        assert ownership_change_response.status_code == 422
+        assert ownership_change_response.json["message"]["json"] == {
+            "account_id": ["Cannot change the account of an asset."]
+        }
+        assert prosumer_asset.account_id == prosumer_id
 
     # Resetting changes to keep other tests clean here
     asset_edit_response = client.patch(
@@ -685,11 +782,7 @@ def test_post_an_asset_with_other_account(client, setup_api_test_data, requestin
         json=post_data,
     )
     print(f"Creation Response: {asset_creation_response.json}")
-    assert asset_creation_response.status_code == 422
-    assert (
-        "not allowed to create assets for this account"
-        in asset_creation_response.json["message"]["json"]["account_id"][0]
-    )
+    assert asset_creation_response.status_code == 403
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -934,7 +1027,9 @@ def test_post_an_asset_with_existing_name(
         parent = get_asset_by_name(parent_name)
 
     post_data["name"] = child_name
-    post_data["account_id"] = requesting_user.account_id
+    post_data["account_id"] = (
+        parent.account_id if parent else requesting_user.account_id
+    )
 
     if parent:
         post_data["parent_asset_id"] = parent.id
@@ -1465,6 +1560,112 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     assert battery.flex_model["consumption-capacity"] == {"sensor": sensor_internal.id}
 
 
+def test_copy_asset_drops_private_sensor_refs_in_every_shape(
+    setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
+):
+    """References to private sensors outside the copy are dropped also when given as strings or under legacy keys."""
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+    price_sensor = setup_markets["epex_da"]
+    asset_type = setup_generic_asset_types["battery"]
+    supplier_asset = GenericAsset(
+        name="Supplier asset for sensor ref shapes",
+        generic_asset_type_id=asset_type.id,
+        account_id=supplier_account.id,
+    )
+    battery = GenericAsset(
+        name="Battery for sensor ref shapes",
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add_all([supplier_asset, battery])
+    db.session.flush()
+    private_ext_sensor = Sensor(
+        name="private external sensor",
+        generic_asset=supplier_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    sensor_internal = Sensor(
+        name="internal sensor",
+        generic_asset=battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add_all([private_ext_sensor, sensor_internal])
+    db.session.flush()
+    battery.flex_context = {
+        "site-power-capacity": {"sensor": str(private_ext_sensor.id)},
+        "consumption-price-sensor": private_ext_sensor.id,
+        "production-price-sensor": str(price_sensor.id),
+        "inflexible-device-sensors": [
+            str(private_ext_sensor.id),
+            str(sensor_internal.id),
+        ],
+        "site-consumption-capacity": {"sensor": str(sensor_internal.id)},
+    }
+    db.session.flush()
+
+    battery_copy = copy_asset(battery, account=prosumer_account).asset
+    new_sensor = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == battery_copy.id)
+    ).one()
+
+    assert battery_copy.flex_context == {
+        "production-price-sensor": price_sensor.id,
+        "inflexible-device-sensors": [new_sensor.id],
+        "site-consumption-capacity": {"sensor": new_sensor.id},
+    }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_checks_copied_output_sensors(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user, db
+):
+    """A copied flex-context may only record on a sensor outside the copy if the copying user may record data on it.
+
+    Here an admin let the asset record on a public sensor, which an account-admin may not do (E2).
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    public_sensor = setup_markets["epex_da"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_sensor = Sensor(
+        name="copied output",
+        generic_asset=source_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(own_sensor)
+    db.session.flush()
+    number_of_assets = len(db.session.scalars(select(GenericAsset.id)).all())
+
+    source_asset.flex_context = {"aggregate-power": {"sensor": public_sensor.id}}
+    db.session.flush()
+    response = client.post(url_for("AssetAPI:copy_assets", id=source_asset.id))
+    assert response.status_code == 403, response.json
+    assert len(db.session.scalars(select(GenericAsset.id)).all()) == number_of_assets
+
+    # Recording on a sensor that is copied along is fine.
+    source_asset.flex_context = {"aggregate-power": {"sensor": own_sensor.id}}
+    db.session.flush()
+    response = client.post(url_for("AssetAPI:copy_assets", id=source_asset.id))
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    copied_output = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id, name="copied output")
+    ).one()
+    assert copied_asset.flex_context == {
+        "aggregate-power": {"sensor": copied_output.id}
+    }
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
@@ -1516,6 +1717,123 @@ def test_copy_asset_api_copies_direct_sensors(
         user=requesting_user,
         asset=copied_asset,
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_copy_asset_api_refuses_a_target_account_the_user_cannot_edit(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """A member may copy under their own parent asset, but not into another account by naming it next to that parent."""
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_parent = GenericAsset(
+        name="copy-target-own-parent",
+        generic_asset_type_id=source_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add(own_parent)
+    db.session.flush()
+    assets_in_supplier_account = db.session.scalars(
+        select(GenericAsset.id).filter_by(account_id=supplier_account.id)
+    ).all()
+
+    response = client.post(
+        url_for(
+            "AssetAPI:copy_assets",
+            id=source_asset.id,
+            account=supplier_account.id,
+            parent=own_parent.id,
+        )
+    )
+    assert response.status_code == 403, response.json
+    assert (
+        db.session.scalars(
+            select(GenericAsset.id).filter_by(account_id=supplier_account.id)
+        ).all()
+        == assets_in_supplier_account
+    )
+
+    # Naming the parent's own account is still fine.
+    response = client.post(
+        url_for(
+            "AssetAPI:copy_assets",
+            id=source_asset.id,
+            account=prosumer_account.id,
+            parent=own_parent.id,
+        )
+    )
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id == own_parent.id
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_copy_asset_api_checks_the_source_account_for_a_sibling_copy(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Without account or parent, the copy lands in the source's account, which may differ from its parent's.
+
+    Here a public asset sits under the member's own asset: copying it would create a public asset,
+    which only admins may do, so the parent's permission is not enough.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    own_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    own_parent = GenericAsset(
+        name="sibling-copy-own-parent",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add(own_parent)
+    db.session.flush()
+    public_child = GenericAsset(
+        name="sibling-copy-public-child",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=None,
+        parent_asset_id=own_parent.id,
+    )
+    own_child = GenericAsset(
+        name="sibling-copy-own-child",
+        generic_asset_type_id=own_asset.generic_asset_type_id,
+        account_id=prosumer_account.id,
+        parent_asset_id=own_parent.id,
+    )
+    db.session.add_all([public_child, own_child])
+    db.session.flush()
+    public_assets = db.session.scalars(
+        select(GenericAsset.id).filter(GenericAsset.account_id.is_(None))
+    ).all()
+
+    response = client.post(url_for("AssetAPI:copy_assets", id=public_child.id))
+    assert response.status_code == 403, response.json
+    assert (
+        db.session.scalars(
+            select(GenericAsset.id).filter(GenericAsset.account_id.is_(None))
+        ).all()
+        == public_assets
+    )
+
+    # A sibling copy within the parent's own account is still fine.
+    response = client.post(url_for("AssetAPI:copy_assets", id=own_child.id))
+    assert response.status_code == 201, response.json
+    copied_asset = db.session.get(GenericAsset, response.json["asset"])
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id == own_parent.id
 
 
 @pytest.mark.parametrize(
@@ -1614,7 +1932,8 @@ def test_regular_user_cannot_create_child_of_public_asset(
     client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
 ):
     """A plain account member must not be able to create a child asset under a public
-    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    (account-less) parent: the parent and child have different owners,
+    and only admins may add assets under a public asset.
     """
     epex_asset = setup_markets["epex_da"].generic_asset
     assert epex_asset.account_id is None, "epex must be a public asset"
@@ -1630,7 +1949,34 @@ def test_regular_user_cannot_create_child_of_public_asset(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "belongs to another organisation"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
+
+
+@pytest.mark.parametrize("with_parent", [False, True])
+@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
+def test_consultant_can_create_client_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db, with_parent
+):
+    """A consultant can create both top-level and child assets for a client."""
+    account = setup_accounts["ConsultancyClient"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=account.id)
+    ).first()
+    assert parent is not None
+    post_data = get_asset_post_data()
+    post_data.update(
+        name="Consultant-created asset",
+        account_id=account.id,
+        parent_asset_id=parent.id if with_parent else None,
+    )
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    assert response.status_code == 201
+    assert response.json["account_id"] == account.id
+    assert response.json["parent_asset_id"] == post_data["parent_asset_id"]
 
 
 @pytest.mark.parametrize(
@@ -1676,9 +2022,8 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
-    ``GenericAsset.create-children`` only allows members of the account that
-    owns the parent asset. A Prosumer account-admin is not a Supplier account
-    member, so the request must be rejected.
+    A parent may be in another account only if the user may add assets under it,
+    which the account-admin of another account may not, so the request is rejected.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")
@@ -1689,7 +2034,7 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
 
     # account_id is set to the user's own account – the schema requires non-site-admins
     # to only create assets for their own account, so this is the only valid value.
-    # The security hole is that the parent belongs to a *different* account.
+    # The parent belongs to a different account.
     post_data = {
         "name": "Cross-account child (auth-fix test 2)",
         "latitude": 30.1,
@@ -1700,7 +2045,11 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     }
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 403
+    assert response.status_code == 422
+    assert (
+        "belongs to another organisation"
+        in response.json["message"]["json"]["parent_asset_id"][0]
+    )
 
 
 @pytest.fixture

@@ -5,6 +5,7 @@ from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_json import as_json
+from werkzeug.exceptions import Forbidden
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 
@@ -195,7 +196,7 @@ class AccountAPI(FlaskView):
     @route("", methods=["POST"])
     @use_args(account_create_schema, arg_name="account_data")
     @permission_required_for_context(
-        "create-children",
+        "edit-account",
         ctx_loader=FlexMeasuresPlatform.init,
     )
     @as_json
@@ -301,7 +302,7 @@ class AccountAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_account_schema)
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="account")
+    @permission_required_for_context("edit-account", ctx_arg_name="account")
     @as_json
     def patch(self, account_data: dict, id: int, account: Account):
         """
@@ -311,6 +312,7 @@ class AccountAPI(FlaskView):
           summary: Update an existing account.
           description: |
             This endpoint updates the details for an existing account.
+            The account's account-admins, its consultants and admins may update it; its other users may only read it.
 
             In the JSON body, sent in only the fields you want to update.
 
@@ -320,6 +322,7 @@ class AccountAPI(FlaskView):
               own account, and only if their account has the {{CONSULTANCY_ACCOUNT_ROLE}} account role and they have
               the consultant or account-admin user role.
             - The **plan_id** field can only be edited by admins, and cannot be set to a legacy plan.
+            - The **account_roles** field can only be changed by admins.
 
           security:
             - ApiKeyAuth: []
@@ -406,6 +409,16 @@ class AccountAPI(FlaskView):
                 new_value = sorted(role.name for role in new_value)
             if old_value != new_value:
                 modified_fields[field] = (old_value, new_value)
+
+        # Account roles decide what an organisation may do (e.g. the Consultancy role lets
+        # its users create client accounts), so only admins may change them.
+        # Resending the current roles (in any order) is fine.
+        if "account_roles" in modified_fields and not user_has_admin_access(
+            current_user, "update"
+        ):
+            raise Forbidden(
+                "Only platform administrators may change the roles of an organisation."
+            )
 
         # Compile modified fields with their old and new values before updating.
         changes = "; ".join(
@@ -507,7 +520,7 @@ class AccountAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="account")
+    @permission_required_for_context("annotate", ctx_arg_name="account")
     def post_annotation(self, annotation: Annotation, id: int, account: Account):
         """
         .. :quickref: Accounts; Add an annotation to an account.

@@ -21,10 +21,16 @@ from tabulate import tabulate
 
 from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
+from flexmeasures.data.services.automation_monitoring import (
+    AutomationFailures,
+    get_unalerted_failed_automation_runs,
+    get_users_to_notify,
+    group_failed_runs_by_automation,
+)
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.api.common.schemas.users import UserIdField
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import exact_duration_str, server_now
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
 
@@ -503,6 +509,209 @@ def monitor_last_seen(
     # remember that we checked at this time
     LatestTaskRun.record_run(task_name, True)
     db.session.commit()
+
+
+# Error messages can carry a whole traceback, which does not help a digest that lists many automations.
+MAX_ERROR_LENGTH_IN_DIGEST = 500
+
+
+def _format_utc(moment: datetime) -> str:
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _times(count: int) -> str:
+    return "once" if count == 1 else f"{count} times"
+
+
+def automation_page_url(automation) -> str | None:
+    """Link to the Automations page of the automation's asset, opening that automation's info, if the server knows its own address."""
+    base_url = app.config.get("FLEXMEASURES_BASE_URL")
+    if not base_url:
+        return None
+    return f"{base_url.rstrip('/')}/assets/{automation.asset_id}/automations?automation={automation.id}"
+
+
+def describe_automation_failures(failures: AutomationFailures) -> str:
+    """Describe the failed runs of one automation in a few lines, for the monitoring digest."""
+    automation = failures.automation
+    asset = automation.asset
+    if asset.owner is None:
+        where = f"public asset {asset.id} '{asset.name}'"
+    else:
+        where = f"asset {asset.id} '{asset.name}' of organisation '{asset.owner.name}'"
+    reasons = ", ".join(
+        f"{reason}: {count}" for reason, count in failures.reason_counts.items()
+    )
+    last_run = failures.last_run
+    # With more than one failure, the first one tells how long the automation has been failing.
+    first_at = (
+        f" first at {_format_utc(failures.first_run.scheduled_at)},"
+        if len(failures.failed_runs) > 1
+        else ""
+    )
+    lines = [
+        f"Automation {automation.id} '{automation.name}' ({automation.type}) on {where}:",
+        f"  failed {_times(len(failures.failed_runs))} ({reasons}),{first_at}"
+        f" last at {_format_utc(last_run.scheduled_at)} (run {last_run.id})",
+    ]
+    unmonitored_runs = failures.runs_failed_while_unmonitored
+    if unmonitored_runs:
+        lines.append(
+            f"  {len(unmonitored_runs)} of these failed while the automation was not monitored,"
+            f" before monitoring was switched back on at {_format_utc(automation.monitoring_resumed_at)}"
+        )
+    last_error = failures.last_error
+    if last_error:
+        if len(last_error) > MAX_ERROR_LENGTH_IN_DIGEST:
+            last_error = last_error[:MAX_ERROR_LENGTH_IN_DIGEST] + " ..."
+        lines.append(f"  last error: {last_error}")
+    url = automation_page_url(automation)
+    if url:
+        lines.append(f"  runs and jobs: {url}")
+    return "\n".join(lines)
+
+
+def compose_automation_digest(
+    failures: list[AutomationFailures], stuck_after: timedelta, for_host: bool = True
+) -> tuple[str, str]:
+    """Return the subject and body of a digest about these failed automations.
+
+    :param for_host:    Whether the digest goes to the host, who can check the logs, rather than to a user of the assets' organisations.
+    """
+    subject = f"Failed runs of {len(failures)} automation(s)"
+    automations = (
+        "These automations"
+        if for_host
+        else "These automations on assets you look after"
+    )
+    closing_lines = []
+    # With the server's address configured, each automation links to its page instead.
+    if not app.config.get("FLEXMEASURES_BASE_URL"):
+        closing_lines.append(
+            "Each automation's runs are listed on the Automations page of its asset."
+        )
+    if for_host:
+        closing_lines.append("We suggest to check the logs.")
+    body = (
+        f"{automations} have runs that failed, or that have been executing for longer than {exact_duration_str(stuck_after)}, which were not reported before:\n\n"
+        + "\n\n".join(describe_automation_failures(f) for f in failures)
+    )
+    if closing_lines:
+        body += "\n\n" + "\n".join(closing_lines)
+    return subject, body
+
+
+def send_automation_digests_to_users(
+    failures: list[AutomationFailures], stuck_after: timedelta
+):
+    """Email each account admin and consultant a digest of the failed automations they may read.
+
+    The runs are already marked as reported, so a digest that cannot be sent is logged rather than tried again.
+    """
+    users_to_notify = get_users_to_notify(failures)
+    undelivered = []
+    for user, user_failures in users_to_notify:
+        subject, body = compose_automation_digest(
+            user_failures, stuck_after, for_host=False
+        )
+        email = Message(subject=subject, recipients=[user.email])
+        email.body = body
+        try:
+            app.mail.send(email)
+        except OSError as exc:  # SMTP errors are OSErrors, too
+            app.logger.error(
+                f"Could not email user {user.id} about failed automation runs: {exc}"
+            )
+            undelivered.append(user.email)
+    delivered = len(users_to_notify) - len(undelivered)
+    click.secho(
+        f"Sent a digest of failed automation runs to {delivered} user(s).",
+        **MsgStyle.WARN,
+    )
+    if undelivered:
+        click.secho(
+            f"Could not send a digest to {', '.join(undelivered)}.",
+            **MsgStyle.ERROR,
+        )
+
+
+@fm_monitor.command("automations")
+@with_appcontext
+@click.option(
+    "--stuck-after-minutes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Report a run as stuck once it has been executing for this many minutes. Defaults to the FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER setting (6 hours).",
+)
+@click.option(
+    "--recipient",
+    type=str,
+    multiple=True,
+    help="User ID or email address to send the digest to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+)
+@click.option(
+    "--notify-users",
+    is_flag=True,
+    default=False,
+    help="Also email the account admins and consultants of each asset's organisation a digest of the failed automations they may read.",
+)
+def monitor_automations(
+    stuck_after_minutes: int | None = None,
+    recipient: tuple[str, ...] = (),
+    notify_users: bool = False,
+):
+    """
+    Email a digest of the automation runs that failed since the last check.
+
+    A run is reported when its execution failed, when it has been executing for too long (see --stuck-after-minutes),
+    or when its dispatch failed and will not be attempted again.
+    Each run is reported once, so a monitoring run that was missed is made up for by the next one.
+    Repeated failures are collapsed per automation, and no email is sent when nothing failed.
+
+    With --notify-users, the admins of each asset's organisation and its consultants also receive a digest,
+    listing only the automations they may read.
+    A run counts as reported once the host's digest is sent.
+
+    Meant to be run regularly, for instance hourly from cron.
+    """
+    email_recipients = get_monitoring_email_recipients(recipient)
+    if not email_recipients:
+        # Marking runs as reported without telling anyone would hide them from the next monitoring run.
+        raise click.UsageError(
+            "Nobody to send the digest to. Set FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS or use --recipient."
+        )
+    if stuck_after_minutes is not None:
+        stuck_after = timedelta(minutes=stuck_after_minutes)
+    else:
+        stuck_after = app.config["FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER"]
+
+    now = server_now()
+    failed_runs = get_unalerted_failed_automation_runs(stuck_after, now=now)
+    if not failed_runs:
+        click.secho(
+            "All good ― no automation runs failed since the last check.",
+            **MsgStyle.SUCCESS,
+        )
+        return
+    failures = group_failed_runs_by_automation(failed_runs)
+
+    subject, body = compose_automation_digest(failures, stuck_after)
+    capture_message_for_sentry(subject)
+    email = Message(subject=subject, bcc=email_recipients)
+    email.body = body
+    app.mail.send(email)
+    app.logger.error(body)
+
+    # Only once the digest is out, so that a failure to send it leaves the runs to the next monitoring run.
+    for failed_run in failed_runs:
+        failed_run.run.alerted_at = now
+    db.session.commit()
+    click.secho(
+        f"Reported {len(failed_runs)} failed run(s) of {len(failures)} automation(s) to {', '.join(email_recipients)}.",
+        **MsgStyle.WARN,
+    )
+    if notify_users:
+        send_automation_digests_to_users(failures, stuck_after)
 
 
 app.cli.add_command(fm_monitor)

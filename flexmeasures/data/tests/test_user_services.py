@@ -1,17 +1,26 @@
+import random
+import string
+
 import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
     delete_user,
+    set_random_password,
     InvalidFlexMeasuresUser,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
+)
 
 
 def test_create_user(
@@ -32,11 +41,7 @@ def test_create_user(
     assert user.email == "new_user@seita.nl"
     assert user.username == "new_user"
     assert user.account.name == "Test Prosumer Account"
-    assert user.roles == [
-        fresh_db.session.execute(
-            select(Role).filter_by(name="SomeRole")
-        ).scalar_one_or_none()
-    ]
+    assert {role.name for role in user.roles} == {ACCOUNT_MEMBER_ROLE, "SomeRole"}
     assert fresh_db.session.execute(
         select(DataSource).filter_by(user_id=user.id)
     ).scalar_one_or_none()
@@ -52,6 +57,23 @@ def test_create_user(
     assert user_audit_log.event == "User new_user created"
     assert user_audit_log.affected_account_id == prosumer_account.id
     assert user_audit_log.active_user_id is None
+
+
+@pytest.mark.parametrize(
+    "role_name",
+    [ACCOUNT_READER_ROLE, ACCOUNT_DATA_INTEGRATOR_ROLE, ACCOUNT_MEMBER_ROLE],
+)
+def test_create_user_with_home_role_does_not_add_account_member(
+    fresh_db, setup_accounts_fresh_db, role_name
+):
+    user = create_user(
+        email=f"{role_name}@example.com",
+        password="testtest",
+        account_name=setup_accounts_fresh_db["Prosumer"].name,
+        user_roles=[role_name],
+    )
+
+    assert {role.name for role in user.roles} == {role_name}
 
 
 def test_create_user_no_account(
@@ -225,3 +247,19 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
     assert (
         data_source_before.account_id == data_source_account_id_before
     ), "Data source account_id should be preserved (not nullified) after user deletion for lineage purposes."
+
+
+def test_random_password_does_not_come_from_the_random_module(monkeypatch):
+    """The temporary password is a user's real password until they choose their own, so knowing the state of the random module must not reveal it."""
+    passwords = []
+    monkeypatch.setattr(
+        "flexmeasures.data.services.users.update_password",
+        lambda user, password: passwords.append(password),
+    )
+    for _ in range(2):
+        random.seed(0)
+        set_random_password(user=None)
+    assert passwords[0] != passwords[1]
+    for password in passwords:
+        assert len(password) == 24
+        assert set(password) <= set(string.ascii_lowercase)

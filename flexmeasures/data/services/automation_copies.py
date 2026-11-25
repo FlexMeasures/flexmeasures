@@ -19,12 +19,17 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.account import AccountIdField, AccountIdOrListField
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    ForecastInputField,
+)
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField, SensorIdOrReferenceField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.services.automations import (
     WINDOW_FIELDS,
     get_forecast_output_sensor,
+    set_automation_dependencies,
     validate_automation_output_scope,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
@@ -81,6 +86,7 @@ def copy_automations(
     asset_id_map: dict[int, int],
     sensor_id_map: dict[int, int],
     destination_account_id: int | None,
+    execution_user_id: int | None = None,
 ) -> list[SkippedAutomation]:
     """Copy the automations of a freshly copied asset subtree, leaving each copy inactive.
 
@@ -88,6 +94,8 @@ def copy_automations(
     with its references to sensors inside the subtree pointed at the new sensors.
     A copy keeps its name, type, cron expression and timezone, but starts inactive and with a fresh cursor,
     so that it inherits neither the original's run history nor its queued jobs.
+    A copy waits for the copies of the automations its original waits for, where those were copied, too,
+    and for the very automations its original waits for otherwise.
 
     An automation that cannot be copied safely is skipped rather than failing the asset copy:
     the copied asset, its sensors and the other automations are kept.
@@ -96,6 +104,8 @@ def copy_automations(
     :param asset_id_map:            Mapping of every original asset ID in the copied subtree to its new asset ID.
     :param sensor_id_map:           Mapping of every original sensor ID in the copied subtree to its new sensor ID.
     :param destination_account_id:  The account the copy belongs to, or None if the copy is public.
+    :param execution_user_id:       The user each copy runs as, whose permissions are checked again before each run
+                                    (see `check_execution_access`). Copies made through the API run as the copying user.
     :returns:                       The automations that were skipped, in the order they were considered.
     """
     if not asset_id_map:
@@ -116,14 +126,16 @@ def copy_automations(
     )
 
     skipped: list[SkippedAutomation] = []
+    copies: dict[int, Automation] = {}
     for automation in source_automations:
         try:
             with db.session.begin_nested():
-                _copy_automation(
+                copies[automation.id] = _copy_automation(
                     automation=automation,
                     asset_id_map=asset_id_map,
                     sensor_id_map=sensor_id_map,
                     destination_account_id=destination_account_id,
+                    execution_user_id=execution_user_id,
                 )
         except Exception as e:
             # Whatever an automation's stored data generator does on the way in, it does not take the asset copy with it.
@@ -144,7 +156,35 @@ def copy_automations(
                     reason=str(e),
                 )
             )
+    _copy_dependencies(source_automations, copies)
     return skipped
+
+
+def _copy_dependencies(
+    source_automations: list[Automation], copies: dict[int, Automation]
+) -> None:
+    """Have each copy wait for what its original waits for, pointing at the copies where there are any.
+
+    This happens once all automations were copied, as an automation may wait for one that was copied after it.
+    The copies recur on the schedules of their originals, and a copied set of dependencies cannot form a cycle the originals did not,
+    so the dependencies need no validation beyond what the originals had.
+    """
+    for automation in source_automations:
+        copied_automation = copies.get(automation.id)
+        if copied_automation is None or not automation.dependencies:
+            continue
+        set_automation_dependencies(
+            copied_automation,
+            [
+                {
+                    "upstream": copies.get(dependency.upstream_id, dependency.upstream),
+                    "allow_failure": dependency.allow_failure,
+                }
+                for dependency in automation.dependencies
+            ],
+            origin="asset copy",
+        )
+    db.session.flush()
 
 
 def _copy_automation(
@@ -152,6 +192,7 @@ def _copy_automation(
     asset_id_map: dict[int, int],
     sensor_id_map: dict[int, int],
     destination_account_id: int | None,
+    execution_user_id: int | None = None,
 ) -> Automation:
     """Copy one automation onto the copy of the asset it belongs to.
 
@@ -160,7 +201,7 @@ def _copy_automation(
     if automation.type not in COPYABLE_AUTOMATION_TYPES:
         raise AutomationNotCopyable(
             f"An automation of type '{automation.type}' cannot be copied yet:"
-            " its parameters hold sensor references that a copy cannot point at the copied sensors."
+            " its flex config can hold sensor references that a copy cannot point at the copied sensors."
         )
     data_generator = _load_data_generator(automation)
     remapper = _ReferenceRemapper(
@@ -193,10 +234,12 @@ def _copy_automation(
         timezone=automation.timezone,
         # A copy starts inactive, so that it can be inspected and tested before it runs.
         active=False,
+        monitored=automation.monitored,
         generator_id=generator.id,
         parameters=parameters,
         # A fresh cursor, so that the copy does not inherit the original's run history.
         cursor=get_initial_cursor(),
+        execution_user_id=execution_user_id,
     )
     db.session.add(copied_automation)
     db.session.flush()
@@ -357,6 +400,16 @@ def _user_can_read(sensor_or_asset) -> bool:
     return True
 
 
+def _names_the_forecast_target(value) -> bool:
+    """Whether a forecaster's input entry names the sensor being forecast, rather than a sensor of its own.
+
+    Such an entry is written as ``"auto"``, either on its own or as the ``sensor`` of a reference that qualifies it.
+    """
+    if value == AUTO_SENSOR:
+        return True
+    return isinstance(value, dict) and value.get("sensor") == AUTO_SENSOR
+
+
 def _account_can_read(
     owner_account_id: int | None, destination_account_id: int | None
 ) -> bool:
@@ -483,6 +536,8 @@ class _ReferenceRemapper:
         if isinstance(field, fields.Nested):
             _require_stored_type(value, dict, "an object", field)
             return self.remap(value, field.schema)
+        if isinstance(field, ForecastInputField) and _names_the_forecast_target(value):
+            return self._remap_forecast_target_entry(value, field)
         if isinstance(field, SensorIdOrReferenceField):
             if isinstance(value, dict):
                 return self.remap(value, field.sensor_reference_schema)
@@ -502,6 +557,21 @@ class _ReferenceRemapper:
                 self._check_account_id(account_id)
             return value
         return value
+
+    def _remap_forecast_target_entry(self, value, field: ForecastInputField):
+        """Copy an entry naming the sensor being forecast, checking the source filters it carries.
+
+        Such an entry names no sensor of its own, so there is nothing to point at a copied sensor.
+        Its source filters do name data sources and organisations, though, which the destination has to be able to read,
+        just as on a reference that names its sensor by ID.
+        """
+        if not isinstance(value, dict):
+            return value
+        qualifiers = {key: item for key, item in value.items() if key != "sensor"}
+        return {
+            "sensor": AUTO_SENSOR,
+            **self.remap(qualifiers, field.sensor_reference_schema),
+        }
 
     def _remap_sensor_id(self, value) -> int:
         """Point a sensor reference at the copied sensor, or keep it if the destination may read it."""

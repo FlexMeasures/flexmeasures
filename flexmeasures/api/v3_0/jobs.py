@@ -5,14 +5,15 @@ from datetime import datetime
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus, NoSuchJobError
+from werkzeug.exceptions import Forbidden
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
@@ -45,6 +46,21 @@ def _job_read_context(job: Job):
     return db.session.get(Sensor, sensor_id)
 
 
+def check_job_read_access(job: Job):
+    """Check that the current user may read the asset or sensor the job is about.
+
+    Jobs whose asset or sensor cannot be found (e.g. it was deleted) are only readable by admins and admin-readers.
+    """
+    read_context = _job_read_context(job)
+    if read_context is None:
+        if not user_has_admin_access(current_user, "read"):
+            raise Forbidden(
+                f"Job {job.id} is not about an asset or sensor you have access to."
+            )
+        return
+    check_access(read_context, "read")
+
+
 def _job_queue_unavailable_response():
     return (
         dict(
@@ -75,30 +91,28 @@ class JobAPI(FlaskView):
         get:
           summary: Get the status of a background job
           description: |
-            Look up a background job by its UUID and see whether it is
-            queued, running, finished, or failed.
+            Look up a background job by its UUID and see whether it is queued, running, finished, or failed.
 
-            The response includes a status message plus job metadata such
-            as the queue name, function name, timestamps, and the job
-            result when available.
+            The response includes a status message plus job metadata,
+            such as the queue name, function name, timestamps, and the job result when available.
 
-            Failed jobs also include traceback information when the worker
-            stored it with the job result.
+            Failed jobs also include traceback information when the worker stored it with the job result.
 
-            For a finished scheduling job, ``result`` is an object. For a
-            ``StorageScheduler`` job it holds soft state-of-charge constraint
-            analysis: ``unresolved`` lists constraints the scheduler could not
-            satisfy, and ``resolved`` lists constraints that were satisfied
-            with some margin. Each device entry's ``soc-minima``/``soc-maxima``
-            value is a list, holding one entry per violated slot (for
-            ``unresolved``) or per met slot with its margin (for ``resolved``),
-            ordered chronologically. Both arrays are empty when the flex model
-            defines no ``soc-minima``/``soc-maxima``, or when a scheduler other
-            than ``StorageScheduler`` was used. The ``num-beliefs`` field holds
-            the total number of beliefs (scheduled values) saved to the database.
-            This is the only place constraint analysis is available — the sensor
-            schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``)
-            returns power values only.
+            For a finished scheduling job, ``result`` is an object.
+            For a ``StorageScheduler`` job, it holds soft state-of-charge constraint analysis:
+            ``unresolved`` lists constraints the scheduler could not satisfy,
+            and ``resolved`` lists constraints that were satisfied with some margin.
+            Each device entry's ``soc-minima``/``soc-maxima`` value is a list,
+            holding one entry per violated slot (for ``unresolved``) or per met slot with its margin (for ``resolved``), ordered chronologically.
+            Both arrays are empty when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used.
+            This is the only place constraint analysis is available:
+            the sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power values only.
+            The ``outputs`` field lists one entry per sensor the schedule records on:
+            the ``sensor`` (its ID), the number of beliefs (scheduled values) the scheduler computed for it (``num-computed-beliefs``),
+            and the number recorded in the database (``num-recorded-beliefs``), which leaves out beliefs that were already on record or had no value.
+            The ``num-beliefs`` field holds the total of ``num-computed-beliefs`` across ``outputs``.
+
+            For a finished reporting job, ``result`` is an object holding the same ``outputs`` field, with one entry per output sensor of the report.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -134,15 +148,14 @@ class JobAPI(FlaskView):
                         description: Human-readable description of the job status.
                       result:
                         description: >
-                          Return value of the job function, or null when not yet
-                          available. For a finished scheduling job, this is an
-                          object; a ``StorageScheduler`` job populates it with
-                          ``unresolved``/``resolved`` soft state-of-charge
-                          constraint analysis (empty arrays when the flex model
-                          defines no ``soc-minima``/``soc-maxima``, or when a
-                          scheduler other than ``StorageScheduler`` was used).
-                          The ``num-beliefs`` field holds the total number of
-                          beliefs (scheduled values) saved to the database.
+                          Return value of the job function, or null when not yet available.
+                          For a finished scheduling job, this is an object;
+                          a ``StorageScheduler`` job populates it with ``unresolved``/``resolved`` soft state-of-charge constraint analysis
+                          (empty arrays when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used).
+                          Its ``outputs`` field lists, per sensor the schedule records on, the ``sensor`` (its ID),
+                          ``num-computed-beliefs`` and ``num-recorded-beliefs``,
+                          and its ``num-beliefs`` field holds the total of ``num-computed-beliefs`` across ``outputs``.
+                          For a finished reporting job, this is an object holding the same ``outputs`` field.
                         nullable: true
                       func-name:
                         type: string
@@ -223,6 +236,10 @@ class JobAPI(FlaskView):
                                 - datetime: "2024-01-01T10:15:00+00:00"
                                   violation: "180.0 kWh"
                           resolved: []
+                          outputs:
+                            - sensor: 5
+                              num-computed-beliefs: 96
+                              num-recorded-beliefs: 96
                           num-beliefs: 96
                         func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
@@ -262,9 +279,7 @@ class JobAPI(FlaskView):
         try:
             connection.ping()
             job = Job.fetch(job_id, connection=connection)
-            read_context = _job_read_context(job)
-            if read_context is not None:
-                check_access(read_context, "read")
+            check_job_read_access(job)
         except NoSuchJobError:
             return (
                 dict(

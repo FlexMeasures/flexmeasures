@@ -155,7 +155,7 @@ Great. Let's see what we made:
     │                         ▚        ▐                         │
     │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▐▄▄▄▄▄▄▄▄▌▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0kW
     └────────────────────────────────────────────────────────────┘
-    06:00         09:00          12:00          15:00
+                 09:00          12:00          15:00           18:00
                     ██ production (toy-solar)
 
 
@@ -268,6 +268,7 @@ We can confirm this is the case on the updated scheduling in the `FlexMeasures U
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-multiasset-negativeprices.png
     :align: center
+
 |
 
 .. note:: We are not displaying the price profile blocks on the graphs page, but the day ahead prices which this schedule did not consider. By passing the price profile blocks in the ``flex-context``, we are overwriting them for this calculation.
@@ -298,7 +299,7 @@ And here is the CLI version:
     │                         ▌      ▗▖▐                         │
     │                         ▐▄▄▄▄▞▀▘▝▘                         │ -200kW
     └────────────────────────────────────────────────────────────┘
-    06:00         09:00          12:00          15:00
+                 09:00          12:00          15:00           18:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
 
 
@@ -340,7 +341,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
     │          ▌ ▌                 ▌       ▌                     │
     │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -500kW
     └────────────────────────────────────────────────────────────┘
-            09:00          12:00          15:00           18:00
+                 09:00          12:00          15:00           18:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
 
 

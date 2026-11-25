@@ -11,13 +11,14 @@ from pytz import all_timezones
 
 from flexmeasures.data import db
 from flexmeasures.data.automations import get_automation_types
+from flexmeasures.data.services.automations import user_may_change_monitoring
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.generic_assets import (
+    check_parent_asset_access,
     create_asset,
     patch_asset,
-    delete_asset,
     get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
@@ -47,6 +48,11 @@ from flexmeasures.ui.views.assets.utils import (
     get_inherited_flex_context,
     get_list_assets_chart,
     add_child_asset,
+    readable_site_asset,
+)
+from flexmeasures.ui.utils.breadcrumb_utils import (
+    ANOTHER_ORGANISATION,
+    viewer_may_read,
 )
 from flexmeasures.data.services.sensors import (
     get_asset_sensors_metadata,
@@ -58,7 +64,37 @@ Asset crud view.
 """
 
 asset_schema = AssetSchema()
-patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+
+
+def _account_and_parent_for_new_asset(
+    account_id: str, parent_asset_id: str
+) -> tuple[Account | None, GenericAsset | None, tuple[str, int] | None]:
+    """Look up the account and parent asset given for a new asset, and check that the user may see the parent.
+
+    Returns the account (the parent's owner, if no account is given), the parent asset, and a response if there is a problem.
+    """
+    account = None
+    parent_asset = None
+    if account_id:
+        if not str(account_id).isdigit():
+            return None, None, ("The account_id needs to be a number.", 422)
+        account = db.session.get(Account, int(account_id))
+        if account is None:
+            return None, None, ("Account not found.", 404)
+    if parent_asset_id:
+        if not str(parent_asset_id).isdigit():
+            return None, None, ("The parent_asset_id needs to be a number.", 422)
+        parent_asset = db.session.get(GenericAsset, int(parent_asset_id))
+        if parent_asset is None:
+            return None, None, ("Parent asset not found.", 404)
+        # Do not show anything about a parent asset the user may not see (its name, location or account)
+        check_access(parent_asset, "read")
+        if account is None:
+            account = parent_asset.owner  # None for a public parent asset
+        else:
+            # A parent in another account than the given one is fine, if the user may place assets there
+            check_parent_asset_access(parent_asset, account.id)
+    return account, parent_asset, None
 
 
 class AssetCrudUI(FlaskView):
@@ -84,7 +120,6 @@ class AssetCrudUI(FlaskView):
             message=msg,
             account=None,
             user_can_create_assets=user_can_create_assets(),
-            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -98,6 +133,7 @@ class AssetCrudUI(FlaskView):
             assets = []
             msg = f"Account {account_id} unknown."
         else:
+            check_access(account, "read")
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
@@ -128,22 +164,13 @@ class AssetCrudUI(FlaskView):
                 prompt_user_for_location = True
 
             parent_asset_name = ""
-            account = None
-            if account_id:
-                account = db.session.get(Account, account_id)
-            if parent_asset_id:
-                parent_asset = db.session.get(GenericAsset, parent_asset_id)
-                if parent_asset:
-                    parent_asset_name = parent_asset.name
-                if parent_asset.owner:  # public parent asset
-                    if not account_id:
-                        account = parent_asset.owner
-                    else:
-                        if account_id != parent_asset.owner.id:
-                            return (
-                                f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
-                                422,
-                            )
+            account, parent_asset, problem = _account_and_parent_for_new_asset(
+                account_id, parent_asset_id
+            )
+            if problem:
+                return problem
+            if parent_asset is not None:
+                parent_asset_name = parent_asset.name
                 if parent_asset.latitude and parent_asset.longitude:
                     asset_form.latitude.data = parent_asset.latitude
                     asset_form.longitude.data = parent_asset.longitude
@@ -199,9 +226,7 @@ class AssetCrudUI(FlaskView):
             for sensor in asset.sensors
         ]
 
-        site_asset = asset
-        while site_asset.parent_asset_id:
-            site_asset = site_asset.parent_asset
+        site_asset = readable_site_asset(asset)
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
 
@@ -217,7 +242,6 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
-            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -225,7 +249,7 @@ class AssetCrudUI(FlaskView):
     def create_sensor(self, id: str):
         """GET to /assets/<id>/sensors/new"""
         asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "create-children")
+        check_access(asset, "edit-sensors")
 
         return render_flexmeasures_template(
             "sensors/sensor_new.html",
@@ -278,6 +302,7 @@ class AssetCrudUI(FlaskView):
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
+            user_can_change_monitoring=user_may_change_monitoring(current_user, asset),
             current_page="Automations",
         )
 
@@ -296,7 +321,7 @@ class AssetCrudUI(FlaskView):
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
 
-            check_access(account, "create-children")
+            check_access(account, "edit-assets")
 
             form_valid = asset_form.validate_on_submit()
 
@@ -340,14 +365,16 @@ class AssetCrudUI(FlaskView):
 
         else:
             asset = get_asset_by_id_or_raise_notfound(id)
-            check_access(asset, "update")
+            check_access(asset, "edit-assets")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=id))
             try:
-                patch_asset_schema.context = {"asset_id": asset.id}
+                # A schema per request, with the asset under the key its validators read (e.g. the parent's account check).
+                patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
+                patch_asset_schema.context = {"asset": asset}
                 loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
                 patch_asset(asset, loaded_asset_data)
                 db.session.commit()
@@ -362,20 +389,6 @@ class AssetCrudUI(FlaskView):
                 current_app.logger.error(exc)
 
         return redirect(url_for("AssetCrudUI:properties", id=asset.id))
-
-    @login_required
-    def delete_with_data(self, id: str):
-        """Delete via /assets/delete_with_data/<id>"""
-        asset = get_asset_by_id_or_raise_notfound(id)
-        parent_asset_id = asset.parent_asset_id
-        delete_asset(asset)
-        db.session.commit()
-        session["toast_msg"] = (
-            f"Asset {id} and assorted meter readings / forecasts have been deleted."
-        )
-        if parent_asset_id:
-            return redirect(url_for("AssetCrudUI:context", id=parent_asset_id))
-        return redirect(url_for("AssetCrudUI:index"))
 
     @login_required
     @route("/<id>/auditlog")
@@ -408,7 +421,7 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
-        site_asset = asset.find_site_asset()
+        site_asset = readable_site_asset(asset)
 
         return render_flexmeasures_template(
             "assets/asset_graph.html",
@@ -443,24 +456,28 @@ class AssetCrudUI(FlaskView):
             asset.sensors_to_show_as_kpis
         )
 
+        # The parent may be in an organisation the viewer may not read (asset trees may span organisations)
+        parent_is_readable = asset.parent_asset is not None and viewer_may_read(
+            asset.parent_asset
+        )
+        if asset.parent_asset is None:
+            parent_summary = "No Parent"
+        elif parent_is_readable:
+            parent_summary = f"{asset.parent_asset.name} ({asset.parent_asset.generic_asset_type.name})"
+        else:
+            parent_summary = ANOTHER_ORGANISATION
         asset_summary = {
             "Name": asset.name,
             "Type": asset.generic_asset_type.name,
             "Description": asset.description or "",
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
-            "Parent Asset": (
-                f"{asset.parent_asset.name} ({asset.parent_asset.generic_asset_type.name})"
-                if asset.parent_asset
-                else "No Parent"
-            ),
+            "Parent Asset": parent_summary,
         }
         if asset.external_id:
             asset_summary["External ID"] = asset.external_id
 
-        site_asset = asset
-        while site_asset.parent_asset_id:
-            site_asset = site_asset.parent_asset
+        site_asset = readable_site_asset(asset)
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
@@ -471,6 +488,20 @@ class AssetCrudUI(FlaskView):
             .order_by(GenericAsset.id.asc())
             .all()
         )
+        # A parent in another organisation is no suggestion, but stays the selected option, so saving the form keeps it
+        other_organisation_parent = None
+        if (
+            asset.parent_asset is not None
+            and asset.parent_asset.account_id != asset.account_id
+        ):
+            other_organisation_parent = {
+                "id": asset.parent_asset.id,
+                "label": (
+                    f"{asset.parent_asset.name} (ID: {asset.parent_asset.id})"
+                    if parent_is_readable
+                    else ANOTHER_ORGANISATION
+                ),
+            }
 
         # Info to help the user set the `group` field of the flex-model:
         # - if this asset has a parent, suggest referencing the parent as the group
@@ -478,10 +509,10 @@ class AssetCrudUI(FlaskView):
         #   should join that group to count toward the parent's limit
         # - if this asset itself defines a power-capacity and has children, hint
         #   that those children can reference this asset as their group
-        parent_asset_id = asset.parent_asset.id if asset.parent_asset else None
-        parent_asset_name = asset.parent_asset.name if asset.parent_asset else None
+        parent_asset_id = asset.parent_asset.id if parent_is_readable else None
+        parent_asset_name = asset.parent_asset.name if parent_is_readable else None
         parent_has_power_capacity = bool(
-            asset.parent_asset
+            parent_is_readable
             and "power-capacity" in (asset.parent_asset.flex_model or {})
         )
         own_has_power_capacity = "power-capacity" in (asset.flex_model or {})
@@ -515,6 +546,7 @@ class AssetCrudUI(FlaskView):
             "assets/asset_properties.html",
             asset=asset,
             account_assets=account_assets,
+            other_organisation_parent=other_organisation_parent,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=asset.flex_model,
@@ -529,7 +561,11 @@ class AssetCrudUI(FlaskView):
                 _own_account.id if _can_copy_to_own_account else None
             ),
             own_organisation_name=_own_account.name,
-            user_can_create_assets=user_can_create_assets(),
+            user_can_create_assets=(
+                user_can_create_assets(account=asset.owner)
+                if asset.owner is not None
+                else current_user.has_role("admin")
+            ),
             user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),

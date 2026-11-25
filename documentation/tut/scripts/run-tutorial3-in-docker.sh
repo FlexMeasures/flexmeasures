@@ -1,5 +1,6 @@
-
 #!/bin/bash
+
+set -euo pipefail
 
 # Determine container name: use $1 if provided, otherwise construct from current folder name
 CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
@@ -7,7 +8,8 @@ CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 3 (PV CURTAILMENT / MORE THAN ONE FLEXIBLE ASSET) ..."
 echo "----------------------------------------------------------------------------------------"
 
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+TOY_VARS=$(docker exec -i "$CONTAINER_NAME" flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')
+eval "$TOY_VARS"
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
@@ -28,32 +30,27 @@ docker cp tutorial3-priceprofile-flex-context.json $CONTAINER_NAME:/app/
 # Running only the PV sensor
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_SOLAR_SENSOR_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-  --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source": 4}}'\
+  --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source-types": ["forecaster"]}}'\
   --flex-context tutorial3-priceprofile-flex-context.json 
 echo "[TUTORIAL-RUNNER] showing PV schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
-echo "[TUTORIAL-RUNNER] Cleaning solar data for the next steps ..."
-# remove all previous beliefs on PV sensor so we don't have schedules mixed in the next run (issue 1807 can help with this, so selection by source works)
-docker exec -it $CONTAINER_NAME flexmeasures delete beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --force
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
-
+# The first run saved a schedule on the PV sensor alongside its forecast.
+# The production-capacity source-types filter below reads only forecaster data,
+# so neither that schedule nor later schedules need to be deleted.
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, still using block price profiles ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --asset ${FM_TOY_BUILDING_ASSET_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-  --flex-model '[{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source": 4}}, {"sensor": '"${FM_TOY_BATTERY_SENSOR_ID}"', "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
+  --flex-model '[{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source-types": ["forecaster"]}}, {"sensor": '"${FM_TOY_BATTERY_SENSOR_ID}"', "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
   --flex-context tutorial3-priceprofile-flex-context.json 
 
 echo "[TUTORIAL-RUNNER] showing PV and battery schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
-docker exec -it $CONTAINER_NAME flexmeasures delete beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --force
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
-
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, with realistic DA prices and larger battery ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --asset ${FM_TOY_BUILDING_ASSET_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-  --flex-model '[{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source": 4}}, {"sensor": '"${FM_TOY_BATTERY_SENSOR_ID}"', "soc-at-start": "225 kWh", "soc-min": "50 kWh", "soc-max": "900kWh"}]'
+  --flex-model '[{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source-types": ["forecaster"]}}, {"sensor": '"${FM_TOY_BATTERY_SENSOR_ID}"', "soc-at-start": "225 kWh", "soc-min": "50 kWh", "soc-max": "900kWh"}]'
 
 echo "[TUTORIAL-RUNNER] showing PV and battery schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

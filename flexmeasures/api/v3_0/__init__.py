@@ -187,6 +187,19 @@ def document_rate_limits(spec_dict: dict, trigger_limited_operations: set[tuple]
             )
 
 
+def openapi_specs_path() -> Path:
+    """
+    Return where the OpenAPI specs live: the UI's static folder, from which they are served.
+
+    This is an absolute path inside the installed package,
+    so the specs land in the right place whatever the working directory is,
+    also when FlexMeasures is installed non-editable (as in our Docker image).
+    """
+    from flexmeasures.ui import flexmeasures_ui
+
+    return Path(flexmeasures_ui.static_folder) / "openapi-specs.json"
+
+
 def create_openapi_specs(app: Flask):
     """
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
@@ -319,7 +332,7 @@ def create_openapi_specs(app: Flask):
             {"required": ["production-range"]},
         ]
 
-    output_path = Path("flexmeasures/ui/static/openapi-specs.json")
+    output_path = openapi_specs_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     spec_dict = spec.to_dict()

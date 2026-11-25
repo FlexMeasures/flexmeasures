@@ -18,6 +18,12 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas.utils import snake_to_kebab
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    AutoSensorReference,
+    ForecastInputField,
+)
 from flexmeasures.data.schemas.sensors import (
     SensorIdOrReferenceField,
     SensorReference,
@@ -100,11 +106,86 @@ class AnnotationRegressorSchema(Schema):
             raise ValidationError("Specify exactly one of account, asset, or sensor.")
 
 
+# The model-params keys that may be set from the API (forecast trigger and forecast automations),
+# with the range each value has to be in. Model params are handed on to Darts and LightGBM as keyword arguments,
+# which also take resource settings (e.g. threads), network settings for distributed training and file paths,
+# so only these bounded tuning knobs are passed on from the API. The CLI may still set any parameter.
+API_MODEL_PARAM_BOUNDS: dict[str, tuple[type, float, float]] = {
+    "max_depth": (int, 1, 8),
+    "min_child_samples": (int, 1, 10_000),
+    "min_data_per_group": (int, 1, 10_000),
+    "num_leaves": (int, 2, 64),
+    "n_estimators": (int, 1, 300),
+    "learning_rate": (float, 0.001, 1),
+    "min_split_gain": (float, 0, 1_000),
+    "reg_alpha": (float, 0, 1_000),
+    "reg_lambda": (float, 0, 1_000),
+    "subsample": (float, 0.01, 1),
+    "colsample_bytree": (float, 0.01, 1),
+}
+
+
+# How many tree leaves the model params from the API may add up to, at most:
+# n_estimators × min(num_leaves, 2 ** max_depth), which bounds the training work per model.
+# That is ten times what the forecaster's defaults give (100 trees × min(31 leaves, 2 ** 3) = 800).
+API_MODEL_PARAM_MAX_LEAVES = 8_000
+# The values the forecaster (CustomLGBM) uses for the keys above when they are not set:
+# its own max_depth, and LightGBM's n_estimators and num_leaves.
+MODEL_PARAM_DEFAULTS = {"n_estimators": 100, "num_leaves": 31, "max_depth": 3}
+
+
+def _refuse_too_many_leaves(model_params: dict) -> list[str]:
+    """Bound n_estimators × min(num_leaves, 2 ** max_depth), with unset values at their defaults."""
+    values = {**MODEL_PARAM_DEFAULTS, **model_params}
+    leaves = values["n_estimators"] * min(
+        values["num_leaves"], 2 ** values["max_depth"]
+    )
+    if leaves <= API_MODEL_PARAM_MAX_LEAVES:
+        return []
+    return [
+        f"n_estimators × min(num_leaves, 2 ** max_depth) must be at most {API_MODEL_PARAM_MAX_LEAVES},"
+        f" but is {values['n_estimators']} × min({values['num_leaves']}, 2 ** {values['max_depth']}) = {leaves}"
+        f" (unset values count at their defaults:"
+        f" {', '.join(f'{key} {value}' for key, value in MODEL_PARAM_DEFAULTS.items())})."
+    ]
+
+
+def validate_model_params_from_api(model_params) -> None:
+    """Refuse model params from the API other than bounded numeric tuning knobs (see API_MODEL_PARAM_BOUNDS).
+
+    :raises ValidationError: under the "model-params" key.
+    """
+    if model_params is None:
+        return
+    if not isinstance(model_params, dict):
+        raise ValidationError({"model-params": ["Must be an object."]})
+    errors = []
+    for key, value in model_params.items():
+        if key not in API_MODEL_PARAM_BOUNDS:
+            errors.append(
+                f"'{key}' cannot be set through the API. Allowed keys: {', '.join(sorted(API_MODEL_PARAM_BOUNDS))}."
+            )
+            continue
+        value_type, lower, upper = API_MODEL_PARAM_BOUNDS[key]
+        is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if (
+            not is_number
+            or (value_type is int and not float(value).is_integer())
+            or not lower <= value <= upper
+        ):
+            kind = "an integer" if value_type is int else "a number"
+            errors.append(f"'{key}' must be {kind} from {lower} to {upper}.")
+    if not errors:
+        errors = _refuse_too_many_leaves(model_params)
+    if errors:
+        raise ValidationError({"model-params": errors})
+
+
 class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
@@ -112,8 +193,8 @@ class TrainPredictPipelineConfigSchema(Schema):
                 "Sensor IDs or sensor references to be treated only as future regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
@@ -125,7 +206,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     past_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
@@ -133,8 +214,8 @@ class TrainPredictPipelineConfigSchema(Schema):
                 "Sensor IDs or sensor references to be treated only as past regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
@@ -143,7 +224,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="regressors",
         load_default=[],
         metadata={
@@ -151,8 +232,8 @@ class TrainPredictPipelineConfigSchema(Schema):
                 "Sensor IDs or sensor references used as both past and future regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
@@ -376,6 +457,31 @@ class TrainPredictPipelineConfigSchema(Schema):
         if errors:
             raise ValidationError(errors)
 
+    @validates_schema
+    def refuse_several_entries_for_the_sensor_to_forecast(self, data: dict, **kwargs):
+        """Refuse a config that describes the sensor being forecast more than once.
+
+        Such an entry is taken out of the regressor lists and describes the target,
+        so two of them are two answers to one question, whichever lists they were written in.
+        Reading the last one and dropping the rest would leave a config whose recorded text does not say what the forecast did.
+        The entries are counted before the lists are merged, since `regressors` asks for both roles with one entry.
+        """
+        written_in = [
+            field_name
+            for field_name in ("past_regressors", "future_regressors", "regressors")
+            for entry in data.get(field_name) or []
+            if isinstance(entry, AutoSensorReference)
+        ]
+        if len(written_in) > 1:
+            spelled = ", ".join(
+                sorted(snake_to_kebab(field_name) for field_name in set(written_in))
+            )
+            raise ValidationError(
+                f"The sensor being forecast is described {len(written_in)} times, under {spelled}."
+                f' Describe it once: an entry naming "{AUTO_SENSOR}" says how that sensor is read, wherever it is written,'
+                " so a second one cannot say anything the first does not."
+            )
+
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
@@ -414,29 +520,25 @@ class ForecasterParametersSchema(Schema):
         required=True,
         metadata={
             "description": (
-                "ID of the sensor to forecast, or a sensor reference."
-                " Use a reference to say which of the sources recording on that sensor hold the truth to train on,"
-                " and to carry lower, upper and snap bounds that clean the target's readings before they become training labels."
-                " Those bounds clean what the model learns from; the forecaster's own lower, upper and snap config shapes what it writes back out."
-                " Without one, every source on the sensor is trained on, except forecasters,"
+                "ID of the sensor to forecast."
+                " Which of the sources recording on it hold the truth to train on, and how to clean its readings, is said in the forecaster's config,"
+                " by an entry naming 'auto' among the regressors."
+                " Without such an entry, every source on the sensor is trained on, except forecasters,"
                 " which are left out so that the forecaster does not learn from its own forecasts."
-                " A reference replaces that default entirely, so pass exclude-source-types yourself to keep forecasters out alongside another filter."
-                " When a reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
             ),
-            "example": {"sensor": 2092, "sources": [12, 13]},
+            "example": 2092,
             "cli": {
                 "option": "--sensor",
-                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source or to clean the target's readings.",
+                "extra_help": "Pass the ID of the sensor to forecast.",
             },
         },
     )
     model_save_dir = fields.Str(
         data_key="model-save-dir",
         allow_none=True,
-        load_default="flexmeasures/data/models/forecasting/artifacts/models",
+        load_default=None,
         metadata={
-            "description": "Directory to save the trained model.",
+            "description": "Directory to keep each trained model in, as a file. By default, no model is kept: it is handed from training to prediction in memory.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
             "cli": {
                 "cli-exclusive": True,
@@ -726,9 +828,6 @@ class ForecasterParametersSchema(Schema):
             os.makedirs(output_path)
 
         model_save_dir = data.get("model_save_dir")
-        if model_save_dir is None:
-            # Read default from schema
-            model_save_dir = self.fields["model_save_dir"].load_default
 
         m_viewpoints = max(predict_period // forecast_frequency, 1)
 
@@ -753,10 +852,19 @@ class ForecasterParametersSchema(Schema):
         return result
 
 
+class ApiTrainPredictPipelineConfigSchema(TrainPredictPipelineConfigSchema):
+    """The forecasting config as accepted from the API, which allows only some model params."""
+
+    @validates_schema(pass_original=True)
+    def refuse_unsafe_model_params(self, data: dict, original_data, **kwargs):
+        if isinstance(original_data, dict):
+            validate_model_params_from_api(original_data.get("model-params"))
+
+
 class ForecastingTriggerSchema(ForecasterParametersSchema):
 
     config = fields.Nested(
-        TrainPredictPipelineConfigSchema(),
+        ApiTrainPredictPipelineConfigSchema(),
         required=False,
         load_default={},
         metadata={

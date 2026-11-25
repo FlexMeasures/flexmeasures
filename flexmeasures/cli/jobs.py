@@ -27,6 +27,7 @@ from rq.registry import (
     StartedJobRegistry,
 )
 from marshmallow import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
@@ -34,6 +35,7 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
 from werkzeug.exceptions import Forbidden
@@ -45,7 +47,12 @@ from flexmeasures.data.services.automations import (
     floor_to_minute,
     get_dispatchable_automation_runs,
     run_automation,
+    run_automation_chain,
     skip_stale_automation_runs,
+)
+from flexmeasures.data.services.data_sources import (
+    find_duplicate_sources,
+    find_referenced_source_ids,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -53,7 +60,11 @@ from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
+from flexmeasures.data.services.utils import (
+    failed_job_exc_info,
+    job_status_description,
+    store_job_exception,
+)
 
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
@@ -101,6 +112,10 @@ def run_automations(max_catchup: int | None):
 
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
+
+    A run of an automation that depends on other automations waits for their latest runs due at or before its own scheduled time,
+    and queues its jobs as soon as the last of them ended, or is skipped if one of them failed.
+    This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
     if max_catchup is not None:
@@ -110,9 +125,26 @@ def run_automations(max_catchup: int | None):
                 f"Automation {automation.id} ('{automation.name}') skipped its missed run scheduled for {skipped.scheduled_at}, which is more than {max_catchup} minute(s) ago.",
                 **MsgStyle.WARN,
             )
-    claimed_runs = get_dispatchable_automation_runs(now)
+    report: list[dict] = []
+    claimed_runs = get_dispatchable_automation_runs(now, report=report)
+    # A killed job's run, or an abandoned run on demand, is failed here, which can skip or set off the runs waiting for it, too.
+    for event in report:
+        run = event["run"]
+        failed = run.execution_state in ("failed", "skipped", "canceled")
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
+            + {
+                "reconciled": ", as its job ended without saying so",
+                "abandoned": ", as its dispatch was abandoned",
+                "released": ", as the runs it waits for ended",
+            }[event["event"]]
+            + "."
+            + (f" {event['message']}" if event["message"] else ""),
+            **(MsgStyle.WARN if failed else MsgStyle.SUCCESS),
+        )
     if not claimed_runs:
-        click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        if not report:
+            click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
         return
 
     n_run = 0
@@ -122,6 +154,17 @@ def run_automations(max_catchup: int | None):
         try:
             returns = dispatch_automation_run(claimed_run)
             n_jobs = returns["n_jobs"]
+            if returns.get("dispatch_state") in ("waiting", "skipped"):
+                click.secho(
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    **(
+                        MsgStyle.WARN
+                        if returns["dispatch_state"] == "skipped"
+                        else MsgStyle.SUCCESS
+                    ),
+                )
+                n_run += 1
+                continue
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
@@ -152,7 +195,34 @@ def run_automations(max_catchup: int | None):
     required=True,
     help="ID of the automation to run.",
 )
-def run_one_automation(automation: Automation):
+@click.option(
+    "--with-upstream",
+    "with_upstream",
+    is_flag=True,
+    help="First run the active automations upstream of this one, which it waits for, directly or through others, and then this one,"
+    " each once the runs it waits for ended, for instance to bring it up to date with what its results are based on.",
+)
+@click.option(
+    "--with-downstream",
+    "with_downstream",
+    is_flag=True,
+    help="Also run the active automations downstream of this one, which wait for it, directly or through others,"
+    " each once the runs it waits for ended, for instance to re-run a chain after backfilling the data at its start.",
+)
+@click.option(
+    "--exclude",
+    "exclude",
+    type=int,
+    multiple=True,
+    help="With --with-upstream or --with-downstream, the ID of an automation not to run, along with what can only be reached through it."
+    " Use multiple times to exclude several.",
+)
+def run_one_automation(
+    automation: Automation,
+    with_upstream: bool = False,
+    with_downstream: bool = False,
+    exclude: tuple[int, ...] = (),
+):
     """
     Queue the jobs for a single run of one automation, now.
 
@@ -167,7 +237,29 @@ def run_one_automation(automation: Automation):
     This does not affect the automation's recurrence: its cursor stays where it was,
     so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
     Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    A run on demand does not wait for the automations this one depends on, as it is meant to run now.
+
+    With --with-upstream, the automations this one waits for run first, and this one runs once they ended;
+    with --with-downstream, the automations that wait for this one run, too, once it ended.
+    The included automations run in chain order: each waits for the runs asked for along with it,
+    and is skipped if one of those failed, unless its dependency allows for failure:
+
+    \b
+        flexmeasures jobs run-automation --automation 4 --with-upstream
+        flexmeasures jobs run-automation --automation 4 --with-upstream --exclude 2
+        flexmeasures jobs run-automation --automation 4 --with-downstream
     """
+    if with_upstream and with_downstream:
+        raise click.UsageError("Use either --with-upstream or --with-downstream.")
+    if exclude and not (with_upstream or with_downstream):
+        raise click.UsageError(
+            "--exclude goes along with --with-upstream or --with-downstream."
+        )
+    if with_upstream or with_downstream:
+        _run_automation_chain(
+            automation, "upstream" if with_upstream else "downstream", exclude
+        )
+        return
     try:
         returns = run_automation(automation)
     except (
@@ -201,6 +293,61 @@ def run_one_automation(automation: Automation):
         f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
+
+
+def _run_automation_chain(
+    automation: Automation, include: str, exclude: tuple[int, ...]
+):
+    """Run an automation along with what is upstream or downstream of it, and say what each of them does."""
+    try:
+        runs, returns, excluded = run_automation_chain(automation, include, exclude)
+    except (
+        NotImplementedError,
+        ValueError,
+        ValidationError,
+        AutomationSensorsUnknown,
+        Forbidden,
+    ) as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs, so the automations waiting for it are skipped: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    for run in runs:
+        AssetAuditLog.add_record(
+            run.automation.asset,
+            (
+                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}) and of the automations {include} of it, via CLI."
+                if run.automation_id == automation.id
+                else f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), {include} of automation {automation.id}, via CLI."
+            ),
+        )
+    db.session.commit()
+    for run in runs:
+        db.session.refresh(run)
+        n_jobs = (
+            f", with {len(run.job_intents)} job(s)"
+            if run.dispatch_state != "waiting"
+            else ""
+        )
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id} is {run.dispatch_state}{n_jobs}"
+            + (f" ({run.execution_state})" if run.execution_state == "skipped" else "")
+            + ".",
+            **(MsgStyle.WARN if run.execution_state == "skipped" else MsgStyle.SUCCESS),
+        )
+    if returns is not None and returns.get("job_id") is None and returns.get("message"):
+        click.secho(returns["message"], **MsgStyle.WARN)
+    for step, reason in excluded:
+        click.secho(
+            f"Automation {step.id} ('{step.name}') does not run. {reason}",
+            **MsgStyle.WARN,
+        )
+    if len(runs) == 1 and not excluded:
+        click.secho(
+            f"No active automations are {include} of this one.", **MsgStyle.WARN
+        )
 
 
 @fm_jobs.command("stats")
@@ -561,7 +708,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     while used_name in worker_names:
         used_name = f"{name}-{next(name_suffixes)}"
 
-    error_handler = get_exception_handler(queue)
+    # A worker can work on several queues, so each failed job goes to the handler of its own queue.
+    error_handler = handle_exception_by_queue
 
     # On macOS: RQ's fork-based Worker triggers a known OpenSSL/psycopg2
     # segmentation fault due to reinitialization of SSL state in forked children.
@@ -573,6 +721,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
     else:
         worker = Worker(
@@ -580,6 +730,8 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
             connection=connection,
             name=used_name,
             exception_handlers=[error_handler],
+            # Name jobs by their ID, as a job's description repeats all of its arguments, such as a whole flex-model, on each line logged about it.
+            log_job_description=False,
         )
 
     click.echo("\n=========================================================")
@@ -596,7 +748,32 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     )
     click.echo("=========================================================\n")
 
+    release_database_connections_before_forking()
     worker.work(with_scheduler=with_scheduler)
+
+
+def release_database_connections_before_forking():
+    """Keep forked job processes from sharing the worker's database connections.
+
+    RQ's Worker forks a process for every job, and a fork copies the parent's connection pool, sockets included.
+    A job would then talk to Postgres over the same session as the worker and as every job before it,
+    so a job exiting mid-transaction would make the next job's first query fail (#2806).
+    Therefore, the worker gives up its own connections before it starts,
+    and every forked process starts from an empty pool, leaving the parent's sockets alone.
+    See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    """
+    global _fork_hook_registered
+
+    db.session.remove()
+    db.engine.dispose()
+    # Platforms that cannot fork, such as Windows, have no fork hooks either.
+    # A fork hook cannot be unregistered, so register it once per process, however often this is called.
+    if hasattr(os, "register_at_fork") and not _fork_hook_registered:
+        os.register_at_fork(after_in_child=lambda: db.engine.dispose(close=False))
+        _fork_hook_registered = True
+
+
+_fork_hook_registered = False
 
 
 @fm_jobs.command("show-queues")
@@ -773,6 +950,88 @@ def save_last(
     click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
 
 
+@fm_jobs.command("check-source-references")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    help="State which queue(s) to check (using '|' as separator), e.g. 'forecasting' or 'forecasting|scheduling'. Defaults to all queues.",
+)
+def check_source_references(queue: str | None):
+    """
+    List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
+
+    Jobs can refer to data sources by ID, for instance where a sensor reference in a flex-context filters on its sources.
+    Such a job fails once the data source it refers to is gone.
+    Upgrading to FlexMeasures v1.1 merges each group of identical data sources into one of them,
+    so run this before `flexmeasures db upgrade` to see which jobs that affects, and again after,
+    to find the jobs that still refer to a merged data source.
+    Queued, deferred, scheduled and started jobs are checked.
+
+    This command exists for that one upgrade, so it is expected to be dropped again in v1.2:
+    from v1.1 on, the database refuses duplicate data sources, so there are no further merges to prepare for.
+    """
+    q_list = parse_queue_list(queue) if queue else list(app.queues.values())
+    configure_mappers()
+    duplicates = find_duplicate_sources()
+    # First collect what each waiting job refers to, so that the data sources are looked up in one query.
+    references = []
+    for the_queue in q_list:
+        registries = dict(
+            queued=the_queue,
+            deferred=the_queue.deferred_job_registry,
+            scheduled=the_queue.scheduled_job_registry,
+            started=the_queue.started_job_registry,
+        )
+        for registry_name, registry in registries.items():
+            job_ids = registry.get_job_ids()
+            for job in Job.fetch_many(job_ids, connection=the_queue.connection):
+                if job is None:
+                    continue
+                source_ids = find_referenced_source_ids([job.args, job.kwargs])
+                if source_ids:
+                    references.append(
+                        (job.id, the_queue.name, registry_name, source_ids)
+                    )
+    referenced_ids = set().union(*(ids for *_, ids in references))
+    existing_ids = (
+        set(
+            db.session.scalars(
+                select(DataSource.id).where(DataSource.id.in_(referenced_ids))
+            )
+        )
+        if referenced_ids
+        else set()
+    )
+    rows = []
+    for job_id, queue_name, registry_name, source_ids in references:
+        for source_id in sorted(source_ids):
+            if source_id not in existing_ids:
+                problem = "does not exist"
+            elif source_id in duplicates:
+                problem = f"will be merged into data source {duplicates[source_id]}"
+            else:
+                continue
+            rows.append((job_id, queue_name, registry_name, source_id, problem))
+    if not rows:
+        click.secho(
+            "No waiting job refers to a data source that no longer exists, or that a database upgrade will merge.",
+            **MsgStyle.SUCCESS,
+        )
+        return
+    click.echo(
+        tabulate(
+            rows,
+            headers=["Job", "Queue", "Registry", "Data source", "Problem"],
+        )
+    )
+    click.secho(
+        f"{len(set(row[0] for row in rows))} waiting job(s) refer to a data source that no longer exists, or that a database upgrade will merge. "
+        "Let them finish before upgrading, or cancel them and have them created again after upgrading.",
+        **MsgStyle.WARN,
+    )
+
+
 @fm_jobs.command("clear-queue")
 @with_appcontext
 @click.option(
@@ -890,8 +1149,8 @@ def handle_worker_exception(
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
-    job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
-    job.save_meta()
+    # Meta must hold JSON-serializable data, for the RQ dashboard's job page; the helper stores a summary that is.
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_exception_handler(queue_name: str) -> Callable:
@@ -903,6 +1162,20 @@ def get_exception_handler(queue_name: str) -> Callable:
     :returns:          an RQ exception handler.
     """
     return QUEUE_EXCEPTION_HANDLERS.get(queue_name, handle_worker_exception)
+
+
+def handle_exception_by_queue(
+    job: Job,
+    exc_type: Type[Exception],
+    exc_value: Exception,
+    traceback: TracebackType,
+) -> bool | None:
+    """Handle a failed job with the exception handler of the queue the job came from.
+
+    A worker that works on several queues would otherwise use one handler for the jobs of all of them.
+    RQ reads the return value to decide whether to call the next handler, so we pass it on.
+    """
+    return get_exception_handler(job.origin)(job, exc_type, exc_value, traceback)
 
 
 def parse_queue_list(queue_names_str: str) -> list[Queue]:

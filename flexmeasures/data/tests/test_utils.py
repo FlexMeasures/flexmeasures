@@ -97,6 +97,15 @@ def test_schema_mismatch_log_record_is_deduplicated(
         "flexmeasures.data.utils.get_database_schema_revision_status",
         lambda app: revision_status,
     )
+    # register_at() stores what it finds on the app, which the whole session shares,
+    # so let monkeypatch restore those attributes rather than leak the mocked status into later tests.
+    monkeypatch.setattr(app, "database_schema_revision_status", None, raising=False)
+    monkeypatch.setattr(
+        app,
+        "database_schema_is_migrated_to_head",
+        getattr(app, "database_schema_is_migrated_to_head", True),
+        raising=False,
+    )
 
     with caplog.at_level(logging.ERROR):
         register_at(app)
@@ -224,6 +233,31 @@ def test_database_schema_has_revision_when_revision_is_in_current_history(
     monkeypatch.setattr(
         "flexmeasures.data.utils.MigrationContext.configure",
         lambda connection: _DummyMigrationContext(("head-a",)),
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.ScriptDirectory.from_config",
+        lambda config: _DummyScriptDirectoryWithRevisionMap(
+            heads=("head-a",), revisions=("head-a", "required-a")
+        ),
+    )
+
+    assert database_schema_has_revision(app, "required-a") is True
+
+
+def test_database_schema_has_revision_reuses_the_status_found_at_boot(app, monkeypatch):
+    """The revision status that register_at() stored on the app is reused, without another round trip to the database."""
+
+    def connect():
+        raise AssertionError("The database was queried again.")
+
+    monkeypatch.setattr(db.engine, "connect", connect)
+    monkeypatch.setattr(
+        app,
+        "database_schema_revision_status",
+        DatabaseSchemaRevisionStatus(
+            current_heads=("head-a",), expected_heads=("head-a",)
+        ),
+        raising=False,
     )
     monkeypatch.setattr(
         "flexmeasures.data.utils.ScriptDirectory.from_config",

@@ -164,6 +164,8 @@ def test_the_output_scoped_automation_types_are_supported():
 
 def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site):
     """Automations on the copied asset and on its descendants are copied, inactive and without run history."""
+    # One original opted out of monitoring, so that the copies show they keep that choice rather than the default.
+    automated_site["meter_automation"].monitored = False
     asset_copy = copy_asset(automated_site["site"])
 
     assert asset_copy.skipped_automations == []
@@ -187,6 +189,7 @@ def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site)
         assert copied.type == original.type
         assert copied.cronstr == original.cronstr
         assert copied.timezone == original.timezone
+        assert copied.monitored == original.monitored
         # A copy waits to be switched on, and starts without the original's run history.
         assert copied.active is False
         assert copied.cursor > OLD_CURSOR
@@ -262,6 +265,76 @@ def test_copied_automation_keeps_a_public_regressor(
     assert copied_config["future-regressors"] == [public_sensor.id]
     # An unchanged configuration is shared, rather than duplicated.
     assert copied.generator_id == automation.generator_id
+
+
+@pytest.mark.parametrize("entry", ["auto", {"sensor": "auto", "lower": "0 kW"}])
+def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
+    fresh_db, automated_site, entry
+):
+    """An entry written as "auto" copies as it stands, naming no sensor to be pointed at a copy.
+
+    It is the one entry that is never tied to a sensor, so it needs neither remapping nor a readability check:
+    whichever sensor the copy forecasts is the sensor it describes.
+    Bare and qualified are copied separately, since one config may describe that sensor only once.
+    """
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts qualifying their own target",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={"past-regressors": [entry]},
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert asset_copy.skipped_automations == []
+    meter_copy = _child_of(fresh_db, asset_copy.asset)
+    copied = [
+        copied_automation
+        for copied_automation in _automations_of(fresh_db, meter_copy)
+        if copied_automation.name == automation.name
+    ][0]
+    copied_config = copied.generator.attributes["data_generator"]["config"]
+    assert copied_config["past-regressors"] == [entry]
+    # Nothing was remapped, so the copy shares the configuration rather than duplicating it.
+    assert copied.generator_id == automation.generator_id
+
+
+def test_cross_organisation_copy_checks_the_sources_an_auto_entry_filters_on(
+    fresh_db, setup_accounts_fresh_db, automated_site
+):
+    """An entry written as "auto" names no sensor, but its source filters still name data sources.
+
+    A copy into another organisation has to check those as it would on any sensor reference,
+    or an automation reading one organisation's private source would carry it into another.
+    """
+    site = automated_site["site"]
+    private_source = DataSource(
+        name="private meter", type="script", account_id=site.account_id
+    )
+    fresh_db.session.add(private_source)
+    fresh_db.session.flush()
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts trained on a private source",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={
+            "past-regressors": [{"sensor": "auto", "sources": [private_source.id]}]
+        },
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(site, account=setup_accounts_fresh_db["Supplier"])
+
+    skipped = [
+        skipped_automation
+        for skipped_automation in asset_copy.skipped_automations
+        if skipped_automation.automation_id == automation.id
+    ]
+    assert len(skipped) == 1
+    assert f"data source {private_source.id}" in skipped[0].reason
 
 
 def test_copy_within_the_same_organisation_keeps_an_external_regressor(
@@ -378,6 +451,41 @@ def test_copy_skips_an_automation_whose_generator_is_unavailable(
     assert [copied.name for copied in _automations_of(fresh_db, asset_copy.asset)] == [
         "Site power forecasts"
     ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_runs_copied_automations_as_the_copying_user(
+    client,
+    fresh_db,
+    setup_roles_users_fresh_db,
+    automated_site,
+    requesting_user,
+):
+    """Automations copied through the API run as the user who copied them,
+    so that user's access is checked again before each run."""
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.services.automations import run_automation
+
+    response = client.post(
+        url_for("AssetAPI:copy_assets", id=automated_site["site"].id)
+    )
+    assert response.status_code == 201, response.json
+
+    copied_automations = _automations_of(
+        fresh_db, fresh_db.session.get(GenericAsset, response.json["asset"])
+    )
+    assert copied_automations
+    for copied_automation in copied_automations:
+        assert copied_automation.execution_user_id == requesting_user.id
+
+    # Once the copying user is deactivated, the copy no longer runs
+    requesting_user.active = False
+    fresh_db.session.commit()
+    with pytest.raises(Forbidden):
+        run_automation(copied_automations[0])
 
 
 @pytest.mark.parametrize(
@@ -616,6 +724,7 @@ def test_a_schedule_automation_is_skipped_with_a_reason_of_its_own(
     ]
     assert len(skipped) == 1
     assert "cannot be copied yet" in skipped[0].reason
+    assert "flex config" in skipped[0].reason
 
 
 def test_a_copy_records_under_a_data_source_of_its_own_organisation(
@@ -686,3 +795,53 @@ def test_a_copy_keeps_no_reference_its_maker_cannot_read(
     ]
     assert len(skipped) == 1
     assert str(client_power.id) in skipped[0].reason
+
+
+def test_a_copy_waits_for_the_copies_of_what_its_original_waits_for(
+    fresh_db, automated_site
+):
+    """Within the copied subtree, a dependency points at the copied automation; outside it, at the very automation the original waits for."""
+    from flexmeasures.data.models.automations import AutomationDependency
+
+    neighbouring_automation = _add_automation(
+        fresh_db,
+        asset=automated_site["neighbour"],
+        name="Neighbouring power forecasts",
+        parameters={"sensor": automated_site["neighbouring_power"].id},
+    )
+    site_automation = automated_site["site_automation"]
+    fresh_db.session.add_all(
+        [
+            AutomationDependency(
+                automation=site_automation,
+                upstream=automated_site["meter_automation"],
+            ),
+            AutomationDependency(
+                automation=site_automation,
+                upstream=neighbouring_automation,
+                allow_failure=True,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    site_copy = copy_asset(automated_site["site"]).asset
+
+    copied_site_automation = _automations_of(fresh_db, site_copy)[0]
+    copied_meter_automation = _automations_of(fresh_db, _child_of(fresh_db, site_copy))[
+        0
+    ]
+    assert sorted(
+        (dependency.upstream_id, dependency.allow_failure)
+        for dependency in copied_site_automation.dependencies
+    ) == sorted(
+        [
+            (copied_meter_automation.id, False),
+            (neighbouring_automation.id, True),
+        ]
+    )
+    # The original keeps waiting for what it waited for.
+    assert {dependency.upstream_id for dependency in site_automation.dependencies} == {
+        automated_site["meter_automation"].id,
+        neighbouring_automation.id,
+    }

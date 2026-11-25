@@ -13,12 +13,12 @@ from marshmallow import (
     Schema,
     ValidationError,
 )
-from pytz import all_timezones_set
 
 from flexmeasures.data import ma
 from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.utils import (
     get_by_id,
     FMValidationError,
@@ -28,7 +28,7 @@ from flexmeasures.data.schemas.utils import (
 
 
 class CronField(MarshmallowClickMixin, fields.Str):
-    """Field that validates a cron string (e.g. "0 6 * * *")."""
+    """Field that validates a cron string (e.g. ``"0 6 * * *"``)."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)
@@ -50,16 +50,6 @@ class CronField(MarshmallowClickMixin, fields.Str):
         return value
 
 
-class TimezoneField(MarshmallowClickMixin, fields.Str):
-    """Field that validates an exact IANA timezone name."""
-
-    def _deserialize(self, value, attr, obj, **kwargs) -> str:
-        value = super()._deserialize(value, attr, obj, **kwargs)
-        if value not in all_timezones_set:
-            raise FMValidationError(f"Timezone '{value}' does not exist.")
-        return value
-
-
 class AutomationIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to an Automation and serializes back to an integer."""
 
@@ -75,6 +65,58 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, automation, attr, data, **kwargs):
         """Turn an Automation into an automation id."""
         return automation.id
+
+
+class ReadableAutomationIdField(AutomationIdField):
+    """Field that only finds an automation the current user may read.
+
+    One they may not read gets the answer of one that does not exist, so that trying IDs does not reveal which ones do.
+    Nobody is logged in on the command line, where this makes no difference.
+    """
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> Automation:
+        from flask_security import current_user
+        from werkzeug.exceptions import Forbidden, Unauthorized
+
+        from flexmeasures.auth.policy import check_access
+
+        automation = super()._deserialize(value, attr, obj, **kwargs)
+        if current_user and current_user.is_authenticated:
+            try:
+                check_access(automation, "read")
+            except (Forbidden, Unauthorized):
+                raise FMValidationError(f"No automation found with id {automation.id}.")
+        return automation
+
+
+class AutomationDependencySchema(Schema):
+    """One automation whose runs another automation's runs wait for."""
+
+    # The loaded names are the ones `set_automation_dependencies` takes.
+    upstream = ReadableAutomationIdField(
+        required=True,
+        data_key="automation",
+        metadata={
+            "description": "ID of the automation to wait for. It may recur on another schedule.",
+            "example": 4,
+        },
+    )
+    allow_failure = fields.Bool(
+        load_default=False,
+        data_key="allow-failure",
+        metadata={
+            "description": "Whether a run goes ahead when the upstream run failed or did not happen, rather than being skipped.",
+            "example": False,
+        },
+    )
+
+
+DEPENDS_ON_DESCRIPTION = (
+    "The automations whose runs each run of this automation waits for: their latest runs due at or before its own scheduled time."
+    " A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure."
+    " Upstream automations can be on any asset you can read, and may recur on another schedule."
+    " A run on demand does not wait."
+)
 
 
 class AutomationCreationSchema(Schema):
@@ -102,6 +144,13 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    monitored = fields.Bool(
+        load_default=True,
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation.",
+            "example": True,
+        },
+    )
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
@@ -130,6 +179,15 @@ class AutomationCreationSchema(Schema):
         metadata={
             "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
             "example": 6,
+        },
+    )
+    dependencies = fields.List(
+        fields.Nested(AutomationDependencySchema),
+        data_key="depends-on",
+        load_default=list,
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION,
+            "example": [{"automation": 4, "allow-failure": False}],
         },
     )
 
@@ -161,7 +219,7 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+    """Request schema for updating an automation's name, recurrence, timezone, activation status, dependencies and/or monitoring.
 
     The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
     """
@@ -175,6 +233,21 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    dependencies = fields.List(
+        fields.Nested(AutomationDependencySchema),
+        data_key="depends-on",
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION
+            + " Replaces the automations it depended on; send an empty list to have its runs wait for none.",
+            "example": [{"automation": 4, "allow-failure": True}],
+        },
+    )
+    monitored = fields.Bool(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
+            "example": True,
+        },
+    )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -213,14 +286,38 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     schedule_revision = ma.auto_field(
-        data_key="schedule-revision",
+        data_key="revision",
         dump_only=True,
         metadata={
-            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
             "example": 2,
         },
     )
     active = ma.auto_field()
+    depends_on = fields.Method(
+        serialize="dump_depends_on",
+        data_key="depends-on",
+        dump_only=True,
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION
+            + " Each upstream automation you may read comes with its `name`, `asset` and `asset-name`.",
+            "example": [
+                {
+                    "automation": 4,
+                    "allow-failure": False,
+                    "name": "Pull meter data",
+                    "asset": 2,
+                    "asset-name": "Site",
+                }
+            ],
+        },
+    )
+    monitored = ma.auto_field(
+        metadata={
+            "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
+            "example": True,
+        },
+    )
 
     @staticmethod
     def _in_automation_timezone(
@@ -246,6 +343,14 @@ class AutomationSchema(ma.SQLAlchemySchema):
     def dump_cursor(self, automation: Automation) -> str | None:
         """Render the cursor in the automation's own timezone."""
         return self._in_automation_timezone(automation, automation.cursor)
+
+    def dump_depends_on(self, automation: Automation) -> list[dict]:
+        """Render the automations this automation's runs wait for."""
+        from flexmeasures.data.services.automations import (
+            serialize_automation_dependencies,
+        )
+
+        return serialize_automation_dependencies(automation)
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):

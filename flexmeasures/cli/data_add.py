@@ -30,6 +30,8 @@ import click
 # whose stubs shadow the inline types that click ships itself, and predate both of these (added in click 8.0).
 from click.core import ParameterSource  # type: ignore[attr-defined]
 import getpass
+
+from flask_security.utils import password_length_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -45,10 +47,12 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     LoggedClickExceptionGroup,
     add_cli_options_from_schema,
+    assemble_automation_dependencies,
     split_commas,
 )
 from flexmeasures.data import db
 from flexmeasures.data.automations import get_automation_handler, get_automation_types
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
     populate_initial_structure,
@@ -63,14 +67,22 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.generator_results import (
+    save_generator_results,
+    save_results_not_yet_saved,
+)
+from flexmeasures.data.services.reporting import (
+    compute_report,
+    count_persistable_values,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.services.generic_assets import cross_account_parent_warning
 from flexmeasures.data.models.user import (
     Account,
     AccountRole,
     Plan,
-    RateLimitKey,
     RolesAccounts,
 )
 from flexmeasures.data.models.time_series import (
@@ -79,7 +91,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas.automations import CronField, TimezoneField
+from flexmeasures.data.schemas.automations import AutomationIdField, CronField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -89,6 +101,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     AssetIdField,
 )
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -116,7 +129,6 @@ from flexmeasures.cli.utils import (
     validate_rate_limit_cli,
     validate_url_cli,
 )
-from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 
@@ -242,12 +254,6 @@ def new_account_role(name: str, description: str):
     " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
 )
 @click.option(
-    "--rate-limit-key",
-    type=click.Choice([key.value for key in RateLimitKey]),
-    help="What the trigger rate limit is counted against."
-    " Defaults to the FLEXMEASURES_API_RATE_LIMIT_KEY setting.",
-)
-@click.option(
     "--max-users",
     type=int,
     help="How many users an account on this plan may have (not enforced yet).",
@@ -266,7 +272,6 @@ def new_plan(
     name: str,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
-    rate_limit_key: str | None,
     max_users: int | None,
     max_assets: int | None,
     max_clients: int | None,
@@ -286,7 +291,6 @@ def new_plan(
         name=name,
         default_rate_limit=default_rate_limit,
         trigger_rate_limit=trigger_rate_limit,
-        rate_limit_key=RateLimitKey(rate_limit_key) if rate_limit_key else None,
         max_users=max_users,
         max_assets=max_assets,
         max_clients=max_clients,
@@ -450,13 +454,18 @@ def new_user(
     if pwd1 != pwd2:
         click.secho("Passwords do not match!", **MsgStyle.ERROR)
         raise click.Abort()
+    # Hold the password to the same policy as the password forms (SECURITY_PASSWORD_LENGTH_MIN)
+    password_problems = password_length_validator(pwd1)
+    if password_problems:
+        click.secho(" ".join(password_problems), **MsgStyle.ERROR)
+        raise click.Abort()
     created_user = create_user(
         username=username,
         email=email,
         password=pwd1,
         account_name=account.name,
         timezone=timezone,
-        user_roles=roles,
+        user_roles=roles or None,
         check_email_deliverability=False,
     )
     db.session.commit()
@@ -606,6 +615,11 @@ def add_asset(**args):
         )
     db.session.add(generic_asset)
     db.session.flush()
+    warning = cross_account_parent_warning(
+        generic_asset, generic_asset.parent_asset, generic_asset.account_id
+    )
+    if warning:
+        click.secho(warning, **MsgStyle.WARN)
     AssetAuditLog.add_record(
         generic_asset,
         f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",
@@ -1730,17 +1744,39 @@ def add_forecast(  # noqa: C901
                 click.echo(item["data"])
             return
 
+    except Exception as e:
+        # Name the forecaster that failed: it need not be the built-in Train-Predict Pipeline.
+        click.echo(f"Error running {type(forecaster).__name__}: {str(e)}")
+        raise
+
+    # Saving happens outside the try above, so that a failed save is reported as itself, not as a failure to compute.
+    # A forecaster that only returns its forecasts has them saved here, as every data generator's results are,
+    # so that what is reported below is what was saved. The built-in pipeline saves as it goes, and says so.
+    save_results_not_yet_saved(pipeline_returns)
+    db.session.commit()
+
+    # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+    source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
+    computed = (
+        f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
+        f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
+    )
+    # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
+    total_saved = sum(item["n_saved"] for item in pipeline_returns)
+    if total_saved == total_beliefs:
         click.secho(
-            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
-            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
-            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+            f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
+        )
+    elif total_saved == 0:
+        click.secho(
+            f"Computed {computed}, all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added,{source_named}",
             **MsgStyle.SUCCESS,
         )
-
-    except Exception as e:
-        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
-        raise
+    else:
+        click.secho(
+            f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("automation")
@@ -1791,6 +1827,12 @@ def add_forecast(  # noqa: C901
     "inactive",
     is_flag=True,
     help="Add this flag to create the automation in deactivated state.",
+)
+@click.option(
+    "--unmonitored",
+    "unmonitored",
+    is_flag=True,
+    help="Add this flag to keep the automation's failed runs out of `flexmeasures monitor automations`.",
 )
 @click.option(
     "--data-generator",
@@ -1851,6 +1893,24 @@ def add_forecast(  # noqa: C901
     help="How long the period each run covers lasts, as an ISO 8601 duration, such as P1D."
     " For a forecast or schedule automation, the period then starts at the run time, unless --start-offset or --end-offset says otherwise.",
 )
+@click.option(
+    "--depends-on",
+    "depends_on",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
+    " A run queues its jobs once the runs it waits for ended, and is skipped if one of them failed (but see --allow-failure-of)."
+    " The automation waited for may recur on another schedule."
+    " Repeat to wait for several automations.",
+)
+@click.option(
+    "--allow-failure-of",
+    "allow_failure_of",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation given with --depends-on whose failed (or missed) run should not stop this automation's run."
+    " Repeat for several.",
+)
 @add_cli_options_from_schema(
     ForecasterParametersSchema(),
     hidden=True,
@@ -1868,10 +1928,13 @@ def add_automation(  # noqa: C901
     timezone: str,
     automation_type: str,
     inactive: bool = False,
+    unmonitored: bool = False,
     generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
+    depends_on: tuple[Automation, ...] = (),
+    allow_failure_of: tuple[Automation, ...] = (),
     **kwargs,
 ):
     """
@@ -1900,6 +1963,9 @@ def add_automation(  # noqa: C901
     Alternatively, pass an existing data source (--source) to reuse the forecaster
     and configuration stored on it.
 
+    An automation that consumes what another automation produces can wait for it (--depends-on),
+    so that each of its runs queues its jobs only once the other automation's latest run due at or before that time ended.
+
     Every forecaster and pipeline option that `flexmeasures add forecast` accepts is accepted here, too,
     but is left out of the help text above to keep it focused on the automation itself;
     run `flexmeasures add forecast --help` to see them.
@@ -1912,6 +1978,7 @@ def add_automation(  # noqa: C901
     except (ValueError, NotImplementedError) as e:
         available = ", ".join(get_automation_types())
         raise click.UsageError(f"{e} Available types: {available}.")
+    dependencies = assemble_automation_dependencies(depends_on, allow_failure_of)
 
     # Only a forecast automation has a default generator:
     # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
@@ -1966,11 +2033,13 @@ def add_automation(  # noqa: C901
             timezone=timezone,
             automation_type=automation_type,
             active=not inactive,
+            monitored=not unmonitored,
             parameters=parameters,
             generator_class=generator_class,
             config=config,
             source=source,
             origin="CLI",
+            dependencies=dependencies,
         )
     except ValidationError as e:
         # The messages name the part of the request at fault, which is not always the parameters.
@@ -2178,16 +2247,31 @@ def add_schedule(  # noqa C901
                 **MsgStyle.SUCCESS,
             )
     else:
-        make_schedule(
+        scheduling_result = make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if not dry_run:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
-        else:
+        n_computed = sum(
+            output["num-computed-beliefs"] for output in scheduling_result["outputs"]
+        )
+        n_recorded = sum(
+            output["num-recorded-beliefs"] for output in scheduling_result["outputs"]
+        )
+        if n_computed == 0:
             click.secho(
-                "The schedule above was computed but not stored (because of --dry-run).",
+                "The scheduler computed no beliefs, so no new schedule was stored.",
+                **MsgStyle.WARN,
+            )
+        else:
+            if dry_run:
+                reason = ", as this was a dry run"
+            elif n_recorded < n_computed:
+                reason = ", as the rest was already on record"
+            else:
+                reason = ""
+            click.secho(
+                f"Scheduling done: computed {n_computed}, recorded {n_recorded}{reason}.",
                 **MsgStyle.SUCCESS,
             )
 
@@ -2294,10 +2378,11 @@ def add_schedule(  # noqa C901
     help="Add this flag to edit the parameters passed to the Reporter in your default text editor (e.g. nano).",
 )
 @click.option(
-    "--save-config",
+    "--save-config/--no-save-config",
     "save_config",
-    is_flag=True,
-    help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
+    default=True,
+    show_default=True,
+    help="Whether to save the `config` in the attributes of the DataSource, which tells reports computed under different configs apart, and lets `--source` compute one again.",
 )
 @click.option(
     "--as-job",
@@ -2319,7 +2404,7 @@ def add_report(  # noqa: C901
     dry_run: bool = False,
     edit_config: bool = False,
     edit_parameters: bool = False,
-    save_config: bool = False,
+    save_config: bool = True,
     timezone: str | None = None,
     as_job: bool = False,
 ):
@@ -2336,7 +2421,7 @@ def add_report(  # noqa: C901
         raise click.Abort()
     if as_job and not save_config:
         click.secho(
-            "Saving the reporter config to its data source (required for --as-job).",
+            "Saving the reporter config to its data source after all (required for --as-job).",
             **MsgStyle.WARN,
         )
         save_config = True
@@ -2454,31 +2539,57 @@ def add_report(  # noqa: C901
 
     click.echo("Report computation is running...")
 
-    # compute the report
-    results = reporter.compute(parameters=parameters)
-
+    results = compute_report(reporter, parameters)
+    # Say what was computed before saving any of it, so that a save that fails still leaves this on screen.
     for result in results:
-        data = result["data"]
-        sensor = result["sensor"]
-        if not data.empty:
+        if not result["data"].empty:
             click.secho(
-                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
+                f"Report computation done for sensor `{result['sensor']}`.",
+                **MsgStyle.SUCCESS,
             )
         else:
             click.secho(
-                f"Report computation done for sensor `{sensor}`, but the report is empty.",
+                f"Report computation done for sensor `{result['sensor']}`, but the report is empty.",
                 **MsgStyle.WARN,
             )
 
-        # save the report if it's not running in dry mode
+    # Save all outputs or none, unless running in dry mode, as every data generator's results are saved.
+    saved = []
+    if not dry_run:
+        click.echo("Saving the report to the database...")
+        saved = save_generator_results(results)
+        db.session.commit()
+
+    for i, result in enumerate(results):
+        data = result["data"]
+        sensor = result["sensor"]
+
+        # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
-            click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data)
-            db.session.commit()
-            click.secho(
-                f"Success. The report for sensor `{sensor}` has been saved to the database.",
-                **MsgStyle.SUCCESS,
-            )
+            n_saved = saved[i]["n_rows"]
+            n_computed = saved[i]["n_computed"]
+            if n_saved and n_saved == n_computed:
+                click.secho(
+                    f"Success. Recorded {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` in the database.",
+                    **MsgStyle.SUCCESS,
+                )
+            elif n_saved:
+                click.secho(
+                    f"Success. Recorded {n_saved} of the {pluralize('belief', n_computed, include_count=True)} computed for the report for sensor `{sensor}` in the database:"
+                    " the rest was already on record or had no value.",
+                    **MsgStyle.SUCCESS,
+                )
+            elif count_persistable_values(data):
+                click.secho(
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was recorded (computed {n_computed}, recorded 0).",
+                    **MsgStyle.SUCCESS,
+                )
+            else:
+                click.secho(
+                    f"Nothing was recorded for sensor `{sensor}`, as the report holds no values to record (computed {n_computed}, recorded 0)."
+                    " This can happen when its inputs do not align on source and belief time.",
+                    **MsgStyle.WARN,
+                )
         else:
             click.echo(
                 f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"
@@ -2876,15 +2987,17 @@ def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars
                 **MsgStyle.SUCCESS,
             )
 
-            start_year = server_now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            local_timezone = pytz.timezone(grid_connection_capacity.timezone)
+            tomorrow = server_now().astimezone(local_timezone).date() + timedelta(
+                days=1
             )
+            start_year = local_timezone.localize(datetime(tomorrow.year, 1, 1))
 
             belief = TimedBelief(
                 event_start=start_year,
                 belief_time=server_now(),
                 event_value=500,
-                source=db.session.get(DataSource, 1),
+                source=get_or_create_source(user),
                 sensor=grid_connection_capacity,
             )
 
