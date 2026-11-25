@@ -56,7 +56,10 @@ from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
-from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.flexmeasures_inflection import (
+    join_words_into_a_list,
+    pluralize,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     failed_job_exc_info,
@@ -309,7 +312,7 @@ def _run_automation_chain(
     for run in runs:
         db.session.refresh(run)
         n_jobs = (
-            f", with {len(run.job_intents)} job(s)"
+            f", with {pluralize('job', len(run.job_intents), include_count=True)}"
             if run.dispatch_state != "waiting"
             else ""
         )

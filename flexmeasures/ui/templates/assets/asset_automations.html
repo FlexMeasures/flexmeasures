@@ -417,7 +417,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           {% endfor %}
         </div>
 
-        <div class="alert alert-success d-none mt-2" id="automations_msg"></div>
         <div class="alert alert-warning d-none mt-2" id="automations_err"></div>
       </div>
     </div>
@@ -528,10 +527,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return Object.keys(jobStats || {}).length
       ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
       : "none";
-  }
-
-  function showAutomationsMessage(message) {
-    $("#automations_msg").removeClass("d-none").text(message);
   }
 
   // A data source stores a data generator and the configuration it runs under, and the results computed under it are recorded on it,
@@ -1051,15 +1046,21 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       .map((step) => `${esc(step.name)} has never run successfully, so ${step["waited-for-by"].map((id) => esc(names.get(id))).join(" and ")} will likely fail.`);
   }
 
+  // A count with the word for what is counted, such as "1 job" or "2 jobs".
+  function countOf(count, word, words = `${word}s`) {
+    return `${count} ${count === 1 ? word : words}`;
+  }
+
   // What came of asking for a run, in which an automation with nothing to do can still set off the ones waiting for it.
   function runMessage(automationId, res) {
     if (res.runs) {
-      const excluded = res.excluded || [];
-      return res.message + (excluded.length ? ` Automation(s) ${excluded.map((step) => step.automation).join(", ")} do not run.` : "");
+      const excluded = (res.excluded || []).map((step) => step.automation);
+      return res.message + (excluded.length === 1 ? ` Automation ${excluded[0]} does not run.`
+        : excluded.length ? ` Automations ${excluded.join(", ")} do not run.` : "");
     }
     const nJobs = res["n-jobs"];
     return nJobs === 0 ? `Automation ${automationId} had nothing to queue.`
-      : `${nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`} for automation ${automationId}.`;
+      : `${nJobs == null ? "Queued the jobs" : `Queued ${countOf(nJobs, "job")}`} for automation ${automationId}.`;
   }
 
   // The query that asks for what a run plan shows.
@@ -1930,11 +1931,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
-          showAutomationsMessage(`${runMessage(automationId, res)} Recent jobs are listed on the status page.`);
+          showToast(`${runMessage(automationId, res)} Recent jobs are listed on the status page.`, "success", { delay: 8000 });
           loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
         error: function (xhr) {
-          $("#automations_msg").addClass("d-none");
           showAutomationsError(
             `Could not run automation ${automationId}: ${automationAjaxErrorMessage(xhr)}.`
           );

@@ -3076,7 +3076,8 @@ def validate_automation_dependencies(
     )
     if duplicates:
         errors.append(
-            f"Automation(s) {', '.join(map(str, duplicates))} are named more than once."
+            f"{'Automation' if len(duplicates) == 1 else 'Automations'} {', '.join(map(str, duplicates))}"
+            f" {'is' if len(duplicates) == 1 else 'are'} named more than once."
         )
     for dependency in dependencies:
         upstream = dependency["upstream"]

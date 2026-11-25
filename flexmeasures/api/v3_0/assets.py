@@ -119,6 +119,7 @@ from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.auth.loaders import (
@@ -2473,7 +2474,7 @@ class AssetAPI(FlaskView):
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         n-jobs: 1
-                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        message: "Started 1 run, and 1 run waits for it."
                         runs:
                           - automation: 7
                             run: 411
@@ -2488,7 +2489,7 @@ class AssetAPI(FlaskView):
                         status: ACCEPTED
                         job: null
                         n-jobs: 1
-                        message: "Started 1 run(s), and 1 run(s) wait for them."
+                        message: "Started 1 run, and 1 run waits for it."
                         runs:
                           - automation: 7
                             run: 411
@@ -2745,8 +2746,15 @@ class AssetAPI(FlaskView):
         else:
             response, status_code = {"status": "ACCEPTED", "job": None}, 202
         n_waiting = sum(run.dispatch_state == "waiting" for run in runs)
+        n_started = len(runs) - n_waiting
         response["message"] = (
-            f"Started {len(runs) - n_waiting} run(s), and {n_waiting} run(s) wait for them."
+            f"Started {pluralize('run', n_started, include_count=True)}"
+            + (
+                f", and {pluralize('run', n_waiting, include_count=True)} {'waits' if n_waiting == 1 else 'wait'}"
+                f" for {'it' if n_started == 1 else 'them'}."
+                if n_waiting
+                else "."
+            )
         )
         if returns is not None and job_id is None and returns.get("message"):
             response["message"] = f"{returns['message']} {response['message']}"

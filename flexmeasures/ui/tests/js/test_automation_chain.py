@@ -171,12 +171,16 @@ def test_a_run_says_what_it_set_off(assert_js):
         // Keep the page's ready callback from trying to fetch data; exercise its helpers directly.
         window.$ = () => ({{ready: () => {{}}}});
         const page = new Function({json.dumps(script)} + "\\nreturn {{ runMessage }};")();
-        eq("a run with jobs counts them", page.runMessage(7, {{"n-jobs": 2}}), "Queued 2 job(s) for automation 7.");
+        eq("a run with jobs counts them", page.runMessage(7, {{"n-jobs": 2}}), "Queued 2 jobs for automation 7.");
+        eq("one job is one job", page.runMessage(7, {{"n-jobs": 1}}), "Queued 1 job for automation 7.");
         eq("a run without a count still says so", page.runMessage(7, {{}}), "Queued the jobs for automation 7.");
         eq("nothing to queue is no zero count", page.runMessage(7, {{"n-jobs": 0}}), "Automation 7 had nothing to queue.");
         eq("running a chain says what became of the rest",
-           page.runMessage(7, {{runs: [], message: "Started 1 run(s), and 1 run(s) wait for them.", excluded: [{{automation: 5, reason: "It is inactive."}}]}}),
-           "Started 1 run(s), and 1 run(s) wait for them. Automation(s) 5 do not run.");
+           page.runMessage(7, {{runs: [], message: "Started 1 run, and 1 run waits for it.", excluded: [{{automation: 5, reason: "It is inactive."}}]}}),
+           "Started 1 run, and 1 run waits for it. Automation 5 does not run.");
+        eq("several that do not run are counted as such",
+           page.runMessage(7, {{runs: [], message: "Started 1 run.", excluded: [{{automation: 5}}, {{automation: 6}}]}}),
+           "Started 1 run. Automations 5, 6 do not run.");
     """)
 
 

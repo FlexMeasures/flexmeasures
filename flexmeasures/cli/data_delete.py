@@ -302,7 +302,7 @@ def delete_automation(automation: Automation, force: bool):
         waiting = get_automations_waiting_for(automation)
         if waiting:
             names = ", ".join(f"'{other.name}' (ID: {other.id})" for other in waiting)
-            prompt = f"{names} wait(s) for this automation, and will run without it from now on. {prompt}"
+            prompt = f"{names} {'waits' if len(waiting) == 1 else 'wait'} for this automation, and will run without it from now on. {prompt}"
         click.confirm(prompt, abort=True)
     remove_automation(automation, origin="CLI")
     db.session.commit()

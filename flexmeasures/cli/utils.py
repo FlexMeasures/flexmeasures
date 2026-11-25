@@ -296,7 +296,7 @@ def assemble_automation_dependencies(
     stray_ids = sorted({upstream.id for upstream in allow_failure_of} - upstream_ids)
     if stray_ids:
         raise click.UsageError(
-            f"--allow-failure-of names automation(s) {', '.join(map(str, stray_ids))}, which --depends-on does not."
+            f"--allow-failure-of names {'automation' if len(stray_ids) == 1 else 'automations'} {', '.join(map(str, stray_ids))}, which --depends-on does not."
         )
     allowed_ids = {upstream.id for upstream in allow_failure_of}
     return [

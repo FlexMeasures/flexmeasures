@@ -5211,7 +5211,7 @@
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "n-jobs": 1,
-                      "message": "Started 1 run(s), and 1 run(s) wait for them.",
+                      "message": "Started 1 run, and 1 run waits for it.",
                       "runs": [
                         {
                           "automation": 7,
@@ -5233,7 +5233,7 @@
                       "status": "ACCEPTED",
                       "job": null,
                       "n-jobs": 1,
-                      "message": "Started 1 run(s), and 1 run(s) wait for them.",
+                      "message": "Started 1 run, and 1 run waits for it.",
                       "runs": [
                         {
                           "automation": 7,

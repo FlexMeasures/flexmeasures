@@ -535,6 +535,7 @@ def test_trigger_automation_with_downstream_excludes_what_the_user_may_not_run(
         )
     assert response.status_code == 202, response.json
     assert [run["automation"] for run in response.json["runs"]] == [upstream["own"].id]
+    assert response.json["message"] == "Started 1 run."
     assert response.json["excluded"] == []
     runs = fresh_db.session.scalars(select(AutomationRun)).all()
     assert [run.automation_id for run in runs] == [upstream["own"].id]
