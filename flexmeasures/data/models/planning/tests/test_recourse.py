@@ -324,24 +324,46 @@ def test_react_classes_on_a_mixed_day(app, db):
     _assert_bands_are_well_formed(data)
 
 
-def test_near_zero_class_tolerates_a_plan_the_modes_cannot_land_on_zero(app, db):
-    """A plan 30 W off zero still counts as held at zero, since 50 W of tolerance covers what operation modes cannot cancel.
+MODES_IDLE_OR_1_4_TO_2_KW = [
+    {"consumption-range": ["0 kW", "0 kW"]},
+    {"consumption-range": ["1.4 kW", "2 kW"]},
+    {"production-range": ["1.4 kW", "2 kW"]},
+]
 
-    The battery can only be off or run between 2 and 5 kW, so it cannot cancel a 30 W load exactly;
-    it starts empty and buying at 50 to sell at 5 is a loss, so it stays off and the load is the planned connection power.
+
+def _mode_battery(sensor: Sensor, **extra) -> dict:
+    """A battery that is idle, or charges or discharges between 1.4 and 2 kW, starting empty."""
+    return _battery_flex_model(
+        sensor,
+        **{
+            "power-capacity": "2 kW",
+            "soc-at-start": "0 MWh",
+            "operation-modes": MODES_IDLE_OR_1_4_TO_2_KW,
+            **extra,
+        },
+    )
+
+
+def test_mode_shaped_plan_is_balanced_at_its_miss(app, db):
+    """A plan that operation modes keep 0.2 kW off zero still reacts, against the balance point rather than the forecast.
+
+    Two hourly slots. In the first, 1.2 kW of surplus sun meets a feed-in price (5) below the import price (50):
+    the battery charges its smallest step of 1.4 kW to store the sun for the second slot,
+    where a 1.4 kW load at an import price of 100 is served from the battery.
+    The planned connection power in the first slot is +0.2 kW, within the 1.4 kW gap between idle and the charging range,
+    so the slot is held at zero: the reference is -1.4 kW (the negative of the plan), react is 1,
+    and the band is the plan's own range [1.4, 2] kW.
+    Applying the client rule, 0.3 kW of extra sun gives a setpoint of 1.5 kW, and the house as forecast gives exactly the plan.
+    In the second slot the battery empties itself, so its range leaves no room and it does not react.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (near zero)",
-        consumption_prices="50 EUR/MWh",
-        production_prices="5 EUR/MWh",
-        load_kw=0.03,
+        site_name="Recourse site (mode-shaped plan)",
+        consumption_prices=[50, 100],
+        production_prices=[5, 5],
+        load_kw=[-1.2, 1.4],
+        n_hours=2,
     )
-    modes = [
-        {"consumption-range": ["0 kW", "0 kW"]},
-        {"consumption-range": ["2 kW", "5 kW"]},
-        {"production-range": ["2 kW", "5 kW"]},
-    ]
     data = _compute_recourse(
         site,
         battery_power,
@@ -349,41 +371,82 @@ def test_near_zero_class_tolerates_a_plan_the_modes_cannot_land_on_zero(app, db)
         price_fields,
         end,
         site_power_capacity="100 kW",
-        flex_model=[
-            _battery_flex_model(
-                battery_power,
-                **{
-                    "power-capacity": "5 kW",
-                    "soc-at-start": "0 MWh",
-                    "operation-modes": modes,
-                },
-            )
-        ],
+        flex_model=[_mode_battery(battery_power)],
     )[battery_power.id]["data"]
-    np.testing.assert_allclose(data["p"], 0, atol=TOLERANCE)
-    np.testing.assert_allclose(data["reference"], 0.00003, atol=TOLERANCE)
-    np.testing.assert_allclose(data["react"], 1)
+
+    np.testing.assert_allclose(
+        data["p"], [0.0014, -0.0014], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(
+        data["reference"], [-0.0014, 0.0014], atol=TOLERANCE, err_msg="balance point"
+    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0014, 0.002)], atol=TOLERANCE)
+    np.testing.assert_allclose(
+        data["band"].iloc[1], [(-0.0014, -0.0014)], atol=TOLERANCE
+    )
+
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    house_as_forecast = -0.0012
+    assert _clip_to_band(p - react * (house_as_forecast - reference), band) == p
+    extra_sun = -0.0015
+    assert _clip_to_band(p - react * (extra_sun - reference), band) == pytest.approx(
+        0.0015, abs=TOLERANCE
+    )
 
 
-def test_bands_respect_operation_modes(app, db):
-    """A device with operation modes gets a band of several ranges, none of which spans a hole between modes.
+def test_miss_beyond_the_dead_zone_is_not_classified(app, db):
+    """A device at its capacity while the house still exports is not holding the connection at zero.
 
-    The battery can be off, consume between 2 and 5 kW, or produce between 2 and 5 kW.
-    With a production price of zero, every slot is a reacting slot.
+    With 5 kW of surplus sun, the battery charges its full 2 kW to serve the second slot's load,
+    leaving 3 kW of export: more than the 1.4 kW gap between idle and the charging range,
+    so the slot is not classified, the reference is the forecast, and the band is just the plan.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (miss beyond the dead zone)",
+        consumption_prices=[50, 100],
+        production_prices=[5, 5],
+        load_kw=[-5, 2],
+        n_hours=2,
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[_mode_battery(battery_power)],
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(data["p"].iloc[0], 0.002, atol=TOLERANCE, err_msg="plan")
+    assert data["react"].iloc[0] == 0
+    np.testing.assert_allclose(
+        data["reference"].iloc[0], -0.005, atol=TOLERANCE, err_msg="forecast"
+    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.002, 0.002)], atol=TOLERANCE)
+
+
+def test_band_is_the_plans_own_range_within_its_modes(app, db):
+    """A device with operation modes gets the one range of its modes that holds the plan, not every range.
+
+    The battery can be off, consume between 2 and 5 kW, or produce between 2 and 5 kW;
+    it serves a 3 kW load with the production price below the consumption price, so the connection is held at zero.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
         site_name="Recourse site (operation modes)",
         consumption_prices="50 EUR/MWh",
-        production_prices="0 EUR/MWh",
-        load_kw=None,
+        production_prices="5 EUR/MWh",
+        load_kw=3,
     )
     modes = [
         {"consumption-range": ["0 kW", "0 kW"]},
         {"consumption-range": ["2 kW", "5 kW"]},
         {"production-range": ["2 kW", "5 kW"]},
     ]
-    signed_modes = [(0, 0), (0.002, 0.005), (-0.005, -0.002)]
     data = _compute_recourse(
         site,
         battery_power,
@@ -397,20 +460,15 @@ def test_bands_respect_operation_modes(app, db):
             )
         ],
     )[battery_power.id]["data"]
-
     _assert_bands_are_well_formed(data)
-    np.testing.assert_allclose(data["react"], 1)
+    # The battery serves the load until its 5 kWh run out: three hours at 3 kW is more than it holds.
+    assert (data["p"] < -TOLERANCE).any()
     for _, row in data.iterrows():
-        for lo, hi in row["band"]:
-            assert any(
-                mode_lo - TOLERANCE <= lo and hi <= mode_hi + TOLERANCE
-                for mode_lo, mode_hi in signed_modes
-            ), f"range ({lo}, {hi}) spans a hole between the operation modes"
-        # Idle at the start (5 kWh of 0..20 kWh), the battery may go anywhere within its modes.
-        if np.isclose(row["p"], 0, atol=TOLERANCE):
-            np.testing.assert_allclose(
-                row["band"], [(-0.005, -0.002), (0, 0), (0.002, 0.005)], atol=TOLERANCE
-            )
+        if row["p"] < -TOLERANCE:
+            assert row["react"] == 1
+            np.testing.assert_allclose(row["reference"], 0.003, atol=TOLERANCE)
+            ((lo, hi),) = row["band"]
+            assert -0.005 - TOLERANCE <= lo and hi <= -0.002 + TOLERANCE
 
 
 @pytest.mark.parametrize(
@@ -472,12 +530,15 @@ def test_reaction_directions_and_time_gate_the_band_and_react(
 
 
 def test_device_without_react_gets_no_share(app, db):
-    """Only devices with ``react`` set react; a second battery without it keeps react 0 and a band of its plan."""
+    """Only devices with ``react`` set react; a second battery without it keeps react 0 and a band of its plan.
+
+    A negative production price makes idling the batteries' unique optimum, with the connection held at zero.
+    """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
         site_name="Recourse site (react per device)",
         consumption_prices="50 EUR/MWh",
-        production_prices="0 EUR/MWh",
+        production_prices="-1 EUR/MWh",
         load_kw=None,
     )
     other_battery = (

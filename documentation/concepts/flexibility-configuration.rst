@@ -508,17 +508,18 @@ so the site keeps to the plan's intent between two schedule triggers.
 
 Each schedule value of such a device then comes with an entry of the ``reaction`` array, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
 
-- ``reference``: the uncontrolled power at the connection the plan assumed for the slot, in the schedule's unit;
+- ``reference``: the uncontrolled power at the connection against which the plan is balanced, in the schedule's unit: where the plan holds the connection at zero, the negative of the planned device power; where a capacity binds, the capacity minus the planned device power; elsewhere the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly, by the plan's miss;
 - ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
-- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit.
+- ``band``: the power range the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit. Where the device reacts, this is the plan's own range: the mode is fixed per slot, so the band returns the plan when the house is as forecast, and a surprise beyond the range leaves a residual, which is what the retrigger is for.
 
 The client evaluates the reaction itself.
 Writing ``p`` for the scheduled value and ``meter`` for the measured net power at the connection,
 the surprise is ``(meter - Σ device power) - reference``, with ``Σ device power`` the realised power of the reacting devices,
 and the device's setpoint for the slot is the clip of ``p - react * surprise`` to the band, which equals the plan when the connection behaves as forecast.
 Devices react in series, in the order of the flex-model, each absorbing what the devices before it could not.
-The react share is ``1`` in the slots where the site capacity binds, where the planned net power at the connection is near zero (within 50 W) while the production price is below the consumption price,
-and where the production price is zero or negative; it is ``0`` elsewhere, with a band of just the scheduled value.
+The react share is ``1`` in the slots where the site capacity binds, where the plan holds the connection at zero while the production price is below the consumption price,
+and where the plan holds the connection at zero while the production price is zero or negative; it is ``0`` elsewhere, with a band of just the scheduled value.
+A plan shaped by operation modes may miss its intended connection power by up to the widest gap between two of the device's ranges, and still counts.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
 When a reaction leaves the band, trigger a new schedule.
 
