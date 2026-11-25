@@ -360,6 +360,7 @@ def test_automation_details_say_what_waits_for_it(
         "automation": downstream.id,
         "name": "Downstream",
         "asset": battery.id,
+        "asset-name": battery.name,
     }
     assert waiting[upstream["foreign"].id] == {"automation": upstream["foreign"].id}
 

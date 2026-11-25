@@ -14,7 +14,7 @@ v3.0-37 | December xx, 2026
 - ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` accepts ``with-upstream=true``, to first run the active automations this one waits for, or ``with-downstream=true``, to also run the active automations that wait for this one, in chain order, and ``exclude`` to exclude some of them; the response lists the runs under ``runs`` and the automations that do not run under ``excluded``, each with the reason.
 - Added ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream|downstream``, to see what running an automation along with what is upstream or downstream of it comes down to.
 - Added ``GET /api/v3_0/assets/automations``, to list the automations on public assets (``scope=public``) or every automation the caller may read (``scope=all``), all at once, or one page at a time with ``page`` and ``per-page``.
-- ``GET /api/v3_0/assets/<id>/automations/<automation-id>?include=waited-for-by`` reports ``waited-for-by``, the automations that wait for this one.
+- ``GET /api/v3_0/assets/<id>/automations/<automation-id>?include=waited-for-by`` reports ``waited-for-by``, the automations that wait for this one, each with its ``name``, ``asset`` and ``asset-name`` if you may read it.
 
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""

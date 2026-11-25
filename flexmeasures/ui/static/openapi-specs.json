@@ -3833,7 +3833,9 @@
                       "steps": [
                         {
                           "automation": 7,
-                          "waits-for": [],
+                          "waits-for": [
+                            5
+                          ],
                           "name": "Forecast",
                           "asset": 3,
                           "asset-name": "Site"

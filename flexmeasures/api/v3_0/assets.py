@@ -1992,7 +1992,11 @@ class AssetAPI(FlaskView):
                 {
                     "automation": waiting.id,
                     **(
-                        {"name": waiting.name, "asset": waiting.asset_id}
+                        {
+                            "name": waiting.name,
+                            "asset": waiting.asset_id,
+                            "asset-name": waiting.asset.name,
+                        }
                         if _may_read_automation(waiting)
                         else {}
                     ),
@@ -2655,7 +2659,7 @@ class AssetAPI(FlaskView):
                       value:
                         steps:
                           - automation: 7
-                            waits-for: []
+                            waits-for: [5]
                             name: Forecast
                             asset: 3
                             asset-name: Site
