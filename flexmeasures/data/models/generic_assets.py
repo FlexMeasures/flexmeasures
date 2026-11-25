@@ -937,6 +937,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         ) = None,
         annotation_type: str = None,
         include_account_annotations: bool = False,
+        most_recent_beliefs_only: bool = False,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
@@ -948,6 +949,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param beliefs_after: only return annotations recorded after this datetime (exclusive)
         :param beliefs_before: only return annotations recorded before this datetime (inclusive);
                                annotations without a belief time are always returned
+        :param most_recent_beliefs_only: only return the most recent version of each annotation,
+                                         which is identified by its subject, source and start, as known at ``beliefs_before`` (if given).
+                                         The most recent version has the latest belief time, or, among versions without one, the highest id.
         """
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
@@ -959,6 +963,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 beliefs_before=beliefs_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
         ).all()
         if include_account_annotations and self.owner is not None:
@@ -968,6 +973,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 source=source,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
 
         return to_annotation_frame(annotations) if as_frame else annotations

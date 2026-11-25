@@ -45,14 +45,13 @@ from flexmeasures.utils.unit_utils import (
 )
 from flexmeasures.data.models.annotations import (
     Annotation,
-    SensorAnnotationRelationship,
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
-from flexmeasures.data.queries.annotations import filter_by_belief_time
+from flexmeasures.data.queries.annotations import query_sensor_annotations
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -338,6 +337,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         ) = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
+        most_recent_beliefs_only: bool = False,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this sensor, and optionally, also those assigned to the sensor's asset and the asset's account.
@@ -347,6 +347,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param beliefs_after: only return annotations recorded after this datetime (exclusive)
         :param beliefs_before: only return annotations recorded before this datetime (inclusive);
                                annotations without a belief time are always returned
+        :param most_recent_beliefs_only: only return the most recent version of each annotation,
+                                         which is identified by its subject, source and start, as known at ``beliefs_before`` (if given).
+                                         The most recent version has the latest belief time, or, among versions without one, the highest id.
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -368,28 +371,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = (
-            select(Annotation)
-            .join(SensorAnnotationRelationship)
-            .filter(
-                SensorAnnotationRelationship.sensor_id == self.id,
-                SensorAnnotationRelationship.annotation_id == Annotation.id,
+        annotations = db.session.scalars(
+            query_sensor_annotations(
+                sensor_id=self.id,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                sources=parsed_sources,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
-        )
-        if annotations_after is not None:
-            query = query.filter(
-                Annotation.end > annotations_after,
-            )
-        if annotations_before is not None:
-            query = query.filter(
-                Annotation.start < annotations_before,
-            )
-        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
-        if parsed_sources:
-            query = query.filter(
-                Annotation.source.in_(parsed_sources),
-            )
-        annotations = db.session.scalars(query).all()
+        ).all()
         if include_asset_annotations:
             annotations += self.generic_asset.search_annotations(
                 annotations_after=annotations_after,
@@ -397,6 +389,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 source=source,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
         if include_account_annotations:
             annotations += self.generic_asset.owner.search_annotations(
@@ -405,6 +398,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 source=source,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
 
         return to_annotation_frame(annotations) if as_frame else annotations
@@ -587,13 +581,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 resolution=resolution,
             )
 
-            # Get annotations
+            # Get annotations, of which the chart shows only the most recent version
             if include_sensor_annotations:
                 annotations_df = self.search_annotations(
                     annotations_after=event_starts_after,
                     annotations_before=event_ends_before,
                     include_asset_annotations=include_asset_annotations,
                     include_account_annotations=include_account_annotations,
+                    most_recent_beliefs_only=True,
                     as_frame=True,
                 )
             elif include_asset_annotations:
@@ -601,12 +596,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                     annotations_after=event_starts_after,
                     annotations_before=event_ends_before,
                     include_account_annotations=include_account_annotations,
+                    most_recent_beliefs_only=True,
                     as_frame=True,
                 )
             elif include_account_annotations:
                 annotations_df = self.generic_asset.owner.search_annotations(
                     annotations_after=event_starts_after,
                     annotations_before=event_ends_before,
+                    most_recent_beliefs_only=True,
                     as_frame=True,
                 )
             else:

@@ -269,6 +269,52 @@ With the offsets, we control the timing ― we indicate that we want the new rep
 
 The report sensor will now store all costs which we know will be made tomorrow by the  schedule.
 
+.. _reporting_findings:
+
+Reporters that return findings
+--------------------------------
+
+A reporter can also check data rather than compute it, such as a reporter that looks for gaps in sensor data.
+Its results are then *findings* about a sensor, which FlexMeasures saves as annotations on that sensor (see :ref:`annotations`).
+Return one result per checked sensor, of the kind ``"annotations"``, holding every finding over the checked window:
+
+.. code-block:: python
+
+    {
+        "kind": "annotations",
+        "subject": sensor,  # the sensor the findings are about
+        "window": (start, end),  # the period that was checked
+        "annotations": [
+            {
+                "start": ...,
+                "end": ...,
+                "type": "warning",  # or "alert", when it needs action
+                "content": "No data for meter 3 since 2026-11-12 04:15 CET",
+            },
+        ],
+        "belief_time": ...,  # optional; by default, when the findings are saved
+    }
+
+The reporter decides everything about a finding, including its type, which says how urgent it is.
+Name the sensors it annotates in its ``annotated_sensors`` property, next to ``input_sensors`` and ``output_sensors``.
+They are checked as output sensors are, so that an automation cannot annotate sensors outside its scope.
+Such a reporter needs no output sensors.
+
+A finding is identified by its sensor, its source and its start, and each run saves a new version of it, as beliefs are versioned:
+
+- a new finding, or one with a new end, type or content, is saved as a new version with the run's belief time;
+- an unchanged finding is not saved again;
+- a stored finding that reaches into the window, but that the result no longer holds, gets a resolved version, of type ``label``;
+- findings outside the window are left as they are.
+
+So the reporter can stay stateless, as long as it reports a finding with the same start on each run.
+The charts show only the most recent version of each finding,
+and ``search_annotations(most_recent_beliefs_only=True)`` does the same in code.
+
+With ``flexmeasures add report --dry-run``, the findings are printed instead of saved.
+To tell people about findings, react to the stored annotations, for example from a plugin that polls the recent versions;
+a dry run, or a run that is rolled back, then never notifies anyone.
+
 .. _automating_reports:
 
 Automating reports

@@ -307,6 +307,61 @@ def test_add_report_as_job(
     }
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_add_report_of_findings(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, dry_run
+):
+    """A reporter that annotates its input sensors with findings needs no output sensor, and a dry run prints its findings instead of saving them."""
+    from flexmeasures.cli.data_add import add_report
+    from flexmeasures.data.tests.test_annotation_results_fresh_db import (
+        FindingsReporter,
+    )
+
+    input_1, _, _, _ = setup_dummy_data_fresh_db
+    FindingsReporter.FINDINGS = [
+        dict(
+            start=pd.Timestamp("2023-04-10T03:00:00+00:00"),
+            end=pd.Timestamp("2023-04-10T05:00:00+00:00"),
+            type="warning",
+            content="No data since 03:00",
+        )
+    ]
+    app.data_generators["reporter"].update({"FindingsReporter": FindingsReporter})
+    parameters_file = tmp_path / "report-parameters.json"
+    parameters_file.write_text(json.dumps({"input": [{"sensor": input_1}]}))
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--reporter",
+            "FindingsReporter",
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+        ]
+        + (["--dry-run"] if dry_run else []),
+    )
+
+    check_command_ran_without_error(result)
+    annotations = fresh_db.session.get(Sensor, input_1).search_annotations()
+    if dry_run:
+        assert (
+            "Not saving these findings to the database (because of --dry-run)"
+            in result.output
+        )
+        assert (
+            "- warning from 2023-04-10 03:00:00+00:00 to 2023-04-10 05:00:00+00:00: No data since 03:00"
+            in result.output
+        )
+        assert annotations == []
+    else:
+        assert "Recorded 1 annotation version of the 1 finding" in result.output
+        assert [a.content for a in annotations] == ["No data since 03:00"]
+
+
 def test_add_profit_report_as_job_requires_input(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis, tmp_path
 ):

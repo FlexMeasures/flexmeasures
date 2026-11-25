@@ -16,11 +16,10 @@ from timely_beliefs import utils as tb_utils
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
     Annotation,
-    AccountAnnotationRelationship,
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.data.queries.annotations import filter_by_belief_time
+from flexmeasures.data.queries.annotations import query_account_annotations
 from flexmeasures.auth.policy import (
     AuthModelMixin,
     ROLE_PERMISSION_GRANTS,
@@ -194,6 +193,7 @@ class Account(db.Model, AuthModelMixin):
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
+        most_recent_beliefs_only: bool = False,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
@@ -203,6 +203,9 @@ class Account(db.Model, AuthModelMixin):
         :param beliefs_after: only return annotations recorded after this datetime (exclusive)
         :param beliefs_before: only return annotations recorded before this datetime (inclusive);
                                annotations without a belief time are always returned
+        :param most_recent_beliefs_only: only return the most recent version of each annotation,
+                                         which is identified by its subject, source and start, as known at ``beliefs_before`` (if given).
+                                         The most recent version has the latest belief time, or, among versions without one, the highest id.
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -224,28 +227,17 @@ class Account(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = (
-            select(Annotation)
-            .join(AccountAnnotationRelationship)
-            .filter(
-                AccountAnnotationRelationship.account_id == self.id,
-                AccountAnnotationRelationship.annotation_id == Annotation.id,
+        annotations = db.session.scalars(
+            query_account_annotations(
+                account_id=self.id,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                sources=parsed_sources,
+                most_recent_beliefs_only=most_recent_beliefs_only,
             )
-        )
-        if annotations_after is not None:
-            query = query.filter(
-                Annotation.end > annotations_after,
-            )
-        if annotations_before is not None:
-            query = query.filter(
-                Annotation.start < annotations_before,
-            )
-        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
-        if parsed_sources:
-            query = query.filter(
-                Annotation.source.in_(parsed_sources),
-            )
-        annotations = db.session.scalars(query).all()
+        ).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
 

@@ -66,6 +66,8 @@ from flexmeasures.data.services.data_sources import (
     get_data_generator,
 )
 from flexmeasures.data.services.generator_results import (
+    describe_annotation_result,
+    is_annotation_result,
     save_generator_results,
     save_results_not_yet_saved,
 )
@@ -103,7 +105,7 @@ from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
-from flexmeasures.data.schemas.io import Output
+from flexmeasures.data.schemas.io import Input, Output
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -2427,21 +2429,24 @@ def add_report(  # noqa: C901
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
 
-    # check if sensor is not provided in the `parameters` description
-    if "output" not in parameters or len(parameters["output"]) == 0:
+    # A report records on its output sensors, unless its reporter records annotations on its input sensors instead (such as findings about their data).
+    output = [Output().load(o) for o in parameters.get("output") or []]
+    input_ = [Input().load(i) for i in parameters.get("input") or []]
+    if not output and not input_:
         click.secho(
-            "At least one output sensor needs to be specified in the parameters description.",
+            "At least one output sensor needs to be specified in the parameters description"
+            " (or, for a reporter that annotates its input sensors, at least one input sensor).",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
 
-    output = [Output().load(o) for o in parameters["output"]]
-
-    # compute now in the timezone local to the output sensor
+    # compute now in the timezone local to the output sensor (or else the first input sensor)
     if timezone is not None:
         check_timezone(timezone)
 
-    tz = pytz.timezone(timezone if timezone else output[0]["sensor"].timezone)
+    tz = pytz.timezone(
+        timezone if timezone else (output or input_)[0]["sensor"].timezone
+    )
     now = server_now().astimezone(tz)
 
     # apply offsets, if provided
@@ -2456,6 +2461,12 @@ def add_report(  # noqa: C901
         end = apply_offset_chain(end, end_offset)
 
     # the case of not getting --start or --start-offset
+    if start is None and not output:
+        click.secho(
+            "Either --start or --start-offset should be provided, as there is no output sensor whose latest data could tell where to start.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     if start is None:
         click.secho(
             "Either --start or --start-offset should be provided."
@@ -2527,7 +2538,12 @@ def add_report(  # noqa: C901
     results = compute_report(reporter, parameters)
     # Say what was computed before saving any of it, so that a save that fails still leaves this on screen.
     for result in results:
-        if not result["data"].empty:
+        if is_annotation_result(result):
+            click.secho(
+                f"Report computation done for sensor `{result['subject']}`, with {len(result['annotations'])} finding(s).",
+                **MsgStyle.SUCCESS,
+            )
+        elif not result["data"].empty:
             click.secho(
                 f"Report computation done for sensor `{result['sensor']}`.",
                 **MsgStyle.SUCCESS,
@@ -2546,6 +2562,25 @@ def add_report(  # noqa: C901
         db.session.commit()
 
     for i, result in enumerate(results):
+        if is_annotation_result(result):
+            if dry_run:
+                click.echo(
+                    "Not saving these findings to the database (because of --dry-run):\n"
+                    + describe_annotation_result(result)
+                )
+            else:
+                click.secho(
+                    f"Success. Recorded {pluralize('annotation version', saved[i]['n_rows'], include_count=True)}"
+                    f" of the {pluralize('finding', saved[i]['n_computed'], include_count=True)} on sensor `{result['subject']}` in the database"
+                    " (an unchanged finding is not recorded again).",
+                    **MsgStyle.SUCCESS,
+                )
+            if output_file_pattern:
+                click.secho(
+                    f"Not exporting the findings on sensor `{result['subject']}` to a file, as only reports of sensor data are exported.",
+                    **MsgStyle.WARN,
+                )
+            continue
         data = result["data"]
         sensor = result["sensor"]
 

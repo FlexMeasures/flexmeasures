@@ -480,6 +480,35 @@ This allows you to:
 See :ref:`ui_support_api` for the documentation of the sensor chart endpoints.
 
 
+Versions of an annotation
+-------------------------
+
+Annotations are versioned, as beliefs are.
+An annotation is identified by its subject (the account, asset or sensor it is attached to), its source and its start.
+Annotations sharing these are versions of one annotation, which may differ in their end, type and content,
+and the most recent version is the one with the latest prior (or, among versions without one, the one recorded last).
+
+The charts show only the most recent version of each annotation.
+When replaying data, they show the most recent version as known at the replayed moment.
+Searching annotations in code returns every version, unless ``most_recent_beliefs_only=True`` is passed to ``search_annotations``.
+
+Note that two annotations without a prior that share their subject, source and start are versions of one annotation, too,
+so only the one recorded last is shown on the charts.
+For instance, the workalendar import of German holidays for 2008 gives Ascension Day and Labour Day both on May 1st.
+
+
+Findings from data generators
+-----------------------------
+
+A data generator, such as a reporter checking sensors for gaps in their data, can return findings instead of data to record.
+FlexMeasures saves each finding as a version of an annotation on the sensor it is about, with the finding's type saying how urgent it is
+(for instance ``warning``, or ``alert`` when it requires action).
+Each run saves a new version only of the findings that changed, and gives a finding it no longer returns a resolved version, of type ``label``.
+With ``flexmeasures add report --dry-run``, the findings are printed instead.
+
+See :ref:`reporting_findings` for how a reporter returns findings.
+
+
 See also
 --------
 
