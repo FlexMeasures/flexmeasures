@@ -11,6 +11,7 @@ v3.0-37 | December xx, 2026
 **Automations**
 
 - ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` accept ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, to have an automation's runs wait for the latest runs of other automations due at or before their own scheduled time, and automation responses report it, each upstream automation the caller may read coming with its ``name``, ``asset`` and ``asset-name``.
+- ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` records the run it starts, as a run on demand, so it shows in the automation's run history.
 - ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` accepts ``with-upstream=true``, to first run the active automations this one waits for, or ``with-downstream=true``, to also run the active automations that wait for this one, in chain order, and ``exclude`` to exclude some of them; the response lists the runs under ``runs`` and the automations that do not run under ``excluded``, each with the reason.
 - Added ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream|downstream``, to see what running an automation along with what is upstream or downstream of it comes down to.
 - Added ``GET /api/v3_0/assets/automations``, to list the automations on public assets (``scope=public``) or every automation the caller may read (``scope=all``), all at once, or one page at a time with ``page`` and ``per-page``.

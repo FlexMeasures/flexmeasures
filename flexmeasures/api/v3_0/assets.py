@@ -2396,6 +2396,8 @@ class AssetAPI(FlaskView):
 
             The automation runs with the parameters it was created with,
             and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+            The run itself is recorded as a run on demand, so it shows in the automation's run history,
+            and counts for when the automation last succeeded (see the run plan).
 
             An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
             so the next recurring run still happens as scheduled, and a missed run is still caught up.
