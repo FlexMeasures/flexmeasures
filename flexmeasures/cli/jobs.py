@@ -45,6 +45,7 @@ from flexmeasures.data.services.automations import (
     AutomationRunClaimLost,
     dispatch_automation_run,
     floor_to_minute,
+    format_automation_time,
     get_dispatchable_automation_runs,
     run_automation,
     run_automation_chain,
@@ -82,6 +83,10 @@ QUEUE_EXCEPTION_HANDLERS = dict(
 )
 
 
+# The largest --max-catchup, which keeps the bound within the range of a datetime.
+MAX_CATCHUP_MINUTES = 60 * 24 * 366
+
+
 @click.group("jobs", cls=LoggedClickExceptionGroup)
 def fm_jobs():
     """FlexMeasures: Job queueing."""
@@ -92,11 +97,11 @@ def fm_jobs():
 @click.option(
     "--max-catchup",
     "max_catchup",
-    type=click.IntRange(min=0),
+    type=click.IntRange(min=0, max=MAX_CATCHUP_MINUTES),
     default=None,
-    help="Only catch up on a missed run scheduled at most this many minutes ago."
-    " Older missed runs are skipped, and their automations resume on their next scheduled run."
-    " Use 0 to skip every missed run. By default, missed runs are caught up however old they are.",
+    help="Only catch up on a missed run scheduled at most this many minutes ago, counted in real minutes (at most a year)."
+    " Older missed runs, and older runs a runner left before queueing any job, are skipped and recorded as such,"
+    " and their automations resume on their next scheduled run. By default, missed runs are caught up however old they are.",
 )
 def run_automations(max_catchup: int | None):
     """
@@ -122,7 +127,7 @@ def run_automations(max_catchup: int | None):
         for skipped in skip_stale_automation_runs(timedelta(minutes=max_catchup), now):
             automation = skipped.automation
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') skipped its missed run scheduled for {skipped.scheduled_at}, which is more than {max_catchup} minute(s) ago.",
+                f"Automation {automation.id} ('{automation.name}') run {skipped.id}, scheduled for {format_automation_time(automation, skipped.scheduled_at)}, is skipped, as it is more than {max_catchup} minute(s) old.",
                 **MsgStyle.WARN,
             )
     report: list[dict] = []
@@ -132,7 +137,7 @@ def run_automations(max_catchup: int | None):
         run = event["run"]
         failed = run.execution_state in ("failed", "skipped", "canceled")
         click.secho(
-            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {format_automation_time(run.automation, run.scheduled_at)}, is {run.execution_state if failed else run.dispatch_state}"
             + {
                 "reconciled": ", as its job ended without saying so",
                 "abandoned": ", as its dispatch was abandoned",
@@ -156,7 +161,7 @@ def run_automations(max_catchup: int | None):
             n_jobs = returns["n_jobs"]
             if returns.get("dispatch_state") in ("waiting", "skipped"):
                 click.secho(
-                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {format_automation_time(automation, claimed_run.run.scheduled_at)}, queued no jobs. {returns['message']}",
                     **(
                         MsgStyle.WARN
                         if returns["dispatch_state"] == "skipped"
@@ -166,7 +171,7 @@ def run_automations(max_catchup: int | None):
                 n_run += 1
                 continue
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {format_automation_time(automation, claimed_run.run.scheduled_at)}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1
