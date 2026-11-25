@@ -286,6 +286,23 @@ class AssetCrudUI(FlaskView):
         # so a server with many plugins does not crowd every asset with tabs it has no use for.
         assets_it_can_list = [asset] + get_readable_offspring(asset)
         registered_types = get_automation_types()
+        # The built-in types keep their tab even when empty, as that is where their empty-table hint says how to create one.
+        always_shown_automation_types = [
+            type_id
+            for type_id, handler in registered_types.items()
+            if handler.generator_class is None
+        ]
+        # The page first lists the scope the user last chose, so the tabs of the types it holds are rendered visible rather than popping in once the listing arrives.
+        assets_in_scope = (
+            assets_it_can_list
+            if session.get("automations_page_include_child_assets", True)
+            else [asset]
+        )
+        automation_types_shown_at_first = set(always_shown_automation_types) | {
+            automation.type
+            for asset_in_scope in assets_in_scope
+            for automation in asset_in_scope.automations
+        }
 
         return render_flexmeasures_template(
             "assets/asset_automations.html",
@@ -301,12 +318,8 @@ class AssetCrudUI(FlaskView):
                 for automation in asset_it_can_list.automations
                 if automation.type not in registered_types
             },
-            # The built-in types keep their tab even when empty, as that is where their empty-table hint says how to create one.
-            always_shown_automation_types=[
-                type_id
-                for type_id, handler in registered_types.items()
-                if handler.generator_class is None
-            ],
+            always_shown_automation_types=always_shown_automation_types,
+            automation_types_shown_at_first=automation_types_shown_at_first,
             # Only an installed plugin type can be created, so a type whose plugin is gone gets a tab but no place in the creation form.
             # Its data sources are recorded under the generator's base, which is what narrows the form's source picker to sources of this type.
             plugin_automation_types=[

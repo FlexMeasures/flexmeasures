@@ -312,10 +312,12 @@ def test_the_asset_column_appears_only_when_the_listing_spans_several_assets(ass
         ), f"{label} should{'' if expected else ' not'} span several assets"
 
 
-def automation_tabs_html() -> str:
+def automation_tabs_html(
+    shown_at_first: tuple[str, ...] = ("forecasting", "scheduling"),
+) -> str:
     """The type tabs as the page renders them, for a server with one plugin type."""
     match = re.search(
-        r'(<ul class="nav nav-tabs" role="tablist">.*?</ul>)',
+        r'(<ul class="nav nav-tabs" id="automationTypeTabs" role="tablist">.*?</ul>)',
         TEMPLATE.read_text(),
         re.DOTALL,
     )
@@ -327,7 +329,7 @@ def automation_tabs_html() -> str:
             "scheduling": "Schedules",
             "mock-ingestion": "Mock ingestion",
         },
-        always_shown_automation_types=["forecasting", "scheduling"],
+        automation_types_shown_at_first=set(shown_at_first),
     )
 
 
@@ -345,8 +347,11 @@ def test_a_plugin_types_tab_shows_only_while_the_listing_holds_one(assert_js):
         const page = new Function({json.dumps(automation_script(can_manage=True, can_run=True))}
             + "\\nreturn {{ showTabsInUse, list: (automations) => {{ lastListedAutomations = automations; }}, setFilter: (value) => {{ monitoringFilter = value; }} }};")();
         const hidden = (typeId) => document.getElementById(`${{typeId}}-tab`).closest(".nav-item").classList.contains("d-none");
+        // Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones, so a hidden tab must be disabled as well.
+        const disabled = (typeId) => document.getElementById(`${{typeId}}-tab`).disabled;
 
         check("the page arrives with the plugin tab hidden", hidden("mock-ingestion"), "");
+        check("and disabled, so the arrow keys pass it by", disabled("mock-ingestion"), "");
         check("and the built-in tabs shown", !hidden("forecasting") && !hidden("scheduling"), "");
 
         page.list([{{id: 1, type: "forecasting"}}]);
@@ -358,11 +363,26 @@ def test_a_plugin_types_tab_shows_only_while_the_listing_holds_one(assert_js):
         page.setFilter("unmonitored");
         page.showTabsInUse();
         check("a listing holding the plugin type shows its tab, whatever the monitoring filter", !hidden("mock-ingestion"), "");
+        check("and makes it reachable by keyboard again", !disabled("mock-ingestion"), "");
 
         document.getElementById("forecasting-tab").classList.remove("active");
         document.getElementById("mock-ingestion-tab").classList.add("active");
         page.list([]);
         page.showTabsInUse();
         check("the tab hides again once the listing no longer holds the type", hidden("mock-ingestion"), "");
+        check("and is disabled again", disabled("mock-ingestion"), "");
         eq("the first tab still shown comes to the front", shownTabs, ["forecasting-tab"]);
+    """)
+
+
+def test_a_plugin_types_tab_the_first_listing_holds_arrives_shown(assert_js):
+    """The view tells which plugin tabs the first listing holds, so they are there from the start rather than popping in."""
+    tabs = automation_tabs_html(
+        shown_at_first=("forecasting", "scheduling", "mock-ingestion")
+    )
+    assert_js(f"""
+        document.body.insertAdjacentHTML("beforeend", {json.dumps(tabs)});
+        const tab = document.getElementById("mock-ingestion-tab");
+        check("the plugin tab arrives shown", !tab.closest(".nav-item").classList.contains("d-none"), "");
+        check("and enabled", !tab.disabled, "");
     """)

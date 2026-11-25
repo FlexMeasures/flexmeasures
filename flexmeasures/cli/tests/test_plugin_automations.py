@@ -1,5 +1,6 @@
 """CLI payload validation and UI inspection for plugin-defined automations."""
 
+import re
 from dataclasses import replace
 import json
 
@@ -183,6 +184,60 @@ def test_the_page_has_a_tab_for_a_type_it_can_come_to_list(
 
     assert 'id="automationsTable-mock-ingestion"' in response
     assert "mock-ingestion (plugin unavailable)" in response
+
+
+def tab_is_rendered_hidden(page: str, type_id: str) -> bool:
+    """Whether the page renders a type's tab hidden and disabled, as it does until the listing holds one of its automations."""
+    match = re.search(
+        rf'<li class="nav-item( d-none)?" role="presentation">\s*<button class="nav-link[^"]*"( disabled)? id="{type_id}-tab"',
+        page,
+    )
+    assert match is not None, f"no tab for {type_id}"
+    hidden, disabled = match.groups()
+    # A hidden tab that is not disabled could still be reached with the arrow keys.
+    assert bool(hidden) == bool(disabled)
+    return bool(hidden)
+
+
+def test_the_page_renders_the_tabs_its_first_listing_holds_visible(
+    app, fresh_db, ingestion_plugin, ingestion_assets, setup_roles_users_fresh_db
+):
+    """A plugin type's tab is rendered visible when the scope the page first lists holds one of its automations, so it does not pop in later.
+
+    The built-in types are always shown, whatever the asset holds.
+    """
+    from flask import session
+    from flask_security import login_user, logout_user
+
+    from flexmeasures.data.models.user import User
+    from flexmeasures.ui.views.assets.views import AssetCrudUI
+
+    root, sensors = ingestion_assets
+    user = fresh_db.session.get(User, setup_roles_users_fresh_db["Test Prosumer User"])
+    root.owner = user.account
+    child = [asset for asset in root.child_assets if asset.name != root.name][0]
+    child.owner = user.account
+    fresh_db.session.commit()
+
+    def render(include_child_assets: bool) -> str:
+        with app.test_request_context(f"/assets/{root.id}/automations"):
+            login_user(user)
+            try:
+                session["automations_page_include_child_assets"] = include_child_assets
+                return AssetCrudUI().automations(str(root.id))
+            finally:
+                logout_user()
+
+    page = render(include_child_assets=True)
+    assert not tab_is_rendered_hidden(page, "reporting")
+    assert tab_is_rendered_hidden(page, "mock-ingestion")
+
+    make_automation(fresh_db, child, sensors[1])
+    assert not tab_is_rendered_hidden(
+        render(include_child_assets=True), "mock-ingestion"
+    )
+    # The automation sits below the asset, so a page listing the asset's own automations starts without its tab.
+    assert tab_is_rendered_hidden(render(include_child_assets=False), "mock-ingestion")
 
 
 def test_window_options_are_refused_for_a_plugin_type(

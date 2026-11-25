@@ -337,11 +337,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         <div class="text-muted small mb-1" id="automationsRefreshedAt"
           title="This page brings itself up to date about once a minute, while it is the tab in front and nothing is open over it."></div>
 
-        <ul class="nav nav-tabs" role="tablist">
+        <ul class="nav nav-tabs" id="automationTypeTabs" role="tablist">
           {% for type_id, display_name in automation_types.items() %}
-          {# A plugin type's tab starts hidden; the script shows it once the listing holds an automation of that type. #}
-          <li class="nav-item{% if type_id not in always_shown_automation_types %} d-none{% endif %}" role="presentation">
-            <button class="nav-link{% if loop.first %} active{% endif %}" id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
+          {# A plugin type's tab starts hidden unless the scope first listed holds one of its automations; the script keeps it in step with the listing after that.
+             A hidden tab is disabled too, as Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones. #}
+          {% set shown_at_first = type_id in automation_types_shown_at_first %}
+          <li class="nav-item{% if not shown_at_first %} d-none{% endif %}" role="presentation">
+            <button class="nav-link{% if loop.first %} active{% endif %}"{% if not shown_at_first %} disabled{% endif %} id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
           </li>
           {% endfor %}
         </ul>
@@ -929,11 +931,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     const typesListed = new Set(lastListedAutomations.map(automation => automation.type));
     for (const automationType of AUTOMATION_TYPES) {
       const shown = alwaysShownAutomationTypes.has(automationType) || typesListed.has(automationType);
-      document.getElementById(`${automationType}-tab`)?.closest(".nav-item").classList.toggle("d-none", !shown);
+      const tab = document.getElementById(`${automationType}-tab`);
+      if (tab) {
+        tab.closest(".nav-item").classList.toggle("d-none", !shown);
+        tab.disabled = !shown;  // Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones
+      }
     }
-    const activeTab = document.querySelector('button[data-bs-toggle="tab"].active');
+    // Only this tab list: the attributes editor has tabs of its own.
+    const activeTab = document.querySelector('#automationTypeTabs button[data-bs-toggle="tab"].active');
     if (activeTab && activeTab.closest(".nav-item").classList.contains("d-none")) {
-      const firstShownTab = document.querySelector('.nav-item:not(.d-none) > button[data-bs-toggle="tab"]');
+      const firstShownTab = document.querySelector('#automationTypeTabs .nav-item:not(.d-none) > button[data-bs-toggle="tab"]');
       if (firstShownTab) {
         bootstrap.Tab.getOrCreateInstance(firstShownTab).show();
       }
