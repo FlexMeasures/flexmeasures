@@ -258,6 +258,22 @@ def test_dispatch_pages_at_once_for_a_type_that_is_not_dispatched_again(
     assert collected_pages[0].attempt_count == 1
 
 
+def test_dispatch_pages_at_once_for_a_run_on_demand(
+    fresh_db, forecast_automation, collected_pages
+):
+    """A run on demand, such as one started with Run now, is not dispatched again, so its first failed dispatch is already the last one."""
+    forecast_automation.critical = True
+    fresh_db.session.commit()
+    run = failed_run(fresh_db, forecast_automation, execution_state="pending")
+    run.trigger = "on-demand"
+    fresh_db.session.commit()
+
+    mark_automation_run_dispatch_failed(run.id, None, ValueError("Redis is away"))
+
+    assert len(collected_pages) == 1
+    assert collected_pages[0].stage == "dispatch"
+
+
 def test_a_hook_that_raises_does_not_break_the_record_of_the_failure(
     app, fresh_db, forecast_automation, collected_pages
 ):
