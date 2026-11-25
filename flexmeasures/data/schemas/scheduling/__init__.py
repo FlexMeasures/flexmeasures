@@ -707,6 +707,26 @@ class CommodityFlexContextSchema(SharedSchema):
             [("commodity", commodity_field), *self.fields.items()]
         )
 
+    @pre_load
+    def forbid_deprecated_price_sensors(self, data: dict, **kwargs):
+        """Reject the deprecated price sensor fields, which a commodity context does not support.
+
+        Only a top-level flex-context still accepts `consumption-price-sensor` and `production-price-sensor`,
+        for backwards compatibility, and only while the top level serves as the electricity context.
+        A commodity context takes `consumption-price` and `production-price` instead, which also accept a sensor.
+        This is deliberately not documented for users, who should not be using the deprecated fields anyway.
+        """
+        for field, replacement in (
+            ("consumption-price-sensor", "consumption-price"),
+            ("production-price-sensor", "production-price"),
+        ):
+            if field in data:
+                raise ValidationError(
+                    f"A commodity context does not support the deprecated `{field}` field. Use `{replacement}` instead.",
+                    field_name=field,
+                )
+        return data
+
     @post_load(pass_original=True)
     def fill_grid_connection_defaults(self, data: dict, original_data: dict, **kwargs):
         """Fill in smarter defaults for a commodity context's grid-connection fields.
