@@ -348,6 +348,9 @@ As a safety net, ``consumption-price`` still defaults to zero if it remains unse
 
 .. note:: Setting ``relax-constraints`` to ``False`` on a commodity context that ends up with a smart-defaulted 0 hard capacity can make the schedule infeasible; FlexMeasures logs a warning in that case.
 
+.. note:: These defaults also apply to an electricity context listed in ``commodities``, but not to the fields at the top level of a flex-context, where the production price falls back to the consumption price, and production is limited only by the site capacities given.
+          So when rewriting a flex-context describing only electricity as a list of commodity contexts, also give the electricity context a ``production-price`` (e.g. the same as its ``consumption-price``), to keep allowing the site to produce.
+
 
 .. _flex_models_and_schedulers:
 
