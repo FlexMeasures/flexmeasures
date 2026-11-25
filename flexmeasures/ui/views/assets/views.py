@@ -49,6 +49,7 @@ from flexmeasures.ui.views.assets.utils import (
     get_list_assets_chart,
     add_child_asset,
     readable_site_asset,
+    schema_example,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import (
     ANOTHER_ORGANISATION,
@@ -327,6 +328,13 @@ class AssetCrudUI(FlaskView):
                     type_id=type_id,
                     display_name=handler.display_name,
                     source_type=handler.generator_class.__data_generator_base__,
+                    # A plugin type brings no example of its own, so its empty JSON fields show what its schemas load.
+                    config_example=schema_example(
+                        handler.generator_class._config_schema
+                    ),
+                    parameters_example=schema_example(
+                        handler.generator_class._parameters_schema
+                    ),
                 )
                 for type_id, handler in registered_types.items()
                 if handler.generator_class is not None

@@ -235,14 +235,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter)." style="font-size: 16px"></i>
                   </label>
-                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <input type="text" class="form-control" id="automationGenerator">
                 </div>
                 <div class="mb-3 chooses-generator">
                   <label for="automationConfig" class="form-label">Data generator config (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. They cannot be changed afterwards." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
+                  <textarea class="form-control" id="automationConfig" rows="3"></textarea>
                   <div class="form-text">Leave empty for the generator's defaults.</div>
                 </div>
                 <div class="mb-3">
@@ -250,7 +250,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), report parameters (for type reporting), or the parameters a plugin type defines. A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
+                  <textarea class="form-control" id="automationParameters" rows="4"></textarea>
                   <!-- The run period options belong to the built-in types; a plugin type's parameters follow its own schema. -->
                   <div class="form-text builtin-type-only">
                     Say the period each run covers with two of "start-offset", "end-offset" and "duration",
@@ -455,8 +455,28 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     forecasting: "forecaster",
     reporting: "reporter",
   };
+  /* An example of what each type expects, shown in its empty fields,
+     so they hint at the shape of a report when making a report, rather than at a forecast's whatever the type.
+     A plugin type brings no example of its own, so its fields show what its config and parameters schemas load. */
+  const EXAMPLES_PER_TYPE = {
+    forecasting: {
+      generator: "TrainPredictPipeline",
+      config: '{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}',
+      parameters: '{"sensor": 2092}',
+    },
+    scheduling: {
+      parameters: '{"start-offset": "1D,DB", "duration": "P1D"}',
+    },
+    reporting: {
+      generator: "PandasReporter",
+      config: '{"required_input": [{"name": "energy"}], "required_output": [{"name": "daily-energy"}], '
+        + '"transformations": [{"df_input": "energy", "df_output": "daily-energy", "method": "resample_events", "args": ["1D"], "kwargs": {"method": "sum"}}]}',
+      parameters: '{"input": [{"name": "energy", "sensor": 2092}], "output": [{"name": "daily-energy", "sensor": 2093}], "start-offset": "-1D,DB", "end-offset": "DB"}',
+    },
+  };
   for (const pluginType of {{ plugin_automation_types | tojson }}) {
     SOURCE_TYPE_PER_AUTOMATION_TYPE[pluginType.type_id] = pluginType.source_type;
+    EXAMPLES_PER_TYPE[pluginType.type_id] = { config: pluginType.config_example, parameters: pluginType.parameters_example };
   }
 
   // The types FlexMeasures itself defines; any other type comes from a plugin, which declares its own data generator.
@@ -559,6 +579,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(".chooses-generator").toggle(typeChoosesGenerator());
     $(".names-generator-class").toggle(typeNamesGeneratorClass());
     $(".builtin-type-only").toggle(BUILTIN_AUTOMATION_TYPES.includes($("#automationType").val()));
+    // Each field shows the chosen type's own example.
+    const examples = EXAMPLES_PER_TYPE[$("#automationType").val()] || {};
+    $("#automationGenerator").attr("placeholder", examples.generator || "");
+    $("#automationConfig").attr("placeholder", examples.config || "");
+    $("#automationParameters").attr("placeholder", examples.parameters || "");
+  }
+
+  // Whether the creation form offers a type, which a type whose plugin is gone it does not.
+  function formOffersType(automationType) {
+    return Array.from(document.getElementById("automationType")?.options ?? []).some(option => option.value === automationType);
+  }
+
+  // The type of the tab in front, so that a new automation starts out as the kind the user is looking at.
+  function typeOfTabInFront() {
+    const activeTab = document.querySelector('#automationTypeTabs button[data-bs-toggle="tab"].active');
+    return activeTab ? activeTab.id.replace(/-tab$/, "") : null;
   }
 
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
@@ -1169,7 +1205,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
 
     // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.
-    $("#newAutomationButton").on("click", () => resetNewAutomationForm());
+    // It starts as the type of the tab in front, when the form offers that type.
+    $("#newAutomationButton").on("click", () => {
+      resetNewAutomationForm();
+      const automationType = typeOfTabInFront();
+      if (automationType && formOffersType(automationType)) {
+        $("#automationType").val(automationType);
+        showGeneratorFields();
+      }
+    });
 
     $("#editAutomationForm").submit(function (event) {
       event.preventDefault();

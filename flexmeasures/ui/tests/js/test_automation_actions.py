@@ -19,6 +19,8 @@ PLUGIN_AUTOMATION_TYPES = [
         "type_id": "mock-ingestion",
         "display_name": "Mock ingestion",
         "source_type": "ingestor",
+        "config_example": '{"sensor": "...", "input-sensor": "..."}',
+        "parameters_example": '{"value": 42.0}',
     }
 ]
 
