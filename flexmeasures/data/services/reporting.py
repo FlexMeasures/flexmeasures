@@ -16,6 +16,7 @@ from flexmeasures.data.services.generator_results import (
     check_generator_results,
     describe_generator,
     outputs_of_job_result,
+    result_content,
     save_generator_results,
 )
 
@@ -24,16 +25,29 @@ if TYPE_CHECKING:
 
 
 def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
-    """Queue a job that computes a report and stores its results."""
+    """Queue a job that computes a report and stores its results.
+
+    A reporter that records annotations on sensors (its `annotated_sensors`) may name no output sensors,
+    in which case the job is listed under the sensors it annotates.
+    """
     parameters = reporter._parameters_schema.dump(reporter._parameters)
-    ReporterParametersSchema(only=("input", "output")).load(
-        {
-            field: parameters[field]
-            for field in ("input", "output")
-            if field in parameters
-        }
+    annotated_sensor_ids = [
+        sensor.id for sensor in getattr(reporter, "annotated_sensors", [])
+    ]
+    checked_fields = (
+        ("input", "output")
+        if parameters.get("output") or not annotated_sensor_ids
+        else ("input",)
     )
-    output_sensor_ids = [output["sensor"] for output in parameters["output"]]
+    ReporterParametersSchema(only=checked_fields).load(
+        {field: parameters[field] for field in checked_fields if field in parameters}
+    )
+    output_sensor_ids = [output["sensor"] for output in parameters.get("output", [])]
+    output_sensor_ids += [
+        sensor_id
+        for sensor_id in annotated_sensor_ids
+        if sensor_id not in output_sensor_ids
+    ]
 
     # The reporting worker runs in a separate process, so the data source has to be committed before the job is enqueued.
     # Note that reporter.data_source may have only just created it, and that our views do not auto-commit.
@@ -82,8 +96,12 @@ def count_persistable_values(data) -> int:
 
     This does not account for valid values that ``save_to_db`` may skip because
     they are unchanged.
+    A list of findings (from a result of annotations) counts its findings.
     """
     from timely_beliefs import BeliefsSeries
+
+    if isinstance(data, list):
+        return len(data)
 
     if isinstance(data, BeliefsSeries):
         return int(data.notna().sum())
@@ -221,7 +239,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
             source,
             summary,
         )
-    elif any(count_persistable_values(result["data"]) for result in results):
+    elif any(count_persistable_values(result_content(result)) for result in results):
         # Saving nothing is not the same as computing nothing: the values it computed were on record already, or NaN.
         current_app.logger.info(
             "Report by %s ran successfully, but recorded nothing new, as every value it computed was already on record or had no value (%s).",

@@ -149,6 +149,16 @@ class DataGenerator:
         """The sensors that this data generator writes data to. See `input_sensors`."""
         return []
 
+    @property
+    def annotated_sensors(self) -> list:
+        """The sensors that this data generator records annotations on, such as findings about their data.
+
+        Overwrite in your data generator, as for `input_sensors`.
+        A sensor grants annotating it to the same users as recording data on it,
+        so these sensors are checked as its output sensors are (see `resolve_data_generator_sensors`).
+        """
+        return []
+
     @staticmethod
     def _resolve_sensors(*values) -> list[Sensor]:
         """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
@@ -232,8 +242,17 @@ class DataGenerator:
     def _assign_sensors_and_source(
         self, results: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Assign sensors and the DataGenerator's source to the results."""
+        """Assign sensors and the DataGenerator's source to the results.
+
+        A result of annotations (see `flexmeasures.data.services.generator_results`) holds no beliefs,
+        so it is given the source to save its annotations with instead.
+        """
+        from flexmeasures.data.services.generator_results import is_annotation_result
+
         for result in results:
+            if is_annotation_result(result):
+                result["source"] = self.data_source
+                continue
 
             # Update the BeliefDataFrame's sensor to be the intended sensor
             result["data"].sensor = result["sensor"]

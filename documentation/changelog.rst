@@ -19,6 +19,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Data generators, such as a reporter checking for gaps in sensor data, can return findings about sensors, which FlexMeasures saves as versions of annotations on them and resolves once a finding is gone; annotation searches take ``most_recent_beliefs_only`` to see only the latest versions [see `PR #2910 <https://www.github.com/FlexMeasures/flexmeasures/pull/2910>`_]
 * A plugin which registers no Blueprint is no longer dropped before its other registrations run, so a plugin can exist only to register automation types, data generators or critical-automation-failure hooks [see `PR #2856 <https://www.github.com/FlexMeasures/flexmeasures/pull/2856>`_]
 * ``StorageScheduler`` now also stores a ``commodity_costs`` breakdown in the job's ``scheduler_info``, for schedules with several commodities or a commodity other than electricity [see `PR #2448 <https://www.github.com/FlexMeasures/flexmeasures/pull/2448>`_]
 * Speed up preparing a schedule for a flex-model with many devices, such as one device per charging session, by reading each commitment's constant values once instead of off each of its thousands of one-row sub-commitments [see `PR #2516 <https://www.github.com/FlexMeasures/flexmeasures/pull/2516>`_]

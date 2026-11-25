@@ -18,12 +18,24 @@ from flexmeasures.data.models.time_series import Sensor
 def resolve_data_generator_sensors(
     data_generator: DataGenerator, deserialized_parameters: dict
 ) -> dict[str, list[Sensor]]:
-    """Return the sensors a data generator would read from and write to."""
+    """Return the sensors a data generator would read from and write to.
+
+    The sensors it writes to include those it records annotations on (its `annotated_sensors`),
+    as a sensor grants annotating it to the same users as recording data on it,
+    and an automation may only do either on the sensors it was checked against.
+    """
     data_generator = copy(data_generator)
     data_generator._parameters = deserialized_parameters
+    output_sensors = list(data_generator.output_sensors)
+    output_ids = {sensor.id for sensor in output_sensors}
+    output_sensors += [
+        sensor
+        for sensor in data_generator.annotated_sensors
+        if sensor.id not in output_ids
+    ]
     return {
         "input_sensors": data_generator.input_sensors,
-        "output_sensors": data_generator.output_sensors,
+        "output_sensors": output_sensors,
     }
 
 

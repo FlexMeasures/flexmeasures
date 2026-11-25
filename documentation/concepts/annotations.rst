@@ -497,6 +497,17 @@ so only the one recorded last is shown on the charts.
 For instance, the workalendar import of German holidays for 2008 gives Ascension Day and Labour Day both on May 1st.
 
 
+Findings from data generators
+-----------------------------
+
+A data generator, such as a reporter checking sensors for gaps in their data, can return findings instead of data to record.
+FlexMeasures saves each finding as a version of an annotation on the sensor it is about, with the finding's type saying how urgent it is
+(for instance ``warning``, or ``alert`` when it requires action).
+Each run saves a new version only of the findings that changed, and gives a finding it no longer returns a resolved version, of type ``label``.
+
+See ``flexmeasures.data.services.generator_results`` for the shape of such results.
+
+
 See also
 --------
 

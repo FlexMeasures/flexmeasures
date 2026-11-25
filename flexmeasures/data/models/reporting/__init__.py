@@ -88,6 +88,8 @@ class Reporter(DataGenerator):
         :returns:                       A dictionary with ``job_id`` and ``n_jobs`` when queued,
                                         otherwise the computed report results.
         """
+        from flexmeasures.data.services.generator_results import is_annotation_result
+
         if as_job:
             from flexmeasures.data.services.reporting import create_reporting_job
 
@@ -97,6 +99,9 @@ class Reporter(DataGenerator):
         results = self._compute_report(**kwargs)
 
         for result in results:
+            if is_annotation_result(result):
+                # findings to annotate a sensor with hold no beliefs, so they have no resolution to check
+                continue
             # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
             assert not check_output_resolution or (
                 result["sensor"].event_resolution == result["data"].event_resolution
@@ -115,5 +120,7 @@ class Reporter(DataGenerator):
                         "data": <a BeliefsDataFrame>,
                     },
                 ]
+            A reporter that annotates sensors with findings instead returns results of the kind "annotations",
+            as described in `flexmeasures.data.services.generator_results`.
         """
         raise NotImplementedError()
