@@ -1317,14 +1317,17 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            # The SoC breach prices of this device (those of its priority, if it names one, or else those of its commodity).
             soc_minima_breach_price = self._soc_breach_price(
                 commodity_contexts,
                 inventory.by_index(d).commodity,
+                flex_model[d],
                 "soc_minima_breach_price",
             )
             soc_maxima_breach_price = self._soc_breach_price(
                 commodity_contexts,
                 inventory.by_index(d).commodity,
+                flex_model[d],
                 "soc_maxima_breach_price",
             )
             if (
@@ -1992,6 +1995,7 @@ class MetaStorageScheduler(Scheduler):
         self.device_inventory = DeviceInventory.from_flex_config(
             self.flex_model, self.flex_context, sensor=self.sensor
         )
+        self._validate_priorities()
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -2160,7 +2164,7 @@ class MetaStorageScheduler(Scheduler):
     def _soc_relaxation_user_enabled(self) -> bool:
         """Whether the user's own (serialized) flex-context already softens SoC constraints.
 
-        That is the case when any context defines a SoC breach price explicitly,
+        That is the case when any context defines a SoC breach price explicitly (also for one of its ``priorities``),
         sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
         general ``relax-constraints`` flag (which defaults to ``True``).
         The top level only counts as a context when it serves as the electricity context,
@@ -2178,11 +2182,12 @@ class MetaStorageScheduler(Scheduler):
         else:
             return True
         for context in contexts:
-            if (
-                context.get("soc-minima-breach-price") is not None
-                or context.get("soc-maxima-breach-price") is not None
-            ):
-                return True
+            for priced in [context, *(context.get("priorities") or [])]:
+                if (
+                    priced.get("soc-minima-breach-price") is not None
+                    or priced.get("soc-maxima-breach-price") is not None
+                ):
+                    return True
             if context.get("relax-soc-constraints") is True:
                 return True
             if context.get("relax-soc-constraints") is None and context.get(
@@ -2192,16 +2197,63 @@ class MetaStorageScheduler(Scheduler):
         return False
 
     def _soc_breach_price(
-        self, commodity_contexts: dict[str, dict], commodity: str, field: str
+        self,
+        commodity_contexts: dict[str, dict],
+        commodity: str,
+        flex_model_d: dict,
+        field: str,
     ):
-        """Look up a SoC breach price for a device of the given commodity, in the context of that commodity.
+        """Look up a SoC breach price for a device, in the context of its commodity.
+
+        In order of precedence, the price comes from:
+
+        1. the device's priority, if its flex-model names one, and the ``priorities`` of the device's commodity context set the price for it,
+        2. the device's commodity context, which also holds the default breach prices, unless it keeps its SoC constraints hard.
 
         :param commodity_contexts:  The commodity contexts, as returned by `_get_commodity_contexts`.
         :param commodity:           The commodity of the device.
+        :param flex_model_d:        The flex-model of the device.
         :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
         :returns:                   The breach price, or None if the SoC constraints stay hard.
         """
-        return commodity_contexts.get(commodity, self.flex_context).get(field)
+        commodity_context = commodity_contexts.get(commodity, self.flex_context)
+        priority = flex_model_d.get("priority")
+        if priority is not None:
+            for priority_context in commodity_context.get("priorities", []) or []:
+                if priority_context["priority"] != priority:
+                    continue
+                if priority_context.get(field) is not None:
+                    return priority_context[field]
+                break
+        return commodity_context.get(field)
+
+    def _validate_priorities(self):
+        """Check that each priority named in the flex-model is listed in the ``priorities`` of the device's commodity context.
+
+        A misspelled priority would otherwise silently fall back to the breach prices of the commodity context.
+        """
+        commodity_contexts = self._get_commodity_contexts()
+        for device in self.device_inventory.devices:
+            priority = (device.flex_model or {}).get("priority")
+            if priority is None:
+                continue
+            known_priorities = {
+                priority_context["priority"]
+                for priority_context in commodity_contexts.get(
+                    device.commodity, {}
+                ).get("priorities", [])
+                or []
+            }
+            if priority not in known_priorities:
+                listed = (
+                    f"Listed priorities: {sorted(known_priorities)}."
+                    if known_priorities
+                    else "It lists no `priorities`."
+                )
+                raise ValidationError(
+                    f"The flex-model names priority '{priority}', which is not listed in the `priorities` of the flex-context for {device.commodity}. {listed}",
+                    field_name="priority",
+                )
 
     def _soc_relaxation_applies_to(
         self, stock_key, sensor_d: Sensor | None = None

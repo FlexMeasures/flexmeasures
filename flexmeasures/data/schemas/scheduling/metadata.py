@@ -191,6 +191,20 @@ The same goes for the soc-targets, which need both breach prices to become soft.
 """,
     example="120 EUR/kWh",
 )
+PRIORITIES = MetaData(
+    description="""Breach prices per priority, overriding the ``soc-minima-breach-price`` and ``soc-maxima-breach-price`` for the devices that name that priority in their flex-model (see the flex-model's ``priority`` field).
+Each entry names a ``priority`` and sets one or both of the SoC breach prices; a breach price an entry leaves out falls back to the one set in the same context.
+In a multi-commodity flex-context, each commodity context lists the priorities of its own devices.
+Use this to decide who gives way when not all SoC constraints can be met.
+For example, give the EVs of one fleet a lower ``soc-minima-breach-price``, so an unavoidable shortfall lands on them first, or rank individual EVs with slightly different prices, so a shortfall lands on one EV rather than being spread over several.
+Devices that share a priority are priced alike, so how a shortfall is divided among them is not defined: it may land on any one of them, or be spread over several, and is not guaranteed to be fair.
+Priority names must be unique, and the prices must use the same currency as the other price settings.
+""",
+    example=[
+        {"priority": "high", "soc-minima-breach-price": "1500 EUR/kWh"},
+        {"priority": "low", "soc-minima-breach-price": "900 EUR/kWh"},
+    ],
+)
 CONSUMPTION_BREACH_PRICE = MetaData(
     description="""This **penalty value** is used to discourage the violation of the ``consumption-capacity`` constraint in the flex-model.
 It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.
@@ -461,6 +475,14 @@ Declaring operation modes introduces binary decision variables into the optimiza
         {"consumption-range": ["0 W", "0 W"]},
         {"consumption-range": ["883.7 W", "883.7 W"]},
     ],
+)
+PRIORITY = MetaData(
+    description="""Name of the priority this device belongs to.
+Its SoC constraints are then priced using the breach prices set for this priority in the flex-context's ``priorities`` field, rather than the flex-context's own ``soc-minima-breach-price`` and ``soc-maxima-breach-price``.
+In a multi-commodity flex-context, the priority is looked up in the context of the device's commodity, where the name must be listed in ``priorities``.
+Devices that share a priority are priced alike, so no fair division of a shortfall among them is guaranteed.
+""",
+    example="high",
 )
 GROUP = MetaData(
     description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.

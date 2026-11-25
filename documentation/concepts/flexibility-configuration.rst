@@ -289,6 +289,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``soc-maxima-breach-price``
      - |SOC_MAXIMA_BREACH_PRICE.example|
      - .. include:: ../_autodoc/SOC_MAXIMA_BREACH_PRICE.rst
+   * - ``priorities``
+     - |PRIORITIES.example|
+     - .. include:: ../_autodoc/PRIORITIES.rst
    * - ``consumption-breach-price``
      - |CONSUMPTION_BREACH_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_BREACH_PRICE.rst
@@ -410,6 +413,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``coupling-coefficient``
      - |COUPLING_COEFFICIENT.example|
      - .. include:: ../_autodoc/COUPLING_COEFFICIENT.rst
+   * - ``priority``
+     - |PRIORITY.example|
+     - .. include:: ../_autodoc/PRIORITY.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst

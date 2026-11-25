@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-37 | December xx, 2026
+""""""""""""""""""""""""""""
+
+- Added the ``priorities`` field to the flex-context and the ``priority`` field to the storage flex-model (see :ref:`flex_context` and :ref:`flex_models_and_schedulers`). A device naming a priority gets its state-of-charge constraints priced with the ``soc-minima-breach-price`` and ``soc-maxima-breach-price`` set for that priority, falling back to those of the context listing it. In a multi-commodity flex-context, each commodity context lists its own ``priorities``. Naming a priority that the context of the device's commodity does not list is rejected.
+
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""
 

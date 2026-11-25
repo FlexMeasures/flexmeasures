@@ -502,8 +502,8 @@
             return;
         }
         const assetFlexContext = getFlexContext();
-        // Commitments open with one (zero-valued) commitment ready to edit.
-        getActiveContext(assetFlexContext)[fieldName] = fieldName === "commitments" ? [await newCommitment()] : "";
+        // Structured lists (such as commitments) open with one entry ready to edit.
+        getActiveContext(assetFlexContext)[fieldName] = isStructuredListField(fieldName) ? [await STRUCTURED_LIST_FIELDS[fieldName].newEntry()] : "";
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
@@ -656,12 +656,12 @@
             !Array.isArray(fieldValue) && // Exclude arrays
             Object.keys(fieldValue).length > 0;
 
-        if (fieldName === "commitments" && isArray) {
-            // Commitments are structured entries; summarize them by name.
-            fieldValue.forEach((commitment) => {
+        if (isStructuredListField(fieldName) && isArray) {
+            // Structured entries are summarized by name.
+            fieldValue.forEach((entry) => {
                 const item = document.createElement('div');
                 item.className = 'pb-1 fw-light';
-                item.textContent = `${commitment["name"] || "(unnamed)"} (${commitment["commodity"] || "electricity"})`;
+                item.textContent = STRUCTURED_LIST_FIELDS[fieldName].summarize(entry);
                 sensorsContent.push(item);
             });
         } else if (isUnsetSensorReference(fieldValue)) {
@@ -725,7 +725,7 @@
 
         card.onclick = function () {
             if (activeCard() && activeCard().id === card.id) {
-                if (!isSensorListField(fieldName) && fieldName !== "commitments") {
+                if (!isSensorListField(fieldName) && !isStructuredListField(fieldName)) {
                     setActiveCard(null); // Deselect if the same card is clicked again
                     // remove active card from localstorage
                     localStorage.removeItem('activeCard');
@@ -1007,7 +1007,7 @@
                 }, 300);
             } else {
                 // The active field is gone from the context (e.g. its last
-                // commitment was removed), so clear its editor widget too.
+                // commitment or priority was removed), so clear its editor widget too.
                 flexOptionsContainer.innerHTML = "";
                 handleFlexSelectChange(null);
                 setActiveCard(null);
@@ -1044,13 +1044,14 @@
             }
             activeContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
-            if (flexId === "commitments" && pendingCommitmentTarget) {
-                setCommitmentField(
-                    pendingCommitmentTarget.index,
-                    pendingCommitmentTarget.key,
+            if (isStructuredListField(flexId) && pendingEntryTarget && pendingEntryTarget.fieldName === flexId) {
+                setEntryField(
+                    flexId,
+                    pendingEntryTarget.index,
+                    pendingEntryTarget.key,
                     { sensor: sensorId },
                 );
-                pendingCommitmentTarget = null;
+                pendingEntryTarget = null;
                 return;
             }
             if (isSensorListField(flexId)) {
@@ -1203,10 +1204,12 @@ Make sure that the sensor data will be available consistently, though, so schedu
         return group;
     }
 
-    // ============== Commitments editor BEGIN ============== //
+    // ============== Structured list editors BEGIN ============== //
+    // Commitments and priorities are lists of structured entries:
+    // each entry has a name, plus a few values that are fixed quantities or sensor references.
     // When a sensor is picked while this target is set, the sensor reference is
-    // written into that commitment's field instead of replacing the whole card value.
-    let pendingCommitmentTarget = null;
+    // written into that entry's field instead of replacing the whole card value.
+    let pendingEntryTarget = null;
 
     // Commitments start out with (and are unset back to) zero quantities, so a
     // freshly added commitment has no effect until edited. Note that it still
@@ -1256,40 +1259,91 @@ Make sure that the sensor data will be available consistently, though, so schedu
         };
     }
 
-    function setCommitmentField(commitmentIndex, key, value) {
+    // How to edit each field that holds a list of structured entries.
+    const STRUCTURED_LIST_FIELDS = {
+        "commitments": {
+            noun: "commitment",
+            nameKey: "name",
+            nameLabel: "Name",
+            namePlaceholder: "e.g. capacity contract",
+            // A commitment binds the commodity of the commodity tab being edited.
+            boundToCommodity: true,
+            valueKeys: ["baseline", "up-price", "down-price"],
+            valuePlaceholder: (key) => key === "baseline" ? "e.g. 100 kW" : "e.g. 35 EUR/MWh",
+            intro: "Each commitment needs a <b>name</b> and a <b>baseline</b>, plus at least one deviation price. " +
+                "Values can be fixed quantities (e.g. '100 kW', '35 EUR/MWh'), a sensor picked below, or a sensor reference typed directly (e.g. 'sensor 536'). " +
+                "New commitments start at zero; unsetting a value also resets it to zero. Further checks happen on save.",
+            unsetTitle: "Reset this value to zero",
+            unsetValue: commitmentZeroDefault,
+            newEntry: newCommitment,
+            summarize: (entry) => `${entry["name"] || "(unnamed)"} (${entry["commodity"] || "electricity"})`,
+        },
+        "priorities": {
+            noun: "priority",
+            nameKey: "priority",
+            nameLabel: "Priority",
+            namePlaceholder: "e.g. high",
+            boundToCommodity: false,
+            valueKeys: ["soc-minima-breach-price", "soc-maxima-breach-price"],
+            valuePlaceholder: () => "e.g. 1500 EUR/kWh",
+            intro: "Each priority needs a <b>name</b>, which devices can name in the <code>priority</code> field of their flex-model, plus at least one breach price. " +
+                "A breach price left unset falls back to the one set in this flex-context. " +
+                "Prices can be fixed quantities (e.g. '1500 EUR/kWh'), a sensor picked below, or a sensor reference typed directly (e.g. 'sensor 536'). " +
+                "Further checks happen on save.",
+            unsetTitle: "Unset this price, so that the flex-context's own breach price applies",
+            // Unset prices are left out of the entry.
+            unsetValue: async () => undefined,
+            newEntry: async () => ({ "priority": "" }),
+            summarize: (entry) => {
+                const prices = ["soc-minima-breach-price", "soc-maxima-breach-price"]
+                    .filter((key) => describeCommitmentValue(entry[key]) !== null)
+                    .map((key) => `${key.replace("-breach-price", "")}: ${describeCommitmentValue(entry[key])}`);
+                return `${entry["priority"] || "(unnamed)"}${prices.length ? ` (${prices.join(", ")})` : ""}`;
+            },
+        },
+    };
+
+    function isStructuredListField(fieldName) {
+        return Object.prototype.hasOwnProperty.call(STRUCTURED_LIST_FIELDS, fieldName);
+    }
+
+    function setEntryField(fieldName, entryIndex, key, value) {
         const assetFlexContext = getFlexContext();
         const activeContext = getActiveContext(assetFlexContext);
-        const commitments = activeContext["commitments"];
-        if (!Array.isArray(commitments) || !commitments[commitmentIndex]) {
-            // The commitment may have been removed in the meantime (e.g. while a sensor pick was pending).
-            showToast("This commitment no longer exists", "error");
+        const entries = activeContext[fieldName];
+        if (!Array.isArray(entries) || !entries[entryIndex]) {
+            // The entry may have been removed in the meantime (e.g. while a sensor pick was pending).
+            showToast(`This ${STRUCTURED_LIST_FIELDS[fieldName].noun} no longer exists`, "error");
             return;
         }
-        commitments[commitmentIndex][key] = value;
-        localStorage.setItem('activeCard', 'commitments');
+        if (value === undefined) {
+            delete entries[entryIndex][key];
+        } else {
+            entries[entryIndex][key] = value;
+        }
+        localStorage.setItem('activeCard', fieldName);
         setFlexContext(assetFlexContext);
     }
 
-    function renderCommitmentsEditor() {
+    function renderStructuredListEditor(fieldName) {
+        const spec = STRUCTURED_LIST_FIELDS[fieldName];
         const container = document.createElement("div");
         container.id = "flex-input-options";
         container.className = "card-header";
 
         const activeContext = getActiveContext(getFlexContext());
-        const commitments = Array.isArray(activeContext["commitments"]) ? activeContext["commitments"] : [];
+        const entries = Array.isArray(activeContext[fieldName]) ? activeContext[fieldName] : [];
 
         const intro = document.createElement("p");
         intro.className = "form-label";
-        intro.innerHTML = "Each commitment needs a <b>name</b> and a <b>baseline</b>, plus at least one deviation price. " +
-            "Values can be fixed quantities (e.g. '100 kW', '35 EUR/MWh'), a sensor picked below, or a sensor reference typed directly (e.g. 'sensor 536'). " +
-            "New commitments start at zero; unsetting a value also resets it to zero. Further checks happen on save.";
+        intro.innerHTML = spec.intro;
         container.appendChild(intro);
 
-        commitments.forEach((commitment, index) => {
+        entries.forEach((entry, index) => {
             const group = document.createElement("div");
             group.className = "card p-2 mb-2";
 
-            // Header row: name + commodity + remove
+            // Header row: name (+ commodity) + remove
             const headerRow = document.createElement("div");
             headerRow.className = "row g-2 align-items-end pb-2";
 
@@ -1303,18 +1357,20 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 input.type = "text";
                 input.className = "form-control form-control-sm";
                 input.placeholder = placeholder;
-                input.value = commitment[key] || "";
+                input.value = entry[key] || "";
                 input.disabled = disabled;
-                input.onchange = () => setCommitmentField(index, key, input.value);
+                input.onchange = () => setEntryField(fieldName, index, key, input.value);
                 col.appendChild(label);
                 col.appendChild(input);
                 return col;
             }
 
-            headerRow.appendChild(textInput("Name", "name", "e.g. capacity contract", "col-5"));
-            // The commodity is bound to the commodity tab being edited, not chosen per commitment.
-            commitment["commodity"] = activeCommodityName();
-            headerRow.appendChild(textInput("Commodity", "commodity", "electricity", "col-4", true));
+            headerRow.appendChild(textInput(spec.nameLabel, spec.nameKey, spec.namePlaceholder, spec.boundToCommodity ? "col-5" : "col-9"));
+            if (spec.boundToCommodity) {
+                // The commodity is bound to the commodity tab being edited, not chosen per entry.
+                entry["commodity"] = activeCommodityName();
+                headerRow.appendChild(textInput("Commodity", "commodity", "electricity", "col-4", true));
+            }
 
             const removeCol = document.createElement("div");
             removeCol.className = "col-3 text-end";
@@ -1324,19 +1380,19 @@ Make sure that the sensor data will be available consistently, though, so schedu
             removeBtn.onclick = () => {
                 const assetFlexContext = getFlexContext();
                 const context = getActiveContext(assetFlexContext);
-                context["commitments"].splice(index, 1);
-                if (context["commitments"].length === 0) {
-                    context["commitments"] = null;
+                context[fieldName].splice(index, 1);
+                if (context[fieldName].length === 0) {
+                    context[fieldName] = null;
                 }
-                localStorage.setItem('activeCard', 'commitments');
+                localStorage.setItem('activeCard', fieldName);
                 setFlexContext(assetFlexContext);
             };
             removeCol.appendChild(removeBtn);
             headerRow.appendChild(removeCol);
             group.appendChild(headerRow);
 
-            // Quantity fields: fixed value or sensor
-            ["baseline", "up-price", "down-price"].forEach((key) => {
+            // Value fields: fixed value or sensor
+            spec.valueKeys.forEach((key) => {
                 const row = document.createElement("div");
                 row.className = "row g-2 align-items-center pb-1";
 
@@ -1347,7 +1403,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 keyLabel.textContent = key;
                 const valueSummary = document.createElement("div");
                 valueSummary.className = "small text-black-50";
-                const description = describeCommitmentValue(commitment[key]);
+                const description = describeCommitmentValue(entry[key]);
                 if (description === null) {
                     const notSet = document.createElement("i");
                     notSet.textContent = "not set";
@@ -1364,18 +1420,18 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 const input = document.createElement("input");
                 input.type = "text";
                 input.className = "form-control form-control-sm";
-                input.placeholder = key === "baseline" ? "e.g. 100 kW" : "e.g. 35 EUR/MWh";
+                input.placeholder = spec.valuePlaceholder(key);
                 // Prefill with the current value, so it can be corrected in place.
-                const currentValue = commitment[key];
+                const currentValue = entry[key];
                 if (typeof currentValue === "object" && currentValue !== null && currentValue["sensor"]) {
                     input.value = `sensor ${currentValue["sensor"]}`;
                 } else if (currentValue !== undefined && currentValue !== null) {
                     input.value = String(currentValue);
                 }
                 const commitInput = async () => {
-                    // Clearing the input unsets the value, i.e. resets it to zero.
-                    const value = input.value.trim() === "" ? await commitmentZeroDefault(key) : parseCommitmentValue(input.value);
-                    setCommitmentField(index, key, value);
+                    // Clearing the input unsets the value.
+                    const value = input.value.trim() === "" ? await spec.unsetValue(key) : parseCommitmentValue(input.value);
+                    setEntryField(fieldName, index, key, value);
                 };
                 input.onkeydown = (event) => {
                     if (event.key === 'Enter') {
@@ -1392,19 +1448,19 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 const unsetBtn = document.createElement("button");
                 unsetBtn.className = "btn btn-sm btn-outline-secondary me-1";
                 unsetBtn.textContent = "Unset";
-                unsetBtn.title = "Reset this value to zero";
-                unsetBtn.onclick = async () => setCommitmentField(index, key, await commitmentZeroDefault(key));
+                unsetBtn.title = spec.unsetTitle;
+                unsetBtn.onclick = async () => setEntryField(fieldName, index, key, await spec.unsetValue(key));
                 buttonsCol.appendChild(unsetBtn);
                 const sensorBtn = document.createElement("button");
                 sensorBtn.className = "btn btn-sm btn-outline-secondary";
                 sensorBtn.textContent = "Pick sensor";
                 sensorBtn.onclick = () => {
-                    pendingCommitmentTarget = { index: index, key: key };
+                    pendingEntryTarget = { fieldName: fieldName, index: index, key: key };
                     const existingSearch = document.getElementById("select-sensor-input");
                     if (existingSearch) {
                         existingSearch.remove();
                     }
-                    container.appendChild(createSensorSearchBlockFor(`commitment '${commitment["name"] || index}' ${key}`));
+                    container.appendChild(createSensorSearchBlockFor(`${spec.noun} '${entry[spec.nameKey] || index}' ${key}`));
                 };
                 buttonsCol.appendChild(sensorBtn);
                 row.appendChild(buttonsCol);
@@ -1417,20 +1473,20 @@ Make sure that the sensor data will be available consistently, though, so schedu
 
         const addBtn = document.createElement("button");
         addBtn.className = "btn btn-secondary btn-sm";
-        addBtn.textContent = "Add commitment";
+        addBtn.textContent = `Add ${spec.noun}`;
         addBtn.onclick = async () => {
             const assetFlexContext = getFlexContext();
             const context = getActiveContext(assetFlexContext);
-            const existing = Array.isArray(context["commitments"]) ? context["commitments"] : [];
-            context["commitments"] = [...existing, await newCommitment()];
-            localStorage.setItem('activeCard', 'commitments');
+            const existing = Array.isArray(context[fieldName]) ? context[fieldName] : [];
+            context[fieldName] = [...existing, await spec.newEntry()];
+            localStorage.setItem('activeCard', fieldName);
             setFlexContext(assetFlexContext);
         };
         container.appendChild(addBtn);
 
         return container;
     }
-    // ============== Commitments editor END ============== //
+    // ============== Structured list editors END ============== //
 
     function renderFlexInputOptions(contextKey, sensorsOnly = false) {
         if (!contextKey) {
@@ -1438,11 +1494,11 @@ Make sure that the sensor data will be available consistently, though, so schedu
             return;
         }
 
-        if (contextKey === "commitments") {
-            pendingCommitmentTarget = null;
-            return renderCommitmentsEditor();
+        if (isStructuredListField(contextKey)) {
+            pendingEntryTarget = null;
+            return renderStructuredListEditor(contextKey);
         }
-        pendingCommitmentTarget = null;
+        pendingEntryTarget = null;
 
         const tabsContainer = document.createElement("div");
         tabsContainer.id = "flex-input-options"

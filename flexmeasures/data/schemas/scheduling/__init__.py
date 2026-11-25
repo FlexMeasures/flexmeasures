@@ -219,6 +219,74 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
 
 
+class PrioritySchema(Schema):
+    """Breach prices for the devices that name this priority in their flex-model.
+
+    Each breach price left out falls back to the one that applies in the context listing this priority.
+    """
+
+    priority = fields.Str(
+        required=True,
+        data_key="priority",
+        metadata=dict(
+            description="Name of the priority, as referred to by the flex-model's ``priority`` field."
+        ),
+    )
+    soc_minima_breach_price = PriceField(
+        "/MWh",
+        data_key="soc-minima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
+    )
+    soc_maxima_breach_price = PriceField(
+        "/MWh",
+        data_key="soc-maxima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
+    )
+
+    @validates("priority")
+    def validate_priority_name(self, priority: str, **kwargs):
+        """Reject blank names, which would be easy to mistype and hard to spot."""
+        if not priority.strip():
+            raise ValidationError("A priority needs a non-empty name.")
+
+    @validates_schema
+    def validate_sets_a_price(self, data: dict, **kwargs):
+        """An entry without any breach price would change nothing, which is probably a mistake."""
+        if not any(
+            data.get(field) is not None
+            for field in ("soc_minima_breach_price", "soc_maxima_breach_price")
+        ):
+            raise ValidationError(
+                f"Priority '{data.get('priority')}' sets no breach price. Set its `soc-minima-breach-price` and/or `soc-maxima-breach-price`."
+            )
+
+
+class DBPrioritySchema(PrioritySchema, NoTimeSeriesSpecs):
+    @validates_schema
+    def validate_price_units(self, data: dict, **kwargs):
+        """Check that each breach price, including one given as a sensor, is an energy price."""
+        for field_name, field in self.declared_fields.items():
+            if not isinstance(field, PriceField) or data.get(field_name) is None:
+                continue
+            value = data[field_name]
+            if isinstance(value, ur.Quantity):
+                unit = str(value.units)
+            elif isinstance(value, (Sensor, SensorReference)):
+                unit = value.unit
+            else:
+                # Time series specs are rejected by NoTimeSeriesSpecs.
+                continue
+            if not is_energy_price_unit(unit):
+                raise ValidationError(
+                    f"Energy price field '{field.data_key}' of priority '{data.get('priority')}' must have an energy price unit.",
+                    field_name=field.data_key,
+                )
+
+
 class SharedSchema(Schema):
     """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
@@ -341,6 +409,25 @@ class SharedSchema(Schema):
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
+    priorities = fields.Nested(
+        PrioritySchema,
+        data_key="priorities",
+        required=False,
+        many=True,
+        metadata=metadata.PRIORITIES.to_dict(),
+    )
+
+    @validates("priorities")
+    def validate_priorities_unique(self, priorities: list[dict], **kwargs):
+        """Validate that each priority is listed at most once, so a device's breach prices are unambiguous."""
+        names = [
+            priority["priority"] for priority in priorities if "priority" in priority
+        ]
+        duplicates = {name for name in names if names.count(name) > 1}
+        if duplicates:
+            raise ValidationError(
+                f"Each priority may only be listed once in `priorities`. Duplicate(s): {sorted(duplicates)}."
+            )
 
     # Relaxation fields
     relax_constraints = fields.Bool(
@@ -578,6 +665,10 @@ class SharedSchema(Schema):
                 data, shared_currency_unit, previous_field_name
             )
         )
+        # And the breach prices per priority
+        shared_currency_unit, previous_field_name = self._validate_priority_price_units(
+            data, shared_currency_unit, previous_field_name
+        )
 
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
@@ -618,6 +709,39 @@ class SharedSchema(Schema):
                     field_name = price_field.data_key
                     error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit}/MWh' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field of commitment '{commitment.get('name')}'. Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     raise ValidationError(error_message, field_name="commitments")
+        return shared_currency_unit, previous_field_name
+
+    def _validate_priority_price_units(
+        self,
+        data: dict,
+        shared_currency_unit: str | None,
+        previous_field_name: str | None,
+    ) -> tuple[str | None, str | None]:
+        """Hold the breach prices per priority to the shared currency."""
+        for priority in data.get("priorities", []):
+            for field, price_field in PrioritySchema._declared_fields.items():
+                if not isinstance(price_field, PriceField) or field not in priority:
+                    continue
+                price_unit = price_field._get_unit(priority[field])
+                currency_unit = str(
+                    (
+                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
+                    ).units
+                )
+                if not is_currency_unit(currency_unit):
+                    raise ValidationError(
+                        f"Invalid unit. A valid unit would be, for example, 'EUR{price_field.to_unit}'. However, you passed '{price_unit}' for the '{price_field.data_key}' field of priority '{priority.get('priority')}'.",
+                        field_name="priorities",
+                    )
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit}/MWh' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field of priority '{priority.get('priority')}'. Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name="priorities")
         return shared_currency_unit, previous_field_name
 
     @staticmethod
@@ -1268,6 +1392,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "priorities": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRIORITIES.description),
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
     "aggregate-power": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
@@ -1502,6 +1631,15 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         },
         "example-units": ["a number, e.g. 0.5"],
     },
+    "priority": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRIORITY.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a priority name listed in the flex-context's priorities).",
+        },
+        "example-units": ['a priority name, e.g. "high"'],
+    },
     "inflexible-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
@@ -1569,6 +1707,13 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True
+    )
+    priorities = fields.Nested(
+        DBPrioritySchema,
+        data_key="priorities",
+        required=False,
+        many=True,
+        metadata=metadata.PRIORITIES.to_dict(),
     )
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
