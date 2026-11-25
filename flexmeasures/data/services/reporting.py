@@ -15,6 +15,7 @@ from flexmeasures.data.services.automations import record_outcome_on_automation_
 from flexmeasures.data.services.generator_results import (
     check_generator_results,
     describe_generator,
+    is_annotation_result,
     outputs_of_job_result,
     result_content,
     save_generator_results,
@@ -228,6 +229,40 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
     )
     db.session.commit()
 
+    log_report_outcome(source, results, saved)
+
+    # The job's trigger says whether an automation created it, as it does for the guard above.
+    # An automation deleted since the job was queued has no permitted set, and no next run to continue from.
+    if (
+        automation_id is not None
+        and permitted_output_sensor_ids is not None
+        and parameters.get("end")
+    ):
+        from flexmeasures.data.services.automations import record_automation_run
+
+        record_automation_run(
+            automation_id, now=datetime.fromisoformat(parameters["end"])
+        )
+
+    return {"outputs": outputs_of_job_result(saved)}
+
+
+def log_report_outcome(source, results: list[dict], saved: list[dict]) -> None:
+    """Log what a report job computed and recorded.
+
+    A report of findings (results of the kind "annotations") that finds nothing ran as it should, so that is no warning.
+    """
+    if results and all(is_annotation_result(result) for result in results):
+        summary = ", ".join(
+            f"sensor {result['sensor_id']}: {result['n_computed']} finding(s), {result['n_rows']} version(s) recorded"
+            for result in saved
+        )
+        current_app.logger.info(
+            "Report by %s ran successfully, recording the findings that were new or changed (%s).",
+            source,
+            summary,
+        )
+        return
     # Say both counts, as saving none of what was computed is not the same as computing nothing.
     summary = ", ".join(
         f"sensor {result['sensor_id']}: computed {result['n_computed']}, recorded {result['n_rows']}"
@@ -252,18 +287,3 @@ def run_report_job(data_source_id: int, parameters: dict) -> dict:
             source,
             summary,
         )
-
-    # The job's trigger says whether an automation created it, as it does for the guard above.
-    # An automation deleted since the job was queued has no permitted set, and no next run to continue from.
-    if (
-        automation_id is not None
-        and permitted_output_sensor_ids is not None
-        and parameters.get("end")
-    ):
-        from flexmeasures.data.services.automations import record_automation_run
-
-        record_automation_run(
-            automation_id, now=datetime.fromisoformat(parameters["end"])
-        )
-
-    return {"outputs": outputs_of_job_result(saved)}

@@ -380,3 +380,17 @@ def test_a_reporter_that_annotates(meter, fresh_db):
     assert annotation.source == reporter.data_source
     assert annotation.type == "warning"
     assert annotation.belief_time is not None
+
+
+def test_a_report_that_finds_nothing_is_no_warning(app, caplog):
+    """For a check, finding nothing is the good outcome, not a sign of misaligned inputs."""
+    from flexmeasures.data.services.reporting import log_report_outcome
+
+    results = [dict(kind="annotations", annotations=[])]
+    saved = [dict(sensor_id=3, kind="annotations", n_computed=0, n_rows=0)]
+
+    with caplog.at_level("INFO"):
+        log_report_outcome("a gap check", results, saved)
+
+    assert [record.levelname for record in caplog.records] == ["INFO"]
+    assert "sensor 3: 0 finding(s), 0 version(s) recorded" in caplog.text
