@@ -133,6 +133,12 @@ def merge_flex_contexts(
     so that it holds all fields for electricity, whichever form each flex-context came in.
     Otherwise, they stay at the top level, which then serves as the electricity context, as before.
 
+    When folded, a top-level consumption price without a top-level production price also serves as the production price of the electricity context,
+    unless that context sets its own production price.
+    That way, the electricity context keeps the meaning that the top-level fields had,
+    as a production price falls back to the consumption price at the top level,
+    whereas a commodity context without a production price defaults to having no grid connection for production (see CommodityFlexContextSchema.fill_grid_connection_defaults).
+
     Commitments passed for electricity replace the stored top-level commitments, like they do in a flex-context describing only electricity.
     """
     if (
@@ -168,7 +174,24 @@ def merge_flex_contexts(
         else:
             contexts.append(_merge_contexts(db_contexts.pop(i), passed_context))
     contexts.extend(db_contexts)
+    if fold_electricity and any(
+        _has_consumption_price_without_production_price(flex_context)
+        for flex_context in (db_flex_context, passed_flex_context)
+    ):
+        for context in contexts:
+            if _commodity_of(context) == "electricity":
+                context.setdefault("production-price", context["consumption-price"])
+                break
     return {**_merge_contexts(db_top_level, passed_top_level), "commodities": contexts}
+
+
+def _has_consumption_price_without_production_price(flex_context: dict | list) -> bool:
+    """Whether the top level of a serialized flex-context sets a consumption price, but no production price."""
+    return (
+        isinstance(flex_context, dict)
+        and "consumption-price" in flex_context
+        and "production-price" not in flex_context
+    )
 
 
 _DROP = object()
