@@ -2178,17 +2178,18 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status, dependencies or monitoring.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status, dependencies, criticality or monitoring.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone, activation status, dependencies or monitoring.
+          summary: Update an automation's name, cron string, timezone, activation status, dependencies, criticality or monitoring.
           description: |
-            Any subset of the fields `name`, `cron`, `timezone`, `active`, `depends-on` and `monitored` can be sent.
+            Any subset of the fields `name`, `cron`, `timezone`, `active`, `depends-on`, `critical` and `monitored` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
             An automation's runs wait for the latest runs of the automations in `depends-on` that are due at or before their own scheduled time,
             so either side of a dependency can change its recurrence or timezone.
+            Flagging an automation as critical, or no longer critical, leaves its cursor as it is, as it does not change which runs are due.
             Other automation fields cannot be updated; instead, create a new automation.
             Unless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:
             by default once every 15 minutes, and once an hour for forecasting automations

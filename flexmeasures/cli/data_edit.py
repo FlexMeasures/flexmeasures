@@ -124,6 +124,13 @@ def fm_edit_data():
     help="Stop waiting for other automations.",
 )
 @click.option(
+    "--critical/--not-critical",
+    "critical",
+    default=None,
+    help="Mark the automation as critical to your organisation, or no longer critical."
+    " A failed run of a critical automation is handed to the critical-automation-failure hooks.",
+)
+@click.option(
     "--monitored/--unmonitored",
     "monitored",
     default=None,
@@ -138,9 +145,10 @@ def edit_automation(
     depends_on: tuple[Automation, ...] = (),
     allow_failure_of: tuple[Automation, ...] = (),
     no_dependencies: bool = False,
+    critical: bool | None = None,
     monitored: bool | None = None,
 ):
-    """Edit the name, recurrence, timezone, activation status, dependencies or monitoring of an automation."""
+    """Edit the name, recurrence, timezone, activation status, dependencies, criticality or monitoring of an automation."""
     if no_dependencies and (depends_on or allow_failure_of):
         raise click.UsageError(
             "--no-dependencies cannot be combined with --depends-on or --allow-failure-of."
@@ -162,6 +170,7 @@ def edit_automation(
             cronstr=cronstr,
             timezone=timezone,
             active=active,
+            critical=critical,
             monitored=monitored,
             origin="CLI",
             dependencies=dependencies,

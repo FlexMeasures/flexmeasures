@@ -4,7 +4,7 @@ Let an automation's runs wait for the latest run of another automation due at or
 A run that waits is 'waiting' to be dispatched, and a run whose upstream run failed is 'skipped'.
 
 Revision ID: b8e4c2d7f913
-Revises: 5c0f3e7a9b21
+Revises: d4a17c6b3e92
 Create Date: 2026-10-14 10:00:00.000000
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "b8e4c2d7f913"
-down_revision = "5c0f3e7a9b21"
+down_revision = "d4a17c6b3e92"
 branch_labels = None
 depends_on = None
 

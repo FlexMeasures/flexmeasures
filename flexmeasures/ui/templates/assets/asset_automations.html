@@ -297,6 +297,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <label class="form-check-label" for="automationActive">Active</label>
                 </div>
                 <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="automationCritical">
+                  <label class="form-check-label" for="automationCritical">Critical</label>
+                  <div class="form-text">A failed run of a critical automation is handed to this server's critical-automation-failure hooks, where your organisation decides what happens next. It changes nothing about how the automation runs.</div>
+                </div>
+                <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="automationMonitored" checked{% if not user_can_change_monitoring %} disabled{% endif %}>
                   <label class="form-check-label" for="automationMonitored">Monitored
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
@@ -375,6 +380,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
                   <label class="form-check-label" for="editAutomationActive">Active</label>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationCritical">
+                  <label class="form-check-label" for="editAutomationCritical">Critical</label>
                 </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationMonitored"{% if not user_can_change_monitoring %} disabled{% endif %}>
@@ -761,6 +770,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationActive").prop("checked", values.active);
     fillDependsOnPicker("#automationDependsOn", null, values.dependsOn);
     showAllowFailure("#automationAllowFailure", values.dependsOn);
+    $("#automationCritical").prop("checked", values.critical);
     // Someone who may not switch monitoring off gets a monitored automation, also when copying an unmonitored one.
     $("#automationMonitored").prop("checked", userCanChangeMonitoring ? values.monitored : true);
   }
@@ -785,6 +795,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return {
       name: copiedAutomationName(automation.name),
       type: automation.type,
+      // A copy inherits criticality: a variation on a critical automation is critical until said otherwise.
+      critical: automation.critical,
       cron: automation["cron"],
       timezone: automation.timezone,
       parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
@@ -915,7 +927,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   function AutomationRow(automation) {
     return {
       id: automation.id,
-      name: esc(automation.name),
+      name: esc(automation.name) + (automation.critical ? ' <span class="badge bg-danger" title="Critical: a failed run is handed to this server\'s critical-automation-failure hooks.">critical</span>' : ""),
       "asset-name": `<a href="/assets/${encodeURIComponent(automation.asset)}/automations">${esc(automation["asset-name"] || "")}</a>`,
       "created-at": createdAt(automation),
       // Sorted by activity first, then with the unmonitored ones of each kind together.
@@ -1563,6 +1575,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationActive").prop("checked", automation.active);
       fillDependsOnPicker("#editAutomationDependsOn", automation.id, automation["depends-on"] || []);
       showAllowFailure("#editAutomationAllowFailure", automation["depends-on"] || []);
+      $("#editAutomationCritical").prop("checked", automation.critical);
       $("#editAutomationMonitored").prop("checked", automation.monitored);
       $("#editAutomationErr").addClass("d-none").text("");
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
@@ -1641,6 +1654,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
             "#editAutomationAllowFailure",
             automationsById.get(Number(automationId))?.["depends-on"] || [],
           ),
+          critical: $("#editAutomationCritical").is(":checked"),
           ...(userCanChangeMonitoring ? { monitored: $("#editAutomationMonitored").is(":checked") } : {}),
         }),
         success: () => location.reload(),
@@ -1841,6 +1855,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         cron: $("#automationCron").val(),
         timezone: $("#automationTimezone").val(),
         active: $("#automationActive").is(":checked"),
+        critical: $("#automationCritical").is(":checked"),
         ...(userCanChangeMonitoring ? { monitored: $("#automationMonitored").is(":checked") } : {}),
         parameters: parameters,
         "depends-on": dependsOnValues("#automationDependsOn", "#automationAllowFailure"),
