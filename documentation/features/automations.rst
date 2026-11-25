@@ -316,14 +316,21 @@ Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
 Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast, schedule or report.
 
+When restarting a runner after a long outage, catching up on every automation may not be wanted.
 To bound how old a missed run may be to still be caught up, pass ``--max-catchup`` with a number of minutes.
-A missed run scheduled longer ago than that is skipped: it is marked as handled without being queued, and the automation resumes on its next scheduled run.
-With ``--max-catchup 0``, every missed run is skipped, which suits restarting a runner while a backlog is still being worked through:
+A missed run scheduled longer ago than that is skipped: it is recorded as a skipped run, saying why, without queueing any jobs, and the automation resumes on its next scheduled run.
+The same goes for an older run which a runner left before it queued any of its jobs, such as a forecast or schedule run whose runner went down after claiming it.
+A run which already queued some of its jobs is left to queue the rest, so that it does not stay half done.
+The bound counts real minutes, so a 02:30 run is 75 minutes old at 02:45 on the night the clock goes back.
 
 .. code-block:: bash
 
     flexmeasures jobs run-automations --max-catchup 60  # only catch up on runs missed in the last hour
-    flexmeasures jobs run-automations --max-catchup 0   # skip missed runs, and just resume
+
+The bound suits restarting a runner, more than running it from cron.
+A tick that comes late, after a crashed tick, a slow cron or a database restart, would skip the run it was due to queue,
+so an hourly automation would wait an hour for its next run.
+If you keep the bound in the cron line, give it a few minutes, rather than 0.
 
 Each scheduled run a runner picks up is recorded durably, so a queueing attempt which fails can be retried without duplicating the jobs it already created.
 See :ref:`automation_runs`.
