@@ -324,6 +324,47 @@ def test_react_classes_on_a_mixed_day(app, db):
     _assert_bands_are_well_formed(data)
 
 
+def test_near_zero_class_tolerates_a_plan_the_modes_cannot_land_on_zero(app, db):
+    """A plan 30 W off zero still counts as held at zero, since 50 W of tolerance covers what operation modes cannot cancel.
+
+    The battery can only be off or run between 2 and 5 kW, so it cannot cancel a 30 W load exactly;
+    it starts empty and buying at 50 to sell at 5 is a loss, so it stays off and the load is the planned connection power.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (near zero)",
+        consumption_prices="50 EUR/MWh",
+        production_prices="5 EUR/MWh",
+        load_kw=0.03,
+    )
+    modes = [
+        {"consumption-range": ["0 kW", "0 kW"]},
+        {"consumption-range": ["2 kW", "5 kW"]},
+        {"production-range": ["2 kW", "5 kW"]},
+    ]
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _battery_flex_model(
+                battery_power,
+                **{
+                    "power-capacity": "5 kW",
+                    "soc-at-start": "0 MWh",
+                    "operation-modes": modes,
+                },
+            )
+        ],
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(data["p"], 0, atol=TOLERANCE)
+    np.testing.assert_allclose(data["reference"], 0.00003, atol=TOLERANCE)
+    np.testing.assert_allclose(data["react"], 1)
+
+
 def test_bands_respect_operation_modes(app, db):
     """A device with operation modes gets a band of several ranges, none of which spans a hole between modes.
 

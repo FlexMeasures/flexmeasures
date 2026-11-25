@@ -517,7 +517,7 @@ Writing ``p`` for the scheduled value and ``meter`` for the measured net power a
 the surprise is ``(meter - Σ device power) - reference``, with ``Σ device power`` the realised power of the reacting devices,
 and the device's setpoint for the slot is the clip of ``p - react * surprise`` to the band, which equals the plan when the connection behaves as forecast.
 Devices react in series, in the order of the flex-model, each absorbing what the devices before it could not.
-The react share is ``1`` in the slots where the site capacity binds, where the planned net power at the connection is zero while the production price is below the consumption price,
+The react share is ``1`` in the slots where the site capacity binds, where the planned net power at the connection is near zero (within 50 W) while the production price is below the consumption price,
 and where the production price is zero or negative; it is ``0`` elsewhere, with a band of just the scheduled value.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
 When a reaction leaves the band, trigger a new schedule.

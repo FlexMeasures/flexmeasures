@@ -91,6 +91,11 @@ def _has_absolute_soc_constraints(flex_model: dict) -> bool:
 SCHEDULING_RESULT_KEY = "scheduling_result"
 
 
+#: How close to zero (in MW) the planned connection power must be for a slot to count as held at zero in the reaction rules.
+#: A plan held at zero by the LP is exact to float noise, but a plan shaped by operation modes can miss zero by a device's smallest step.
+NEAR_ZERO_CONNECTION_POWER_IN_MW = 0.00005  # 50 W
+
+
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -3710,7 +3715,7 @@ class StorageScheduler(MetaStorageScheduler):
         """Per commodity, the slots in which the responding devices should absorb a surprise at the connection.
 
         These are the slots where the commodity's site capacity binds at the optimum,
-        where the planned net power at the connection is zero while the production price is below the consumption price,
+        where the planned net power at the connection is near zero (within ``NEAR_ZERO_CONNECTION_POWER_IN_MW``) while the production price is below the consumption price,
         and where the production price is zero or negative.
         """
         n = len(ems_schedule[0])
@@ -3742,7 +3747,9 @@ class StorageScheduler(MetaStorageScheduler):
             down = production_prices.get(commodity)
             if up is not None and down is not None:
                 production_cheaper = (down < up) & ~np.isclose(down, up)
-                responsive |= (np.abs(net) <= tolerance) & production_cheaper
+                responsive |= (
+                    np.abs(net) <= NEAR_ZERO_CONNECTION_POWER_IN_MW
+                ) & production_cheaper
                 responsive |= down <= 0
 
             for g, group_devices in enumerate(ems_constraint_groups):
@@ -3802,7 +3809,7 @@ class StorageScheduler(MetaStorageScheduler):
             return []
         index = ems_schedule[0].index
         n = len(index)
-        tolerance = 1e-6  # MW
+        tolerance = 1e-6  # MW, for numerical noise in the plan
 
         commodity_to_devices = self._reconstruct_commodity_to_devices()
         device_models = getattr(self, "_device_models", None) or []
