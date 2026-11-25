@@ -13,6 +13,15 @@ TEMPLATE = (
     Path(__file__).resolve().parents[2] / "templates/assets/asset_automations.html"
 )
 
+# The installed plugin types, as the view hands them to the page: one type, recorded under the generator base its plugin declares.
+PLUGIN_AUTOMATION_TYPES = [
+    {
+        "type_id": "mock-ingestion",
+        "display_name": "Mock ingestion",
+        "source_type": "ingestor",
+    }
+]
+
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_ui_test_data():
@@ -45,6 +54,7 @@ def automation_script(
             "mock-ingestion": "Mock ingestion",
         },
         always_shown_automation_types=["forecasting", "scheduling"],
+        plugin_automation_types=PLUGIN_AUTOMATION_TYPES,
         config={"FLEXMEASURES_JOB_TTL": timedelta(days=7)},
     )
     # An unrendered value would reach the browser as a syntax error, which reads as every check failing at once.

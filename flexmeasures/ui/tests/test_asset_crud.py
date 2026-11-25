@@ -237,6 +237,30 @@ def test_automations_page_manager_can_set_timezones(client, setup_assets, as_adm
     assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
 
+def test_automations_page_offers_installed_plugin_types_for_creation(
+    app, client, setup_assets, as_admin, monkeypatch
+):
+    """An installed plugin type can be created from the form, and its source picker searches the sources its generator records under."""
+    from flexmeasures.data.automations import register_automation_handler
+    from flexmeasures.data.tests.plugins.mock_ingestion import __automation_types__
+
+    asset = setup_assets["wind-asset-1"]
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+    assert b'<optgroup label="Plugin types">' not in response.data
+
+    monkeypatch.setattr(app, "automation_handlers", dict(app.automation_handlers))
+    register_automation_handler(app, __automation_types__[0])
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'<optgroup label="Plugin types">' in response.data
+    assert b'<option value="mock-ingestion">Mock ingestion</option>' in response.data
+    assert (
+        b'{"display_name": "Mock ingestion", "source_type": "ingestor", "type_id": "mock-ingestion"}'
+        in response.data
+    )
+
+
 @pytest.mark.parametrize(
     "args, error",
     [
