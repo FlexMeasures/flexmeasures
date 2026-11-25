@@ -480,11 +480,13 @@ def test_add_automation_defaults_to_the_assets_timezone(
     assert "in timezone 'Europe/Amsterdam'" in result.output
 
 
-def test_edit_automation_warns_about_and_sets_the_run_user(
-    app, fresh_db, setup_dummy_data_fresh_db, setup_roles_users_fresh_db
+def test_edit_automation_refuses_or_warns_about_and_sets_the_run_user(
+    app, fresh_db, setup_dummy_data_fresh_db, setup_roles_users_fresh_db, tmp_path
 ):
-    """The CLI is trusted, so an edit is not refused on the run user's access, but it warns when their runs would be refused.
+    """The CLI is trusted, so an edit is not checked against anyone's access, but it does check whom the automation runs as.
 
+    An edit of what the automation computes, or of whom it runs as, is refused when that user could not run it, naming `--run-as`;
+    other edits warn.
     `--run-as` picks the user to run as instead, which the audit log names, and refuses a user who is missing or inactive.
     """
     from flexmeasures.cli.data_add import add_automation
@@ -511,21 +513,68 @@ def test_edit_automation_warns_about_and_sets_the_run_user(
     automation.execution_user_id = supplier_id
     fresh_db.session.commit()
 
+    refusal = (
+        f"Automation {automation.id} runs as Test Supplier User (user {supplier_id}),"
+        f" who does not have 'create-children' permission on sensor {setup_dummy_data_fresh_db[0]}."
+    )
     result = runner.invoke(
         edit_automation, ["--id", str(automation.id), "--name", "Renamed"]
     )
     assert "Successfully updated" in result.output, result.output
+    output = " ".join(result.output.split())
+    assert f"Warning: the runs of this automation will be refused: {refusal}" in output
+    # The CLI names its own way to take over, not those of the API or the edit form.
     assert (
-        f"Warning: the runs of this automation will be refused: Automation {automation.id}"
-        f" runs as Test Supplier User (user {supplier_id}), who no longer has 'create-children' permission on sensor {setup_dummy_data_fresh_db[0]}."
-    ) in " ".join(result.output.split())
-    assert "pass --run-as" in result.output
+        f"`flexmeasures edit automation --id {automation.id} --run-as <user id>`"
+        in output
+    )
+    assert "Run as me" not in output and "run-as-me" not in output
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"train-period": "P60D"}')
+    generator_id = automation.generator_id
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--config", str(config_file)]
+    )
+    assert result.exit_code != 0
+    output = " ".join(result.output.split())
+    assert (
+        f"Automation {automation.id} was not changed, as every run would be refused: {refusal}"
+        " Pass --run-as <user id> in the same command to run it as someone who may."
+    ) in output
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
+    assert automation.generator_id == generator_id
 
     result = runner.invoke(
-        edit_automation, ["--id", str(automation.id), "--run-as", str(admin_id)]
+        edit_automation,
+        [
+            "--id",
+            str(automation.id),
+            "--config",
+            str(config_file),
+            "--run-as",
+            str(admin_id),
+        ],
     )
     assert "Successfully updated" in result.output, result.output
     assert "Warning" not in result.output
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
+    assert automation.execution_user_id == admin_id
+    assert automation.generator_id != generator_id
+
+    # Handing the runs to a user who could not run it is refused as well.
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--run-as", str(supplier_id)]
+    )
+    assert result.exit_code != 0
+    assert (
+        f"Automation {automation.id} was not changed, as the user named with --run-as could not run it:"
+        in " ".join(result.output.split())
+    )
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
     assert automation.execution_user_id == admin_id
     assert fresh_db.session.execute(
         select(AssetAuditLog).filter(
@@ -2858,6 +2907,55 @@ def test_run_one_automation_on_demand(
     assert scheduled_result.exit_code == 0, scheduled_result.output
     assert scheduled_result.output.count("queued") == 1, scheduled_result.output
     assert app.queues["forecasting"].count > n_jobs
+
+
+def test_a_refused_run_points_at_the_cli_and_records_no_hint(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    setup_roles_users_fresh_db,
+    clean_redis,
+    freeze_server_now,
+):
+    """When the user an automation runs as may not run it, the CLI names its own way to take over, while the run records only the refusal."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+    from flexmeasures.data.models.automations import AutomationRun
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    cli_input = {
+        "asset": 1,
+        "name": "Forecasts run as someone without access",
+        "cron": "0 10 * * *",
+        "timezone": "UTC",
+        "sensor": setup_dummy_data_fresh_db[0],
+    }
+    assert runner.invoke(add_automation, to_flags(cli_input)).exit_code == 0
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    supplier_id = setup_roles_users_fresh_db["Test Supplier User"]
+    automation.execution_user_id = supplier_id
+    fresh_db.session.commit()
+    hint = f"Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`."
+
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+    assert result.exit_code != 0
+    output = " ".join(result.output.split())
+    assert (
+        f"runs as Test Supplier User (user {supplier_id}), who does not have" in output
+    )
+    assert output.endswith(hint) or f"{hint} Aborted!" in output, output
+    assert "Run as me" not in output and "run-as-me" not in output
+
+    freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
+    result = runner.invoke(run_automations)
+    assert hint in " ".join(result.output.split()), result.output
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert f"Test Supplier User (user {supplier_id}), who does not have" in (
+        run.last_error_message
+    )
+    assert "--run-as" not in run.last_error_message
+    assert "run-as-me" not in run.last_error_message
 
 
 def test_run_one_automation_runs_inactive_automation(

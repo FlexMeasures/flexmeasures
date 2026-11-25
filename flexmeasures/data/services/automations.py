@@ -2869,21 +2869,50 @@ def _set_monitoring(automation: Automation, monitored: bool | None) -> list[str]
     return ["monitoring switched on" if monitored else "monitoring switched off"]
 
 
-def run_user_problem(automation: Automation) -> str | None:
-    """Say why the user whom an automation runs as could not run it, as every run would be refused, or None if they could.
+def check_run_access(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> None:
+    """Require the user whom an automation runs as to have access to what a run (or the given run) involves.
 
-    The CLI is trusted, so an edit through it is not refused for this, but it can warn.
+    That is the asset, the sensors the run reads from and records data on,
+    and, for forecasts and reports, the accounts, assets and sensors whose annotations its data generator reads.
+    An automation set up through the CLI runs as nobody, and is not checked.
+
+    :raises RunsRefused: if that user may not run it.
+    :raises AutomationSensorsUnknown: if the sensors cannot be worked out.
     """
     from flexmeasures.data.automations import check_execution_access
 
+    if automation.execution_user_id is None:
+        return
+    check_execution_access(
+        automation, resolve_automation_sensors(automation, automation_run)
+    )
+    # A run reads the annotations its own data source's config names, which an edit since may have changed.
+    generator = generator_of_run(automation, automation_run)
+    if automation.type != "scheduling" and generator is not None:
+        check_execution_access(
+            automation,
+            {
+                "input_sensors": annotation_sources(generator.data_generator),
+                "output_sensors": [],
+            },
+        )
+
+
+def run_user_problem(automation: Automation) -> str | None:
+    """Say why the user whom an automation runs as could not run it, as every run would be refused, or None if they could.
+
+    The answer says nothing about how to take the runs over, which is up to the interface asking.
+    """
+    from flexmeasures.data.automations import RunsRefused
+
     try:
-        sensors = resolve_automation_sensors(automation)
+        check_run_access(automation)
     except AutomationSensorsUnknown as exc:
         return str(exc)
-    try:
-        check_execution_access(automation, sensors)
-    except Forbidden as exc:
-        return exc.description
+    except RunsRefused as exc:
+        return exc.refusal
     return None
 
 
@@ -3140,28 +3169,12 @@ def run_automation(
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    from flexmeasures.data.automations import (
-        check_execution_access,
-        get_automation_handler,
-    )
+    from flexmeasures.data.automations import get_automation_handler
 
     if scheduled_at is None and automation_run is not None:
         scheduled_at = automation_run.scheduled_at
     handler = get_automation_handler(automation.type)
-    if automation.execution_user_id is not None:
-        check_execution_access(
-            automation, resolve_automation_sensors(automation, automation_run)
-        )
-        # A run reads the annotations its own data source's config names, which an edit since may have changed.
-        generator = generator_of_run(automation, automation_run)
-        if automation.type != "scheduling" and generator is not None:
-            check_execution_access(
-                automation,
-                {
-                    "input_sensors": annotation_sources(generator.data_generator),
-                    "output_sensors": [],
-                },
-            )
+    check_run_access(automation, automation_run)
     return handler.run(
         automation, automation_run=automation_run, scheduled_at=scheduled_at
     )

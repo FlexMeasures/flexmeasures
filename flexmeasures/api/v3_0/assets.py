@@ -48,6 +48,7 @@ from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.automations import RunsRefused
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -2282,7 +2283,10 @@ class AssetAPI(FlaskView):
             401:
               description: UNAUTHORIZED
             403:
-              description: INVALID_SENDER
+              description: |
+                INVALID_SENDER.
+                When the user the automation runs as (`runs-as`) may not run it, the response carries `reason: run-user-lacks-access`,
+                and `refusal` says why, without how to take over (with `run-as-me`, see the PATCH endpoint).
             404:
               description: NOT_FOUND
             422:
@@ -2297,6 +2301,15 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
+        except RunsRefused as e:
+            db.session.rollback()
+            return {
+                "message": f"{e.refusal} Send run-as-me in a PATCH of this automation to have it run as you instead.",
+                "status": "INVALID_SENDER",
+                # As for a refused edit: the refusal without how to take over, and a code to recognise it by.
+                "reason": "run-user-lacks-access",
+                "refusal": e.refusal,
+            }, 403
         except (
             NotImplementedError,
             ValueError,

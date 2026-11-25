@@ -2236,6 +2236,48 @@ def test_patch_automation_refused_for_the_run_user_unless_taken_over(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_trigger_automation_refused_for_the_run_user(
+    app,
+    db,
+    add_battery_assets,
+    setup_roles_users,
+    requesting_user,
+):
+    """A run on demand that the user the automation runs as may not run is refused with the edit's reason, so the UI can word the takeover its own way.
+
+    The run records nothing of how to take over, as the API, the CLI and the edit form each say that in their own way.
+    """
+    battery = add_battery_assets["Test battery"]
+    run_user_id = setup_roles_users["Test Dummy User"]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = run_user_id
+    db.session.commit()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            )
+        )
+    assert response.status_code == 403, response.json
+    assert response.json["reason"] == "run-user-lacks-access"
+    refusal = response.json["refusal"]
+    assert refusal.startswith(
+        f"Automation {automation.id} runs as Test Dummy User (user {run_user_id}), who does not have"
+    )
+    assert "run-as-me" not in refusal and "Run as me" not in refusal
+    assert response.json["message"] == (
+        f"{refusal} Send run-as-me in a PATCH of this automation to have it run as you instead."
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_patch_automation_keeping_an_inaccessible_sensor(
     app,
     db,

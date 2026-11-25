@@ -450,11 +450,26 @@ def user_has_permission(user, entity, permission: str) -> bool:
     )
 
 
+class RunsRefused(Forbidden):
+    """A run refused because the user whom the automation runs as may not run it.
+
+    The refusal says why, without saying how to take the runs over, as the CLI, the API and the edit form each do that in their own way.
+    Where the refusal is stored and shown later (the last error of a run), it stays without such a hint.
+    """
+
+    def __init__(self, refusal: str, automation_id: int):
+        super().__init__(refusal)
+        self.refusal = refusal
+        self.automation_id = automation_id
+
+
 def check_execution_access(automation, sensors):
     """Recheck the current permissions of the user whom the automation runs as (its creator, unless taken over), for unattended execution.
 
     A null identity denotes trusted CLI creation or a legacy automation. A deleted
     identity remains stored and fails closed, rather than reverting to CLI trust.
+
+    :raises RunsRefused: if that user is missing or inactive, or lacks a permission.
     """
     from flexmeasures.data.models.user import User
 
@@ -464,10 +479,10 @@ def check_execution_access(automation, sensors):
 
     user = db.session.get(User, automation.execution_user_id, populate_existing=True)
     run_user = describe_run_user(automation.execution_user_id)
-    takeover = "Someone who may run it can take it over with Run as me in its edit form (run-as-me in the API)."
     if user is None or not user.active:
-        raise Forbidden(
-            f"Automation {automation.id} runs as {run_user}, who is missing or inactive. {takeover}"
+        raise RunsRefused(
+            f"Automation {automation.id} runs as {run_user}, who is missing or inactive.",
+            automation.id,
         )
     for entities, permission in (
         ([automation.asset], "read"),
@@ -476,10 +491,19 @@ def check_execution_access(automation, sensors):
     ):
         for entity in entities:
             if not user_has_permission(user, entity, permission):
-                kind = "asset" if entity is automation.asset else "sensor"
-                raise Forbidden(
-                    f"Automation {automation.id} runs as {run_user}, who no longer has '{permission}' permission on {kind} {entity.id}. {takeover}"
+                raise RunsRefused(
+                    f"Automation {automation.id} runs as {run_user}, who does not have '{permission}' permission on {_kind_of(automation, entity)} {entity.id}.",
+                    automation.id,
                 )
+
+
+def _kind_of(automation, entity) -> str:
+    """Name the kind of entity a run checks access to: the automation's asset, a sensor, or an account or asset whose annotations it reads."""
+    if entity is automation.asset:
+        return "asset"
+    return {"Account": "account", "GenericAsset": "asset"}.get(
+        type(entity).__name__, "sensor"
+    )
 
 
 @record_outcome_on_automation_run

@@ -186,8 +186,10 @@ def edit_automation(
     A new configuration moves the automation to the data source storing it,
     because other automations may share the old one, and what was computed under it was computed with its configuration.
     A schedule automation's data source follows from the asset, so it accepts new --parameters only.
-    The CLI is trusted, so an edit is not checked against anyone's access,
-    but it warns when the user the automation runs as could not run what it now computes, as every run would then be refused.
+    The CLI is trusted, so an edit is not checked against anyone's access.
+    Still, an edit of what the automation computes, or of whom it runs as, is refused when that user could not run it,
+    as every run would then be refused; pass --run-as in the same command to run it as someone who may.
+    Other edits only warn about this.
     """
     from flexmeasures.cli.data_add import _load_yaml_mapping
 
@@ -219,16 +221,30 @@ def edit_automation(
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
+    problem = run_user_problem(automation)
+    run_as_hint = f"Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`."
+    changes_what_runs = run_as is not None or any(
+        given is not None
+        for given in (parameters_file, generator_class, config_file, source)
+    )
+    if problem is not None and changes_what_runs:
+        db.session.rollback()
+        if run_as is not None:
+            abort(
+                f"Automation {automation.id} was not changed, as the user named with --run-as could not run it: {problem}"
+            )
+        abort(
+            f"Automation {automation.id} was not changed, as every run would be refused: {problem}"
+            f" Pass --run-as <user id> in the same command to run it as someone who may."
+        )
     db.session.commit()
     click.secho(
         f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
         **MsgStyle.SUCCESS,
     )
-    problem = run_user_problem(automation)
     if problem is not None:
         click.secho(
-            f"Warning: the runs of this automation will be refused: {problem}"
-            " From the CLI, pass --run-as to run it as someone who may.",
+            f"Warning: the runs of this automation will be refused: {problem} {run_as_hint}",
             **MsgStyle.WARN,
         )
 

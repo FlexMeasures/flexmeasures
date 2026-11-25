@@ -1472,9 +1472,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         },
         error: function (xhr) {
           $("#automations_msg").addClass("d-none");
-          showAutomationsError(
-            `Could not run automation ${automationId}: ${automationAjaxErrorMessage(xhr)}.`
-          );
+          // The API tells its clients to send run-as-me, while on this page that is the Run as me box in the edit form.
+          const response = xhr.responseJSON;
+          const reason = xhr.status === 403 && response?.reason === "run-user-lacks-access"
+            ? `${response.refusal.replace(/\.+$/, "")}. Open Edit, tick Run as me and save to take it over`
+            : automationAjaxErrorMessage(xhr);
+          showAutomationsError(`Could not run automation ${automationId}: ${reason}.`);
         },
         complete: function () {
           button.prop("disabled", false).text("Run now");
