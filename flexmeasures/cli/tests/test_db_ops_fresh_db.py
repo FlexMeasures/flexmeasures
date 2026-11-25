@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import timely_beliefs as tb
 from pytz import utc
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
@@ -58,12 +58,11 @@ def test_enable_timescaledb(
     )
     check_command_ran_without_error(result)
     assert timescaledb.is_hypertable(fresh_db.session)
-    assert (
-        fresh_db.session.execute(
-            text("SELECT count(*) FROM show_chunks('timed_belief')")
-        ).scalar_one()
-        == 9
-    )
+    assert timescaledb.count_chunks(fresh_db.session) == 9
+    # Only the indexes the data model declares, so `flexmeasures db migrate` has nothing to propose dropping.
+    assert {
+        index["name"] for index in inspect(fresh_db.engine).get_indexes("timed_belief")
+    } == {index.name for index in TimedBelief.__table__.indexes}
     pd.testing.assert_frame_equal(_search(sensor_id), before)
 
     # Running it again only applies compression; all beliefs are from 2023, so every chunk qualifies.
