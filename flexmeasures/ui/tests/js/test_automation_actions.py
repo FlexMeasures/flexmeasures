@@ -19,6 +19,8 @@ PLUGIN_AUTOMATION_TYPES = [
         "type_id": "mock-ingestion",
         "display_name": "Mock ingestion",
         "source_type": "ingestor",
+        "config_example": '{"sensor": "...", "input-sensor": "..."}',
+        "parameters_example": '{"value": 42.0}',
     }
 ]
 
@@ -53,6 +55,7 @@ def automation_script(
             "scheduling": "Schedules",
             "mock-ingestion": "Mock ingestion",
         },
+        always_shown_automation_types=["forecasting", "scheduling"],
         plugin_automation_types=PLUGIN_AUTOMATION_TYPES,
         config={"FLEXMEASURES_JOB_TTL": timedelta(days=7)},
     )
@@ -309,3 +312,79 @@ def test_the_asset_column_appears_only_when_the_listing_spans_several_assets(ass
         assert (
             wants is expected
         ), f"{label} should{'' if expected else ' not'} span several assets"
+
+
+def automation_tabs_html(
+    shown_at_first: tuple[str, ...] = ("forecasting", "scheduling"),
+) -> str:
+    """The type tabs as the page renders them, for a server with one plugin type."""
+    match = re.search(
+        r'(<ul class="nav nav-tabs" id="automationTypeTabs" role="tablist">.*?</ul>)',
+        TEMPLATE.read_text(),
+        re.DOTALL,
+    )
+    assert match is not None
+    environment = Environment(autoescape=True, undefined=StrictUndefined)
+    return environment.from_string(match.group(1)).render(
+        automation_types={
+            "forecasting": "Forecasts",
+            "scheduling": "Schedules",
+            "mock-ingestion": "Mock ingestion",
+        },
+        automation_types_shown_at_first=set(shown_at_first),
+    )
+
+
+def test_a_plugin_types_tab_shows_only_while_the_listing_holds_one(assert_js):
+    """A server's plugin types do not each put a tab on every asset, only on those whose listing has one of them."""
+    assert_js(f"""
+        document.body.insertAdjacentHTML("beforeend", {json.dumps(automation_tabs_html())});
+        const shownTabs = [];
+        window.bootstrap = {{ Tab: {{ getOrCreateInstance: (el) => ({{ show: () => {{
+            document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(b => b.classList.remove("active"));
+            el.classList.add("active");
+            shownTabs.push(el.id);
+        }} }}) }} }};
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(automation_script(can_manage=True, can_run=True))}
+            + "\\nreturn {{ showTabsInUse, list: (automations) => {{ lastListedAutomations = automations; }}, setFilter: (value) => {{ monitoringFilter = value; }} }};")();
+        const hidden = (typeId) => document.getElementById(`${{typeId}}-tab`).closest(".nav-item").classList.contains("d-none");
+        // Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones, so a hidden tab must be disabled as well.
+        const disabled = (typeId) => document.getElementById(`${{typeId}}-tab`).disabled;
+
+        check("the page arrives with the plugin tab hidden", hidden("mock-ingestion"), "");
+        check("and disabled, so the arrow keys pass it by", disabled("mock-ingestion"), "");
+        check("and the built-in tabs shown", !hidden("forecasting") && !hidden("scheduling"), "");
+
+        page.list([{{id: 1, type: "forecasting"}}]);
+        page.showTabsInUse();
+        check("a listing without the plugin type keeps its tab hidden", hidden("mock-ingestion"), "");
+        check("while an empty built-in tab stays", !hidden("scheduling"), "");
+
+        page.list([{{id: 2, type: "mock-ingestion", monitored: true}}]);
+        page.setFilter("unmonitored");
+        page.showTabsInUse();
+        check("a listing holding the plugin type shows its tab, whatever the monitoring filter", !hidden("mock-ingestion"), "");
+        check("and makes it reachable by keyboard again", !disabled("mock-ingestion"), "");
+
+        document.getElementById("forecasting-tab").classList.remove("active");
+        document.getElementById("mock-ingestion-tab").classList.add("active");
+        page.list([]);
+        page.showTabsInUse();
+        check("the tab hides again once the listing no longer holds the type", hidden("mock-ingestion"), "");
+        check("and is disabled again", disabled("mock-ingestion"), "");
+        eq("the first tab still shown comes to the front", shownTabs, ["forecasting-tab"]);
+    """)
+
+
+def test_a_plugin_types_tab_the_first_listing_holds_arrives_shown(assert_js):
+    """The view tells which plugin tabs the first listing holds, so they are there from the start rather than popping in."""
+    tabs = automation_tabs_html(
+        shown_at_first=("forecasting", "scheduling", "mock-ingestion")
+    )
+    assert_js(f"""
+        document.body.insertAdjacentHTML("beforeend", {json.dumps(tabs)});
+        const tab = document.getElementById("mock-ingestion-tab");
+        check("the plugin tab arrives shown", !tab.closest(".nav-item").classList.contains("d-none"), "");
+        check("and enabled", !tab.disabled, "");
+    """)

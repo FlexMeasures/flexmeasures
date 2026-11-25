@@ -235,14 +235,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter)." style="font-size: 16px"></i>
                   </label>
-                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <input type="text" class="form-control" id="automationGenerator">
                 </div>
                 <div class="mb-3 chooses-generator">
                   <label for="automationConfig" class="form-label">Data generator config (JSON)
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. They cannot be changed afterwards." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
+                  <textarea class="form-control" id="automationConfig" rows="3"></textarea>
                   <div class="form-text">Leave empty for the generator's defaults.</div>
                 </div>
                 <div class="mb-3">
@@ -250,7 +250,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
                      title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), report parameters (for type reporting), or the parameters a plugin type defines. A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
                   </label>
-                  <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
+                  <textarea class="form-control" id="automationParameters" rows="4"></textarea>
                   <!-- The run period options belong to the built-in types; a plugin type's parameters follow its own schema. -->
                   <div class="form-text builtin-type-only">
                     Say the period each run covers with two of "start-offset", "end-offset" and "duration",
@@ -337,10 +337,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         <div class="text-muted small mb-1" id="automationsRefreshedAt"
           title="This page brings itself up to date about once a minute, while it is the tab in front and nothing is open over it."></div>
 
-        <ul class="nav nav-tabs" role="tablist">
+        <ul class="nav nav-tabs" id="automationTypeTabs" role="tablist">
           {% for type_id, display_name in automation_types.items() %}
-          <li class="nav-item" role="presentation">
-            <button class="nav-link{% if loop.first %} active{% endif %}" id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
+          {# A plugin type's tab starts hidden unless the scope first listed holds one of its automations; the script keeps it in step with the listing after that.
+             A hidden tab is disabled too, as Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones. #}
+          {% set shown_at_first = type_id in automation_types_shown_at_first %}
+          <li class="nav-item{% if not shown_at_first %} d-none{% endif %}" role="presentation">
+            <button class="nav-link{% if loop.first %} active{% endif %}"{% if not shown_at_first %} disabled{% endif %} id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
           </li>
           {% endfor %}
         </ul>
@@ -373,6 +376,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // Switching monitoring off silences the digest for whoever receives it, so only admins may, and the forms leave the field out for everyone else.
   const userCanChangeMonitoring = {{ user_can_change_monitoring | tojson }};
   const automationTypes = {{ automation_types | tojson }};
+  // The types whose tab shows even while it lists nothing; any other type's tab shows only while the listing holds one of its automations.
+  const alwaysShownAutomationTypes = new Set({{ always_shown_automation_types | tojson }});
   const automationsById = new Map();
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
   const automationDetailsById = new Map();
@@ -450,8 +455,28 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     forecasting: "forecaster",
     reporting: "reporter",
   };
+  /* An example of what each type expects, shown in its empty fields,
+     so they hint at the shape of a report when making a report, rather than at a forecast's whatever the type.
+     A plugin type brings no example of its own, so its fields show what its config and parameters schemas load. */
+  const EXAMPLES_PER_TYPE = {
+    forecasting: {
+      generator: "TrainPredictPipeline",
+      config: '{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}',
+      parameters: '{"sensor": 2092}',
+    },
+    scheduling: {
+      parameters: '{"start-offset": "1D,DB", "duration": "P1D"}',
+    },
+    reporting: {
+      generator: "PandasReporter",
+      config: '{"required_input": [{"name": "energy"}], "required_output": [{"name": "daily-energy"}], '
+        + '"transformations": [{"df_input": "energy", "df_output": "daily-energy", "method": "resample_events", "args": ["1D"], "kwargs": {"method": "sum"}}]}',
+      parameters: '{"input": [{"name": "energy", "sensor": 2092}], "output": [{"name": "daily-energy", "sensor": 2093}], "start-offset": "-1D,DB", "end-offset": "DB"}',
+    },
+  };
   for (const pluginType of {{ plugin_automation_types | tojson }}) {
     SOURCE_TYPE_PER_AUTOMATION_TYPE[pluginType.type_id] = pluginType.source_type;
+    EXAMPLES_PER_TYPE[pluginType.type_id] = { config: pluginType.config_example, parameters: pluginType.parameters_example };
   }
 
   // The types FlexMeasures itself defines; any other type comes from a plugin, which declares its own data generator.
@@ -554,6 +579,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(".chooses-generator").toggle(typeChoosesGenerator());
     $(".names-generator-class").toggle(typeNamesGeneratorClass());
     $(".builtin-type-only").toggle(BUILTIN_AUTOMATION_TYPES.includes($("#automationType").val()));
+    // Each field shows the chosen type's own example.
+    const examples = EXAMPLES_PER_TYPE[$("#automationType").val()] || {};
+    $("#automationGenerator").attr("placeholder", examples.generator || "");
+    $("#automationConfig").attr("placeholder", examples.config || "");
+    $("#automationParameters").attr("placeholder", examples.parameters || "");
+  }
+
+  // Whether the creation form offers a type, which a type whose plugin is gone it does not.
+  function formOffersType(automationType) {
+    return Array.from(document.getElementById("automationType")?.options ?? []).some(option => option.value === automationType);
+  }
+
+  // The type of the tab in front, so that a new automation starts out as the kind the user is looking at.
+  function typeOfTabInFront() {
+    const activeTab = document.querySelector('#automationTypeTabs button[data-bs-toggle="tab"].active');
+    return activeTab ? activeTab.id.replace(/-tab$/, "") : null;
   }
 
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
@@ -842,6 +883,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
   }
 
+  // A plugin type is created from the form like any other, so only a built-in type's hint mentions the CLI as well.
+  function createOneHint(automationType) {
+    return BUILTIN_AUTOMATION_TYPES.includes(automationType)
+      ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
+      : " Create one with the 'New automation' button.";
+  }
+
   function makeAutomationsTable(automationType, automations) {
     const scope = includeChildAssets && assetHasChildren ? "on this asset or below it" : "on this asset";
     const columns = [
@@ -874,7 +922,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         emptyTable: monitoringFilter !== "all"
           ? `No ${monitoringFilter} automations of type '${esc(automationTypes[automationType] || automationType)}' ${scope}.`
           : `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
-          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
+          + (userCanManage ? createOneHint(automationType) : ""),
       },
       columns: columns,
       data: automations.map(AutomationRow),
@@ -919,7 +967,31 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  /* Show the tab of each type that is always shown or that the listing holds, and hide the rest.
+     The monitoring filter does not count here: filtering a tab empty should not take the tab away.
+     When the tab in front gets hidden, as narrowing the scope can do, the first tab still shown takes its place. */
+  function showTabsInUse() {
+    const typesListed = new Set(lastListedAutomations.map(automation => automation.type));
+    for (const automationType of AUTOMATION_TYPES) {
+      const shown = alwaysShownAutomationTypes.has(automationType) || typesListed.has(automationType);
+      const tab = document.getElementById(`${automationType}-tab`);
+      if (tab) {
+        tab.closest(".nav-item").classList.toggle("d-none", !shown);
+        tab.disabled = !shown;  // Bootstrap's arrow keys, Home and End skip disabled tabs, not hidden ones
+      }
+    }
+    // Only this tab list: the attributes editor has tabs of its own.
+    const activeTab = document.querySelector('#automationTypeTabs button[data-bs-toggle="tab"].active');
+    if (activeTab && activeTab.closest(".nav-item").classList.contains("d-none")) {
+      const firstShownTab = document.querySelector('#automationTypeTabs .nav-item:not(.d-none) > button[data-bs-toggle="tab"]');
+      if (firstShownTab) {
+        bootstrap.Tab.getOrCreateInstance(firstShownTab).show();
+      }
+    }
+  }
+
   function renderAutomationsTables({ rebuild = false } = {}) {
+    showTabsInUse();
     for (const automationType of AUTOMATION_TYPES) {
       $(`#automationsTable-${automationType}`).show();
       const ofThisType = lastListedAutomations.filter(
@@ -1021,8 +1093,53 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
   }
 
+  // A toast raised just before the page reloads would vanish with it, so it waits in session storage until the page is back.
+  const TOAST_AFTER_RELOAD_KEY = "automationsPageToastAfterReload";
+
+  function rememberToastAfterReload(message) {
+    if (!message) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(TOAST_AFTER_RELOAD_KEY, message);
+    } catch (e) {
+      // Without session storage, the toast is skipped; the deletion itself went through.
+    }
+  }
+
+  function showToastLeftBeforeReload() {
+    let message = null;
+    try {
+      message = sessionStorage.getItem(TOAST_AFTER_RELOAD_KEY);
+      sessionStorage.removeItem(TOAST_AFTER_RELOAD_KEY);
+    } catch (e) {
+      return;
+    }
+    if (message) {
+      showToast(message, "info");
+    }
+  }
+
+  /* Deleting the last automation of a plugin type takes its tab away, which can look as if the type itself is gone,
+     so the user is told where to make one again. A type whose tab always shows, or whose plugin is gone, needs no such word. */
+  function lastOfItsTypeDeletedMessage(automationId) {
+    const automation = automationsById.get(Number(automationId));
+    if (!automation || alwaysShownAutomationTypes.has(automation.type) || !formOffersType(automation.type)) {
+      return null;
+    }
+    const othersOfItsType = lastListedAutomations.filter(
+      other => other.type === automation.type && other.id !== automation.id
+    );
+    if (othersOfItsType.length) {
+      return null;
+    }
+    const displayName = automationTypes[automation.type] || automation.type;
+    return `That was the last ${displayName} automation here. To make a new one, use New automation.`;
+  }
+
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
+    showToastLeftBeforeReload();
     // The field labels carry their reference text on an info icon, which Bootstrap only turns into a tooltip once asked.
     // A tooltip is appended to the body by default, at a z-index far below the one the theme gives a modal,
     // so one raised from inside a modal is painted behind it. Anchor it to the modal to put it in the same stacking context.
@@ -1140,7 +1257,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
 
     // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.
-    $("#newAutomationButton").on("click", () => resetNewAutomationForm());
+    // It starts as the type of the tab in front, when the form offers that type.
+    $("#newAutomationButton").on("click", () => {
+      resetNewAutomationForm();
+      const automationType = typeOfTabInFront();
+      if (automationType && formOffersType(automationType)) {
+        $("#automationType").val(automationType);
+        showGeneratorFields();
+      }
+    });
 
     $("#editAutomationForm").submit(function (event) {
       event.preventDefault();
@@ -1182,10 +1307,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const automationId = $(this).data("id");
       const name = $(this).data("name");
       if (!confirm(`Delete automation '${name}'?`)) return;
+      const lastOfItsTypeMessage = lastOfItsTypeDeletedMessage(automationId);
       $.ajax({
         url: automationUrl(automationId),
         method: "DELETE",
-        success: () => location.reload(),
+        success: () => {
+          rememberToastAfterReload(lastOfItsTypeMessage);
+          location.reload();
+        },
         error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
       });
     });

@@ -49,6 +49,7 @@ from flexmeasures.ui.views.assets.utils import (
     get_list_assets_chart,
     add_child_asset,
     readable_site_asset,
+    schema_example,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import (
     ANOTHER_ORGANISATION,
@@ -279,11 +280,30 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
-        # The page's tabs cover every type it can come to list, rather than the types its current scope holds:
+        # The page holds a tab for every type it can come to list, rather than the types its current scope holds:
         # the scope is widened on the page itself, which refreshes the listing without rendering the tabs again,
         # and an automation of a type without a tab would have nowhere to be listed.
+        # The page then hides each plugin type's tab while the listing has none of that type,
+        # so a server with many plugins does not crowd every asset with tabs it has no use for.
         assets_it_can_list = [asset] + get_readable_offspring(asset)
         registered_types = get_automation_types()
+        # The built-in types keep their tab even when empty, as that is where their empty-table hint says how to create one.
+        always_shown_automation_types = [
+            type_id
+            for type_id, handler in registered_types.items()
+            if handler.generator_class is None
+        ]
+        # The page first lists the scope the user last chose, so the tabs of the types it holds are rendered visible rather than popping in once the listing arrives.
+        assets_in_scope = (
+            assets_it_can_list
+            if session.get("automations_page_include_child_assets", True)
+            else [asset]
+        )
+        automation_types_shown_at_first = set(always_shown_automation_types) | {
+            automation.type
+            for asset_in_scope in assets_in_scope
+            for automation in asset_in_scope.automations
+        }
 
         return render_flexmeasures_template(
             "assets/asset_automations.html",
@@ -299,6 +319,8 @@ class AssetCrudUI(FlaskView):
                 for automation in asset_it_can_list.automations
                 if automation.type not in registered_types
             },
+            always_shown_automation_types=always_shown_automation_types,
+            automation_types_shown_at_first=automation_types_shown_at_first,
             # Only an installed plugin type can be created, so a type whose plugin is gone gets a tab but no place in the creation form.
             # Its data sources are recorded under the generator's base, which is what narrows the form's source picker to sources of this type.
             plugin_automation_types=[
@@ -306,6 +328,13 @@ class AssetCrudUI(FlaskView):
                     type_id=type_id,
                     display_name=handler.display_name,
                     source_type=handler.generator_class.__data_generator_base__,
+                    # A plugin type brings no example of its own, so its empty JSON fields show what its schemas load.
+                    config_example=schema_example(
+                        handler.generator_class._config_schema
+                    ),
+                    parameters_example=schema_example(
+                        handler.generator_class._parameters_schema
+                    ),
                 )
                 for type_id, handler in registered_types.items()
                 if handler.generator_class is not None

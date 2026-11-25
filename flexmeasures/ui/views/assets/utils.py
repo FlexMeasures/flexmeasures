@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+
 from flask import url_for
+from marshmallow import Schema, missing
 from markupsafe import Markup
 from werkzeug.exceptions import NotFound
 
@@ -24,6 +27,31 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     if asset is None:
         raise NotFound
     return asset
+
+
+def schema_example(schema: Schema | type[Schema]) -> str:
+    """Spell out what a schema loads as a JSON example, for the placeholder of an empty JSON field in the New automation form.
+
+    Each field appears under the key the JSON gives it, with its default where it has one that JSON can hold, and with "..." where it has none.
+    An empty schema gives no example at all.
+    """
+    # A plugin may declare its schema as a class rather than an instance, and only an instance lists its fields.
+    if isinstance(schema, type):
+        schema = schema()
+    example = {}
+    for name, field in schema.fields.items():
+        if field.dump_only:
+            continue
+        value = field.load_default
+        if value is missing or callable(value):
+            value = "..."
+        else:
+            try:
+                json.dumps(value)
+            except (TypeError, ValueError):
+                value = "..."
+        example[field.data_key or name] = value
+    return json.dumps(example) if example else ""
 
 
 def get_inherited_flex_context(asset: GenericAsset) -> dict[str, dict]:

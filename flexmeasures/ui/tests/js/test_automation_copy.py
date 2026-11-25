@@ -12,6 +12,7 @@ from test_automation_actions import (
     PLUGIN_AUTOMATION_TYPES,
     TEMPLATE,
     automation_script,
+    automation_tabs_html,
 )
 
 
@@ -53,6 +54,11 @@ JQUERY_STUB = """
             val: function (value) {
                 if (value === undefined) return nodes.length ? nodes[0].value : undefined;
                 nodes.forEach(node => { node.value = value; });
+                return self;
+            },
+            attr: function (name, value) {
+                if (value === undefined) return nodes.length ? nodes[0].getAttribute(name) : undefined;
+                nodes.forEach(node => node.setAttribute(name, value));
                 return self;
             },
             prop: function (name, value) {
@@ -276,6 +282,72 @@ def test_the_form_offers_installed_plugin_types_and_asks_them_for_no_generator_c
         check("a forecast names its data generator class again", shown(".names-generator-class"), "generator class field still hidden");
         check("and gets the run period options back", shown(".builtin-type-only"), "run period hint still hidden");
         eq("and sends its class", page.typeNamesGeneratorClass(), true);
+    """)
+
+
+def test_the_examples_in_the_form_follow_the_chosen_type(assert_js):
+    """Each type's empty fields show an example of that type, and a plugin type's show what its schemas load."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html())};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ showGeneratorFields }};")();
+        const placeholder = id => document.getElementById(id).getAttribute("placeholder");
+        const choose = type => {{ document.getElementById("automationType").value = type; page.showGeneratorFields(); }};
+
+        choose("forecasting");
+        eq("a forecast suggests its default forecaster", placeholder("automationGenerator"), "TrainPredictPipeline");
+        choose("reporting");
+        eq("a report suggests a reporter", placeholder("automationGenerator"), "PandasReporter");
+        check("and a report's parameters", placeholder("automationParameters").includes('"output"'), placeholder("automationParameters"));
+        choose("mock-ingestion");
+        eq("a plugin type suggests the config its schema loads", placeholder("automationConfig"), '{{"sensor": "...", "input-sensor": "..."}}');
+        eq("and the parameters, with their defaults", placeholder("automationParameters"), '{{"value": 42.0}}');
+    """)
+
+
+def test_a_new_automation_starts_as_the_type_of_the_tab_in_front(assert_js):
+    """New automation starts from the tab the user is on, when the form offers that type."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html())} + {json.dumps(automation_tabs_html())};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ typeOfTabInFront, formOffersType }};")();
+
+        eq("the first tab is in front at first", page.typeOfTabInFront(), "forecasting");
+        document.getElementById("forecasting-tab").classList.remove("active");
+        document.getElementById("mock-ingestion-tab").classList.add("active");
+        eq("the plugin tab in front gives its type", page.typeOfTabInFront(), "mock-ingestion");
+        check("which the form offers", page.formOffersType("mock-ingestion"), "");
+        check("unlike a type whose plugin is gone", !page.formOffersType("gone-plugin"), "");
+    """)
+
+
+def test_deleting_the_last_automation_of_a_plugin_type_says_how_to_make_one_again(
+    assert_js,
+):
+    """Its tab goes with it, so the user is told that New automation still makes one."""
+    assert_js(f"""
+        const holder = document.createElement("div");
+        holder.innerHTML = {json.dumps(creation_form_html())};
+        document.body.appendChild(holder);
+        {JQUERY_STUB}
+        const page = new Function({json.dumps(copy_script())}
+            + "\\nreturn {{ lastOfItsTypeDeletedMessage, list: (automations) => {{"
+            + " lastListedAutomations = automations; automations.forEach(a => automationsById.set(a.id, a)); }} }};")();
+
+        page.list([{{id: 1, type: "mock-ingestion"}}, {{id: 2, type: "mock-ingestion"}}, {{id: 3, type: "forecasting"}}, {{id: 4, type: "gone-plugin"}}]);
+        eq("deleting one of two says nothing", page.lastOfItsTypeDeletedMessage(1), null);
+        eq("nor does deleting the last of a type whose tab always shows", page.lastOfItsTypeDeletedMessage(3), null);
+        eq("nor the last of a type whose plugin is gone, which cannot be made again", page.lastOfItsTypeDeletedMessage("4"), null);
+
+        page.list([{{id: 2, type: "mock-ingestion"}}]);
+        eq("deleting the last one says where to make a new one", page.lastOfItsTypeDeletedMessage("2"),
+           "That was the last Mock ingestion automation here. To make a new one, use New automation.");
     """)
 
 

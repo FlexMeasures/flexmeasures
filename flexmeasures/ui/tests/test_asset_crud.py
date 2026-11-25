@@ -256,7 +256,7 @@ def test_automations_page_offers_installed_plugin_types_for_creation(
     assert b'<optgroup label="Plugin types">' in response.data
     assert b'<option value="mock-ingestion">Mock ingestion</option>' in response.data
     assert (
-        b'{"display_name": "Mock ingestion", "source_type": "ingestor", "type_id": "mock-ingestion"}'
+        b'"display_name": "Mock ingestion", "parameters_example": "{\\"value\\": 42.0}", "source_type": "ingestor", "type_id": "mock-ingestion"}'
         in response.data
     )
 
