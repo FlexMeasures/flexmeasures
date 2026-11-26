@@ -44,6 +44,12 @@ Re-running the migration cleans it up first, so a retry is safe.
 A failed ``CREATE INDEX CONCURRENTLY`` can also leave an *invalid* index,
 which the same cleanup removes.
 
+On a TimescaleDB hypertable (see ``flexmeasures db-ops enable-timescaledb``), none of this is possible:
+TimescaleDB builds unique indexes there neither concurrently nor per chunk,
+and does not adopt an existing index as a primary key.
+So there, the primary key is rebuilt in the migration's transaction instead,
+which blocks reads and writes of timed_belief until every chunk's copy of it is rebuilt.
+
 Revision ID: d4a7c1e93b52
 Revises: 3bc1e29ca1f4
 Create Date: 2026-08-03
@@ -52,6 +58,8 @@ Create Date: 2026-08-03
 
 import sqlalchemy as sa
 from alembic import op
+
+from flexmeasures.data.migration_utils import drop_index_online, is_hypertable
 
 # revision identifiers, used by Alembic.
 revision = "d4a7c1e93b52"
@@ -113,7 +121,16 @@ def _swap_primary_key(order: list[str]) -> None:
     # A previous failed run can leave the temporary index behind, possibly marked invalid.
     # Drop it first so a retry is always safe.
     with op.get_context().autocommit_block():
-        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {schema}.{TEMP_INDEX}")
+        drop_index_online(f"{schema}.{TEMP_INDEX}", raw_schema, "timed_belief")
+    if is_hypertable(raw_schema, "timed_belief"):
+        op.drop_constraint(
+            "timed_belief_pkey", "timed_belief", type_="primary", schema=raw_schema
+        )
+        op.create_primary_key(
+            "timed_belief_pkey", "timed_belief", order, schema=raw_schema
+        )
+        return
+    with op.get_context().autocommit_block():
         # CREATE INDEX takes an unqualified index name:
         # the index is always created in the schema of its table.
         op.execute(

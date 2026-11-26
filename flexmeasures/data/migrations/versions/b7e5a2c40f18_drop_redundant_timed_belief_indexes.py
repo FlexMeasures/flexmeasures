@@ -30,6 +30,7 @@ and skips anything already absent.
 
 The drops run ``CONCURRENTLY``, so no maintenance window is needed:
 reads and writes continue throughout, and no exclusive lock is taken on the table.
+On a TimescaleDB hypertable, which refuses that, they run without ``CONCURRENTLY`` (see ``flexmeasures.data.migration_utils``).
 
 Finally, this reports any *other* index it finds that the reordered primary key of ``d4a7c1e93b52`` has made redundant,
 without dropping it.
@@ -50,6 +51,8 @@ import logging
 
 import sqlalchemy as sa
 from alembic import op
+
+from flexmeasures.data.migration_utils import create_index_online, drop_index_online
 
 logger = logging.getLogger("alembic.runtime.migration")
 
@@ -195,7 +198,7 @@ def upgrade():
         # The query returns identifiers already quoted by PostgreSQL's own quote_ident(),
         # so names needing quoting (or containing quotes) are handled correctly.
         with op.get_context().autocommit_block():
-            op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {qualified_name}")
+            drop_index_online(qualified_name, raw_schema, "timed_belief")
 
     # Which of the two a database carries varies with its age and the timely-beliefs version that built it,
     # so say what was actually dropped here rather than what the migration can drop in general.
@@ -238,7 +241,7 @@ def _suggest_dropping_prefix_indexes(raw_schema: str):
 
 def downgrade():
     # Recreate under the naming convention this project's metadata uses.
-    # The quoted form here, because it is interpolated into raw SQL.
+    # The raw form of the schema here, as create_index_online quotes it.
     #
     # Both are recreated unconditionally, unlike the hand-added composite index in d4a7c1e93b52,
     # and the difference is provenance.
@@ -248,12 +251,15 @@ def downgrade():
     # Restoring them is restoring our schema, not inventing schema for the operator.
     # A database that carried only one of them does gain the other, which the message below points out,
     # and dropping it again is a one-liner.
-    _raw_schema, schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
+    raw_schema, _schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
     for column in REDUNDANT_COLUMNS:
         with op.get_context().autocommit_block():
-            op.execute(
-                f"CREATE INDEX CONCURRENTLY IF NOT EXISTS timed_belief_{column}_idx"
-                f" ON {schema}.timed_belief ({column})"
+            create_index_online(
+                f"timed_belief_{column}_idx",
+                raw_schema,
+                "timed_belief",
+                [column],
+                if_not_exists=True,
             )
     _report(
         f"Recreated the single-column indexes on timed_belief"
