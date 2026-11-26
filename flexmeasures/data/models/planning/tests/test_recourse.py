@@ -155,9 +155,11 @@ def _compute_recourse(
     flex_context_extra: dict | None = None,
     internal_device_keys: dict[int, dict] | None = None,
     internal_context_keys: dict | None = None,
+    start: pd.Timestamp = START,
 ) -> dict[int, pd.DataFrame]:
     """Schedule the site and return each device's reaction rule data by sensor ID.
 
+    ``start`` moves the start of the schedule (and its belief time), for a re-schedule later on.
     ``flex_context_extra`` adds public flex-context fields.
     ``internal_device_keys`` (by device index) and ``internal_context_keys`` are set on the deserialized flex config,
     the way the scheduler reads keys the public schemas do not expose yet.
@@ -174,10 +176,10 @@ def _compute_recourse(
 
     scheduler = StorageScheduler(
         asset_or_sensor=site,
-        start=START,
+        start=start,
         end=end,
         resolution=RESOLUTION,
-        belief_time=START,
+        belief_time=start,
         flex_model=flex_model,
         flex_context=flex_context,
         return_multiple=True,
@@ -537,6 +539,76 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
         0.0060, abs=TOLERANCE
     )
     assert _clip_to_band(p - react * (-0.0044 - reference), band, p) == p
+
+
+def test_retrigger_after_absorbing_restores_the_target(app, db):
+    """Absorbing a deviation leaves the state of charge short of the plan, and a re-schedule from there still meets the target.
+
+    The charger and site of the test above plan 4.4, 4.4, 5.0 and 7.4 kW towards 21.2 kWh by the evening.
+    In the first slot, clouds take 2 kW of the sun: the charger reacts and charges only 2.4 kW, ending the slot 2 kWh short of the plan.
+    Nothing in the rules makes up for that energy: following the rest of the plan would miss the target by those 2 kWh.
+    Re-scheduled from the second slot with the lower state of charge, the plan meets the target again.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (retrigger after absorbing)",
+        consumption_prices=[50, 49, 48, 47],
+        production_prices=[5, 5, 5, 5],
+        load_kw=[-4.4, -4.4, -4.4, -4.4],
+    )
+    target = 0.0212  # MWh
+    soc_targets = {
+        "soc-targets": [{"datetime": end.isoformat(), "value": f"{target} MWh"}]
+    }
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[_charger(battery_power, **soc_targets)],
+        flex_context_extra={"relax-soc-constraints": False},
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [0.0044, 0.0044, 0.0050, 0.0074], atol=TOLERANCE, err_msg="plan"
+    )
+
+    # The first slot, with 2 kW less sun than forecast.
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    m_uncontrolled = -0.0024
+    setpoint = _clip_to_band(p - react * (m_uncontrolled - reference), band, p)
+    assert setpoint == pytest.approx(0.0024, abs=TOLERANCE)
+    soc = setpoint * (RESOLUTION / timedelta(hours=1))
+    planned_soc = p * (RESOLUTION / timedelta(hours=1))
+    assert planned_soc - soc == pytest.approx(0.002, abs=TOLERANCE), "SoC short"
+    rest_of_plan = data["p"].iloc[1:].sum() * (RESOLUTION / timedelta(hours=1))
+    assert soc + rest_of_plan == pytest.approx(
+        target - 0.002, abs=TOLERANCE
+    ), "the rest of the plan misses the target by the energy absorbed"
+
+    # The retrigger: a new schedule from the second slot, starting from the state of charge actually reached.
+    new_data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _charger(battery_power, **{"soc-at-start": f"{soc} MWh", **soc_targets})
+        ],
+        flex_context_extra={"relax-soc-constraints": False},
+        start=START + RESOLUTION,
+    )[battery_power.id]["data"]
+    assert len(new_data) == 3
+    new_energy = new_data["p"].sum() * (RESOLUTION / timedelta(hours=1))
+    assert soc + new_energy == pytest.approx(
+        target, abs=TOLERANCE
+    ), "the re-schedule meets the target"
+    _assert_bands_are_well_formed(new_data)
 
 
 def test_negative_feed_in_without_a_forecast(app, db):
