@@ -499,28 +499,48 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. _reaction_rules:
 
-Reacting to surprises at the connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Reacting to deviations at the connection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A schedule plans each device's power against a forecast of the uncontrolled power at the connection (the base load and generation behind the main meter).
 For a device whose flex-model sets ``react`` to true, the scheduler also tells the client how the device should react locally when the meter deviates from that forecast,
 so the site keeps to the plan's intent between two schedule triggers.
 
+Where it pays to react hinges on the price kink.
+The price kink is the bend in the cost of the connection as a function of its net power:
+at 0 kW where importing costs the consumption price and exporting earns only the lower production price, or at a capacity that binds.
+The plan sits on such a kink, so a deviation there is best absorbed by the device.
+
 Each schedule value of such a device then comes with an entry of the ``reaction`` array, served by ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``, holding:
 
-- ``reference``: the uncontrolled power at the connection against which the plan is balanced, in the schedule's unit: normally the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly (the balancing power falls in a gap between two of its ranges, and the plan sits at the gap's edge), by the plan's miss: where the plan holds the connection at zero, it is then the negative of the planned device power, and where a capacity binds, the capacity minus the planned device power;
-- ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
-- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit: every range the plan leaves feasible (the device's operation modes cut to its own limits), each narrowed by its state-of-charge limits, hard and soft alike. Whether and when a device changes mode is the controller's policy; a reacting device rounds a value that falls in a hole between two ranges to the edge on the side of its current mode, so the house as forecast returns the plan. A surprise beyond the band leaves a residual, which is what the retrigger is for. A device whose whole band is a single point does not react, and gets just the plan as band.
+- ``reference``: the uncontrolled power the plan is balanced against, in the schedule's unit. Usually this is the uncontrolled forecast the plan assumed. Where a device's operation modes make the plan miss the price kink (the power that would balance the connection falls in a gap between two of its ranges, and the plan sits at the gap's edge), it is the balance point instead: the forecast shifted by the plan's miss, which is the negative of the planned device power where the plan holds the connection at zero, and the capacity minus the planned device power where a capacity binds;
+- ``react``: the share of the deviation from the balance point the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
+- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit: every range the plan leaves feasible (the device's operation modes cut to its own limits), each narrowed by its state-of-charge limits, hard and soft alike. Whether and when a device changes mode is the controller's policy; a reacting device rounds a value that falls in a hole between two ranges to the edge on the side of its current mode, so the house as forecast returns the plan. A deviation beyond the band leaves a residual, which is what the retrigger is for. A device whose whole band is a single point does not react, and gets just the plan as band.
 
 The client evaluates the reaction itself.
-Writing ``p`` for the scheduled value and ``meter`` for the measured net power at the connection,
-the surprise is ``(meter - Σ device power) - reference``, with ``Σ device power`` the realised power of the reacting devices,
-and the device's setpoint for the slot is the clip of ``p - react * surprise`` to the band, which equals the plan when the connection behaves as forecast.
+Writing ``p`` for the scheduled value, ``meter`` for the measured net power at the connection and ``m_uncontrolled`` for ``meter - Σ device power``,
+with ``Σ device power`` the realised power of the reacting devices,
+the deviation from the balance point is ``m_uncontrolled - reference``,
+and the device's setpoint for the slot is the clip of ``p - react * (m_uncontrolled - reference)`` to the band.
+Where the reference is the forecast, the deviation is zero when the connection behaves as forecast, and the setpoint equals the plan.
+In a slot where the operation modes shape the plan, the deviation is expected to be non-zero even for a house exactly as forecast:
+the setpoint then falls in a hole of the band, and the client's rounding brings it back to the plan.
 Devices react in series, in the order of the flex-model, each absorbing what the devices before it could not.
 The react share is ``1`` in the slots where the price kink is within the device's reach: the production price is below the consumption price or at or below zero, or the site capacity binds,
 and the device could reach the power that balances the connection at that kink; it is ``0`` elsewhere, and wherever the band is a single point, with a band of just the scheduled value.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
-When a reaction leaves the band, trigger a new schedule.
+
+The rules are computed at the scheduling resolution.
+A sensor with a coarser resolution keeps a slot's rule only where the rules of all its sub-slots agree (the same react share, the same reference and identical bands) and the served value lies within that band;
+any other slot gets react ``0``, the mean of the sub-slot references, and the served value as its band.
+
+Absorbing a deviation costs the device energy (or adds energy) that nothing in the rules makes up for, so its state of charge drifts from the plan;
+so a controller that follows the rules must trigger a new schedule after absorbing:
+once the state of charge has drifted by a set amount from the plan, and in any case before a target.
+Likewise, when a reaction leaves the band, trigger a new schedule.
+
+The rules live in the scheduling job's meta data, and so expire with the job.
+Reading the rules of a schedule from sensor data, after the job has expired, is not supported yet.
 
 
 Intermediate power constraints
