@@ -9,6 +9,7 @@ import random
 import string
 import sys
 from datetime import datetime, timedelta
+from traceback import StackSummary
 from types import TracebackType
 from typing import Callable, Type
 
@@ -1013,7 +1014,7 @@ def handle_exception_by_queue(
     job: Job,
     exc_type: Type[Exception],
     exc_value: Exception,
-    traceback: TracebackType,
+    traceback: TracebackType | StackSummary | None,
 ) -> bool | None:
     """Handle a failed job with the exception handler of the queue the job came from.
 

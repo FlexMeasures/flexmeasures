@@ -12,7 +12,7 @@ from importlib.abc import Loader
 from typing import Callable, Type
 import inspect
 from copy import deepcopy
-from traceback import print_tb
+from traceback import StackSummary, print_tb
 from types import TracebackType
 
 
@@ -1219,7 +1219,9 @@ def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
     return scheduler_class
 
 
-def handle_scheduling_exception(job, exc_type, exc_value, traceback):
+def handle_scheduling_exception(
+    job, exc_type, exc_value, traceback: TracebackType | StackSummary | None
+):
     """
     Store exception as job meta data.
     """
