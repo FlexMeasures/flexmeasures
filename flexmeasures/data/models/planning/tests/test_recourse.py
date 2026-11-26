@@ -152,11 +152,13 @@ def _compute_recourse(
     end,
     site_power_capacity: str,
     flex_model: list[dict] | None = None,
+    flex_context_extra: dict | None = None,
     internal_device_keys: dict[int, dict] | None = None,
     internal_context_keys: dict | None = None,
 ) -> dict[int, pd.DataFrame]:
     """Schedule the site and return each device's reaction rule data by sensor ID.
 
+    ``flex_context_extra`` adds public flex-context fields.
     ``internal_device_keys`` (by device index) and ``internal_context_keys`` are set on the deserialized flex config,
     the way the scheduler reads keys the public schemas do not expose yet.
     """
@@ -165,6 +167,7 @@ def _compute_recourse(
     flex_context = {
         **price_fields,
         "site-power-capacity": site_power_capacity,
+        **(flex_context_extra or {}),
     }
     if load_sensor is not None:
         flex_context["inflexible-consumption"] = [{"sensor": load_sensor.id}]
@@ -398,11 +401,11 @@ def test_mode_shaped_plan_is_balanced_at_its_miss(app, db):
 
 
 def test_miss_beyond_the_dead_zone_is_not_classified(app, db):
-    """A device at its capacity while the house still exports is not holding the connection at zero.
+    """A device at its capacity while the house still exports cannot reach the price kink, so it does not react.
 
     With 5 kW of surplus sun, the battery charges its full 2 kW to serve the second slot's load,
-    leaving 3 kW of export: more than the 1.4 kW gap between idle and the charging range,
-    so the slot is not classified, the reference is the forecast, and the band is just the plan.
+    leaving 3 kW of export: balancing the connection would take 5 kW, beyond the device's 2 kW reach,
+    so the reference is the forecast and the band is just the plan.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
@@ -427,6 +430,121 @@ def test_miss_beyond_the_dead_zone_is_not_classified(app, db):
         data["reference"].iloc[0], -0.005, atol=TOLERANCE, err_msg="forecast"
     )
     np.testing.assert_allclose(data["band"].iloc[0], [(0.002, 0.002)], atol=TOLERANCE)
+
+
+def _charger(sensor: Sensor, **extra) -> dict:
+    """A charger that is idle or charges between 1.4 and 7.4 kW, starting empty, with room for 30 kWh."""
+    return _battery_flex_model(
+        sensor,
+        **{
+            "power-capacity": "7.4 kW",
+            "soc-at-start": "0 MWh",
+            "soc-max": "0.03 MWh",
+            "operation-modes": [
+                {"consumption-range": ["0 kW", "0 kW"]},
+                {"consumption-range": ["1.4 kW", "7.4 kW"]},
+            ],
+            **extra,
+        },
+    )
+
+
+def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
+    """A planned deviation from the balance point keeps the forecast as reference, and the kink within reach gives react 1.
+
+    A charger (idle or 1.4 to 7.4 kW) meets 4.4 kW of surplus sun in each of four hourly slots, with feed-in below import,
+    and must hold 21.2 kWh by the evening. Import gets cheaper over the day, so the plan absorbs the sun (4.4 kW) in the first
+    two slots and imports the missing 3.6 kWh as late as it can: 5.0 kW in the third slot and the full 7.4 kW in the fourth.
+    The balancing power (4.4 kW) lies inside the charging range in every slot, so the plan's misses are deliberate, not mode-shaped,
+    and the reference stays the forecast of -4.4 kW. The band is the plan's own range, with its lower bound rising as the (hard) target
+    comes within reach, and in the last slot it is a point, so the charger does not react there.
+    In the third slot, 1 kW of extra sun must be absorbed on top of the planned import: the client rule gives 6.0 kW.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (clouds and a target)",
+        consumption_prices=[50, 49, 48, 47],
+        production_prices=[5, 5, 5, 5],
+        load_kw=[-4.4, -4.4, -4.4, -4.4],
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _charger(
+                battery_power,
+                **{
+                    "soc-targets": [
+                        {"datetime": end.isoformat(), "value": "0.0212 MWh"}
+                    ]
+                },
+            )
+        ],
+        # A hard target, so that its reachability narrows the band.
+        flex_context_extra={"relax-soc-constraints": False},
+    )[battery_power.id]["data"]
+
+    np.testing.assert_allclose(
+        data["p"], [0.0044, 0.0044, 0.0050, 0.0074], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [1, 1, 1, 0], err_msg="react")
+    np.testing.assert_allclose(
+        data["reference"], -0.0044, atol=TOLERANCE, err_msg="forecast"
+    )
+    expected_bands = [
+        [(0.0014, 0.0074)],
+        [(0.0020, 0.0074)],
+        [(0.0050, 0.0074)],
+        [(0.0074, 0.0074)],
+    ]
+    for band, expected in zip(data["band"], expected_bands):
+        np.testing.assert_allclose(band, expected, atol=TOLERANCE)
+
+    p, react, reference, band = (
+        data.iloc[2][key] for key in ("p", "react", "reference", "band")
+    )
+    extra_sun = -0.0054
+    assert _clip_to_band(p - react * (extra_sun - reference), band) == pytest.approx(
+        0.0060, abs=TOLERANCE
+    )
+    assert _clip_to_band(p - react * (-0.0044 - reference), band) == p
+
+
+def test_negative_feed_in_without_a_forecast(app, db):
+    """Without any uncontrolled device the reference is 0.0, and a negative feed-in price makes the charger react
+    even though the plan does not hold the connection at zero.
+
+    Paid to consume, the charger fills its 4.4 kWh in the first slot (4.4 kW, within its 1.4 to 7.4 kW range) and idles in the second,
+    where its range is a point, so it does not react there.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (negative feed-in, no forecast)",
+        consumption_prices="-10 EUR/MWh",
+        production_prices="-10 EUR/MWh",
+        load_kw=None,
+        n_hours=2,
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[_charger(battery_power, **{"soc-max": "0.0044 MWh"})],
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(data["p"], [0.0044, 0], atol=TOLERANCE, err_msg="plan")
+    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(
+        data["reference"], [0.0, 0.0], atol=TOLERANCE, err_msg="reference"
+    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0014, 0.0044)], atol=TOLERANCE)
+    np.testing.assert_allclose(data["band"].iloc[1], [(0, 0)], atol=TOLERANCE)
 
 
 def test_band_is_the_plans_own_range_within_its_modes(app, db):

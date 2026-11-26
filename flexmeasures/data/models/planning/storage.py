@@ -3720,6 +3720,25 @@ class StorageScheduler(MetaStorageScheduler):
                 return (min(lo, p), max(hi, p))
         return (p, p)
 
+    @staticmethod
+    def _mode_shaped_miss(
+        ranges: list[tuple[float, float]],
+        balancing_power: float,
+        plan: float,
+        tolerance: float,
+    ) -> bool:
+        """Whether a plan misses the balancing power only because the device's modes leave a gap there.
+
+        That is the case when the power that would balance the connection lies strictly inside a gap between two ranges,
+        and the plan sits at an edge of that gap (the planner's nearest feasible point).
+        """
+        for (_, previous_hi), (next_lo, _) in zip(ranges, ranges[1:]):
+            if previous_hi + tolerance < balancing_power < next_lo - tolerance and (
+                abs(plan - previous_hi) <= tolerance or abs(plan - next_lo) <= tolerance
+            ):
+                return True
+        return False
+
     def _device_band_ranges(
         self,
         d: int,
@@ -3728,9 +3747,12 @@ class StorageScheduler(MetaStorageScheduler):
         initial_stock: list[float],
         directions: set[str],
         tolerance: float,
-    ) -> list[list[tuple[float, float]]]:
-        """Per slot, all the ranges device ``d`` may move within: its own bounds, narrowed by stock reachability,
-        cut to its reaction directions and split by its operation modes (see :meth:`_response_band`).
+    ) -> tuple[list[list[tuple[float, float]]], list[list[tuple[float, float]]]]:
+        """Per slot, all the ranges device ``d`` may move within, with and without the stock narrowing.
+
+        Both start from the device's own bounds, cut to its reaction directions and split by its operation modes (see :meth:`_response_band`);
+        the first list is also narrowed so that the stock constraints stay reachable (see :meth:`_stock_reachability_band`),
+        the second says how far the device could reach regardless of its stock.
         """
         p = ems_schedule[d].to_numpy(dtype=float)
         dc = device_constraints[d]
@@ -3743,25 +3765,35 @@ class StorageScheduler(MetaStorageScheduler):
         lo = np.where(np.isnan(dmin), -np.inf, dmin)
         hi = np.where(np.isnan(deq), hi, np.fmin(hi, deq))
         lo = np.where(np.isnan(deq), lo, np.fmax(lo, deq))
+        # Guarantee the planned power lies within the bounds, despite numerical noise.
+        hi_reach = np.fmax(hi, p)
+        lo_reach = np.fmin(lo, p)
 
         # Stock reachability under a one-slot deviation, with the device's own bounds as its re-planning room.
         lo_s, hi_s = self._stock_reachability_band(
             d, ems_schedule, device_constraints, initial_stock, lo, hi
         )
-        hi = np.fmin(hi, hi_s)
-        lo = np.fmax(lo, lo_s)
-
-        # Guarantee the planned power lies within the band, despite numerical noise.
-        hi = np.fmax(hi, p)
-        lo = np.fmin(lo, p)
+        hi = np.fmax(np.fmin(hi, hi_s), p)
+        lo = np.fmin(np.fmax(lo, lo_s), p)
 
         modes = dc.attrs.get("operation_modes")
-        return [
-            self._response_band(
-                float(p[t]), float(lo[t]), float(hi[t]), modes, directions, tolerance
-            )
-            for t in range(len(p))
-        ]
+
+        def ranges(
+            lower: np.ndarray, upper: np.ndarray
+        ) -> list[list[tuple[float, float]]]:
+            return [
+                self._response_band(
+                    float(p[t]),
+                    float(lower[t]),
+                    float(upper[t]),
+                    modes,
+                    directions,
+                    tolerance,
+                )
+                for t in range(len(p))
+            ]
+
+        return ranges(lo, hi), ranges(lo_reach, hi_reach)
 
     def _intended_connection_power(
         self,
@@ -3769,13 +3801,12 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule: list[pd.Series],
         ems_constraints: list[pd.DataFrame],
         commitments: list,
-        miss_tolerance: dict[str, np.ndarray],
+        capacity_tolerance: dict[str, np.ndarray],
     ) -> dict[str, np.ndarray]:
-        """Per commodity and slot, the connection power the plan intends, or NaN where the reacting devices should follow the plan.
+        """Per commodity and slot, the connection power the plan intends, or NaN where there is no price kink to hold.
 
         The intended power is zero where the production price is below the consumption price or at or below zero,
-        and the site capacity where it binds.
-        A slot is classified when the plan misses the intended power by at most ``miss_tolerance``:
+        and the site capacity where it binds, i.e. where the plan sits at the capacity within ``capacity_tolerance``:
         the dead zone of the reacting devices' bands (how far a plan shaped by operation modes can miss), or the float tolerance.
         """
         n = len(ems_schedule[0])
@@ -3801,17 +3832,14 @@ class StorageScheduler(MetaStorageScheduler):
             net = np.zeros(n)
             for k in device_set:
                 net += ems_schedule[k].to_numpy(dtype=float)
-            tolerance = miss_tolerance[commodity]
+            tolerance = capacity_tolerance[commodity]
             intended = np.full(n, np.nan)
 
             up = consumption_prices.get(commodity)
             down = production_prices.get(commodity)
             if up is not None and down is not None:
                 production_cheaper = (down < up) & ~np.isclose(down, up)
-                held_at_zero = (np.abs(net) <= tolerance) & (
-                    production_cheaper | (down <= 0)
-                )
-                intended[held_at_zero] = 0.0
+                intended[production_cheaper | (down <= 0)] = 0.0
 
             for g, group_devices in enumerate(ems_constraint_groups):
                 if set(group_devices) != device_set:
@@ -3845,16 +3873,19 @@ class StorageScheduler(MetaStorageScheduler):
         Per flexible device and slot, this returns:
 
         - ``p``: the planned power (MW, consumption positive), the schedule itself;
-        - ``reference``: the uncontrolled power at the connection against which the plan is balanced.
-          In a classified slot (see :meth:`_intended_connection_power`) it is the intended connection power minus the planned power of the reacting devices,
-          so where the plan holds the connection at zero it is the negative of the planned device power, and where a capacity binds, the capacity minus it.
-          Elsewhere it is the uncontrolled forecast the plan assumed: the inflexible device forecasts of the commodity, without any flexible device's plan.
-          The two differ only where operation modes keep the plan from balancing the connection exactly, by the plan's miss;
-        - ``react``: the share of the surprise the device absorbs, 1 for a device with ``react`` set in a classified slot, 0 otherwise.
+        - ``react``: the share of the surprise the device absorbs, 1 where the price kink is within the device's reach, 0 otherwise.
+          The kink is within reach when the slot has an intended connection power (see :meth:`_intended_connection_power`),
+          the device could reach the power that balances the connection at it (regardless of its stock),
+          and the plan's own range (see ``band``) is not a point.
           Shares in between are reserved for a later version.
           Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
-          A device whose reaction time exceeds the scheduling resolution, or whose range leaves no room to move, gets 0;
-        - ``band``: in a classified slot, the plan's own range: the one range of the device's band (see :meth:`_device_band_ranges`) that holds ``p``.
+          A device whose reaction time exceeds the scheduling resolution gets 0;
+        - ``reference``: the uncontrolled power at the connection against which the plan is balanced.
+          Normally the uncontrolled forecast the plan assumed: the inflexible device forecasts of the commodity, without any flexible device's plan.
+          Only where the device's operation modes keep the plan from balancing the connection exactly (see :meth:`_mode_shaped_miss`),
+          it is the intended connection power minus the planned power of the reacting devices, i.e. the forecast shifted by the plan's miss:
+          where the plan holds the connection at zero, the negative of the planned device power, and where a capacity binds, the capacity minus it;
+        - ``band``: where the device reacts, the plan's own range: the one range of the device's band (see :meth:`_device_band_ranges`) that holds ``p``.
           The mode is fixed per slot, and the plan must be the setpoint at zero deviation from the balance point:
           with the house as forecast, the raw setpoint lands outside that range on the side of the unconstrained optimum, and the clip returns the plan.
           A surprise beyond the range leaves a residual, which is what the retrigger is for.
@@ -3895,8 +3926,9 @@ class StorageScheduler(MetaStorageScheduler):
         # Not yet exposed through the public schema: the flex-context key `retrigger_on_band_exit` (default True).
         retrigger_on_band_exit = bool(flex_context.get("retrigger_on_band_exit", True))
 
-        # Each device's full band, and whether it can react at all.
+        # Each device's full band (narrowed by its stock, and its reach regardless of its stock), and whether it can react at all.
         device_ranges: dict[int, list[list[tuple[float, float]]]] = {}
+        device_reach: dict[int, list[list[tuple[float, float]]]] = {}
         can_react: dict[int, bool] = {}
         for d in range(num_flexible):
             device_model = device_models[d] if d < len(device_models) else {}
@@ -3909,7 +3941,7 @@ class StorageScheduler(MetaStorageScheduler):
             can_react[d] = (
                 bool(device_model.get("react")) and reaction_time <= resolution
             )
-            device_ranges[d] = self._device_band_ranges(
+            device_ranges[d], device_reach[d] = self._device_band_ranges(
                 d,
                 ems_schedule,
                 device_constraints,
@@ -3918,24 +3950,36 @@ class StorageScheduler(MetaStorageScheduler):
                 tolerance,
             )
 
-        # The dead zone per commodity and slot: the widest gap in a reacting device's band,
-        # which is how far a plan shaped by operation modes can miss the intended connection power.
-        # The planned power of the reacting devices is what the client subtracts from the meter.
-        miss_tolerance = {c: np.full(n, tolerance) for c in commodity_to_devices}
+        # Per commodity: the dead zone per slot (the widest gap in a reacting device's band, how far a plan shaped by
+        # operation modes can miss a binding capacity), and the planned power of the reacting devices (what the client
+        # subtracts from the meter), whose complement in the planned net power is the uncontrolled power as planned.
+        capacity_tolerance = {c: np.full(n, tolerance) for c in commodity_to_devices}
         reacting_plan = {c: np.zeros(n) for c in commodity_to_devices}
         for d in range(num_flexible):
             commodity = device_commodity[d]
-            if not can_react[d] or commodity not in miss_tolerance:
+            if not can_react[d] or commodity not in capacity_tolerance:
                 continue
             gaps = np.array([self._widest_gap(ranges) for ranges in device_ranges[d]])
-            miss_tolerance[commodity] = np.maximum(miss_tolerance[commodity], gaps)
+            capacity_tolerance[commodity] = np.maximum(
+                capacity_tolerance[commodity], gaps
+            )
             reacting_plan[commodity] += ems_schedule[d].to_numpy(dtype=float)
+        planned_net = {}
+        for commodity, devices in commodity_to_devices.items():
+            planned_net[commodity] = sum(
+                (
+                    ems_schedule[k].to_numpy(dtype=float)
+                    for k in devices
+                    if k < len(ems_schedule)
+                ),
+                np.zeros(n),
+            )
         intended = self._intended_connection_power(
             commodity_to_devices,
             ems_schedule,
             ems_constraints,
             commitments,
-            miss_tolerance,
+            capacity_tolerance,
         )
 
         entries = []
@@ -3943,6 +3987,9 @@ class StorageScheduler(MetaStorageScheduler):
             p = ems_schedule[d].to_numpy(dtype=float)
             commodity = device_commodity[d]
             intended_power = intended.get(commodity, np.full(n, np.nan))
+            uncontrolled_plan = planned_net.get(
+                commodity, np.zeros(n)
+            ) - reacting_plan.get(commodity, np.zeros(n))
             reference = forecasts.get(commodity, np.zeros(n)).copy()
             reacts = np.zeros(n)
             bands = []
@@ -3951,10 +3998,25 @@ class StorageScheduler(MetaStorageScheduler):
                     device_ranges[d][t], float(p[t]), tolerance
                 )
                 room = own_range[1] - own_range[0] > tolerance
-                if can_react[d] and not np.isnan(intended_power[t]) and room:
+                # The power the reacting devices would need to balance the connection at the intended power,
+                # which must lie within what this device could reach for the kink to be within its reach.
+                balancing_power = intended_power[t] - uncontrolled_plan[t]
+                reach = device_reach[d][t]
+                within_reach = not np.isnan(balancing_power) and (
+                    reach[0][0] - tolerance
+                    <= balancing_power
+                    <= reach[-1][1] + tolerance
+                )
+                if can_react[d] and within_reach and room:
                     reacts[t] = 1.0
                     bands.append([own_range])
-                    reference[t] = intended_power[t] - reacting_plan[commodity][t]
+                    if self._mode_shaped_miss(
+                        device_ranges[d][t],
+                        balancing_power,
+                        float(reacting_plan[commodity][t]),
+                        tolerance,
+                    ):
+                        reference[t] = intended_power[t] - reacting_plan[commodity][t]
                 else:
                     bands.append([(float(p[t]), float(p[t]))])
 

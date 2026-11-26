@@ -1431,13 +1431,13 @@ class SensorAPI(FlaskView):
                           properties:
                             reference:
                               type: number
-                              description: The uncontrolled power at the connection against which the plan is balanced. Where the plan holds the connection at zero, the negative of the planned device power; where a capacity binds, the capacity minus the planned device power; elsewhere the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly, by the plan's miss.
+                              description: The uncontrolled power at the connection against which the plan is balanced, normally the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly, by the plan's miss (where the plan holds the connection at zero, it is then the negative of the planned device power; where a capacity binds, the capacity minus the planned device power).
                             react:
                               type: number
-                              description: The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); this version emits 0 or 1, shares in between are reserved for a later version.
+                              description: The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); 1 where the price kink (a production price below the consumption price or at or below zero, or a binding capacity) is within the device's reach and its range is not a point. This version emits 0 or 1, shares in between are reserved for a later version.
                             band:
                               type: array
-                              description: The power range the device may move within during this slot, as [min, max] pairs. Where the device reacts, this is the plan's own range (the mode is fixed per slot; a surprise beyond the range leaves a residual, which is what the retrigger is for); a device with react 0 gets the single range [p, p].
+                              description: The power range the device may move within during this slot, as a list of one [min, max] pair. Where the device reacts, this is the plan's own range (the mode is fixed per slot; a surprise beyond the range leaves a residual, which is what the retrigger is for); a point range gives react 0, and a device with react 0 gets the single range [p, p].
                               items:
                                 type: array
                                 items:
