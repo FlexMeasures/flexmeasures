@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from typing import Callable
 
 import pytest
@@ -245,7 +246,7 @@ def test_handle_exception_by_queue_falls_back_and_passes_on_the_result(
 
 def test_handle_scheduling_exception_accepts_stack_summary(app, clean_job_redis):
     """RQ 2.x can pass a StackSummary instead of a traceback to the handler (#2897)."""
-    from traceback import extract_stack
+    from traceback import StackSummary, extract_stack
 
     from flexmeasures.data.services.scheduling import handle_scheduling_exception
     from rq.job import Job
@@ -255,7 +256,8 @@ def test_handle_scheduling_exception_accepts_stack_summary(app, clean_job_redis)
         job = queue.enqueue(sum, [1, 2])
         error = ValueError("boom")
 
-        handle_scheduling_exception(job, ValueError, error, extract_stack())
+        stack_summary: StackSummary = extract_stack()
+        handle_scheduling_exception(job, ValueError, error, stack_summary)
 
         job = Job.fetch(job.id, connection=queue.connection)
         assert job.meta["exception"] == {"type": "ValueError", "message": "boom"}
@@ -264,6 +266,7 @@ def test_handle_scheduling_exception_accepts_stack_summary(app, clean_job_redis)
 def test_abandoned_scheduling_job_cleanup_uses_exception_handler(app, clean_job_redis):
     """Cleaning up an abandoned scheduling job must not stop the worker (#2897)."""
     from flexmeasures.cli import jobs as jobs_cli
+    from rq.executions import Execution
     from rq.job import Job, JobStatus
     from rq.registry import StartedJobRegistry
 
@@ -273,10 +276,14 @@ def test_abandoned_scheduling_job_cleanup_uses_exception_handler(app, clean_job_
         queue.remove(job)
         job.set_status(JobStatus.STARTED)
         registry = StartedJobRegistry(queue=queue)
-        # RQ 2.12 stores started jobs as <job id>:<execution id> and no longer exposes add().
-        registry.connection.zadd(registry.key, {f"{job.id}:1": 0})
+        with queue.connection.pipeline() as pipeline:
+            Execution.create(job, ttl=60, pipeline=pipeline)
+            pipeline.execute()
 
-        registry.cleanup(exception_handlers=[jobs_cli.handle_exception_by_queue])
+        registry.cleanup(
+            timestamp=time.time() + 3600,
+            exception_handlers=[jobs_cli.handle_exception_by_queue],
+        )
 
         job = Job.fetch(job.id, connection=queue.connection)
         assert job.is_failed
