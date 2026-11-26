@@ -1193,7 +1193,7 @@ def test_trigger_schedule_inflexible_conflicts(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_and_get_schedule_with_recourse_response(
+def test_trigger_and_get_schedule_with_reaction(
     app,
     add_market_prices_fresh_db,
     add_battery_assets_fresh_db,

@@ -5,7 +5,7 @@ from datetime import timedelta
 import pandas as pd
 import pytest
 
-from flexmeasures.api.v3_0.sensors import _build_recourse_response
+from flexmeasures.api.v3_0.sensors import _build_reaction_response
 
 START = pd.Timestamp("2026-01-01T00:00:00+01:00")
 
@@ -39,7 +39,7 @@ def test_coarser_sensor_gets_the_rule_only_where_the_sub_slots_agree():
         [0.0044, 0.0044, 0.001],  # the last value falls in the hole of an agreeing band
         index=pd.date_range(START, periods=3, freq="15min"),
     )
-    reaction = _build_recourse_response(
+    reaction = _build_reaction_response(
         meta,
         values=values,
         resolution=timedelta(minutes=15),
@@ -68,7 +68,7 @@ def test_finer_sensor_gets_each_rule_as_is():
         [1.0] * 10,
         index=pd.date_range(START, periods=10, freq="1min"),
     )
-    reaction = _build_recourse_response(
+    reaction = _build_reaction_response(
         meta,
         values=values,
         resolution=timedelta(minutes=1),

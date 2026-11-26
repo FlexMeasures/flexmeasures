@@ -1104,7 +1104,7 @@ def make_schedule(  # noqa: C901
     to_save = []
     # On a dry run, nothing is saved, so the outputs say what was computed, and that none of it was saved.
     dry_run_outputs = []
-    recourse_rules: dict = {}
+    reaction_rules: dict = {}
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1120,11 +1120,11 @@ def make_schedule(  # noqa: C901
             rq_job.meta["scheduler_info"]["commodity_costs"] = result["data"]
             rq_job.save_meta()
             continue
-        if result.get("name") == "recourse_rule":
+        if result.get("name") == "reaction_rule":
             # Reaction rules are not stored as sensor data;
             # they are kept in the job meta, so the schedule-serving API can include them in its response.
             df = result["data"]
-            recourse_rules[result["sensor"].id] = {
+            reaction_rules[result["sensor"].id] = {
                 "start": df.index[0].isoformat(),
                 "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
                 "unit": result.get("unit", "MW"),
@@ -1200,8 +1200,8 @@ def make_schedule(  # noqa: C901
         output["num-computed-beliefs"] for output in outputs
     )
 
-    if rq_job and recourse_rules:
-        rq_job.meta["recourse_rules"] = recourse_rules
+    if rq_job and reaction_rules:
+        rq_job.meta["reaction_rules"] = reaction_rules
         rq_job.save_meta()
 
     if not dry_run:

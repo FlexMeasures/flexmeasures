@@ -1,7 +1,7 @@
 """Tests for the per-slot reaction rules (FlexMeasures issue #2894).
 
 When a flex-model device sets ``react`` (and ``return_multiple`` is True),
-the scheduler also returns, per flexible device, a ``"recourse_rule"`` entry with per-slot values for the reaction rule:
+the scheduler also returns, per flexible device, a ``"reaction_rule"`` entry with per-slot values for the reaction rule:
 
     setpoint = clip(p - react * (m_uncontrolled - reference), band)
 
@@ -66,14 +66,14 @@ def _build_site(
         }
         return site, sensors["battery power"], sensors.get("load"), price_fields, end
 
-    site_type = get_or_create_model(GenericAssetType, name="recourse test site")
+    site_type = get_or_create_model(GenericAssetType, name="reaction test site")
     site = GenericAsset(name=site_name, generic_asset_type=site_type)
     db.session.add(site)
     db.session.flush()
 
     index = initialize_index(START, end, RESOLUTION)
     source = get_or_create_model(
-        DataSource, name="recourse test source", type="forecaster"
+        DataSource, name="reaction test source", type="forecaster"
     )
 
     battery_power = Sensor(
@@ -144,7 +144,7 @@ def _battery_flex_model(sensor: Sensor, react: bool = True, **extra) -> dict:
     }
 
 
-def _compute_recourse(
+def _compute_reaction(
     site,
     battery_power,
     load_sensor,
@@ -189,7 +189,7 @@ def _compute_recourse(
         scheduler.flex_model[d].update(keys)
     scheduler.flex_context.update(internal_context_keys or {})
     results = scheduler.compute()
-    rules = [r for r in results if r["name"] == "recourse_rule"]
+    rules = [r for r in results if r["name"] == "reaction_rule"]
     assert len(rules) == sum(1 for fm in flex_model if fm.get("react"))
     return {rule["sensor"].id: rule for rule in rules}
 
@@ -259,12 +259,12 @@ def test_reaction_band_reference_and_react_hand_verified(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (hand-verified)",
+        site_name="Reaction site (hand-verified)",
         consumption_prices=[10, 50, 10, 45],
         production_prices=[10, 50, 10, 45],
         load_kw=8,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
     )[battery_power.id]["data"]
 
@@ -291,12 +291,12 @@ def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name=f"Recourse site (as forecast, load {load_kw})",
+        site_name=f"Reaction site (as forecast, load {load_kw})",
         consumption_prices=[10, 50, 10, 45],
         production_prices=[10, 50, 10, 45],
         load_kw=load_kw,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
     )[battery_power.id]["data"]
 
@@ -328,12 +328,12 @@ def test_react_classes_on_a_mixed_day(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (mixed day)",
+        site_name="Reaction site (mixed day)",
         consumption_prices=[30, 50, 100, 20],
         production_prices=[30, 5, 100, 20],
         load_kw=[0, -6, 0, 20],
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site, battery_power, load_sensor, price_fields, end, site_power_capacity="15 kW"
     )[battery_power.id]["data"]
 
@@ -383,13 +383,13 @@ def test_mode_shaped_plan_is_balanced_at_its_miss(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (mode-shaped plan)",
+        site_name="Reaction site (mode-shaped plan)",
         consumption_prices=[50, 100],
         production_prices=[5, 5],
         load_kw=[-1.2, 1.4],
         n_hours=2,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -435,13 +435,13 @@ def test_miss_beyond_the_dead_zone_is_not_classified(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (miss beyond the dead zone)",
+        site_name="Reaction site (miss beyond the dead zone)",
         consumption_prices=[50, 100],
         production_prices=[5, 5],
         load_kw=[-5, 2],
         n_hours=2,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -489,12 +489,12 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (clouds and a target)",
+        site_name="Reaction site (clouds and a target)",
         consumption_prices=[50, 49, 48, 47],
         production_prices=[5, 5, 5, 5],
         load_kw=[-4.4, -4.4, -4.4, -4.4],
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -551,7 +551,7 @@ def test_retrigger_after_absorbing_restores_the_target(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (retrigger after absorbing)",
+        site_name="Reaction site (retrigger after absorbing)",
         consumption_prices=[50, 49, 48, 47],
         production_prices=[5, 5, 5, 5],
         load_kw=[-4.4, -4.4, -4.4, -4.4],
@@ -560,7 +560,7 @@ def test_retrigger_after_absorbing_restores_the_target(app, db):
     soc_targets = {
         "soc-targets": [{"datetime": end.isoformat(), "value": f"{target} MWh"}]
     }
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -590,7 +590,7 @@ def test_retrigger_after_absorbing_restores_the_target(app, db):
     ), "the rest of the plan misses the target by the energy absorbed"
 
     # The retrigger: a new schedule from the second slot, starting from the state of charge actually reached.
-    new_data = _compute_recourse(
+    new_data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -620,13 +620,13 @@ def test_negative_feed_in_without_a_forecast(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (negative feed-in, no forecast)",
+        site_name="Reaction site (negative feed-in, no forecast)",
         consumption_prices="-10 EUR/MWh",
         production_prices="-10 EUR/MWh",
         load_kw=None,
         n_hours=2,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -667,13 +667,13 @@ def test_idle_plan_with_a_surplus(app, db, soc_maxima, expected_react, expected_
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name=f"Recourse site (idle plan, soc-maxima {soc_maxima})",
+        site_name=f"Reaction site (idle plan, soc-maxima {soc_maxima})",
         consumption_prices="50 EUR/MWh",
         production_prices="5 EUR/MWh",
         load_kw=-1.2,
         n_hours=1,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -724,13 +724,13 @@ def test_plan_just_below_the_fuse_holds_the_price_kink(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (just below the fuse)",
+        site_name="Reaction site (just below the fuse)",
         consumption_prices=[49, 50],
         production_prices=[5, 5],
         load_kw=[-2, -2],
         n_hours=2,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -766,7 +766,7 @@ def test_band_lists_every_feasible_range_within_its_modes(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (operation modes)",
+        site_name="Reaction site (operation modes)",
         consumption_prices="50 EUR/MWh",
         production_prices="5 EUR/MWh",
         load_kw=3,
@@ -776,7 +776,7 @@ def test_band_lists_every_feasible_range_within_its_modes(app, db):
         {"consumption-range": ["2 kW", "5 kW"]},
         {"production-range": ["2 kW", "5 kW"]},
     ]
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -843,12 +843,12 @@ def test_reaction_directions_and_time_gate_the_band_and_react(
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name=f"Recourse site (reaction {sorted(internal_keys.items())})",
+        site_name=f"Reaction site (reaction {sorted(internal_keys.items())})",
         consumption_prices="50 EUR/MWh",
         production_prices="-1 EUR/MWh",
         load_kw=None,
     )
-    data = _compute_recourse(
+    data = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -870,7 +870,7 @@ def test_device_without_react_gets_no_rules(app, db):
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (react per device)",
+        site_name="Reaction site (react per device)",
         consumption_prices="50 EUR/MWh",
         production_prices="-1 EUR/MWh",
         load_kw=None,
@@ -890,7 +890,7 @@ def test_device_without_react_gets_no_rules(app, db):
         db.session.add(other_battery)
         db.session.commit()
 
-    rules = _compute_recourse(
+    rules = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -911,12 +911,12 @@ def test_retrigger_flag_defaults_to_true(app, db, retrigger):
     """Each rule entry carries the retrigger flag, true unless the internal flex-context key says otherwise."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name=f"Recourse site (retrigger {retrigger})",
+        site_name=f"Reaction site (retrigger {retrigger})",
         consumption_prices="50 EUR/MWh",
         production_prices="0 EUR/MWh",
         load_kw=None,
     )
-    rule = _compute_recourse(
+    rule = _compute_reaction(
         site,
         battery_power,
         load_sensor,
@@ -934,7 +934,7 @@ def test_no_reaction_rules_without_the_opt_in(app, db):
     """Without a device setting ``react``, the scheduler returns no reaction rules."""
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
-        site_name="Recourse site (no opt-in)",
+        site_name="Reaction site (no opt-in)",
         consumption_prices="50 EUR/MWh",
         production_prices="0 EUR/MWh",
         load_kw=None,
@@ -950,4 +950,4 @@ def test_no_reaction_rules_without_the_opt_in(app, db):
         return_multiple=True,
     )
     results = scheduler.compute()
-    assert not [r for r in results if r["name"] == "recourse_rule"]
+    assert not [r for r in results if r["name"] == "reaction_rule"]

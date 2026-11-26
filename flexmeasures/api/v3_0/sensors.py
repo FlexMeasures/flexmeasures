@@ -121,8 +121,8 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
 
 
-def _build_recourse_response(
-    recourse_meta: dict,
+def _build_reaction_response(
+    reaction_meta: dict,
     values: pd.Series,
     resolution: timedelta,
     to_unit: str,
@@ -140,7 +140,7 @@ def _build_recourse_response(
     Power values are converted from the stored unit to the unit of the served values, with their sign convention.
     Every value is a finite number: the scheduler requires a power capacity for each device, so each band side is bounded.
 
-    :param recourse_meta:  Reaction rules of one device, as stored in the job meta.
+    :param reaction_meta:  Reaction rules of one device, as stored in the job meta.
     :param values:         The served schedule values, indexed by slot start.
     :param resolution:     Event resolution of the served schedule values.
     :param to_unit:        Unit of the served schedule values.
@@ -149,21 +149,21 @@ def _build_recourse_response(
     :returns:              One reaction object per served schedule value.
     :raises ValueError:    When a stored rule value is not finite, or a served slot has no rule, which would be a scheduler bug.
     """
-    rule_resolution = pd.Timedelta(isodate.parse_duration(recourse_meta["resolution"]))
+    rule_resolution = pd.Timedelta(isodate.parse_duration(reaction_meta["resolution"]))
     rule_index = pd.date_range(
-        start=pd.Timestamp(recourse_meta["start"]),
-        periods=len(recourse_meta["react"]),
+        start=pd.Timestamp(reaction_meta["start"]),
+        periods=len(reaction_meta["react"]),
         freq=rule_resolution,
     )
     rules = pd.DataFrame(
         {
-            "react": recourse_meta["react"],
-            "reference": recourse_meta["reference"],
-            "band": pd.Series(recourse_meta["band"], index=rule_index, dtype=object),
+            "react": reaction_meta["react"],
+            "reference": reaction_meta["reference"],
+            "band": pd.Series(reaction_meta["band"], index=rule_index, dtype=object),
         },
         index=rule_index,
     )
-    from_unit = recourse_meta.get("unit", "MW")
+    from_unit = reaction_meta.get("unit", "MW")
 
     def convert(power_values: list[float], slot: pd.Timestamp) -> list[float]:
         """Convert a list of power values to the served unit and sign."""
@@ -1669,8 +1669,8 @@ class SensorAPI(FlaskView):
 
         # Optionally add per-slot reaction rules (opt-in via the flex-model field `react`),
         # aligned with the served schedule values.
-        recourse_meta = (job.meta or {}).get("recourse_rules", {}).get(sensor.id)
-        if recourse_meta is not None:
+        reaction_meta = (job.meta or {}).get("reaction_rules", {}).get(sensor.id)
+        if reaction_meta is not None:
             response_sign = 1
             if sensor.measures_power:
                 db_consumption_is_positive = sensor.get_attribute(
@@ -1682,8 +1682,8 @@ class SensorAPI(FlaskView):
                     and not db_consumption_is_positive
                 ):
                     response_sign = -1
-            response["reaction"] = _build_recourse_response(
-                recourse_meta,
+            response["reaction"] = _build_reaction_response(
+                reaction_meta,
                 values=consumption_schedule,
                 resolution=resolution,
                 to_unit=unit,

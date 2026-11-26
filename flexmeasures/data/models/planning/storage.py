@@ -35,7 +35,7 @@ from flexmeasures.data.models.planning.utils import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import (
-    RESPONSE_DIRECTIONS,
+    REACTION_DIRECTIONS,
     OperationModeSchema,
     StorageFlexModelSchema,
 )
@@ -101,10 +101,10 @@ class MetaStorageScheduler(Scheduler):
     default_resolution = timedelta(minutes=15)
 
     #: Whether any flex-model device opted in to the reaction rules by setting ``react`` to true.
-    #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"recourse_rule"`` entry per flexible device,
+    #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"reaction_rule"`` entry per flexible device,
     #: containing per-slot values for the reaction rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
     #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`reaction_rules`.
-    include_response: bool = False
+    include_reaction: bool = False
 
     COLUMNS = [
         "equals",
@@ -186,7 +186,7 @@ class MetaStorageScheduler(Scheduler):
         device_models = inventory.device_flex_models
 
         # A device opts in to the reaction rules with its flex-model field `react`.
-        self.include_response = any(fm.get("react") for fm in device_models)
+        self.include_reaction = any(fm.get("react") for fm in device_models)
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
@@ -3853,7 +3853,7 @@ class StorageScheduler(MetaStorageScheduler):
             capacity_kink_by_commodity[commodity] = capacity_kink
         return price_kink_by_commodity, capacity_kink_by_commodity
 
-    def _compute_recourse_rules(  # noqa: C901
+    def _compute_reaction_rules(  # noqa: C901
         self,
         sensors: list,
         ems_schedule: list[pd.Series],
@@ -3934,9 +3934,9 @@ class StorageScheduler(MetaStorageScheduler):
         for d in range(num_flexible):
             device_model = device_models[d] if d < len(device_models) else {}
             # Not yet exposed through the public schema: the flex-model keys `reaction_directions`
-            # (a subset of RESPONSE_DIRECTIONS, defaulting to all of them) and `reaction_time` (a timedelta, defaulting to no bound).
+            # (a subset of REACTION_DIRECTIONS, defaulting to all of them) and `reaction_time` (a timedelta, defaulting to no bound).
             directions = set(
-                device_model.get("reaction_directions") or RESPONSE_DIRECTIONS
+                device_model.get("reaction_directions") or REACTION_DIRECTIONS
             )
             reaction_time = device_model.get("reaction_time") or timedelta(0)
             can_react[d] = (
@@ -4035,7 +4035,7 @@ class StorageScheduler(MetaStorageScheduler):
             # the API converts it to the unit of the served schedule values, so full precision keeps band and plan consistent.
             entries.append(
                 {
-                    "name": "recourse_rule",
+                    "name": "reaction_rule",
                     "sensor": sensors[d],
                     "data": data,
                     "unit": "MW",
@@ -4293,9 +4293,9 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            recourse_rules = []
-            if self.include_response:
-                recourse_rules = self._compute_recourse_rules(
+            reaction_rules = []
+            if self.include_reaction:
+                reaction_rules = self._compute_reaction_rules(
                     sensors=sensors,
                     ems_schedule=ems_schedule,
                     device_constraints=device_constraints,
@@ -4304,7 +4304,7 @@ class StorageScheduler(MetaStorageScheduler):
                     initial_stock=initial_stock,
                     resolution=resolution,
                 )
-            # Recourse rules name a device's sensor but are not saved to it (they go into the job meta),
+            # Reaction rules name a device's sensor but are not saved to it (they go into the job meta),
             # so they stay out of the per-sensor deduplication.
             return (
                 self._deduplicate_outputs(
@@ -4315,7 +4315,7 @@ class StorageScheduler(MetaStorageScheduler):
                     + consumption_production_schedules
                     + scheduling_result
                 )
-                + recourse_rules
+                + reaction_rules
             )
         else:
             return storage_schedule[sensors[0]]

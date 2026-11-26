@@ -312,7 +312,7 @@ class OperationModeSchema(Schema):
 #: consumption-up and production-down move the power up, consumption-down and production-up move it down,
 #: each within the half-axis its name refers to.
 #: Read by the scheduler from the internal flex-model key ``reaction_directions``, which is not yet exposed through the public schema.
-RESPONSE_DIRECTIONS = (
+REACTION_DIRECTIONS = (
     "consumption-up",
     "consumption-down",
     "production-up",
