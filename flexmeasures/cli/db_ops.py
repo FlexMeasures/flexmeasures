@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import subprocess
+from typing import NoReturn
 
 from flask import current_app as app
 from flask.cli import with_appcontext
@@ -125,60 +126,90 @@ def restore(file: str):
 @with_appcontext
 @click.option(
     "--chunk-time-interval",
-    default="7 days",
-    show_default=True,
-    help="How much event time each chunk of the timed_belief table spans, as a PostgreSQL interval."
-    " Aim for the most recent chunks, with their indexes, to fit in memory.",
+    default=None,
+    help="How much event time each chunk of the timed_belief table spans, as a PostgreSQL interval"
+    f" [default when converting: {timescaledb.DEFAULT_CHUNK_TIME_INTERVAL}]."
+    " On a hypertable already, this applies to chunks created from now on.",
 )
 @click.option(
     "--compress-after",
     default=None,
-    help="Also compress chunks whose events are all older than this PostgreSQL interval (e.g. '30 days'),"
-    " now and from now on. Compressed data still accepts writes, but more slowly.",
+    help="Compress chunks whose events are all older than this PostgreSQL interval, now and from now on"
+    f" [default when converting: {timescaledb.DEFAULT_COMPRESS_AFTER}]."
+    " Compressed data still accepts writes, but more slowly."
+    " On a hypertable already, this replaces the age set before.",
 )
 @click.option(
-    "--yes",
-    is_flag=True,
+    "--force/--no-force",
     default=False,
-    help="Do not ask for confirmation.",
+    help="Skip the confirmation prompt, and convert on a play server, too.",
 )
-def enable_timescaledb(chunk_time_interval: str, compress_after: str | None, yes: bool):
-    """Store time series data in a TimescaleDB hypertable (optional, needs TimescaleDB on the server).
+def enable_timescaledb(
+    chunk_time_interval: str | None, compress_after: str | None, force: bool
+):
+    """Store time series data in a compressed TimescaleDB hypertable (optional, needs TimescaleDB on the server).
 
-    Converting moves all existing beliefs into time chunks.
+    Converting moves all existing beliefs into time chunks, and compresses the older ones.
     Writes to the table are blocked while that runs,
     so on a large database, plan a maintenance window.
-    Running it again on a hypertable only (re)applies the compression setting.
+    Running it again on a hypertable changes its chunk time interval (for new chunks) or its compression age.
     """
-    try:
-        version = timescaledb.ensure_extension(db.session)
-    except timescaledb.TimescaleDBUnavailable as e:
-        click.secho(str(e), **MsgStyle.ERROR)
-        raise click.Abort()
-    except DBAPIError as e:
-        click.secho(
-            f"Could not install the timescaledb extension: {e.orig}", **MsgStyle.ERROR
-        )
-        raise click.Abort()
-
+    _check_mode(force)
+    version = _install_timescaledb()
+    table = timescaledb.TABLE
     already_hypertable = timescaledb.is_hypertable(db.session)
-    if not already_hypertable and not yes:
-        if not click.confirm(
-            f"This converts the {timescaledb.TABLE} table on {db.engine.url.render_as_string(hide_password=True)}"
-            f" into a TimescaleDB {version} hypertable with chunks of {chunk_time_interval},"
-            " blocking writes until done.\nDo you want to continue?"
-        ):
+    if already_hypertable:
+        if chunk_time_interval is None and compress_after is None:
             db.session.rollback()
-            click.secho("I did nothing.", **MsgStyle.WARN)
-            raise click.Abort()
+            click.echo(
+                f"{table} is already a hypertable."
+                " Pass --chunk-time-interval or --compress-after to change its settings."
+            )
+            _report_timescaledb_size(version)
+            return
+        prompt = []
+        if chunk_time_interval is not None:
+            prompt.append(
+                f"This makes chunks of the {table} hypertable created from now on span {chunk_time_interval}."
+            )
+        if compress_after is not None:
+            policy_age = timescaledb.compression_policy_age(db.session)
+            prompt.append(
+                f"This compresses chunks of the {table} hypertable whose events are all older than {compress_after},"
+                f" now and from now on (until now: {policy_age or 'none'})."
+            )
+    else:
+        chunk_time_interval = (
+            chunk_time_interval or timescaledb.DEFAULT_CHUNK_TIME_INTERVAL
+        )
+        compress_after = compress_after or timescaledb.DEFAULT_COMPRESS_AFTER
+        prompt = [
+            f"This converts the {table} table on {db.engine.url.render_as_string(hide_password=True)}"
+            f" into a TimescaleDB {version} hypertable with chunks of {chunk_time_interval},"
+            f" and compresses the chunks whose events are all older than {compress_after}, now and from now on."
+            " Writes to the table are blocked until it is done.",
+            "FlexMeasures has no command to undo this.",
+        ]
+    if compress_after is not None and not timescaledb.supports_compression(db.session):
+        _abort(
+            "This server runs the Apache-licensed edition of TimescaleDB, which cannot compress."
+            " A hypertable without compression is slower than a plain table, and no smaller, so I did nothing."
+        )
+    if not force and not click.confirm(
+        "\n".join(prompt + ["Do you want to continue?"])
+    ):
+        db.session.rollback()
+        click.secho("I did nothing.", **MsgStyle.WARN)
+        raise click.Abort()
 
     try:
-        if already_hypertable:
-            click.echo(
-                f"{timescaledb.TABLE} is already a hypertable; leaving its chunks as they are."
-            )
-        else:
+        if not already_hypertable:
             timescaledb.convert_to_hypertable(db.session, chunk_time_interval)
+        elif chunk_time_interval is not None:
+            timescaledb.set_chunk_time_interval(db.session, chunk_time_interval)
+            click.echo(
+                f"Chunks created from now on span {chunk_time_interval}; existing chunks keep theirs."
+            )
         if compress_after is not None:
             timescaledb.enable_compression(db.session, compress_after)
             n_compressed = timescaledb.compress_eligible_chunks(
@@ -189,10 +220,56 @@ def enable_timescaledb(chunk_time_interval: str, compress_after: str | None, yes
             )
         db.session.commit()
     except DBAPIError as e:
-        db.session.rollback()
-        click.secho(f"Nothing was changed: {e.orig}", **MsgStyle.ERROR)
-        raise click.Abort()
+        _abort(f"Nothing was changed: {e.orig}")
 
+    _report_timescaledb_size(version)
+
+
+def _check_mode(force: bool):
+    """Refuse to convert on a play server, unless forced.
+
+    Simulations write into past periods and rerun over them,
+    and writing into compressed periods is the slow case of a compressed hypertable.
+    """
+    if app.config.get("FLEXMEASURES_MODE") != "play":
+        return
+    message = (
+        "This is a play server (FLEXMEASURES_MODE = 'play')."
+        " Simulations write into past periods, which would be compressed,"
+        " and writing into compressed data is slower (overwrites up to 2.6 times)."
+    )
+    if not force:
+        _abort(f"{message} Use --force to convert anyway.")
+    click.secho(message, **MsgStyle.WARN)
+
+
+def _install_timescaledb() -> str:
+    """Install the timescaledb extension if needed, warn if it sends usage data, and return its version."""
+    try:
+        version = timescaledb.ensure_extension(db.session)
+    except timescaledb.TimescaleDBUnavailable as e:
+        _abort(str(e))
+    except DBAPIError as e:
+        _abort(f"Could not install the timescaledb extension: {e.orig}")
+    telemetry_level = timescaledb.setting(db.session, "timescaledb.telemetry_level")
+    if telemetry_level not in (None, "off"):
+        click.secho(
+            f"TimescaleDB on this server sends usage data to Timescale (timescaledb.telemetry_level = {telemetry_level})."
+            " To stop that, set timescaledb.telemetry_level = off in postgresql.conf.",
+            **MsgStyle.WARN,
+        )
+    return version
+
+
+def _abort(message: str) -> NoReturn:
+    """Roll back whatever this command did so far, say why, and stop."""
+    db.session.rollback()
+    click.secho(message, **MsgStyle.ERROR)
+    raise click.Abort()
+
+
+def _report_timescaledb_size(version: str):
+    """Say how much space the timed_belief hypertable takes."""
     size = timescaledb.table_size(db.session)
     click.secho(
         f"{timescaledb.TABLE} is a hypertable (TimescaleDB {version}),"
