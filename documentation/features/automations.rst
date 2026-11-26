@@ -227,8 +227,9 @@ Plugin schemas validate configuration and parameters, and unknown fields are rej
 Run a worker for the queue declared by the handler, in addition to the automation dispatcher.
 
 The UI lists registered plugin types in their own tabs and shows their parameters, data source, input sensors, output sensors and recent jobs.
-Existing actions, including editing recurrence, activation, deletion and *Run now*, also apply to these automations.
-Creation forms for plugin types are a follow-up: use the CLI or API to create them for now.
+Existing actions, including editing recurrence, activation, deletion, *Copy* and *Run now*, also apply to these automations.
+The *New automation* form offers each installed plugin type under *Plugin types*.
+Fill in its configuration and parameters as JSON, or pick an existing data source of that type; the plugin's generator is used, so the form asks for no data generator.
 
 API-created automations remember the user who created them.
 The dispatcher and worker recheck that the user is active and can write to the output sensors.

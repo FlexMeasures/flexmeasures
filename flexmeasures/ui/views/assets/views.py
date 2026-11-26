@@ -299,6 +299,17 @@ class AssetCrudUI(FlaskView):
                 for automation in asset_it_can_list.automations
                 if automation.type not in registered_types
             },
+            # Only an installed plugin type can be created, so a type whose plugin is gone gets a tab but no place in the creation form.
+            # Its data sources are recorded under the generator's base, which is what narrows the form's source picker to sources of this type.
+            plugin_automation_types=[
+                dict(
+                    type_id=type_id,
+                    display_name=handler.display_name,
+                    source_type=handler.generator_class.__data_generator_base__,
+                )
+                for type_id, handler in registered_types.items()
+                if handler.generator_class is not None
+            ],
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
