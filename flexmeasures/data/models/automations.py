@@ -93,7 +93,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         default=get_initial_cursor,
     )
-    schedule_revision = db.Column(db.Integer, nullable=False, default=1)
+    revision = db.Column(db.Integer, nullable=False, default=1)
     active = db.Column(db.Boolean, nullable=False, default=True)
     # Whether this automation is critical to the organisation running FlexMeasures.
     # It changes nothing about how the automation runs or how its failures are retried;
@@ -212,7 +212,7 @@ class AutomationRun(db.Model):
         db.UniqueConstraint(
             "automation_id",
             "scheduled_at",
-            "schedule_revision",
+            "revision",
             name="automation_run_occurrence_uq",
         ),
         db.CheckConstraint(
@@ -241,7 +241,7 @@ class AutomationRun(db.Model):
         onupdate=server_now,
     )
     scheduled_at = db.Column(db.DateTime(timezone=True), nullable=False)
-    schedule_revision = db.Column(db.Integer, nullable=False)
+    revision = db.Column(db.Integer, nullable=False)
     automation_type = db.Column(db.String(80), nullable=False)
     generator_id = db.Column(db.Integer, nullable=True)
     dispatch_state = db.Column(db.String(32), nullable=False, default="pending")

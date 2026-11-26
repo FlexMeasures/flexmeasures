@@ -6,8 +6,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import functools
+import json
 from copy import copy, deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timedelta, timezone
 import os
 import socket
@@ -27,8 +28,10 @@ from rq.job import Job, JobStatus
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from werkzeug.exceptions import Forbidden
 
 from flexmeasures import Forecaster, Reporter
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import (
     Automation,
@@ -174,7 +177,7 @@ def _run_snapshot(automation: Automation, scheduled_at: datetime) -> dict[str, A
         "automation_name": automation.name,
         "asset_id": automation.asset_id,
         "scheduled_at": scheduled_at.astimezone(timezone.utc).isoformat(),
-        "schedule_revision": automation.schedule_revision,
+        "revision": automation.revision,
         "cronstr": automation.cronstr,
         "timezone": automation.timezone,
         "generator_id": automation.generator_id,
@@ -230,7 +233,7 @@ def claim_due_automation_run(
             Automation.active.is_(True),
             Automation.cronstr == due_automation.expected_cronstr,
             Automation.timezone == due_automation.expected_timezone,
-            Automation.schedule_revision == due_automation.automation.schedule_revision,
+            Automation.revision == due_automation.automation.revision,
             cursor_matches,
         )
         .values(cursor=due_automation.scheduled_at)
@@ -244,7 +247,7 @@ def claim_due_automation_run(
     run = AutomationRun(
         automation=automation,
         scheduled_at=due_automation.scheduled_at,
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         generator_id=automation.generator_id,
         dispatch_state="claimed",
@@ -1396,8 +1399,13 @@ def resolve_schedule_automation_sensors(
     }
 
 
-def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
-    """Work out which sensors an automation reads from and writes to on each run.
+def resolve_automation_sensors(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> dict[str, list[Sensor]]:
+    """Work out which sensors an automation reads from and writes to on each run, or on the given run.
+
+    A run computes with the data source and the parameters it was planned with,
+    which differ from the automation's own once the automation has been edited since.
 
     Forecast and report sensors are derived from the data generator,
     while schedule sensors are derived from the same prepared trigger message used to queue the scheduling job.
@@ -1406,10 +1414,13 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    planned_parameters = dict(
+        (automation_run if automation_run is not None else automation).parameters or {}
+    )
     if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
-                dict(automation.parameters or {}),
+                planned_parameters,
                 automation.asset_id,
                 automation.timezone,
             )
@@ -1417,13 +1428,14 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
             raise AutomationSensorsUnknown(
                 f"Could not determine the sensors of schedule automation {automation.id}: {exc}"
             ) from exc
-    if automation.generator is None:
+    generator = generator_of_run(automation, automation_run)
+    if generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
         )
     try:
-        data_generator = automation.generator.data_generator
-        parameters = dict(automation.parameters or {})
+        data_generator = generator.data_generator
+        parameters = planned_parameters
         if automation.type == "reporting":
             parameters = prepare_report_parameters(
                 parameters,
@@ -1491,8 +1503,14 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     automation = db.session.get(Automation, automation_id)
     if automation is None:
         return None
+    # A job queued before the automation was edited computes what its run was planned with,
+    # so it is held to the sensors of that plan.
+    run_id = (rq_job.meta.get("trigger") or {}).get("automation_run_id")
+    automation_run = db.session.get(AutomationRun, run_id) if run_id else None
     try:
-        sensors = resolve_automation_sensors(automation)["output_sensors"]
+        sensors = resolve_automation_sensors(automation, automation_run)[
+            "output_sensors"
+        ]
     except AutomationSensorsUnknown as exc:
         current_app.logger.error(
             f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
@@ -2122,7 +2140,6 @@ def create_automation(
     monitored: bool = True,
 ) -> tuple[Automation, list[str]]:
     """Create an automation through its registered handler, without committing."""
-    from flask_security import current_user
     from flexmeasures.data.automations import (
         get_automation_handler,
         validate_automation_type,
@@ -2147,51 +2164,147 @@ def create_automation(
     # Set here rather than by the handler, so that no handler, a plugin's included, needs to know about monitoring.
     automation.monitored = monitored
     if check_permissions:
-        if current_user.is_anonymous:
-            from werkzeug.exceptions import Unauthorized
-
-            raise Unauthorized()
-        automation.execution_user_id = current_user.id
+        automation.execution_user_id = _current_user_id()
     return automation, warnings
 
 
-def _create_builtin_automation(
+@dataclass
+class PreparedAutomation:
+    """What an automation is set up with once its definition has been validated, short of the automation itself.
+
+    Creating an automation and editing one both validate a definition the same way,
+    so they share this, and differ only in what they do with it.
+    """
+
+    generator: DataSource
+    parameters: dict
+    timezone: str
+    warnings: list[str]
+    # The generator set up from the data source, where the automation type has one to set up before it runs.
+    data_generator: Any = None
+    # The sensors the automation reads from and records on, as its definition names them.
+    input_sensors: list[Sensor] = dataclass_field(default_factory=list)
+    output_sensors: list[Sensor] = dataclass_field(default_factory=list)
+
+
+# What an automation does with the sensors in each role, and the permission that takes, as an edit's refusal names it.
+SENSOR_ROLES = (
+    ("input_sensors", "read", "read data from", "reads data from"),
+    ("output_sensors", "create-children", "record data on", "records data on"),
+)
+
+
+class RunUserLacksAccess(Forbidden):
+    """An edit refused because the user whom the automation runs as could not run the edited definition.
+
+    The refusal itself is kept apart from how to take over the runs, which the API and the edit form each say in their own way.
+    """
+
+    def __init__(self, refusal: str, editor: str):
+        super().__init__()
+        self.refusal = refusal
+        self.api_message = (
+            f"{refusal} Send run-as-me to have it run as you, {editor}, instead."
+        )
+
+
+def describe_run_user(user_id: int | None) -> str:
+    """Name the user whom an automation runs as, the way refusals and the audit log name them."""
+    from flexmeasures.data.models.user import User
+
+    if user_id is None:
+        return "no user"
+    user = db.session.get(User, user_id)
+    if user is None:
+        return f"user {user_id}"
+    return f"{user.username} (user {user_id})"
+
+
+def _edit_refusal(
+    sensor: Sensor, role: str, kept_sensor_ids: dict[str, set[int]], who: str | None
+) -> str:
+    """Say why an edit is refused on a sensor, telling a sensor the edit adds apart from one the automation involves already.
+
+    :param who: the user refused, as `describe_run_user` names them, or None for the user making the edit.
+    """
+    _, _, action, present_action = next(r for r in SENSOR_ROLES if r[0] == role)
+    if sensor.id in kept_sensor_ids.get(role, set()):
+        involvement = (
+            f"it {present_action} sensor {sensor.id} (already in its definition)"
+        )
+    else:
+        involvement = f"it would then {action} sensor {sensor.id}"
+    if who is None:
+        return f"You cannot change this automation, because {involvement}, which you cannot {action} yourself."
+    return f"You cannot change this automation, because {involvement}, which {who}, whom it runs as, cannot {action}."
+
+
+def check_edited_sensor_access(
+    input_sensors: list[Sensor],
+    output_sensors: list[Sensor],
+    kept_sensor_ids: dict[str, set[int]],
+):
+    """Require the user making an edit to have access to the sensors of the edited definition, as `check_sensor_access` does on creation.
+
+    An edit is checked as a whole, so a sensor the automation involves already is checked, too;
+    the refusal then says so, rather than that the edit adds it.
+
+    :param kept_sensor_ids: the ids of the sensors the automation involves before the edit, per role.
+    """
+    for role, sensors in (
+        ("input_sensors", input_sensors),
+        ("output_sensors", output_sensors),
+    ):
+        permission = next(r[1] for r in SENSOR_ROLES if r[0] == role)
+        for sensor in sensors:
+            try:
+                check_access(sensor, permission)
+            except Forbidden as exc:
+                exc.api_message = _edit_refusal(sensor, role, kept_sensor_ids, None)
+                raise
+
+
+def _prepare_builtin_automation(
     asset,
-    name: str,
     cronstr: str,
     timezone: str | None = None,
     automation_type: str = "forecasting",
-    active: bool = True,
-    critical: bool = False,
     parameters: dict | None = None,
     generator_class: str | None = None,
     config: dict | None = None,
     source=None,
-    origin: str = "API",
     check_permissions: bool = False,
-) -> tuple[Automation, list[str]]:
-    """Create an automation (not committed yet), validating its parameters by type.
+    source_is_kept: bool = False,
+    kept_sensor_ids: dict[str, set[int]] | None = None,
+) -> PreparedAutomation:
+    """Validate an automation's definition by type, and look up or create the data source storing its generator config.
 
     For forecasts and reports, the data generator config is stored on a data source.
-    An audit log record is added to the asset.
 
     :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
                               record data on the sensors it writes to, and read the data source they name, if they name one.
-                              Set this for automations created by a user (through the API or the UI);
+                              Set this for automations defined by a user (through the API or the UI);
                               the CLI runs without a user, and is trusted.
+    :param source_is_kept: whether the source is the one the automation already runs on,
+                           which an edit leaving the data generator alone hands over without the user having chosen it.
+    :param kept_sensor_ids: for an edit of an existing automation, the ids of the sensors it involves before the edit, per role,
+                            so that a refusal can say whether the edit adds the sensor.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the data generator cannot be set up.
     :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
-    :returns: the automation and a list of warnings.
     """
     from werkzeug.exceptions import Forbidden
 
-    from flexmeasures.data.models.audit_log import AssetAuditLog
     from flexmeasures.data.services.data_sources import user_may_use_source
 
     # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
     # so naming one takes more than being allowed to read what it computed: it has to be a source the user may work with.
-    if check_permissions and source is not None and not user_may_use_source(source):
+    if (
+        check_permissions
+        and source is not None
+        and not source_is_kept
+        and not user_may_use_source(source)
+    ):
         exception = Forbidden()
         exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
         raise exception
@@ -2199,7 +2312,6 @@ def _create_builtin_automation(
     parameters = parameters or {}
     timezone = timezone or get_default_automation_timezone(asset)
     warnings: list[str] = []
-    generator_id = None
     data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
@@ -2286,7 +2398,10 @@ def _create_builtin_automation(
         )
 
     if check_permissions:
-        check_sensor_access(input_sensors, output_sensors)
+        if kept_sensor_ids is not None:
+            check_edited_sensor_access(input_sensors, output_sensors, kept_sensor_ids)
+        else:
+            check_sensor_access(input_sensors, output_sensors)
         check_annotation_source_access(annotation_sources(data_generator))
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
@@ -2302,27 +2417,68 @@ def _create_builtin_automation(
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source
-        db.session.flush()
-        generator_id = generator.id
-    elif automation_type == "scheduling":
+    else:
         # The scheduler and its configuration make up the automation's data generator,
         # the same way a forecaster and its configuration do for a forecast automation.
         # It is resolved here, rather than above, for the same reason as the forecaster's.
-        generator_id = resolve_schedule_generator(asset.id, parameters, timezone).id
-        db.session.flush()
+        generator = resolve_schedule_generator(asset.id, parameters, timezone)
+    db.session.flush()
+    return PreparedAutomation(
+        generator=generator,
+        parameters=parameters,
+        timezone=timezone,
+        warnings=warnings,
+        data_generator=data_generator,
+        input_sensors=input_sensors,
+        output_sensors=output_sensors,
+    )
 
-    automation_fields = dict(
+
+def _create_builtin_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    critical: bool = False,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source=None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation (not committed yet), validating its definition by type (see `_prepare_builtin_automation`).
+
+    An audit log record is added to the asset.
+
+    :returns: the automation and a list of warnings.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    prepared = _prepare_builtin_automation(
+        asset,
+        cronstr=cronstr,
+        timezone=timezone,
+        automation_type=automation_type,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+    )
+    automation = Automation(
         asset_id=asset.id,
         type=automation_type,
         name=name,
         cronstr=cronstr,
         active=active,
         critical=critical,
-        generator_id=generator_id,
-        parameters=parameters,
+        generator_id=prepared.generator.id,
+        parameters=prepared.parameters,
+        timezone=prepared.timezone,
     )
-    automation_fields["timezone"] = timezone
-    automation = Automation(**automation_fields)
     db.session.add(automation)
     db.session.flush()
     AssetAuditLog.add_record(
@@ -2333,8 +2489,255 @@ def _create_builtin_automation(
             note_report_selection,
         )
 
-        note_report_selection(automation, data_generator)
-    return automation, warnings
+        note_report_selection(automation, prepared.data_generator)
+    return automation, prepared.warnings
+
+
+def _current_user_id() -> int:
+    """The id of the user making a request, refusing an anonymous one."""
+    from flask_security import current_user
+
+    if current_user.is_anonymous:
+        from werkzeug.exceptions import Unauthorized
+
+        raise Unauthorized()
+    return current_user.id
+
+
+def _prepare_automation_edit(
+    automation: Automation,
+    cronstr: str,
+    timezone: str,
+    parameters: dict | None,
+    generator_class: str | None,
+    config: dict | None,
+    source: DataSource | None,
+    check_permissions: bool,
+) -> PreparedAutomation:
+    """Validate an edit of an automation's parameters, data generator, config or data source, filling in what the edit leaves out.
+
+    :raises marshmallow.ValidationError: if the edited definition is invalid.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+
+    if source is not None and (generator_class or config):
+        raise ValidationError(
+            {
+                "source": [
+                    "A data source already stores the data generator and the configuration it runs under,"
+                    " so it cannot be combined with data-generator or config."
+                ]
+            }
+        )
+    if automation.type == "scheduling":
+        if source is not None:
+            raise ValidationError(
+                {
+                    "source": [
+                        "A schedule automation cannot name a source:"
+                        " its data source follows from the asset and the flex config, and is resolved afresh on every run."
+                    ]
+                }
+            )
+        # The data generator follows from the asset, and a config or data generator is refused as on creation.
+        source_is_kept = False
+    elif source is not None:
+        source_is_kept = source.id == automation.generator_id
+    elif generator_class is not None or config is not None:
+        # Whichever of the two is left out stays as it was.
+        if generator_class is None and automation.type in Automation.SUPPORTED_TYPES:
+            generator_class = automation.generator.model
+        if config is None:
+            config = automation.generator.attributes.get("data_generator", {}).get(
+                "config", {}
+            )
+        source_is_kept = False
+    else:
+        source = automation.generator
+        source_is_kept = True
+    return get_automation_handler(automation.type).prepare(
+        automation.asset,
+        cronstr=cronstr,
+        timezone=timezone,
+        parameters=(
+            parameters if parameters is not None else dict(automation.parameters or {})
+        ),
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+        source_is_kept=source_is_kept,
+        kept_sensor_ids=current_sensor_ids(automation),
+    )
+
+
+def current_sensor_ids(automation: Automation) -> dict[str, set[int]]:
+    """The ids of the sensors an automation involves now, per role, or none if they cannot be worked out."""
+    try:
+        sensors = resolve_automation_sensors(automation)
+    except AutomationSensorsUnknown:
+        return {"input_sensors": set(), "output_sensors": set()}
+    return {role: {sensor.id for sensor in sensors[role]} for role in sensors}
+
+
+def _check_run_user_access(automation: Automation, prepared: PreparedAutomation):
+    """Require the user whom an automation runs as to have access to the sensors of its edited definition, and the annotations it reads, too.
+
+    The editor's access was checked while preparing the edit.
+    Checking the run user as well keeps an edit from pointing the automation at sensors which only the editor may use,
+    while its runs go on being checked against someone else.
+
+    :raises RunUserLacksAccess: if the run user is missing or inactive, or lacks access to a sensor or to annotations the data generator reads.
+    """
+    from flask_security import current_user
+
+    from flexmeasures.data.automations import user_has_permission
+    from flexmeasures.data.models.user import User
+
+    # An automation without a run user was set up through the CLI, which is trusted, so its runs check nobody.
+    if automation.execution_user_id in (None, current_user.id):
+        return
+    run_user = db.session.get(User, automation.execution_user_id)
+    editor = describe_run_user(current_user.id)
+    if run_user is None or not run_user.active:
+        raise RunUserLacksAccess(
+            f"You cannot change this automation while it runs as {describe_run_user(automation.execution_user_id)},"
+            " who is missing or inactive.",
+            editor,
+        )
+    kept_sensor_ids = current_sensor_ids(automation)
+    for role, permission, _, _ in SENSOR_ROLES:
+        for sensor in getattr(prepared, role):
+            if not user_has_permission(run_user, sensor, permission):
+                raise RunUserLacksAccess(
+                    _edit_refusal(
+                        sensor,
+                        role,
+                        kept_sensor_ids,
+                        describe_run_user(run_user.id),
+                    ),
+                    editor,
+                )
+    # Runs also read the annotations that a forecaster's config names (see `check_run_access`).
+    kept_sources = {
+        (type(source).__name__, source.id)
+        for source in annotation_sources(
+            automation.generator.data_generator if automation.generator else None
+        )
+    }
+    for source in annotation_sources(prepared.data_generator):
+        if not user_has_permission(run_user, source, "read"):
+            kind = {"Account": "account", "GenericAsset": "asset"}.get(
+                type(source).__name__, "sensor"
+            )
+            involvement = (
+                f"it reads the annotations of {kind} {source.id} (already in its configuration)"
+                if (type(source).__name__, source.id) in kept_sources
+                else f"it would then read the annotations of {kind} {source.id}"
+            )
+            raise RunUserLacksAccess(
+                f"You cannot change this automation, because {involvement},"
+                f" which {describe_run_user(run_user.id)}, whom it runs as, cannot read.",
+                editor,
+            )
+
+
+def _apply_automation_edit(
+    automation: Automation, prepared: PreparedAutomation
+) -> list[str]:
+    """Give an automation the parameters and data source of a validated edit (see `_prepare_automation_edit`).
+
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    changes = []
+    if prepared.parameters != dict(automation.parameters or {}):
+        changes.append(f"parameters: {json.dumps(prepared.parameters)}")
+        automation.parameters = prepared.parameters
+    if prepared.generator.id != automation.generator_id:
+        changes.append(
+            f"data source: {automation.generator_id} → {prepared.generator.id}"
+        )
+        automation.generator_id = prepared.generator.id
+        automation.generator = prepared.generator
+        if automation.type == "reporting":
+            from flexmeasures.data.services.group_membership_audit import (
+                note_report_selection,
+            )
+
+            note_report_selection(automation, prepared.data_generator)
+    return changes
+
+
+def _take_over_runs(automation: Automation) -> list[str]:
+    """Make the user making a change the one whom the automation runs as.
+
+    :returns: a list of (human-readable) changes; empty if that user already was.
+    """
+    return _set_run_user(automation, _current_user_id())
+
+
+def _set_run_user(automation: Automation, user_id: int) -> list[str]:
+    """Make the given user the one whom the automation runs as.
+
+    :returns: a list of (human-readable) changes; empty if that user already was.
+    """
+    if user_id == automation.execution_user_id:
+        return []
+    previous = describe_run_user(automation.execution_user_id)
+    automation.execution_user_id = user_id
+    return [f"runs as: {previous} → {describe_run_user(user_id)}"]
+
+
+def _validate_automation_edit(
+    automation: Automation,
+    cronstr: str,
+    timezone: str,
+    parameters: dict | None,
+    generator_class: str | None,
+    config: dict | None,
+    source: DataSource | None,
+    check_permissions: bool,
+    run_as_editor: bool,
+    run_as_user_id: int | None,
+) -> PreparedAutomation | None:
+    """Validate what an edit changes about what an automation computes, or whom it runs as (see `update_automation`).
+
+    :returns: the edited definition, or None if the edit changes neither.
+    """
+    from flexmeasures.data.models.user import User
+
+    if run_as_editor and not check_permissions:
+        raise ValueError(
+            "Only a user making the change can have the automation run as them."
+        )
+    if run_as_user_id is not None:
+        if check_permissions or run_as_editor:
+            raise ValueError(
+                "Only the CLI, which is trusted, can have the automation run as someone else."
+            )
+        run_as_user = db.session.get(User, run_as_user_id)
+        if run_as_user is None or not run_as_user.active:
+            raise ValueError(
+                f"User {run_as_user_id} is missing or inactive, so the automation cannot run as them."
+            )
+    # Taking over the runs alone validates the current definition, as the sensors it names are then checked against someone else.
+    if not run_as_editor and all(
+        value is None for value in (parameters, generator_class, config, source)
+    ):
+        return None
+    prepared = _prepare_automation_edit(
+        automation,
+        cronstr=cronstr,
+        timezone=timezone,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+    )
+    if check_permissions and not run_as_editor:
+        _check_run_user_access(automation, prepared)
+    return prepared
 
 
 def user_may_change_monitoring(user, asset) -> bool:
@@ -2361,24 +2764,64 @@ def update_automation(
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source: DataSource | None = None,
     critical: bool | None = None,
     monitored: bool | None = None,
     origin: str = "API",
+    check_permissions: bool = False,
+    run_as_editor: bool = False,
+    run_as_user_id: int | None = None,
 ) -> list[str]:
-    """Update an automation's name, cron string, timezone, activation status, criticality and/or monitoring (not committed yet).
+    """Update an automation (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
     also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
     while a run due in that very minute still is.
     Criticality changes nothing about which runs are due, so it leaves the cursor as it is.
+
+    New parameters, a new data generator or config, or another data source are validated as on creation (see `AutomationHandler.prepare`).
+    A new config moves the automation onto the data source storing it, leaving the old source as it is,
+    because other automations may share it, and what was computed under it was computed with its config.
+    Leaving out the data generator or the config keeps the current one.
+    Any of these changes starts a new revision, keeping runs computed before and after the change apart,
+    but leaves the cursor alone, as which runs are due has not changed.
+    Set `check_permissions` when a user makes the change (through the API or the UI):
+    the sensors involved are then checked against the access of that user, and of the user whom the automation runs as,
+    who stays the same, so that nobody's access widens without them knowing.
+    Set `run_as_editor` as well to make the user making the change the one whom the automation runs as, instead;
+    the sensors of the (edited) definition are then checked against that user's access only.
+    The CLI, which is trusted, can instead name the user to run as, with `run_as_user_id`;
+    whether that user may run the automation is up to the caller to check (see `run_user_problem`).
+
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
+    :raises marshmallow.ValidationError: if the new definition is invalid.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user,
+                                           or a sensor is not accessible to the user whom the automation runs as.
     """
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
+    # Validate a new definition before changing anything, so that a refused edit leaves the automation as it was.
+    prepared = _validate_automation_edit(
+        automation,
+        cronstr=cronstr or automation.cronstr,
+        timezone=timezone or automation.timezone,
+        parameters=parameters,
+        generator_class=generator_class,
+        config=config,
+        source=source,
+        check_permissions=check_permissions,
+        run_as_editor=run_as_editor,
+        run_as_user_id=run_as_user_id,
+    )
+
     changes = []
     reset_cursor = False
+    new_revision = False
     if name is not None and name != automation.name:
         changes.append(f"name: '{automation.name}' → '{name}'")
         automation.name = name
@@ -2395,22 +2838,21 @@ def update_automation(
         if active:
             reset_cursor = True
         automation.active = active
-    if critical is not None and critical != automation.critical:
-        # Criticality says who is told when a run fails, not which runs are due,
-        # so it does not reset the cursor or count up the schedule revision.
-        changes.append("flagged as critical" if critical else "no longer critical")
-        automation.critical = critical
-    if monitored is not None and monitored != automation.monitored:
-        changes.append(
-            "monitoring switched on" if monitored else "monitoring switched off"
-        )
-        automation.monitored = monitored
-        if monitored:
-            automation.monitoring_resumed_at = server_now()
-    if reset_cursor:
-        # A new revision keeps the durable runs of the old and the new schedule apart,
+    changes.extend(_set_criticality(automation, critical))
+    changes.extend(_set_monitoring(automation, monitored))
+    if prepared is not None:
+        definition_changes = _apply_automation_edit(automation, prepared)
+        changes.extend(definition_changes)
+        new_revision = bool(definition_changes)
+    if run_as_editor:
+        changes.extend(_take_over_runs(automation))
+    if run_as_user_id is not None:
+        changes.extend(_set_run_user(automation, run_as_user_id))
+    if reset_cursor or new_revision:
+        # A new revision keeps the durable runs of the old and the new schedule (or definition) apart,
         # even where they fall on the same scheduled UTC time.
-        automation.schedule_revision += 1
+        automation.revision += 1
+    if reset_cursor:
         automation.cursor = get_initial_cursor()
     if changes:
         AssetAuditLog.add_record(
@@ -2418,6 +2860,82 @@ def update_automation(
             f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via {origin}.",
         )
     return changes
+
+
+def _set_criticality(automation: Automation, critical: bool | None) -> list[str]:
+    """Flag an automation as critical, or no longer critical.
+
+    Criticality says who is told when a run fails, not which runs are due,
+    so it does not reset the cursor or count up the revision.
+
+    :param critical: None leaves it as it is.
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    if critical is None or critical == automation.critical:
+        return []
+    automation.critical = critical
+    return ["flagged as critical" if critical else "no longer critical"]
+
+
+def _set_monitoring(automation: Automation, monitored: bool | None) -> list[str]:
+    """Switch whether `flexmeasures monitor automations` reports an automation's failed runs.
+
+    :param monitored: None leaves it as it is.
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    if monitored is None or monitored == automation.monitored:
+        return []
+    automation.monitored = monitored
+    if monitored:
+        automation.monitoring_resumed_at = server_now()
+    return ["monitoring switched on" if monitored else "monitoring switched off"]
+
+
+def check_run_access(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> None:
+    """Require the user whom an automation runs as to have access to what a run (or the given run) involves.
+
+    That is the asset, the sensors the run reads from and records data on,
+    and, for forecasts and reports, the accounts, assets and sensors whose annotations its data generator reads.
+    An automation set up through the CLI runs as nobody, and is not checked.
+
+    :raises RunsRefused: if that user may not run it.
+    :raises AutomationSensorsUnknown: if the sensors cannot be worked out.
+    """
+    from flexmeasures.data.automations import check_execution_access
+
+    if automation.execution_user_id is None:
+        return
+    check_execution_access(
+        automation, resolve_automation_sensors(automation, automation_run)
+    )
+    # A run reads the annotations its own data source's config names, which an edit since may have changed.
+    generator = generator_of_run(automation, automation_run)
+    if automation.type != "scheduling" and generator is not None:
+        check_execution_access(
+            automation,
+            {
+                "input_sensors": annotation_sources(generator.data_generator),
+                "output_sensors": [],
+            },
+        )
+
+
+def run_user_problem(automation: Automation) -> str | None:
+    """Say why the user whom an automation runs as could not run it, as every run would be refused, or None if they could.
+
+    The answer says nothing about how to take the runs over, which is up to the interface asking.
+    """
+    from flexmeasures.data.automations import RunsRefused
+
+    try:
+        check_run_access(automation)
+    except AutomationSensorsUnknown as exc:
+        return str(exc)
+    except RunsRefused as exc:
+        return exc.refusal
+    return None
 
 
 def delete_automation(automation: Automation, origin: str = "API"):
@@ -2437,7 +2955,7 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
     return {
         "id": run.id,
         "scheduled-at": run.scheduled_at.isoformat(),
-        "revision": run.schedule_revision,
+        "revision": run.revision,
         "dispatch-state": run.dispatch_state,
         "execution-state": run.execution_state,
         "attempt-count": run.attempt_count,
@@ -2673,29 +3191,30 @@ def run_automation(
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    from flexmeasures.data.automations import (
-        check_execution_access,
-        get_automation_handler,
-    )
+    from flexmeasures.data.automations import get_automation_handler
 
     if scheduled_at is None and automation_run is not None:
         scheduled_at = automation_run.scheduled_at
     handler = get_automation_handler(automation.type)
-    if automation.execution_user_id is not None:
-        check_execution_access(automation, resolve_automation_sensors(automation))
-        if automation.type != "scheduling" and automation.generator is not None:
-            check_execution_access(
-                automation,
-                {
-                    "input_sensors": annotation_sources(
-                        automation.generator.data_generator
-                    ),
-                    "output_sensors": [],
-                },
-            )
+    check_run_access(automation, automation_run)
     return handler.run(
         automation, automation_run=automation_run, scheduled_at=scheduled_at
     )
+
+
+def generator_of_run(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> DataSource | None:
+    """The data source a run computes with: the one it was claimed with, also when the automation has been pointed at another one since.
+
+    A run on demand has no record, and computes with the automation's current data source.
+    """
+    if automation_run is not None and automation_run.generator_id is not None:
+        return (
+            db.session.get(DataSource, automation_run.generator_id)
+            or automation.generator
+        )
+    return automation.generator
 
 
 def _run_forecast_automation(
@@ -2703,14 +3222,10 @@ def _run_forecast_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    # A run records the data generator it was claimed with,
-    # so a retry forecasts with the configuration the run was planned with,
-    # also when the automation has been pointed at another one since.
+    # A retry forecasts with the configuration the run was planned with.
     # That configuration decides how many jobs a run has,
     # so re-planning it with another one would plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
-    generator = automation.generator
-    if automation_run is not None and automation_run.generator_id is not None:
-        generator = db.session.get(DataSource, automation_run.generator_id) or generator
+    generator = generator_of_run(automation, automation_run)
     if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
@@ -2754,16 +3269,17 @@ def _run_report_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    if automation.generator is None:
+    # A retried run reports with the data source and the parameters it was planned with, rather than whatever the automation says now.
+    generator = generator_of_run(automation, automation_run)
+    if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
-    reporter = automation.generator.data_generator
+    reporter = generator.data_generator
     if not isinstance(reporter, Reporter):
         raise ValueError(
-            f"Data source {automation.generator_id} of automation {automation.id} does not store a Reporter."
+            f"Data source {generator.id} of automation {automation.id} does not store a Reporter."
         )
-    # A retried run reports with the parameters it was planned with, rather than whatever the automation says now.
     parameters = prepare_report_parameters(
         (
             dict(automation_run.parameters)

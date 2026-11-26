@@ -40,6 +40,7 @@ from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
 from werkzeug.exceptions import Forbidden
 
+from flexmeasures.data.automations import RunsRefused
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     AutomationRunClaimLost,
@@ -125,8 +126,14 @@ def run_automations():
             click.secho(str(e), **MsgStyle.WARN)
         except Exception as e:
             db.session.rollback()
+            # The run records the refusal as it is; only this terminal hears how to take the runs over.
+            reason = (
+                f"{e.refusal} Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`."
+                if isinstance(e, RunsRefused)
+                else e
+            )
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {e}",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {reason}",
                 **MsgStyle.ERROR,
             )
             n_failed += 1
@@ -162,6 +169,14 @@ def run_one_automation(automation: Automation):
     """
     try:
         returns = run_automation(automation)
+    except RunsRefused as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e.refusal}"
+            f" Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     except (
         NotImplementedError,
         ValueError,

@@ -45,6 +45,7 @@ def automation_script(
             "mock-ingestion": "Mock ingestion",
         },
         config={"FLEXMEASURES_JOB_TTL": timedelta(days=7)},
+        current_user={"id": 2},
     )
     # An unrendered value would reach the browser as a syntax error, which reads as every check failing at once.
     assert (

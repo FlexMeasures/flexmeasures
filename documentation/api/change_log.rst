@@ -5,6 +5,14 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-37 | December xx, 2026
+""""""""""""""""""""""""""""
+
+- `PATCH /assets/(id)/automations/(id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_ also takes ``parameters``, ``data-generator``, ``config`` and ``source``, checked as on creation, against the access of both the user making the change and the user the automation runs as; ``run-as-me`` makes the user making the change the one it runs as instead. A refusal for the user it runs as carries ``reason: run-user-lacks-access``.
+- `POST /assets/(id)/automations/(id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_ answers ``403`` with the same ``reason`` and ``refusal`` when the user the automation runs as may not run it.
+- Automation responses include ``runs-as``, the user whose access every run checks (null for an automation set up through the CLI).
+- `GET /assets/(id)/automations/(id) <../api/v3_0.html#get--api-v3_0-assets-id-automations-automation-id>`_ answers anyone who may read the asset, also where the automation involves a sensor they may not read; such a sensor is listed with its ID only, with ``readable`` false.
+
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""
 

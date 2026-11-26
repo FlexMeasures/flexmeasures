@@ -48,6 +48,7 @@ from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.automations import RunsRefused
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -58,6 +59,7 @@ from flexmeasures.data.schemas.automations import (
 )
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
+    RunUserLacksAccess,
     create_automation,
     delete_automation as remove_automation,
     describe_cronstr,
@@ -513,6 +515,15 @@ def _eager_load_asset_relations_dumped_by(
         )
     except sa_exc.ArgumentError:
         return query
+
+
+def _may_read(sensor: Sensor) -> bool:
+    """Whether the user making the request may read the given sensor."""
+    try:
+        check_access(sensor, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
 
 
 def _refuse_too_frequent_automation(
@@ -1632,6 +1643,9 @@ class AssetAPI(FlaskView):
                             revision: 1
                             active: true
                             monitored: true
+                            runs-as:
+                              id: 2
+                              name: toy-user
                             job-stats:
                               finished: 3
                         redis-connection-err: null
@@ -1707,6 +1721,8 @@ class AssetAPI(FlaskView):
             the data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,
             the sensors it reads from and writes to,
             durable run status, and counts of recently created jobs, per job status.
+            Anyone who may read the asset sees its automations, also where they involve sensors that this user may not read:
+            such a sensor is listed with its ID only, its name null and `readable` false.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
@@ -1747,6 +1763,9 @@ class AssetAPI(FlaskView):
                         revision: 1
                         active: true
                         monitored: true
+                        runs-as:
+                          id: 2
+                          name: toy-user
                         parameters:
                           sensor: 2092
                         source:
@@ -1758,11 +1777,14 @@ class AssetAPI(FlaskView):
                         input-sensors:
                           - id: 2092
                             name: power
+                            readable: true
                           - id: 2093
-                            name: irradiance
+                            name: null
+                            readable: false
                         output-sensors:
                           - id: 2092
                             name: power
+                            readable: true
                         job-stats:
                           finished: 3
                           failed: 1
@@ -1819,20 +1841,18 @@ class AssetAPI(FlaskView):
         try:
             automation_sensors = resolve_automation_sensors(automation)
         except AutomationSensorsUnknown as e:
-            # One broken automation should not keep this response from rendering,
-            # and there are no sensors to check access on in this case.
+            # One broken automation should not keep this response from rendering.
             current_app.logger.warning(str(e))
             automation_sensors = {"input_sensors": [], "output_sensors": []}
-        else:
-            for sensor in {
-                sensor
-                for key in ("input_sensors", "output_sensors")
-                for sensor in automation_sensors[key]
-            }:
-                check_access(sensor, "read")
+        # Whoever may read the asset may see what runs on it, as they may also manage it, or rely on what it computes.
+        # A sensor they may not read is named by its ID alone, which its parameters or config show anyway.
         for key in ("input_sensors", "output_sensors"):
             automation_data[key.replace("_", "-")] = [
-                {"id": sensor.id, "name": sensor.name}
+                (
+                    {"id": sensor.id, "name": sensor.name, "readable": True}
+                    if _may_read(sensor)
+                    else {"id": sensor.id, "name": None, "readable": False}
+                )
                 for sensor in automation_sensors[key]
             ]
         redis_connection_err = None
@@ -2004,20 +2024,37 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status, criticality or monitoring.
+        .. :quickref: Assets; Update an automation.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone, activation status, criticality or monitoring.
+          summary: Update an automation.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone`, `active`, `critical` and `monitored` can be sent.
+            Any subset of the fields can be sent.
+
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
             Flagging an automation as critical, or no longer critical, leaves its cursor as it is, as it does not change which runs are due.
-            Other automation fields cannot be updated; instead, create a new automation.
             Unless you are an admin, a new cron expression may not run more often than the minimum interval for the automation's type:
             by default once every 15 minutes, and once an hour for forecasting automations
             (a host can change this with the `FLEXMEASURES_AUTOMATION_MIN_INTERVAL` setting).
+
+            New `parameters`, a new `data-generator` or `config`, or another `source` are validated as on creation, including the access checks on the sensors involved.
+            Every run of the automation checks the access of the user it runs as (`runs-as`: its creator, at first), who stays the same,
+            so the sensors involved are checked against the access of both the user making the change and that user.
+            When that user's access falls short, the 403 response carries `reason: run-user-lacks-access`.
+            Set `run-as-me` to have the automation run as the user making the change from then on, instead;
+            the sensors are then checked against that user's access only, and the switch is written to the asset's audit log.
+            Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.
+            An automation set up through the CLI runs as nobody, as the CLI is trusted:
+            an edit of it is checked against the access of the user making the change only, and its runs stay unchecked.
+            A new `config` replaces the current one as a whole, so it has to repeat any setting to keep.
+            It moves the automation to the data source storing that config, and the old data source is left as it is,
+            because other automations may share it, and what was computed under it was computed with its config.
+            Sending a `data-generator` without a `config`, or the other way round, keeps the one left out.
+            Runs before and after such a change are kept apart, while which runs are due stays the same.
+            A schedule automation's data source follows from the asset, so it accepts new `parameters` only.
+
             Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
@@ -2043,6 +2080,24 @@ class AssetAPI(FlaskView):
                     summary: Deactivate the automation
                     value:
                       active: false
+                  new_parameters:
+                    summary: Forecast another sensor
+                    value:
+                      parameters:
+                        sensor: 2093
+                  new_config:
+                    summary: Train the forecaster on more history
+                    description: >-
+                      Moves the automation to the data source storing this config, keeping its forecaster.
+                    value:
+                      config:
+                        train-period: P60D
+                  run_as_me:
+                    summary: Take over the automation's runs
+                    description: >-
+                      Every run checks your access from now on, for example because the runs of the user it ran as are refused.
+                    value:
+                      run-as-me: true
                   stop-monitoring:
                     summary: Stop reporting the automation's failed runs
                     value:
@@ -2081,9 +2136,27 @@ class AssetAPI(FlaskView):
                     {"cronstr": automation_data.get("cronstr", automation.cronstr)},
                     automation.type,
                 )
+            update_automation(
+                automation,
+                origin="API",
+                check_permissions=True,
+                run_as_editor=automation_data.pop("run_as_me", False),
+                **automation_data,
+            )
+        except RunUserLacksAccess as e:
+            return {
+                "message": e.api_message,
+                "status": "INVALID_SENDER",
+                # The refusal without how to take over, and a code to recognise it by, for clients with their own way to take over.
+                "reason": "run-user-lacks-access",
+                "refusal": e.refusal,
+            }, 403
         except ValidationError as e:
             return unprocessable_entity(e.messages)
-        update_automation(automation, origin="API", **automation_data)
+        except AutomationSensorsUnknown as e:
+            return unprocessable_entity(str(e))
+        except ValueError as e:
+            return unprocessable_entity(str(e))
         db.session.commit()
         response = automation_schema.dump(automation)
         response["recurrence-description"] = describe_cronstr(automation.cronstr)
@@ -2216,7 +2289,10 @@ class AssetAPI(FlaskView):
             401:
               description: UNAUTHORIZED
             403:
-              description: INVALID_SENDER
+              description: |
+                INVALID_SENDER.
+                When the user the automation runs as (`runs-as`) may not run it, the response carries `reason: run-user-lacks-access`,
+                and `refusal` says why, without how to take over (with `run-as-me`, see the PATCH endpoint).
             404:
               description: NOT_FOUND
             422:
@@ -2231,6 +2307,15 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
+        except RunsRefused as e:
+            db.session.rollback()
+            return {
+                "message": f"{e.refusal} Send run-as-me in a PATCH of this automation to have it run as you instead.",
+                "status": "INVALID_SENDER",
+                # As for a refused edit: the refusal without how to take over, and a code to recognise it by.
+                "reason": "run-user-lacks-access",
+                "refusal": e.refusal,
+            }, 403
         except (
             NotImplementedError,
             ValueError,

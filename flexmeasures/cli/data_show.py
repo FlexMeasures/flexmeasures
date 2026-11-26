@@ -539,6 +539,7 @@ def list_automations(
                     "yes" if automation.monitored else "no",
                     automation.cronstr,
                     automation.timezone,
+                    _runs_as(automation),
                 )
                 for automation in automations
             ],
@@ -552,9 +553,20 @@ def list_automations(
                 "Monitored",
                 "Cron",
                 "Timezone",
+                "Runs as",
             ],
         )
     )
+
+
+def _runs_as(automation: Automation) -> str:
+    """Name the user whose access every run of the automation checks."""
+    from flexmeasures.data.services.automations import describe_run_user
+
+    if automation.execution_user_id is None:
+        # Set up through the CLI, which is trusted, so its runs check nobody's access.
+        return "nobody (CLI)"
+    return describe_run_user(automation.execution_user_id)
 
 
 def _show_automation(automation: Automation):
@@ -578,6 +590,7 @@ def _show_automation(automation: Automation):
                     f"{automation.cronstr} ({describe_cronstr(automation.cronstr)})",
                 ),
                 ("Timezone", automation.timezone),
+                ("Runs as", _runs_as(automation)),
                 ("Created at", automation.created_at.isoformat()),
                 ("Cursor", automation.cursor.isoformat()),
                 (
