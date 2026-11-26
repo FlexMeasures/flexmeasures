@@ -103,3 +103,72 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+  # The test job above runs plain PostgreSQL, where the TimescaleDB tests are skipped.
+  # This one runs them on TimescaleDB, at the lowest version FlexMeasures supports and at a recent one,
+  # and runs the migrations down and up again on a compressed hypertable,
+  # as migrations that build or drop indexes CONCURRENTLY fail there.
+  test-timescaledb:
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        timescaledb: [ "2.18.0-pg17", "2.22.1-pg17" ]
+    name: "Test on TimescaleDB ${{ matrix.timescaledb }}"
+    steps:
+      - name: Check out src from Git
+        uses: actions/checkout@v6
+
+      - name: Set up test environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          python-version: "3.12"
+
+      - name: Run the TimescaleDB tests
+        run: uv run pytest -v flexmeasures/cli/tests/test_db_ops_fresh_db.py
+
+      - name: Run the migrations down and up again on a compressed hypertable, and go back to a plain table
+        env:
+          PGDATABASE: flexmeasures_migrations
+          SQLALCHEMY_TEST_DATABASE_URI: postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_migrations
+        run: |
+          set -euo pipefail
+          createdb flexmeasures_migrations
+          psql -c "CREATE EXTENSION cube; CREATE EXTENSION earthdistance;"
+          uv run flexmeasures db upgrade
+          uv run flexmeasures add toy-account
+          # 120 days of hourly beliefs on the toy account's three sensors, so that several chunks get compressed.
+          psql -c "INSERT INTO timed_belief (sensor_id, source_id, event_start, belief_horizon, cumulative_probability, event_value)
+                   SELECT sensor.id, data_source.id, t, interval '0', 0.5, random()
+                     FROM sensor, data_source,
+                          generate_series(date_trunc('hour', now()) - interval '120 days', date_trunc('hour', now()), interval '1 hour') AS t;"
+          beliefs=$(psql -Atc "SELECT count(*) FROM timed_belief")
+          uv run flexmeasures db-ops enable-timescaledb --force --chunk-time-interval "7 days"
+          # Down past d4a7c1e93b52 and b7e5a2c40f18, which change timed_belief's primary key and indexes, and up again.
+          uv run flexmeasures db downgrade 3bc1e29ca1f4
+          uv run flexmeasures db upgrade
+          uv run flexmeasures db-ops disable-timescaledb --force
+          test "$(psql -Atc "SELECT count(*) FROM timed_belief")" = "$beliefs"
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: flexmeasures_test
+      PGDB: flexmeasures_test
+      PGPASSWORD: flexmeasures_test
+      FLEXMEASURES_ENV: testing
+      SQLALCHEMY_DATABASE_URI: postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test
+    services:
+      postgres:
+        image: timescale/timescaledb:${{ matrix.timescaledb }}
+        env:
+          POSTGRES_USER: flexmeasures_test
+          POSTGRES_PASSWORD: flexmeasures_test
+          POSTGRES_DB: flexmeasures_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flexmeasures_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
