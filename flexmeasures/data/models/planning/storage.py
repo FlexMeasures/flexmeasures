@@ -1295,6 +1295,10 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            # The limits as given, before relaxation turns any of them into priced commitments:
+            # a reaction must not breach a limit the plan may breach at a price, so the band narrowing sees these.
+            unrelaxed_soc_limits = (soc_targets[d], soc_maxima[d], soc_minima[d])
+
             if (
                 self.flex_context.get("soc_minima_breach_price") is not None
                 and soc_minima[d] is not None
@@ -1551,6 +1555,17 @@ class MetaStorageScheduler(Scheduler):
                 )
                 for column in ("equals", "min", "max"):
                     device_constraints[d][column] = storage_constraints[column]
+                device_constraints[d].attrs["reaction_stock_limits"] = (
+                    add_storage_constraints(
+                        start,
+                        end,
+                        resolution,
+                        soc_at_start[d],
+                        *unrelaxed_soc_limits,
+                        soc_max[d],
+                        soc_min[d],
+                    )[["equals", "min", "max"]]
+                )
             else:
                 # No need to validate non-existing storage constraints for this device.
                 # Only skip them for this device; other devices must still be validated.
@@ -3500,12 +3515,14 @@ class StorageScheduler(MetaStorageScheduler):
                 break
         d0 = group_devices[0]
         dcg = device_constraints[d0]
+        # Soft limits narrow the band like hard ones (see `reaction_stock_limits` in `_prepare`).
+        limits = dcg.attrs.get("reaction_stock_limits", dcg)
 
         # Effective per-slot stock bounds, replicating the LP's device_max_select /
         # device_min_select logic (soc-targets clamp the min/max bounds).
-        smax = dcg["max"].astype(float).to_numpy()
-        smin = dcg["min"].astype(float).to_numpy()
-        seq = dcg["equals"].astype(float).to_numpy()
+        smax = limits["max"].astype(float).to_numpy()
+        smin = limits["min"].astype(float).to_numpy()
+        seq = limits["equals"].astype(float).to_numpy()
         seq_max = np.where(np.isnan(seq), np.nan, np.fmax(seq, smin))
         seq_min = np.where(np.isnan(seq), np.nan, np.fmin(seq, smax))
         eff_max = np.where(
@@ -3711,16 +3728,6 @@ class StorageScheduler(MetaStorageScheduler):
         )
 
     @staticmethod
-    def _range_holding(
-        ranges: list[tuple[float, float]], p: float, tolerance: float
-    ) -> tuple[float, float]:
-        """The range of a band that holds the planned power ``p``, widened to include ``p`` exactly."""
-        for lo, hi in ranges:
-            if lo - tolerance <= p <= hi + tolerance:
-                return (min(lo, p), max(hi, p))
-        return (p, p)
-
-    @staticmethod
     def _mode_shaped_miss(
         ranges: list[tuple[float, float]],
         balancing_power: float,
@@ -3876,7 +3883,7 @@ class StorageScheduler(MetaStorageScheduler):
         - ``react``: the share of the surprise the device absorbs, 1 where the price kink is within the device's reach, 0 otherwise.
           The kink is within reach when the slot has an intended connection power (see :meth:`_intended_connection_power`),
           the device could reach the power that balances the connection at it (regardless of its stock),
-          and the plan's own range (see ``band``) is not a point.
+          and its band (see below) is more than a single point.
           Shares in between are reserved for a later version.
           Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
           A device whose reaction time exceeds the scheduling resolution gets 0;
@@ -3885,10 +3892,12 @@ class StorageScheduler(MetaStorageScheduler):
           Only where the device's operation modes keep the plan from balancing the connection exactly (see :meth:`_mode_shaped_miss`),
           it is the intended connection power minus the planned power of the reacting devices, i.e. the forecast shifted by the plan's miss:
           where the plan holds the connection at zero, the negative of the planned device power, and where a capacity binds, the capacity minus it;
-        - ``band``: where the device reacts, the plan's own range: the one range of the device's band (see :meth:`_device_band_ranges`) that holds ``p``.
-          The mode is fixed per slot, and the plan must be the setpoint at zero deviation from the balance point:
-          with the house as forecast, the raw setpoint lands outside that range on the side of the unconstrained optimum, and the clip returns the plan.
-          A surprise beyond the range leaves a residual, which is what the retrigger is for.
+        - ``band``: where the device reacts, every range the plan leaves feasible (see :meth:`_device_band_ranges`):
+          the device's operation modes cut to its own limits, each narrowed by state-of-charge reachability under hard and soft limits alike,
+          and dropped when reachability empties it.
+          Whether and when the device changes mode is the controller's policy;
+          a reacting device rounds a value that falls in a hole to the edge on the side of its current mode,
+          which at the start of a slot is the plan's range, so the house as forecast returns the plan.
           A device with react 0 gets the single range (p, p).
 
         All values are in MW (consumption positive).
@@ -3994,10 +4003,8 @@ class StorageScheduler(MetaStorageScheduler):
             reacts = np.zeros(n)
             bands = []
             for t in range(n):
-                own_range = self._range_holding(
-                    device_ranges[d][t], float(p[t]), tolerance
-                )
-                room = own_range[1] - own_range[0] > tolerance
+                ranges = device_ranges[d][t]
+                room = len(ranges) > 1 or ranges[0][1] - ranges[0][0] > tolerance
                 # The power the reacting devices would need to balance the connection at the intended power,
                 # which must lie within what this device could reach for the kink to be within its reach.
                 balancing_power = intended_power[t] - uncontrolled_plan[t]
@@ -4009,7 +4016,7 @@ class StorageScheduler(MetaStorageScheduler):
                 )
                 if can_react[d] and within_reach and room:
                     reacts[t] = 1.0
-                    bands.append([own_range])
+                    bands.append(ranges)
                     if self._mode_shaped_miss(
                         device_ranges[d][t],
                         balancing_power,

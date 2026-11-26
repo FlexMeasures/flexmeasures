@@ -962,11 +962,11 @@
                           },
                           "react": {
                             "type": "number",
-                            "description": "The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); 1 where the price kink (a production price below the consumption price or at or below zero, or a binding capacity) is within the device's reach and its range is not a point. This version emits 0 or 1, shares in between are reserved for a later version."
+                            "description": "The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); 1 where the price kink (a production price below the consumption price or at or below zero, or a binding capacity) is within the device's reach and its band is more than a single point. This version emits 0 or 1, shares in between are reserved for a later version."
                           },
                           "band": {
                             "type": "array",
-                            "description": "The power range the device may move within during this slot, as a list of one [min, max] pair. Where the device reacts, this is the plan's own range (the mode is fixed per slot; a surprise beyond the range leaves a residual, which is what the retrigger is for); a point range gives react 0, and a device with react 0 gets the single range [p, p].",
+                            "description": "The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike. Whether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode. A band of a single point gives react 0, and a device with react 0 gets the single range [p, p].",
                             "items": {
                               "type": "array",
                               "items": {

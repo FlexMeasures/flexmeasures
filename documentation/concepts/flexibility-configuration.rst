@@ -510,7 +510,7 @@ Each schedule value of such a device then comes with an entry of the ``reaction`
 
 - ``reference``: the uncontrolled power at the connection against which the plan is balanced, in the schedule's unit: normally the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly (the balancing power falls in a gap between two of its ranges, and the plan sits at the gap's edge), by the plan's miss: where the plan holds the connection at zero, it is then the negative of the planned device power, and where a capacity binds, the capacity minus the planned device power;
 - ``react``: the share of the surprise the device should absorb, ``1`` to absorb it one to one and ``0`` to stick to the plan (this version emits ``0`` or ``1``; shares in between are reserved for a later version);
-- ``band``: the power range the device may move within during the slot, as a list of one ``[min, max]`` pair of numbers, in the schedule's unit. Where the device reacts, this is the plan's own range: the mode is fixed per slot, so the band returns the plan when the house is as forecast, and a surprise beyond the range leaves a residual, which is what the retrigger is for. A device whose range is a point does not react, and gets just the plan as band.
+- ``band``: the power ranges the device may move within during the slot, as a list of ``[min, max]`` pairs of numbers, in the schedule's unit: every range the plan leaves feasible (the device's operation modes cut to its own limits), each narrowed by its state-of-charge limits, hard and soft alike. Whether and when a device changes mode is the controller's policy; a reacting device rounds a value that falls in a hole between two ranges to the edge on the side of its current mode, so the house as forecast returns the plan. A surprise beyond the band leaves a residual, which is what the retrigger is for. A device whose whole band is a single point does not react, and gets just the plan as band.
 
 The client evaluates the reaction itself.
 Writing ``p`` for the scheduled value and ``meter`` for the measured net power at the connection,
@@ -518,7 +518,7 @@ the surprise is ``(meter - Σ device power) - reference``, with ``Σ device powe
 and the device's setpoint for the slot is the clip of ``p - react * surprise`` to the band, which equals the plan when the connection behaves as forecast.
 Devices react in series, in the order of the flex-model, each absorbing what the devices before it could not.
 The react share is ``1`` in the slots where the price kink is within the device's reach: the production price is below the consumption price or at or below zero, or the site capacity binds,
-and the device could reach the power that balances the connection at that kink, with room in its own range to move; it is ``0`` elsewhere, with a band of just the scheduled value.
+and the device could reach the power that balances the connection at that kink; it is ``0`` elsewhere, and wherever the band is a single point, with a band of just the scheduled value.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
 When a reaction leaves the band, trigger a new schedule.
 

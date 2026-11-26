@@ -192,10 +192,25 @@ def _compute_recourse(
     return {rule["sensor"].id: rule for rule in rules}
 
 
-def _clip_to_band(value: float, band: list[tuple[float, float]]) -> float:
-    """Clip a value to the nearest point of a band made of several ranges."""
-    candidates = [min(max(value, lo), hi) for lo, hi in band]
-    return min(candidates, key=lambda candidate: abs(candidate - value))
+def _clip_to_band(
+    value: float, band: list[tuple[float, float]], current: float | None = None
+) -> float:
+    """The client rule for a band of several ranges: a value inside a range is returned as is,
+    a value beyond the band's ends is clipped to the nearest end,
+    and a value in a hole between two ranges is rounded to the edge on the side of the device's current mode,
+    which is the range holding ``current`` (the plan, at the start of a slot).
+    """
+    if any(lo <= value <= hi for lo, hi in band):
+        return value
+    if value < band[0][0]:
+        return band[0][0]
+    if value > band[-1][1]:
+        return band[-1][1]
+    current = value if current is None else current
+    for (_, previous_hi), (next_lo, _) in zip(band, band[1:]):
+        if previous_hi < value < next_lo:
+            return previous_hi if current <= previous_hi else next_lo
+    raise AssertionError("a value is either in a range, beyond an end, or in a hole")
 
 
 def _assert_bands_are_well_formed(data: pd.DataFrame):
@@ -211,7 +226,9 @@ def _assert_bands_are_well_formed(data: pd.DataFrame):
             assert lo <= hi
             assert lo > previous_hi
             previous_hi = hi
-        assert np.isclose(_clip_to_band(row["p"], band), row["p"], atol=TOLERANCE)
+        assert np.isclose(
+            _clip_to_band(row["p"], band, row["p"]), row["p"], atol=TOLERANCE
+        )
         if row["react"] == 0:
             assert band == [(row["p"], row["p"])]
 
@@ -290,6 +307,7 @@ def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
             setpoint = _clip_to_band(
                 row["p"] - react * (measured_uncontrolled - row["reference"]),
                 row["band"],
+                row["p"],
             )
             assert setpoint == row["p"]
 
@@ -355,9 +373,11 @@ def test_mode_shaped_plan_is_balanced_at_its_miss(app, db):
     where a 1.4 kW load at an import price of 100 is served from the battery.
     The planned connection power in the first slot is +0.2 kW, within the 1.4 kW gap between idle and the charging range,
     so the slot is held at zero: the reference is -1.4 kW (the negative of the plan), react is 1,
-    and the band is the plan's own range [1.4, 2] kW.
-    Applying the client rule, 0.3 kW of extra sun gives a setpoint of 1.5 kW, and the house as forecast gives exactly the plan.
-    In the second slot the battery empties itself, so its range leaves no room and it does not react.
+    and the band lists idle and the charging range [1.4, 2] kW.
+    Applying the client rule, 0.3 kW of extra sun gives a setpoint of 1.5 kW,
+    and the house as forecast gives a raw value of 1.2 kW in the hole, rounded to the plan's side: exactly the plan.
+    In the second slot the battery empties itself, so its discharging range is a point, but idling or charging stay feasible,
+    so it still reacts, against the forecast (the plan sits on the balancing power).
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
@@ -380,22 +400,26 @@ def test_mode_shaped_plan_is_balanced_at_its_miss(app, db):
     np.testing.assert_allclose(
         data["p"], [0.0014, -0.0014], atol=TOLERANCE, err_msg="plan"
     )
-    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(data["react"], [1, 1], err_msg="react")
     np.testing.assert_allclose(
         data["reference"], [-0.0014, 0.0014], atol=TOLERANCE, err_msg="balance point"
     )
-    np.testing.assert_allclose(data["band"].iloc[0], [(0.0014, 0.002)], atol=TOLERANCE)
     np.testing.assert_allclose(
-        data["band"].iloc[1], [(-0.0014, -0.0014)], atol=TOLERANCE
+        data["band"].iloc[0], [(0, 0), (0.0014, 0.002)], atol=TOLERANCE
+    )
+    np.testing.assert_allclose(
+        data["band"].iloc[1],
+        [(-0.0014, -0.0014), (0, 0), (0.0014, 0.002)],
+        atol=TOLERANCE,
     )
 
     p, react, reference, band = (
         data.iloc[0][key] for key in ("p", "react", "reference", "band")
     )
     house_as_forecast = -0.0012
-    assert _clip_to_band(p - react * (house_as_forecast - reference), band) == p
+    assert _clip_to_band(p - react * (house_as_forecast - reference), band, p) == p
     extra_sun = -0.0015
-    assert _clip_to_band(p - react * (extra_sun - reference), band) == pytest.approx(
+    assert _clip_to_band(p - react * (extra_sun - reference), band, p) == pytest.approx(
         0.0015, abs=TOLERANCE
     )
 
@@ -456,8 +480,9 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
     and must hold 21.2 kWh by the evening. Import gets cheaper over the day, so the plan absorbs the sun (4.4 kW) in the first
     two slots and imports the missing 3.6 kWh as late as it can: 5.0 kW in the third slot and the full 7.4 kW in the fourth.
     The balancing power (4.4 kW) lies inside the charging range in every slot, so the plan's misses are deliberate, not mode-shaped,
-    and the reference stays the forecast of -4.4 kW. The band is the plan's own range, with its lower bound rising as the (hard) target
-    comes within reach, and in the last slot it is a point, so the charger does not react there.
+    and the reference stays the forecast of -4.4 kW. The band lists every feasible range: idle and the charging range at first,
+    then only the charging range with its lower bound rising as the (hard) target comes within reach,
+    and in the last slot a single point, so the charger does not react there.
     In the third slot, 1 kW of extra sun must be absorbed on top of the planned import: the client rule gives 6.0 kW.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
@@ -496,7 +521,7 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
         data["reference"], -0.0044, atol=TOLERANCE, err_msg="forecast"
     )
     expected_bands = [
-        [(0.0014, 0.0074)],
+        [(0, 0), (0.0014, 0.0074)],
         [(0.0020, 0.0074)],
         [(0.0050, 0.0074)],
         [(0.0074, 0.0074)],
@@ -508,10 +533,10 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
         data.iloc[2][key] for key in ("p", "react", "reference", "band")
     )
     extra_sun = -0.0054
-    assert _clip_to_band(p - react * (extra_sun - reference), band) == pytest.approx(
+    assert _clip_to_band(p - react * (extra_sun - reference), band, p) == pytest.approx(
         0.0060, abs=TOLERANCE
     )
-    assert _clip_to_band(p - react * (-0.0044 - reference), band) == p
+    assert _clip_to_band(p - react * (-0.0044 - reference), band, p) == p
 
 
 def test_negative_feed_in_without_a_forecast(app, db):
@@ -543,12 +568,80 @@ def test_negative_feed_in_without_a_forecast(app, db):
     np.testing.assert_allclose(
         data["reference"], [0.0, 0.0], atol=TOLERANCE, err_msg="reference"
     )
-    np.testing.assert_allclose(data["band"].iloc[0], [(0.0014, 0.0044)], atol=TOLERANCE)
+    np.testing.assert_allclose(
+        data["band"].iloc[0], [(0, 0), (0.0014, 0.0044)], atol=TOLERANCE
+    )
     np.testing.assert_allclose(data["band"].iloc[1], [(0, 0)], atol=TOLERANCE)
 
 
-def test_band_is_the_plans_own_range_within_its_modes(app, db):
-    """A device with operation modes gets the one range of its modes that holds the plan, not every range.
+@pytest.mark.parametrize(
+    ["soc_maxima", "expected_react", "expected_band"],
+    [
+        # Room to charge: idle and the charging range are feasible, and the idle plan reacts against the balance point 0.0.
+        (None, 1, [(0, 0), (0.0014, 0.0074)]),
+        # A soft soc-maxima that charging would breach within the slot empties the charging range: a one-point band, no reaction.
+        ("0.001 MWh", 0, [(0, 0)]),
+    ],
+)
+def test_idle_plan_with_a_surplus(app, db, soc_maxima, expected_react, expected_band):
+    """An idle charger facing 1.2 kW of surplus reacts when it has room to charge, against a balance point of 0.0.
+
+    Storing the surplus would take the charger's smallest step of 1.4 kW, importing 0.2 kW at 50 instead of exporting 1.2 kW at 5,
+    and the stored energy has no later use, so the plan idles: the balancing power (1.2 kW) falls in the hole between idle and charging,
+    with the plan at its lower edge, so the reference is 0.0 rather than the -1.2 kW forecast.
+    Applying the client rule, 0.5 kW of extra sun gives a raw value of 1.7 kW inside the charging range, and the house as forecast
+    gives 1.2 kW in the hole, rounded to the plan's side: idle.
+    The soc-maxima is left soft (the default relaxation), yet it narrows the band like a hard limit.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name=f"Recourse site (idle plan, soc-maxima {soc_maxima})",
+        consumption_prices="50 EUR/MWh",
+        production_prices="5 EUR/MWh",
+        load_kw=-1.2,
+        n_hours=1,
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _charger(
+                battery_power,
+                **({} if soc_maxima is None else {"soc-maxima": soc_maxima}),
+            )
+        ],
+    )[battery_power.id]["data"]
+    row = data.iloc[0]
+    np.testing.assert_allclose(row["p"], 0, atol=TOLERANCE, err_msg="plan")
+    assert row["react"] == expected_react
+    np.testing.assert_allclose(row["band"], expected_band, atol=TOLERANCE)
+    if expected_react:
+        np.testing.assert_allclose(row["reference"], 0.0, atol=TOLERANCE)
+        extra_sun = -0.0017
+        assert _clip_to_band(
+            row["p"] - row["react"] * (extra_sun - row["reference"]),
+            row["band"],
+            row["p"],
+        ) == pytest.approx(0.0017, abs=TOLERANCE)
+        house_as_forecast = -0.0012
+        assert (
+            _clip_to_band(
+                row["p"] - row["react"] * (house_as_forecast - row["reference"]),
+                row["band"],
+                row["p"],
+            )
+            == 0
+        )
+    else:
+        np.testing.assert_allclose(row["reference"], -0.0012, atol=TOLERANCE)
+
+
+def test_band_lists_every_feasible_range_within_its_modes(app, db):
+    """A device with operation modes gets every range of its modes the plan leaves feasible, none spanning a hole.
 
     The battery can be off, consume between 2 and 5 kW, or produce between 2 and 5 kW;
     it serves a 3 kW load with the production price below the consumption price, so the connection is held at zero.
@@ -581,12 +674,17 @@ def test_band_is_the_plans_own_range_within_its_modes(app, db):
     _assert_bands_are_well_formed(data)
     # The battery serves the load until its 5 kWh run out: three hours at 3 kW is more than it holds.
     assert (data["p"] < -TOLERANCE).any()
+    signed_modes = [(-0.005, -0.002), (0, 0), (0.002, 0.005)]
     for _, row in data.iterrows():
         if row["p"] < -TOLERANCE:
             assert row["react"] == 1
             np.testing.assert_allclose(row["reference"], 0.003, atol=TOLERANCE)
-            ((lo, hi),) = row["band"]
-            assert -0.005 - TOLERANCE <= lo and hi <= -0.002 + TOLERANCE
+            assert len(row["band"]) >= 2, "idling stays feasible besides discharging"
+            for lo, hi in row["band"]:
+                assert any(
+                    mode_lo - TOLERANCE <= lo and hi <= mode_hi + TOLERANCE
+                    for mode_lo, mode_hi in signed_modes
+                ), f"range ({lo}, {hi}) spans a hole between the operation modes"
 
 
 @pytest.mark.parametrize(
