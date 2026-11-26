@@ -4,6 +4,7 @@ from http import HTTPStatus
 import math
 
 import isodate
+import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
@@ -122,7 +123,7 @@ annotation_schema = AnnotationSchema()
 
 def _build_recourse_response(
     recourse_meta: dict,
-    schedule_index: pd.DatetimeIndex,
+    values: pd.Series,
     resolution: timedelta,
     to_unit: str,
     sign: int,
@@ -130,25 +131,31 @@ def _build_recourse_response(
 ) -> list[dict]:
     """Serialize the per-slot reaction rules of one device (stored in the job meta) for the schedule response.
 
-    Aligns the rule slots (stored at the scheduling resolution) with the served schedule window and resolution (rules are piecewise constant),
-    converts power values from the stored unit to the unit of the served schedule values, and applies their sign convention.
+    The rules are stored at the scheduling resolution, while the values are served at the sensor's resolution.
+    Per served slot, the rules whose slots overlap it are gathered.
+    Where they all agree (the same react share, the same reference and identical bands) and the served value lies within that band,
+    that rule is served; otherwise the slot gets react 0, the mean of the gathered references, and the served value as its band,
+    since a mean of sub-slot plans has no single band to move within.
+    A sensor finer than the scheduling resolution gathers one rule per served slot, so only the band check applies.
+    Power values are converted from the stored unit to the unit of the served values, with their sign convention.
     Every value is a finite number: the scheduler requires a power capacity for each device, so each band side is bounded.
 
     :param recourse_meta:  Reaction rules of one device, as stored in the job meta.
-    :param schedule_index: DatetimeIndex of the served schedule values.
+    :param values:         The served schedule values, indexed by slot start.
     :param resolution:     Event resolution of the served schedule values.
     :param to_unit:        Unit of the served schedule values.
     :param sign:           Sign multiplier applied to power values (1 or -1).
     :param device:         Name of the device, for the error raised on a non-finite value.
     :returns:              One reaction object per served schedule value.
-    :raises ValueError:    When a stored rule value is not finite, which would be a scheduler bug rather than a contract case.
+    :raises ValueError:    When a stored rule value is not finite, or a served slot has no rule, which would be a scheduler bug.
     """
+    rule_resolution = pd.Timedelta(isodate.parse_duration(recourse_meta["resolution"]))
     rule_index = pd.date_range(
         start=pd.Timestamp(recourse_meta["start"]),
         periods=len(recourse_meta["react"]),
-        freq=pd.Timedelta(isodate.parse_duration(recourse_meta["resolution"])),
+        freq=rule_resolution,
     )
-    df = pd.DataFrame(
+    rules = pd.DataFrame(
         {
             "react": recourse_meta["react"],
             "reference": recourse_meta["reference"],
@@ -156,13 +163,12 @@ def _build_recourse_response(
         },
         index=rule_index,
     )
-    df = df.reindex(schedule_index.tz_convert(df.index.tz), method="ffill")
     from_unit = recourse_meta.get("unit", "MW")
 
-    def convert(values: list[float], slot: pd.Timestamp) -> list[float]:
+    def convert(power_values: list[float], slot: pd.Timestamp) -> list[float]:
         """Convert a list of power values to the served unit and sign."""
         converted = convert_units(
-            pd.Series(values, dtype=float),
+            pd.Series(power_values, dtype=float),
             from_unit=from_unit,
             to_unit=to_unit,
             event_resolution=resolution,
@@ -175,15 +181,43 @@ def _build_recourse_response(
         return [sign * float(value) for value in converted]
 
     response_objects = []
-    for slot, row in df.iterrows():
-        reference = convert([row["reference"]], slot)[0]
-        # A production-positive sign convention swaps the sides.
-        band = sorted(sorted(convert([lo, hi], slot)) for lo, hi in row["band"])
+    for slot, value in values.items():
+        # The scheduler rounds the plan to 1e-6 MW (the stored unit), so the served value may sit up to that far outside its own (unrounded) band.
+        band_tolerance = abs(convert([1e-6], slot)[0])
+        slot_start = pd.Timestamp(slot).tz_convert(rules.index.tz)
+        window = rules[
+            (rules.index < slot_start + resolution)
+            & (rules.index + rule_resolution > slot_start)
+        ]
+        if window.empty:
+            raise ValueError(
+                f"The reaction rules of {device} do not cover the slot starting at {slot}."
+            )
+        first = window.iloc[0]
+        agree = (
+            bool((window["react"] == first["react"]).all())
+            and bool(np.allclose(window["reference"], first["reference"]))
+            and all(band == first["band"] for band in window["band"])
+        )
+        if agree:
+            # A production-positive sign convention swaps the sides.
+            band = sorted(sorted(convert([lo, hi], slot)) for lo, hi in first["band"])
+            if any(
+                lo - band_tolerance <= value <= hi + band_tolerance for lo, hi in band
+            ):
+                response_objects.append(
+                    {
+                        "reference": convert([first["reference"]], slot)[0],
+                        "react": float(first["react"]),
+                        "band": band,
+                    }
+                )
+                continue
         response_objects.append(
             {
-                "reference": reference,
-                "react": float(row["react"]),
-                "band": band,
+                "reference": convert([float(window["reference"].mean())], slot)[0],
+                "react": 0.0,
+                "band": [[float(value), float(value)]],
             }
         )
     return response_objects
@@ -1647,7 +1681,7 @@ class SensorAPI(FlaskView):
                     response_sign = -1
             response["reaction"] = _build_recourse_response(
                 recourse_meta,
-                schedule_index=consumption_schedule.index,
+                values=consumption_schedule,
                 resolution=resolution,
                 to_unit=unit,
                 sign=response_sign,

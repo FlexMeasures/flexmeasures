@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
@@ -1230,3 +1232,129 @@ def test_reaction_served_only_for_devices_that_opted_in(
         schedules[sensor_1.id]["values"]
     )
     assert "reaction" not in schedules[sensor_2.id]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reaction_on_a_sensor_coarser_than_the_scheduling_resolution(
+    app,
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_sources_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    setup_roles_users_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """A 5-minute schedule served on a 15-minute sensor keeps every value within its band.
+
+    The 5-minute resolution is set by a 5-minute device;
+    every served value lies within its band, and the slots whose sub-slots agree keep their reaction.
+
+    A site with 6 kW of surplus sun all day and a feed-in price below the import price holds its connection at zero
+    by charging a 15-minute battery, which reacts; a second, 5-minute battery is full and idles.
+    """
+    start = pd.Timestamp("2026-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=6)
+    site = GenericAsset(
+        name="Reaction test site (two resolutions)",
+        owner=setup_accounts_fresh_db["Prosumer"],
+        generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
+    )
+    coarse_sensor = Sensor(
+        name="coarse battery power",
+        generic_asset=site,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fine_sensor = Sensor(
+        name="fine battery power",
+        generic_asset=site,
+        unit="MW",
+        event_resolution=timedelta(minutes=5),
+    )
+    sun = Sensor(
+        name="sun", generic_asset=site, unit="MW", event_resolution=timedelta(minutes=5)
+    )
+    import_price = Sensor(
+        name="import price",
+        generic_asset=site,
+        unit="EUR/MWh",
+        event_resolution=timedelta(hours=1),
+    )
+    fresh_db.session.add_all([site, coarse_sensor, fine_sensor, sun, import_price])
+    fresh_db.session.flush()
+    source = setup_sources_fresh_db["Seita"]
+    fresh_db.session.add_all(
+        TimedBelief(
+            sensor=sun,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=0.006,
+        )
+        for dt in pd.date_range(start, end, freq="5min", inclusive="left")
+    )
+    fresh_db.session.add_all(
+        TimedBelief(
+            sensor=import_price,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=50,
+        )
+        for dt in pd.date_range(start, end, freq="1h", inclusive="left")
+    )
+    fresh_db.session.commit()
+
+    def battery(sensor: Sensor, soc_at_start: str, react: bool) -> dict:
+        return {
+            "sensor": sensor.id,
+            "power-capacity": "10 kW",
+            "soc-at-start": soc_at_start,
+            "soc-min": "0 kWh",
+            "soc-max": "40 kWh",
+            "react": react,
+        }
+
+    message = {
+        "start": start.isoformat(),
+        "duration": "PT6H",
+        "resolution": "PT5M",
+        "sequential": False,
+        "flex-model": [
+            battery(coarse_sensor, "0 kWh", react=True),
+            battery(fine_sensor, "40 kWh", react=False),
+        ],
+        "flex-context": {
+            "consumption-price": {"sensor": import_price.id},
+            "production-price": "5 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "inflexible-production": [{"sensor": sun.id}],
+        },
+    }
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=site.id), json=message
+        )
+        assert (
+            trigger_schedule_response.status_code == 202
+        ), trigger_schedule_response.json
+        job_id = trigger_schedule_response.json["schedule"]
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished, job.latest_result()
+
+    with app.test_client() as client:
+        schedule = client.get(
+            url_for("SensorAPI:get_schedule", id=coarse_sensor.id, uuid=job_id)
+        ).json
+    assert len(schedule["reaction"]) == len(schedule["values"]) == 24
+    for value, reaction in zip(schedule["values"], schedule["reaction"]):
+        assert any(
+            lower - 1e-6 <= value <= upper + 1e-6 for lower, upper in reaction["band"]
+        ), (value, reaction)
+    assert any(
+        reaction["react"] == 1 for reaction in schedule["reaction"]
+    ), "agreeing slots keep their reaction"
