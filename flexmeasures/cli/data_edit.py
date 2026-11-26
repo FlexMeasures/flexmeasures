@@ -100,6 +100,13 @@ def fm_edit_data():
     help="Activate or deactivate the automation.",
 )
 @click.option(
+    "--critical/--not-critical",
+    "critical",
+    default=None,
+    help="Mark the automation as critical to your organisation, or no longer critical."
+    " A failed run of a critical automation is handed to the critical-automation-failure hooks.",
+)
+@click.option(
     "--monitored/--unmonitored",
     "monitored",
     default=None,
@@ -111,15 +118,17 @@ def edit_automation(
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    critical: bool | None = None,
     monitored: bool | None = None,
 ):
-    """Edit the name, recurrence, timezone, activation status or monitoring of an automation."""
+    """Edit the name, recurrence, timezone, activation status, criticality or monitoring of an automation."""
     changes = update_automation(
         automation,
         name=name,
         cronstr=cronstr,
         timezone=timezone,
         active=active,
+        critical=critical,
         monitored=monitored,
         origin="CLI",
     )
