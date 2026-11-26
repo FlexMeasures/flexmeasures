@@ -188,7 +188,7 @@ def _compute_recourse(
     scheduler.flex_context.update(internal_context_keys or {})
     results = scheduler.compute()
     rules = [r for r in results if r["name"] == "recourse_rule"]
-    assert len(rules) == len(flex_model)
+    assert len(rules) == sum(1 for fm in flex_model if fm.get("react"))
     return {rule["sensor"].id: rule for rule in rules}
 
 
@@ -791,8 +791,8 @@ def test_reaction_directions_and_time_gate_the_band_and_react(
     np.testing.assert_allclose(data["band"].iloc[0], expected_band, atol=TOLERANCE)
 
 
-def test_device_without_react_gets_no_share(app, db):
-    """Only devices with ``react`` set react; a second battery without it keeps react 0 and a band of its plan.
+def test_device_without_react_gets_no_rules(app, db):
+    """Only devices with ``react`` set get reaction rules; a second battery without it gets none at all.
 
     A negative production price makes idling the batteries' unique optimum, with the connection held at zero.
     """
@@ -831,8 +831,7 @@ def test_device_without_react_gets_no_share(app, db):
         ],
     )
     np.testing.assert_allclose(rules[battery_power.id]["data"]["react"], 1)
-    np.testing.assert_allclose(rules[other_battery.id]["data"]["react"], 0)
-    _assert_bands_are_well_formed(rules[other_battery.id]["data"])
+    assert other_battery.id not in rules
 
 
 @pytest.mark.parametrize("retrigger", [None, False])

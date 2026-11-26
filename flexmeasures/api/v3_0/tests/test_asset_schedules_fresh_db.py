@@ -1156,3 +1156,77 @@ def test_asset_trigger_with_group_referencing_sensor_outside_asset_tree(
 
     # No scheduling job should have been queued
     assert len(app.queues["scheduling"]) == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reaction_served_only_for_devices_that_opted_in(
+    app,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """In a two-device schedule, only the device whose flex-model set ``react`` gets a ``reaction`` array."""
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message = message_for_trigger_schedule(resolution="PT30M")
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    sensor_1, sensor_2 = (
+        bidirectional_charging_station.sensors[0],
+        charging_station.sensors[0],
+    )
+    reacting_flex_model = {
+        **message["flex-model"],
+        "sensor": sensor_1.id,
+        "state-of-charge": {
+            "sensor": add_charging_station_assets_fresh_db["bi-soc"].id
+        },
+        "react": True,
+    }
+    plain_flex_model = {
+        **message["flex-model"],
+        "sensor": sensor_2.id,
+        "state-of-charge": {
+            "sensor": add_charging_station_assets_fresh_db["uni-soc"].id
+        },
+    }
+    message["flex-model"] = [reacting_flex_model, plain_flex_model]
+    message["sequential"] = False
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for(
+                "AssetAPI:trigger_schedule", id=sensor_1.generic_asset.parent_asset.id
+            ),
+            json=message,
+        )
+        assert (
+            trigger_schedule_response.status_code == 202
+        ), trigger_schedule_response.json
+        job_id = trigger_schedule_response.json["schedule"]
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished, job.latest_result()
+
+    schedules = {}
+    with app.test_client() as client:
+        for sensor in (sensor_1, sensor_2):
+            response = client.get(
+                url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id)
+            )
+            assert response.status_code == 200, response.json
+            schedules[sensor.id] = response.json
+    assert len(schedules[sensor_1.id]["reaction"]) == len(
+        schedules[sensor_1.id]["values"]
+    )
+    assert "reaction" not in schedules[sensor_2.id]

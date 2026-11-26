@@ -3863,7 +3863,7 @@ class StorageScheduler(MetaStorageScheduler):
         initial_stock: list[float],
         resolution: timedelta,
     ) -> list[dict]:
-        """Compute the per-slot reaction rule of each flexible device, see :ref:`reaction_rules`.
+        """Compute the per-slot reaction rule of each flexible device that set ``react``, see :ref:`reaction_rules`.
 
         The client applies ``setpoint = clip(p - react * (m_uncontrolled - reference), band)`` per slot,
         where ``p`` is the planned power and ``m_uncontrolled`` the measured uncontrolled power at the connection.
@@ -3975,6 +3975,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         entries = []
         for d in range(num_flexible):
+            # Only a device that opted in gets reaction rules; the others get no entry, and so no `reaction` array.
+            if not (d < len(device_models) and device_models[d].get("react")):
+                continue
             p = ems_schedule[d].to_numpy(dtype=float)
             commodity = device_commodity[d]
             kinks = (
