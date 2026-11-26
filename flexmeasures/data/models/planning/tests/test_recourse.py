@@ -249,7 +249,7 @@ def test_reaction_band_reference_and_react_hand_verified(app, db):
     Hand-derived reaction values:
 
     - reference: the uncontrolled load, [8, 8, 8, 8], without the battery's own plan;
-    - react: the site capacity binds at the optimum in slots 0 and 2 (net flow 15), so the battery gets 1 there and 0 elsewhere;
+    - react: the site capacity binds at the optimum in slots 0 and 2 (net flow exactly 15, the capacity kink), so the battery gets 1 there and 0 elsewhere;
     - band in the reacting slots, from the device's own limits only (the site headroom does not narrow it):
       the device cap (±10) and the stock reachability given the planned SoC at the start of the slot (5 and 2 kWh),
       so slot 0 gets [-5, 10] and slot 2 gets [-2, 10];
@@ -638,6 +638,52 @@ def test_idle_plan_with_a_surplus(app, db, soc_maxima, expected_react, expected_
         )
     else:
         np.testing.assert_allclose(row["reference"], -0.0012, atol=TOLERANCE)
+
+
+def test_plan_just_below_the_fuse_holds_the_price_kink(app, db):
+    """A plan that the modes keep less than a step below the fuse is not at the capacity kink; it holds the price kink.
+
+    A one-phase connection of 5.75 kW, 2 kW of surplus sun, feed-in below import, and a charger (idle or 1.4 to 7.4 kW)
+    that must hold 13 kWh after two hours. Import is cheaper in the first hour, so the charger takes its full 7.4 kW then
+    (importing 5.4 kW, 0.35 kW below the fuse) and the remaining 5.6 kW in the second hour.
+    Balancing the connection at the fuse would take 7.75 kW, beyond the charger's reach, but balancing it at zero takes 2 kW:
+    the first slot reacts at the price kink, against the forecast, with every range the target leaves feasible.
+    The second slot's range is pinned by the target, so it does not react.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (just below the fuse)",
+        consumption_prices=[49, 50],
+        production_prices=[5, 5],
+        load_kw=[-2, -2],
+        n_hours=2,
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="5.75 kW",
+        flex_model=[
+            _charger(
+                battery_power,
+                **{
+                    "soc-targets": [{"datetime": end.isoformat(), "value": "0.013 MWh"}]
+                },
+            )
+        ],
+        flex_context_extra={"relax-soc-constraints": False},
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [0.0074, 0.0056], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(
+        data["reference"], -0.002, atol=TOLERANCE, err_msg="forecast"
+    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0056, 0.0074)], atol=TOLERANCE)
+    np.testing.assert_allclose(data["band"].iloc[1], [(0.0056, 0.0056)], atol=TOLERANCE)
 
 
 def test_band_lists_every_feasible_range_within_its_modes(app, db):

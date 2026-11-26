@@ -3717,17 +3717,6 @@ class StorageScheduler(MetaStorageScheduler):
         return merged
 
     @staticmethod
-    def _widest_gap(ranges: list[tuple[float, float]]) -> float:
-        """The widest gap between two consecutive ranges of a band, 0 for a band of one range."""
-        return max(
-            (
-                next_lo - previous_hi
-                for (_, previous_hi), (next_lo, _) in zip(ranges, ranges[1:])
-            ),
-            default=0.0,
-        )
-
-    @staticmethod
     def _mode_shaped_miss(
         ranges: list[tuple[float, float]],
         balancing_power: float,
@@ -3808,13 +3797,13 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule: list[pd.Series],
         ems_constraints: list[pd.DataFrame],
         commitments: list,
-        capacity_tolerance: dict[str, np.ndarray],
-    ) -> dict[str, np.ndarray]:
-        """Per commodity and slot, the connection power the plan intends, or NaN where there is no price kink to hold.
+        tolerance: float,
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+        """Per commodity and slot, the connection powers at which the plan sits on a price kink, NaN where it does not.
 
-        The intended power is zero where the production price is below the consumption price or at or below zero,
-        and the site capacity where it binds, i.e. where the plan sits at the capacity within ``capacity_tolerance``:
-        the dead zone of the reacting devices' bands (how far a plan shaped by operation modes can miss), or the float tolerance.
+        Two kinks are returned: the price kink at zero, where the production price is below the consumption price or at or below zero,
+        and the capacity kink, where the plan sits at the site capacity (within the float tolerance).
+        A plan held just below the capacity by a device's operation modes is not at the capacity kink; it may still be at the price kink.
         """
         n = len(ems_schedule[0])
 
@@ -3833,20 +3822,21 @@ class StorageScheduler(MetaStorageScheduler):
                 )[:n]
 
         ems_constraint_groups = self.ems_constraint_groups or []
-        intended_by_commodity = {}
+        price_kink_by_commodity = {}
+        capacity_kink_by_commodity = {}
         for commodity, devices in commodity_to_devices.items():
             device_set = {k for k in devices if k < len(ems_schedule)}
             net = np.zeros(n)
             for k in device_set:
                 net += ems_schedule[k].to_numpy(dtype=float)
-            tolerance = capacity_tolerance[commodity]
-            intended = np.full(n, np.nan)
+            price_kink = np.full(n, np.nan)
+            capacity_kink = np.full(n, np.nan)
 
             up = consumption_prices.get(commodity)
             down = production_prices.get(commodity)
             if up is not None and down is not None:
                 production_cheaper = (down < up) & ~np.isclose(down, up)
-                intended[production_cheaper | (down <= 0)] = 0.0
+                price_kink[production_cheaper | (down <= 0)] = 0.0
 
             for g, group_devices in enumerate(ems_constraint_groups):
                 if set(group_devices) != device_set:
@@ -3856,11 +3846,12 @@ class StorageScheduler(MetaStorageScheduler):
                 with np.errstate(invalid="ignore"):
                     binding_max = ~np.isnan(emax) & (net >= emax - tolerance)
                     binding_min = ~np.isnan(emin) & (net <= emin + tolerance)
-                intended[binding_max] = emax[binding_max]
-                intended[binding_min] = emin[binding_min]
+                capacity_kink[binding_max] = emax[binding_max]
+                capacity_kink[binding_min] = emin[binding_min]
                 break
-            intended_by_commodity[commodity] = intended
-        return intended_by_commodity
+            price_kink_by_commodity[commodity] = price_kink
+            capacity_kink_by_commodity[commodity] = capacity_kink
+        return price_kink_by_commodity, capacity_kink_by_commodity
 
     def _compute_recourse_rules(  # noqa: C901
         self,
@@ -3881,9 +3872,10 @@ class StorageScheduler(MetaStorageScheduler):
 
         - ``p``: the planned power (MW, consumption positive), the schedule itself;
         - ``react``: the share of the surprise the device absorbs, 1 where the price kink is within the device's reach, 0 otherwise.
-          The kink is within reach when the slot has an intended connection power (see :meth:`_intended_connection_power`),
+          The kink is within reach when the plan sits on a kink (see :meth:`_intended_connection_power`),
           the device could reach the power that balances the connection at it (regardless of its stock),
           and its band (see below) is more than a single point.
+          A capacity kink out of the device's reach falls back to the price kink, where there is one.
           Shares in between are reserved for a later version.
           Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
           A device whose reaction time exceeds the scheduling resolution gets 0;
@@ -3959,19 +3951,13 @@ class StorageScheduler(MetaStorageScheduler):
                 tolerance,
             )
 
-        # Per commodity: the dead zone per slot (the widest gap in a reacting device's band, how far a plan shaped by
-        # operation modes can miss a binding capacity), and the planned power of the reacting devices (what the client
-        # subtracts from the meter), whose complement in the planned net power is the uncontrolled power as planned.
-        capacity_tolerance = {c: np.full(n, tolerance) for c in commodity_to_devices}
+        # Per commodity: the planned power of the reacting devices (what the client subtracts from the meter),
+        # whose complement in the planned net power is the uncontrolled power as planned.
         reacting_plan = {c: np.zeros(n) for c in commodity_to_devices}
         for d in range(num_flexible):
             commodity = device_commodity[d]
-            if not can_react[d] or commodity not in capacity_tolerance:
+            if not can_react[d] or commodity not in reacting_plan:
                 continue
-            gaps = np.array([self._widest_gap(ranges) for ranges in device_ranges[d]])
-            capacity_tolerance[commodity] = np.maximum(
-                capacity_tolerance[commodity], gaps
-            )
             reacting_plan[commodity] += ems_schedule[d].to_numpy(dtype=float)
         planned_net = {}
         for commodity, devices in commodity_to_devices.items():
@@ -3983,19 +3969,18 @@ class StorageScheduler(MetaStorageScheduler):
                 ),
                 np.zeros(n),
             )
-        intended = self._intended_connection_power(
-            commodity_to_devices,
-            ems_schedule,
-            ems_constraints,
-            commitments,
-            capacity_tolerance,
+        price_kink, capacity_kink = self._intended_connection_power(
+            commodity_to_devices, ems_schedule, ems_constraints, commitments, tolerance
         )
 
         entries = []
         for d in range(num_flexible):
             p = ems_schedule[d].to_numpy(dtype=float)
             commodity = device_commodity[d]
-            intended_power = intended.get(commodity, np.full(n, np.nan))
+            kinks = (
+                capacity_kink.get(commodity, np.full(n, np.nan)),
+                price_kink.get(commodity, np.full(n, np.nan)),
+            )
             uncontrolled_plan = planned_net.get(
                 commodity, np.zeros(n)
             ) - reacting_plan.get(commodity, np.zeros(n))
@@ -4005,25 +3990,32 @@ class StorageScheduler(MetaStorageScheduler):
             for t in range(n):
                 ranges = device_ranges[d][t]
                 room = len(ranges) > 1 or ranges[0][1] - ranges[0][0] > tolerance
-                # The power the reacting devices would need to balance the connection at the intended power,
-                # which must lie within what this device could reach for the kink to be within its reach.
-                balancing_power = intended_power[t] - uncontrolled_plan[t]
+                # The kink to hold: the capacity where the plan sits on it, else the price kink,
+                # taking the first whose balancing power (what the reacting devices would need to balance the connection there)
+                # lies within what this device could reach regardless of its stock.
                 reach = device_reach[d][t]
-                within_reach = not np.isnan(balancing_power) and (
-                    reach[0][0] - tolerance
-                    <= balancing_power
-                    <= reach[-1][1] + tolerance
+                intended_power = next(
+                    (
+                        kink[t]
+                        for kink in kinks
+                        if not np.isnan(kink[t])
+                        and reach[0][0] - tolerance
+                        <= kink[t] - uncontrolled_plan[t]
+                        <= reach[-1][1] + tolerance
+                    ),
+                    np.nan,
                 )
-                if can_react[d] and within_reach and room:
+                if can_react[d] and not np.isnan(intended_power) and room:
                     reacts[t] = 1.0
                     bands.append(ranges)
+                    balancing_power = intended_power - uncontrolled_plan[t]
                     if self._mode_shaped_miss(
-                        device_ranges[d][t],
+                        ranges,
                         balancing_power,
                         float(reacting_plan[commodity][t]),
                         tolerance,
                     ):
-                        reference[t] = intended_power[t] - reacting_plan[commodity][t]
+                        reference[t] = intended_power - reacting_plan[commodity][t]
                 else:
                     bands.append([(float(p[t]), float(p[t]))])
 
