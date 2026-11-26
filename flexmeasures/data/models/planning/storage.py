@@ -101,7 +101,7 @@ class MetaStorageScheduler(Scheduler):
     default_resolution = timedelta(minutes=15)
 
     #: Whether any flex-model device opted in to the reaction rules by setting ``react`` to true.
-    #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"reaction_rule"`` entry per flexible device,
+    #: When True and ``return_multiple`` is True, ``compute()`` also returns one ``"reaction_rule"`` entry per flexible device that set ``react``,
     #: containing per-slot values for the reaction rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
     #: where ``m_uncontrolled`` is the measured uncontrolled power at the connection, see :ref:`reaction_rules`.
     include_reaction: bool = False

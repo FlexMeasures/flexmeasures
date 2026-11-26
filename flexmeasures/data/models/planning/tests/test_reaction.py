@@ -1,12 +1,12 @@
 """Tests for the per-slot reaction rules (FlexMeasures issue #2894).
 
 When a flex-model device sets ``react`` (and ``return_multiple`` is True),
-the scheduler also returns, per flexible device, a ``"reaction_rule"`` entry with per-slot values for the reaction rule:
+the scheduler also returns, for that device, a ``"reaction_rule"`` entry with per-slot values for the reaction rule:
 
     setpoint = clip(p - react * (m_uncontrolled - reference), band)
 
 where ``m_uncontrolled`` is the measured uncontrolled power at the connection,
-``reference`` the uncontrolled power the plan assumed,
+``reference`` the uncontrolled power the plan is balanced against,
 and ``band`` a list of (min, max) power ranges the device may move within.
 
 The reaction directions, the reaction time and the retrigger flag are not yet exposed through the public schemas;
