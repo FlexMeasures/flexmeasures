@@ -12,6 +12,7 @@ TimescaleDB's own Docker images install the extension into every new database,
 so the extension being present says nothing about whether a host chose this.
 And converting a populated table moves every row into chunks under a lock that blocks writes,
 which no host should get as a side effect of a routine ``flexmeasures db upgrade``.
+The way back (``flexmeasures db-ops disable-timescaledb``) copies the beliefs into a new plain table.
 
 Queries and TimescaleDB's functions are expressed with SQLAlchemy.
 The statements SQLAlchemy has no construct for (installing the extension, ANALYZE and the compression settings),
@@ -25,15 +26,20 @@ from sqlalchemy import (
     cast,
     column,
     func,
+    insert,
     literal,
     select,
     table,
 )
 from sqlalchemy.dialects.postgresql import INTERVAL, REGCLASS
 from sqlalchemy.orm import Session
+from sqlalchemy.schema import AddConstraint, CreateSchema, CreateTable, DropSchema
 from sqlalchemy.sql.elements import Cast
 
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.time_series import (
+    TimedBelief,
+    create_sensor_data_source_trigger,
+)
 
 TIMED_BELIEF = TimedBelief.__table__
 TABLE = TIMED_BELIEF.name
@@ -59,6 +65,10 @@ COMPRESS_ORDER_BY = (
     TIMED_BELIEF.c.belief_horizon,
     TIMED_BELIEF.c.cumulative_probability,
 )
+
+#: Where disable-timescaledb parks the hypertable while it copies the beliefs out of it.
+#: Moving it there frees the names of timed_belief's indexes for the new plain table.
+OLD_HYPERTABLE_SCHEMA = "flexmeasures_timescaledb_old"
 
 # The catalog views we read, declared with just the columns we use.
 pg_extension = table(
@@ -329,3 +339,85 @@ def table_size(session: Session) -> dict[str, int]:
             )
         ).one()
     return dict(table=row[0], indexes=row[1])
+
+
+def decompressed_size(session: Session) -> int:
+    """Estimate how many bytes the hypertable's beliefs, with their indexes, would take once decompressed.
+
+    That is about what a plain copy of timed_belief needs.
+    Compressed chunks count with the size they had before compression.
+    """
+    size = table_size(session)
+    stats = func.hypertable_compression_stats(_timed_belief_regclass()).table_valued(
+        "before_compression_total_bytes", "after_compression_total_bytes"
+    )
+    before, after = session.execute(
+        select(
+            func.coalesce(stats.c.before_compression_total_bytes, 0),
+            func.coalesce(stats.c.after_compression_total_bytes, 0),
+        )
+    ).one()
+    return size["table"] + size["indexes"] - after + before
+
+
+def convert_to_plain_table(session: Session) -> int:
+    """Replace the timed_belief hypertable with a plain table holding the same beliefs.
+
+    The hypertable is moved into a schema of its own,
+    a plain timed_belief is created from the data model in its place (with the same primary key, indexes, foreign keys and trigger),
+    the beliefs are copied over (decompressing on the way),
+    and the hypertable is dropped, with its chunks and compression policy.
+    The indexes and foreign keys are added after the copy, as building them in one go is faster than maintaining them row by row.
+    The trigger is installed last, as sensor_data_source already lists every sensor and source that has beliefs.
+    It all happens in the session's transaction, which holds an exclusive lock on timed_belief from the start,
+    so reads and writes wait until it is committed or rolled back.
+
+    The new table is owned by the role that runs this,
+    so privileges granted on the hypertable to other roles must be granted again.
+
+    :returns: the number of beliefs copied.
+    """
+    connection = session.connection()
+    old_schema = session.execute(
+        select(hypertables.c.hypertable_schema).where(
+            _qualified_regclass(
+                hypertables.c.hypertable_schema, hypertables.c.hypertable_name
+            )
+            == _timed_belief_regclass()
+        )
+    ).scalar_one()
+    if old_schema != session.execute(select(func.current_schema())).scalar_one():
+        # The plain table is created through the search path, so it would land in another schema than the hypertable's.
+        raise TimescaleDBUnavailable(
+            f"{TABLE} is in schema {old_schema}, which is not the first schema in the search path."
+        )
+    session.execute(CreateSchema(OLD_HYPERTABLE_SCHEMA))
+    session.execute(
+        DDL(
+            f"ALTER TABLE %(fullname)s SET SCHEMA {connection.dialect.identifier_preparer.quote_schema(OLD_HYPERTABLE_SCHEMA)}"
+        ).against(TIMED_BELIEF)
+    )
+    old_timed_belief = table(
+        TABLE,
+        *[column(c.name) for c in TIMED_BELIEF.columns],
+        schema=OLD_HYPERTABLE_SCHEMA,
+    )
+
+    session.execute(CreateTable(TIMED_BELIEF, include_foreign_key_constraints=[]))
+    # SQLAlchemy only keeps the row count of an INSERT when asked to.
+    n_copied = session.execute(
+        insert(TIMED_BELIEF)
+        .from_select(
+            [c.name for c in TIMED_BELIEF.columns],
+            select(*[old_timed_belief.c[c.name] for c in TIMED_BELIEF.columns]),
+        )
+        .execution_options(preserve_rowcount=True)
+    ).rowcount
+    for index in TIMED_BELIEF.indexes:
+        index.create(bind=connection)
+    for foreign_key in TIMED_BELIEF.foreign_key_constraints:
+        session.execute(AddConstraint(foreign_key))
+    create_sensor_data_source_trigger(TIMED_BELIEF, connection)
+    session.execute(DropSchema(OLD_HYPERTABLE_SCHEMA, cascade=True))
+    session.execute(DDL("ANALYZE %(fullname)s").against(TIMED_BELIEF))
+    return n_copied

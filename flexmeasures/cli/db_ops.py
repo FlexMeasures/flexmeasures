@@ -153,6 +153,7 @@ def enable_timescaledb(
     Writes to the table are blocked while that runs,
     so on a large database, plan a maintenance window.
     Running it again on a hypertable changes its chunk time interval (for new chunks) or its compression age.
+    To go back to a plain table, use disable-timescaledb.
     """
     _check_mode(force)
     version = _install_timescaledb()
@@ -188,7 +189,7 @@ def enable_timescaledb(
             f" into a TimescaleDB {version} hypertable with chunks of {chunk_time_interval},"
             f" and compresses the chunks whose events are all older than {compress_after}, now and from now on."
             " Writes to the table are blocked until it is done.",
-            "FlexMeasures has no command to undo this.",
+            "Going back takes `flexmeasures db-ops disable-timescaledb`, which copies all beliefs into a new table.",
         ]
     if compress_after is not None and not timescaledb.supports_compression(db.session):
         _abort(
@@ -266,6 +267,69 @@ def _abort(message: str) -> NoReturn:
     db.session.rollback()
     click.secho(message, **MsgStyle.ERROR)
     raise click.Abort()
+
+
+@fm_db_ops.command("disable-timescaledb")
+@with_appcontext
+@click.option(
+    "--force/--no-force",
+    default=False,
+    help="Skip the confirmation prompt.",
+)
+def disable_timescaledb(force: bool):
+    """Store time series data in a plain table again, after enable-timescaledb.
+
+    Copies all beliefs from the hypertable into a new plain timed_belief table, decompressing them on the way,
+    and then drops the hypertable.
+    Reads and writes of time series data wait until that is done,
+    so on a large database, plan a maintenance window.
+    Until the hypertable is dropped, the database needs room for both.
+    The timescaledb extension stays installed.
+    """
+    from flexmeasures.data.utils import get_database_schema_revision_status
+
+    table = timescaledb.TABLE
+    if not timescaledb.is_hypertable(db.session):
+        db.session.rollback()
+        click.echo(f"{table} is not a hypertable, so there is nothing to undo.")
+        return
+    status = get_database_schema_revision_status(app)
+    if status.current_heads and not status.is_migrated_to_head:
+        _abort(
+            f"The database is at revision {', '.join(status.current_heads)}, not at the latest one."
+            f" The plain {table} table is created from the current data model, so run `flexmeasures db upgrade` first."
+        )
+
+    size = timescaledb.table_size(db.session)
+    needed = timescaledb.decompressed_size(db.session)
+    message = (
+        f"This copies all beliefs in the {table} hypertable on {db.engine.url.render_as_string(hide_password=True)}"
+        " into a new plain table, and then drops the hypertable."
+        " Reads and writes of time series data wait until it is done."
+        f" The copy needs about {needed / 2**20:.0f} MiB of disk space on the database server,"
+        f" next to the {(size['table'] + size['indexes']) / 2**20:.0f} MiB the hypertable takes now."
+    )
+    if not force and not click.confirm(f"{message}\nDo you want to continue?"):
+        db.session.rollback()
+        click.secho("I did nothing.", **MsgStyle.WARN)
+        raise click.Abort()
+    if force:
+        click.echo(message)
+
+    try:
+        n_copied = timescaledb.convert_to_plain_table(db.session)
+        db.session.commit()
+    except timescaledb.TimescaleDBUnavailable as e:
+        _abort(f"Nothing was changed: {e}")
+    except DBAPIError as e:
+        _abort(f"Nothing was changed: {e.orig}")
+
+    size = timescaledb.table_size(db.session)
+    click.secho(
+        f"{table} is a plain table again, holding {n_copied} beliefs"
+        f" in {size['table'] / 2**20:.0f} MiB of data and {size['indexes'] / 2**20:.0f} MiB of indexes.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 def _report_timescaledb_size(version: str):

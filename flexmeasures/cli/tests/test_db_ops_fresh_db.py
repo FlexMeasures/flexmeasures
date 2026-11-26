@@ -5,6 +5,7 @@ import pytest
 import timely_beliefs as tb
 from pytz import utc
 from sqlalchemy import column, inspect, select, table
+from sqlalchemy.schema import DropSchema
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data import db
@@ -23,14 +24,17 @@ def plain_timed_belief_afterwards(fresh_db):
     """Give the rest of the test session a plain timed_belief table again, however the test left it.
 
     The test schema is shared by all tests in a session,
-    and there is no way back from a hypertable other than recreating the table.
+    and the only certain way back from a hypertable (or from a half-done way back) is recreating the table.
     Creating one table does not fire the metadata-wide event that installs the sensor_data_source trigger,
     so that is installed here, too.
     """
     yield
     fresh_db.session.rollback()
     with fresh_db.engine.begin() as connection:
-        TimedBelief.__table__.drop(bind=connection)
+        connection.execute(
+            DropSchema(timescaledb.OLD_HYPERTABLE_SCHEMA, cascade=True, if_exists=True)
+        )
+        TimedBelief.__table__.drop(bind=connection, checkfirst=True)
         TimedBelief.__table__.create(bind=connection)
         create_sensor_data_source_trigger(None, connection)
 
@@ -162,6 +166,59 @@ def test_enable_timescaledb(
     after = _search(sensor_id)
     assert len(after) == 201
     assert after.xs(old_source, level="source")["event_value"].iloc[0] == 1000.0
+
+
+def test_disable_timescaledb(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    timescaledb_server,
+    plain_timed_belief_afterwards,
+):
+    """Going back to a plain table keeps every belief, and gives the table its primary key, indexes, foreign keys and trigger again."""
+    from flexmeasures.cli.db_ops import disable_timescaledb, enable_timescaledb
+
+    sensor_id = setup_dummy_data_fresh_db[0]
+    before = _search(sensor_id)
+    plain_table = inspect(fresh_db.engine)
+    plain_schema = dict(
+        pk=plain_table.get_pk_constraint("timed_belief"),
+        indexes=_index_names(fresh_db.engine),
+        foreign_keys=plain_table.get_foreign_keys("timed_belief"),
+    )
+    check_command_ran_without_error(
+        app.test_cli_runner().invoke(
+            enable_timescaledb, ["--force", "--chunk-time-interval", "1 day"]
+        )
+    )
+
+    result = app.test_cli_runner().invoke(disable_timescaledb, ["--force"])
+    check_command_ran_without_error(result)
+    assert "holding 400 beliefs" in result.output
+    assert not timescaledb.is_hypertable(fresh_db.session)
+    plain_table = inspect(fresh_db.engine)
+    assert (
+        dict(
+            pk=plain_table.get_pk_constraint("timed_belief"),
+            indexes=_index_names(fresh_db.engine),
+            foreign_keys=plain_table.get_foreign_keys("timed_belief"),
+        )
+        == plain_schema
+    )
+    assert not plain_table.has_schema(timescaledb.OLD_HYPERTABLE_SCHEMA)
+    pd.testing.assert_frame_equal(_search(sensor_id), before)
+
+    new_source = DataSource("source2")
+    _save_belief(sensor_id, new_source, datetime(2023, 4, 10, tzinfo=utc), -1.0)
+    fresh_db.session.commit()
+    assert fresh_db.session.execute(
+        select(SensorDataSource).filter_by(sensor_id=sensor_id, source_id=new_source.id)
+    ).scalar_one_or_none()
+
+    # Once plain, there is nothing to undo.
+    result = app.test_cli_runner().invoke(disable_timescaledb, ["--force"])
+    check_command_ran_without_error(result)
+    assert "not a hypertable" in result.output
 
 
 def test_enable_timescaledb_without_timescaledb(
