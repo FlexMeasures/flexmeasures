@@ -284,7 +284,7 @@ def test_reaction_band_reference_and_react_hand_verified(app, db):
 def test_house_as_forecast_keeps_the_plan(app, db, load_kw):
     """When the connection behaves as forecast, every setpoint equals the plan, whatever the react share.
 
-    That holds when the reference is the uncontrolled forecast (so the surprise is zero) and the band contains the plan.
+    That holds when the reference is the uncontrolled forecast (so the deviation from the balance point is zero) and the band contains the plan.
     Without any uncontrolled device, the reference is 0, not null.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(

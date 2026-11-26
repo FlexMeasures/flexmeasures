@@ -463,7 +463,7 @@ Declaring operation modes introduces binary decision variables into the optimiza
     ],
 )
 REACT = MetaData(
-    description="""Whether this device reacts to surprises at the connection between two schedule triggers (defaults to false).
+    description="""Whether this device reacts to deviations at the connection between two schedule triggers (defaults to false).
 Setting it to true opts in to the reaction rules: the device's schedule then comes with a per-slot ``reaction``, see :ref:`reaction_rules`.
 Devices react in series, in the order of the flex-model.
 """,

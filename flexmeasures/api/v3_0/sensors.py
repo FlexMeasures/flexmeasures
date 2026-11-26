@@ -1456,19 +1456,22 @@ class SensorAPI(FlaskView):
                         type: array
                         description: |
                           Per-slot reaction rules, only present when the device's flex-model set ``react`` to true.
-                          Each object corresponds to one schedule value and describes how the device should react locally to a surprise at the connection,
-                          which the client evaluates as ``setpoint = clip(p - react * surprise, band)``,
-                          with ``surprise = (meter - sum of the reacting devices' power) - reference`` and ``p`` the scheduled value.
+                          Each object corresponds to one schedule value and describes how the device should react locally to a deviation at the connection.
+                          The price kink is the bend in the cost of the connection as a function of its net power, at 0 kW where importing costs the consumption price and exporting earns only the lower production price, or at a capacity that binds; the plan sits there, so a deviation there is best absorbed by the device.
+                          The client evaluates ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``, with ``p`` the scheduled value and ``m_uncontrolled = meter - sum of the reacting devices' power``;
+                          ``m_uncontrolled - reference`` is the deviation from the balance point.
+                          Absorbing a deviation costs the device energy that nothing in the rules makes up for, so a controller following the rules must trigger a new schedule after absorbing, once the state of charge has drifted by a set amount from the plan, and in any case before a target.
+                          On a sensor coarser than the scheduling resolution, a slot whose sub-slot rules disagree, or whose value lies outside their band, gets react 0, the mean of the sub-slot references, and the value as its band.
                           Values share the schedule's unit and sign convention, and every value is a finite number.
                         items:
                           type: object
                           properties:
                             reference:
                               type: number
-                              description: The uncontrolled power at the connection against which the plan is balanced, normally the uncontrolled forecast the plan assumed. It differs from that forecast only where a device's operation modes keep the plan from balancing the connection exactly, by the plan's miss (where the plan holds the connection at zero, it is then the negative of the planned device power; where a capacity binds, the capacity minus the planned device power).
+                              description: The uncontrolled power the plan is balanced against. Usually the uncontrolled forecast the plan assumed; where a device's operation modes make the plan miss the price kink, the balance point, being the forecast shifted by the plan's miss (the negative of the planned device power where the plan holds the connection at zero, the capacity minus the planned device power where a capacity binds).
                             react:
                               type: number
-                              description: The share of the surprise the device absorbs, from 0 (follow the plan) to 1 (absorb the surprise one to one); 1 where the price kink (a production price below the consumption price or at or below zero, or a binding capacity) is within the device's reach and its band is more than a single point. This version emits 0 or 1, shares in between are reserved for a later version.
+                              description: The share of the deviation from the balance point the device absorbs, from 0 (follow the plan) to 1 (absorb it one to one); 1 where the price kink is within the device's reach and its band is more than a single point. In a slot where the operation modes shape the plan, the deviation is non-zero even for a house exactly as forecast, and rounding the setpoint into the band brings it back to the plan. This version emits 0 or 1, shares in between are reserved for a later version.
                             band:
                               type: array
                               description: The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike. Whether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode. A band of a single point gives react 0, and a device with react 0 gets the single range [p, p].

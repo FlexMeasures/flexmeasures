@@ -3871,7 +3871,7 @@ class StorageScheduler(MetaStorageScheduler):
         Per flexible device and slot, this returns:
 
         - ``p``: the planned power (MW, consumption positive), the schedule itself;
-        - ``react``: the share of the surprise the device absorbs, 1 where the price kink is within the device's reach, 0 otherwise.
+        - ``react``: the share of the deviation from the balance point (``m_uncontrolled - reference``) the device absorbs, 1 where the price kink is within the device's reach, 0 otherwise.
           The kink is within reach when the plan sits on a kink (see :meth:`_intended_connection_power`),
           the device could reach the power that balances the connection at it (regardless of its stock),
           and its band (see below) is more than a single point.
@@ -3879,7 +3879,7 @@ class StorageScheduler(MetaStorageScheduler):
           Shares in between are reserved for a later version.
           Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
           A device whose reaction time exceeds the scheduling resolution gets 0;
-        - ``reference``: the uncontrolled power at the connection against which the plan is balanced.
+        - ``reference``: the uncontrolled power the plan is balanced against.
           Normally the uncontrolled forecast the plan assumed: the inflexible device forecasts of the commodity, without any flexible device's plan.
           Only where the device's operation modes keep the plan from balancing the connection exactly (see :meth:`_mode_shaped_miss`),
           it is the intended connection power minus the planned power of the reacting devices, i.e. the forecast shifted by the plan's miss:
