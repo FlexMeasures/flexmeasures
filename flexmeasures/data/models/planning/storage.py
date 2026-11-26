@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import operator
 import re
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -60,7 +61,12 @@ from flexmeasures.utils.calculations import (
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    ur,
+    convert_units,
+    is_currency_unit,
+    units_are_convertible,
+)
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
@@ -120,7 +126,9 @@ class MetaStorageScheduler(Scheduler):
 
         return self.compute()
 
-    def _get_commodity_contexts(self) -> dict[str, dict]:
+    def _get_commodity_contexts(
+        self, commodities: Iterable[str] = ()
+    ) -> dict[str, dict]:
         """Return commodity-specific flex-contexts.
 
         Supports the new format:
@@ -131,6 +139,9 @@ class MetaStorageScheduler(Scheduler):
             ]
 
         and keeps backwards compatibility with old top-level fields.
+
+        :param commodities: Commodities in use by devices, each of which gets a bare context if the flex-context lists none for it,
+                            as if the flex-context listed just {"commodity": ...} (see _bare_commodity_context).
         """
 
         commodity_contexts = {}
@@ -143,7 +154,27 @@ class MetaStorageScheduler(Scheduler):
         if "electricity" not in commodity_contexts:
             commodity_contexts["electricity"] = self.flex_context
 
+        for commodity in commodities:
+            if commodity not in commodity_contexts:
+                commodity_contexts[commodity] = self._bare_commodity_context(commodity)
+
         return commodity_contexts
+
+    def _bare_commodity_context(self, commodity: str) -> dict:
+        """Return the context of a commodity that the flex-context lists no context for.
+
+        Such a commodity has no grid connection or prices, which makes it an internal node whose devices balance each other,
+        e.g. the steam between a device turning electricity into steam and a device consuming that steam.
+        Its devices relax their constraints as a bare commodity context does by default,
+        rather than following the breach prices and relax flags at the top level of the flex-context, which concern electricity.
+        """
+        schema = CommodityFlexContextSchema()
+        context = schema.load({"commodity": commodity})
+        shared_currency_unit = self.flex_context.get("shared_currency_unit")
+        if shared_currency_unit and is_currency_unit(shared_currency_unit):
+            SharedSchema._rebase_default_context_currency(context, shared_currency_unit)
+        schema.set_default_breach_prices_where_relaxed(context)
+        return context
 
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
@@ -434,7 +465,7 @@ class MetaStorageScheduler(Scheduler):
         # `_compute_commodity_aggregate_schedules` relies on.
         commodity_to_devices = inventory.commodity_to_devices
 
-        commodity_contexts = self._get_commodity_contexts()
+        commodity_contexts = self._get_commodity_contexts(commodity_to_devices)
         price_frames_by_commodity = {}
 
         for commodity, devices in commodity_to_devices.items():
@@ -999,6 +1030,10 @@ class MetaStorageScheduler(Scheduler):
         for d in range(num_flexible_devices):
             sensor_d = sensors[d]
             asset_d = assets[d]
+            # The context of the device's commodity, which holds the breach prices for its constraints
+            device_context = commodity_contexts.get(
+                inventory.by_index(d).commodity, self.flex_context
+            )
 
             # fetch SOC constraints from sensors
             if isinstance(soc_targets[d], (Sensor, SensorReference)):
@@ -1075,14 +1110,12 @@ class MetaStorageScheduler(Scheduler):
                 # relax-constraints injects production-breach-price. Non-zero
                 # production capacities may still be softened. See issue #2323.
                 if (
-                    self.flex_context.get("production_breach_price") is not None
+                    device_context.get("production_breach_price") is not None
                     and production_capacity[d] is not None
                     and production_capacity_d.max() > 0
                 ):
                     # production-capacity will become a soft constraint
-                    production_breach_price = self.flex_context[
-                        "production_breach_price"
-                    ]
+                    production_breach_price = device_context["production_breach_price"]
                     any_production_breach_price = (
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=production_breach_price,
@@ -1151,12 +1184,12 @@ class MetaStorageScheduler(Scheduler):
                 # even when relax-constraints injects consumption-breach-price.
                 # Non-zero consumption capacities may still be softened. See #2323.
                 if (
-                    self.flex_context.get("consumption_breach_price") is not None
+                    device_context.get("consumption_breach_price") is not None
                     and consumption_capacity[d] is not None
                     and consumption_capacity_d.max() > 0
                 ):
                     # consumption-capacity will become a soft constraint
-                    consumption_breach_price = self.flex_context[
+                    consumption_breach_price = device_context[
                         "consumption_breach_price"
                     ]
                     any_consumption_breach_price = (
@@ -1284,12 +1317,21 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            soc_minima_breach_price = self._soc_breach_price(
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                "soc_minima_breach_price",
+            )
+            soc_maxima_breach_price = self._soc_breach_price(
+                commodity_contexts,
+                inventory.by_index(d).commodity,
+                "soc_maxima_breach_price",
+            )
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
+                soc_minima_breach_price is not None
                 and soc_minima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1352,11 +1394,10 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima[d] = None
 
             if (
-                self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_maxima_breach_price is not None
                 and soc_maxima[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
@@ -1424,14 +1465,12 @@ class MetaStorageScheduler(Scheduler):
             # prices are available, which is the case whenever SoC relaxation is on, since
             # the two default prices are filled in as a pair.
             if (
-                self.flex_context.get("soc_minima_breach_price") is not None
-                and self.flex_context.get("soc_maxima_breach_price") is not None
+                soc_minima_breach_price is not None
+                and soc_maxima_breach_price is not None
                 and soc_targets[d] is not None
                 and soc_at_start[d] is not None
                 and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_target_shortage_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=soc_minima_breach_price,
@@ -2000,6 +2039,15 @@ class MetaStorageScheduler(Scheduler):
                     "shared_currency_unit"
                 ]
 
+            # Each commodity context gets the default breach prices of the constraints it asks to relax, like it does in FlexContextSchema.check_prices.
+            # (A scheduler normally reaches this branch only if it skips collect_flex_config, which turns a list into a dict.)
+            schema = CommodityFlexContextSchema()
+            for commodity_flex_context in self.flex_context:
+                if is_currency_unit(commodity_flex_context["shared_currency_unit"]):
+                    schema.set_default_breach_prices_where_relaxed(
+                        commodity_flex_context
+                    )
+
             # Nest the flex-contexts per commodity under the commodity_contexts field
             self.flex_context = dict(
                 commodity_contexts=self.flex_context,
@@ -2115,11 +2163,16 @@ class MetaStorageScheduler(Scheduler):
         That is the case when any context defines a SoC breach price explicitly,
         sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
         general ``relax-constraints`` flag (which defaults to ``True``).
+        The top level only counts as a context when it serves as the electricity context,
+        i.e. when no electricity context is listed (see `merge_flex_contexts`).
         """
         if isinstance(self.flex_context, dict):
-            contexts = [self.flex_context] + list(
-                self.flex_context.get("commodities", [])
-            )
+            contexts = list(self.flex_context.get("commodities") or [])
+            if not any(
+                context.get("commodity", "electricity") == "electricity"
+                for context in contexts
+            ):
+                contexts.insert(0, self.flex_context)
         elif isinstance(self.flex_context, list):
             contexts = self.flex_context
         else:
@@ -2137,6 +2190,18 @@ class MetaStorageScheduler(Scheduler):
             ):
                 return True
         return False
+
+    def _soc_breach_price(
+        self, commodity_contexts: dict[str, dict], commodity: str, field: str
+    ):
+        """Look up a SoC breach price for a device of the given commodity, in the context of that commodity.
+
+        :param commodity_contexts:  The commodity contexts, as returned by `_get_commodity_contexts`.
+        :param commodity:           The commodity of the device.
+        :param field:               Either "soc_minima_breach_price" or "soc_maxima_breach_price".
+        :returns:                   The breach price, or None if the SoC constraints stay hard.
+        """
+        return commodity_contexts.get(commodity, self.flex_context).get(field)
 
     def _soc_relaxation_applies_to(
         self, stock_key, sensor_d: Sensor | None = None
@@ -3310,7 +3375,7 @@ class StorageScheduler(MetaStorageScheduler):
         commodity_to_devices = self._reconstruct_commodity_to_devices()
 
         # Get commodity contexts (handles backwards compatibility)
-        commodity_contexts = self._get_commodity_contexts()
+        commodity_contexts = self._get_commodity_contexts(commodity_to_devices)
 
         # Process each commodity
         for commodity, devices in commodity_to_devices.items():

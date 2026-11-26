@@ -22,7 +22,7 @@ from flexmeasures.data.schemas.scheduling.config import (
     strip_momentary_flex_fields,
 )
 from flexmeasures.data.schemas.sensors import is_unset_sensor_reference
-from flexmeasures.utils.coding_utils import deprecated, merge_or_append
+from flexmeasures.utils.coding_utils import deprecated
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
 
@@ -49,33 +49,149 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=encode))
 
 
-def _shadow_inflexible_device_keys(
-    db_flex_context: dict, passed_flex_context: dict | list | None
-) -> None:
-    """Drop the db context's inflexible-device keys when the passed flex-context defines any.
+# The fields of a serialized flex-context that stay at its top level, rather than counting for its electricity context.
+# The top-level commitments stay there, too, as each of them names its own commodity,
+# and so do the deprecated price sensors, which get no support beyond the top level.
+TOP_LEVEL_FLEX_CONTEXT_KEYS = frozenset(
+    (
+        "aggregate-power",
+        "commitments",
+        "consumption-price-sensor",
+        "production-price-sensor",
+    )
+)
 
-    The inflexible-device keys form one field family: if the passed flex-context
-    defines any of them, the whole family from the db is shadowed, so the
-    deprecated and newer keys never mix across sources (mixing is rejected by
-    FlexContextSchema.check_inflexible_devices).
+
+def _commodity_of(context: dict) -> str:
+    return context.get("commodity", "electricity")
+
+
+def _lists_electricity(flex_context: dict | list) -> bool:
+    """Whether a serialized flex-context lists a commodity context for electricity."""
+    if isinstance(flex_context, dict):
+        flex_context = flex_context.get("commodities") or []
+    return any(_commodity_of(context) == "electricity" for context in flex_context)
+
+
+def _merge_contexts(context: dict, overriding_context: dict) -> dict:
+    """Merge two serialized contexts for the same commodity, with the fields of the overriding context taking precedence.
+
+    The inflexible-device keys form one field family:
+    if the overriding context defines any of them, the whole family from the other context is shadowed,
+    so the deprecated and newer keys never mix across sources (mixing is rejected by FlexContextSchema.check_inflexible_devices).
     """
-    if isinstance(passed_flex_context, dict):
-        passed_contexts = [passed_flex_context]
-    elif isinstance(passed_flex_context, list):
-        # Currently, only the electricity context is merged with the db context
-        # (see Scheduler.collect_flex_config)
-        passed_contexts = [
-            context
-            for context in passed_flex_context
-            if context.get("commodity", "electricity") == "electricity"
-        ]
+    if any(key in overriding_context for key in INFLEXIBLE_DEVICE_KEYS):
+        context = {k: v for k, v in context.items() if k not in INFLEXIBLE_DEVICE_KEYS}
+    return {**context, **overriding_context}
+
+
+def _split_flex_context(
+    flex_context: dict | list, fold_electricity: bool
+) -> tuple[dict, list[dict]]:
+    """Split a serialized flex-context into its top-level fields and its commodity contexts.
+
+    The fields at the top level of a flex-context passed as a dict describe electricity.
+    When folding these into the electricity context,
+    only the fields that stay at the top level (see TOP_LEVEL_FLEX_CONTEXT_KEYS) are returned as top-level fields,
+    and the others make up the electricity context, together with any listed electricity context, whose own fields take precedence.
+
+    :param flex_context:        The serialized flex-context.
+    :param fold_electricity:    Whether to fold the top-level fields describing electricity into the electricity context.
+    :returns:                   The top-level fields, and the commodity contexts.
+    """
+    if isinstance(flex_context, list):
+        return {}, [dict(context) for context in flex_context]
+    contexts = [dict(context) for context in flex_context.get("commodities") or []]
+    top_level = {k: v for k, v in flex_context.items() if k != "commodities"}
+    if not fold_electricity:
+        return top_level, contexts
+    electricity_fields = {
+        k: v
+        for k, v in top_level.items()
+        if k not in TOP_LEVEL_FLEX_CONTEXT_KEYS and k != "commodity"
+    }
+    top_level = {k: v for k, v in top_level.items() if k in TOP_LEVEL_FLEX_CONTEXT_KEYS}
+    for i, context in enumerate(contexts):
+        if _commodity_of(context) == "electricity":
+            contexts[i] = _merge_contexts(electricity_fields, context)
+            break
     else:
-        passed_contexts = []
-    if any(
-        key in context for context in passed_contexts for key in INFLEXIBLE_DEVICE_KEYS
+        contexts.insert(0, {"commodity": "electricity", **electricity_fields})
+    return top_level, contexts
+
+
+def merge_flex_contexts(
+    db_flex_context: dict, passed_flex_context: dict | list
+) -> dict:
+    """Merge a passed flex-context with the one stored on the asset (and its ancestors), with the passed fields taking precedence.
+
+    A flex-context describing only electricity (a dict without commodity contexts) is merged field by field.
+    Otherwise, the two flex-contexts are merged per commodity.
+    The top-level fields of each describe electricity.
+    If either flex-context lists an electricity context, or the passed one is a list, which has no top level,
+    those fields are folded into the electricity context (except those in TOP_LEVEL_FLEX_CONTEXT_KEYS),
+    so that it holds all fields for electricity, whichever form each flex-context came in.
+    Otherwise, they stay at the top level, which then serves as the electricity context, as before.
+
+    When folded, a top-level consumption price without a top-level production price also serves as the production price of the electricity context,
+    unless that context sets its own production price.
+    That way, the electricity context keeps the meaning that the top-level fields had,
+    as a production price falls back to the consumption price at the top level,
+    whereas a commodity context without a production price defaults to having no grid connection for production (see CommodityFlexContextSchema.fill_grid_connection_defaults).
+
+    Commitments passed for electricity replace the stored top-level commitments, like they do in a flex-context describing only electricity.
+    """
+    if (
+        isinstance(passed_flex_context, dict)
+        and not passed_flex_context.get("commodities")
+        and not db_flex_context.get("commodities")
     ):
-        for key in INFLEXIBLE_DEVICE_KEYS:
-            db_flex_context.pop(key, None)
+        return _merge_contexts(db_flex_context, passed_flex_context)
+    fold_electricity = (
+        isinstance(passed_flex_context, list)
+        or _lists_electricity(passed_flex_context)
+        or _lists_electricity(db_flex_context)
+    )
+    db_top_level, db_contexts = _split_flex_context(db_flex_context, fold_electricity)
+    passed_top_level, passed_contexts = _split_flex_context(
+        passed_flex_context, fold_electricity
+    )
+    if any(
+        "commitments" in context
+        for context in passed_contexts
+        if _commodity_of(context) == "electricity"
+    ):
+        db_top_level.pop("commitments", None)
+    contexts = []
+    for passed_context in passed_contexts:
+        commodity = _commodity_of(passed_context)
+        i = next(
+            (i for i, c in enumerate(db_contexts) if _commodity_of(c) == commodity),
+            None,
+        )
+        if i is None:
+            contexts.append(passed_context)
+        else:
+            contexts.append(_merge_contexts(db_contexts.pop(i), passed_context))
+    contexts.extend(db_contexts)
+    if fold_electricity and any(
+        _has_consumption_price_without_production_price(flex_context)
+        for flex_context in (db_flex_context, passed_flex_context)
+    ):
+        for context in contexts:
+            if _commodity_of(context) == "electricity":
+                context.setdefault("production-price", context["consumption-price"])
+                break
+    return {**_merge_contexts(db_top_level, passed_top_level), "commodities": contexts}
+
+
+def _has_consumption_price_without_production_price(flex_context: dict | list) -> bool:
+    """Whether the top level of a serialized flex-context sets a consumption price, but no production price."""
+    return (
+        isinstance(flex_context, dict)
+        and "consumption-price" in flex_context
+        and "production-price" not in flex_context
+    )
 
 
 _DROP = object()
@@ -454,17 +570,9 @@ class Scheduler(DataGenerator):
             asset = self.sensor.generic_asset
 
         # Merge the passed flex_context with the db_flex_context by matching commodities
-        db_flex_context = asset.get_flex_context()
-        _shadow_inflexible_device_keys(db_flex_context, self.flex_context)
-        if isinstance(self.flex_context, dict):
-            self.flex_context = {**db_flex_context, **self.flex_context}
-        elif isinstance(self.flex_context, list):
-            # Currently, db_flex_context is always a dict describing only electricity
-            merge_or_append(
-                db_flex_context,
-                self.flex_context,
-                match_key="commodity",
-                match_value="electricity",
+        if isinstance(self.flex_context, (dict, list)):
+            self.flex_context = merge_flex_contexts(
+                asset.get_flex_context(), self.flex_context
             )
 
         # Merge the passed flex_model with the db_flex_model by matching asset IDs
