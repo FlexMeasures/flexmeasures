@@ -467,3 +467,114 @@ def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_ac
                 active_user_name=None,
             )
         ).scalar_one_or_none()
+
+
+def _flat(output: str) -> str:
+    """The CLI output with line breaks (from wrapping) turned into spaces."""
+    return " ".join(output.split())
+
+
+@pytest.mark.usefixtures("undo_new_rows")
+@pytest.mark.parametrize(
+    "child_account, parent_account, warns",
+    [
+        ("Supplier", "Prosumer", True),
+        (None, "Prosumer", True),
+        ("Prosumer", "Prosumer", False),
+    ],
+)
+def test_transfer_parenthood_warns_about_a_parent_in_another_organisation(
+    app,
+    db,
+    setup_accounts,
+    setup_generic_asset_types,
+    child_account,
+    parent_account,
+    warns,
+):
+    """Moving an asset under a parent of another organisation works from the CLI, with a warning."""
+    from flexmeasures.cli.data_edit import transfer_parenthood
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    asset_type = setup_generic_asset_types["battery"]
+    parent = GenericAsset(
+        name="new parent",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts[parent_account].id,
+    )
+    child = GenericAsset(
+        name="moving child",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts[child_account].id if child_account else None,
+    )
+    db.session.add_all([parent, child])
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        transfer_parenthood,
+        to_flags({"asset": child.id, "new_parent": parent.id}),
+        input="y\n",  # the existing confirmation of a move between accounts
+    )
+    check_command_ran_without_error(result)
+    assert child.parent_asset_id == parent.id
+    warning = (
+        f"gets parent 'new parent' (id {parent.id})"
+        f" from {'another organisation, ' if child_account else 'organisation '}'Test Prosumer Account'"
+    )
+    assert (warning in _flat(result.output)) is warns
+    assert ("Warning:" in result.output) is warns
+
+
+@pytest.mark.usefixtures("undo_new_rows")
+@pytest.mark.parametrize(
+    "parent_account, new_owner, warns",
+    [("Prosumer", "Supplier", True), ("Prosumer", "Prosumer", False)],
+)
+def test_transfer_ownership_warns_about_a_parent_left_in_another_organisation(
+    app, db, setup_accounts, setup_generic_asset_types, parent_account, new_owner, warns
+):
+    """Transferring an asset (and its children) away from its parent's organisation warns about the parent left behind."""
+    from flexmeasures.cli.data_edit import transfer_ownership
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    asset_type = setup_generic_asset_types["battery"]
+    parent = GenericAsset(
+        name="staying parent",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts[parent_account].id,
+    )
+    db.session.add(parent)
+    db.session.flush()
+    child = GenericAsset(
+        name="moving child",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts["Dummy"].id,
+        parent_asset_id=parent.id,
+    )
+    db.session.add(child)
+    db.session.flush()
+    grandchild = GenericAsset(
+        name="moving grandchild",
+        generic_asset_type_id=asset_type.id,
+        account_id=setup_accounts["Dummy"].id,
+        parent_asset_id=child.id,
+    )
+    db.session.add(grandchild)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        transfer_ownership,
+        to_flags({"asset": child.id, "new_owner": setup_accounts[new_owner].id}),
+    )
+    check_command_ran_without_error(result)
+    assert child.account_id == grandchild.account_id == setup_accounts[new_owner].id
+    warning = (
+        f"Warning: asset 'moving child' (id {child.id}) of organisation 'Test Supplier Account'"
+        f" (id {setup_accounts['Supplier'].id}) gets parent 'staying parent' (id {parent.id})"
+        f" from another organisation, 'Test Prosumer Account' (id {setup_accounts['Prosumer'].id})."
+    )
+    assert (warning in _flat(result.output)) is warns
+    # only the asset itself gets a warning, not the grandchild, whose parent moves along
+    assert result.output.count("Warning:") == (1 if warns else 0)

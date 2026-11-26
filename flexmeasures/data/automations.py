@@ -92,6 +92,8 @@ class AutomationHandler:
         from flexmeasures.data.models.automations import Automation
         from flexmeasures.data.models.audit_log import AssetAuditLog
         from flexmeasures.data.services.data_generators import (
+            annotation_sources,
+            check_annotation_source_access,
             check_sensor_access,
             resolve_data_generator_sensors,
         )
@@ -130,6 +132,7 @@ class AutomationHandler:
         sensors = resolve_data_generator_sensors(generator, loaded)
         if kwargs.get("check_permissions"):
             check_sensor_access(**sensors)
+            check_annotation_source_access(annotation_sources(generator))
         validate_output_scope(asset.id, sensors["output_sensors"])
         if source is None:
             from flexmeasures.data.services.data_sources import get_or_create_source
@@ -153,6 +156,7 @@ class AutomationHandler:
             name=kwargs["name"],
             cronstr=kwargs["cronstr"],
             active=kwargs.get("active", True),
+            critical=kwargs.get("critical", False),
             generator=generator.data_source,
             parameters=parameters,
         )

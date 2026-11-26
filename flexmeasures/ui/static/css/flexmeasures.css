@@ -1896,6 +1896,41 @@ div.heading-group {
 #replay-time {
   margin-top: 15px;
 }
+/* Step and speed pickers below the replay button */
+.replay-settings {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 15px;
+}
+.replay-settings label {
+  cursor: help;
+}
+.replay-settings .form-select {
+  width: auto;
+}
+/* The pickers show only while hovering over the play button, or while hovering over or using the pickers themselves.
+   They linger a moment before fading out, so the pointer can move from the button to them. */
+.replay-settings {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease 0.5s, visibility 0s linear 0.8s;
+}
+#replay:hover + .replay-settings,
+.replay-settings:hover,
+.replay-settings:focus-within {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s ease, visibility 0s;
+}
+/* Touch screens have no hover, so there the pickers always show. */
+@media (hover: none) {
+  .replay-settings {
+    opacity: 1;
+    visibility: visible;
+  }
+}
 #replay {
   cursor: pointer !important;
   margin-top: 190px;

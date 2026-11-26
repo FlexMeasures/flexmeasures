@@ -396,7 +396,7 @@ Let's look at the price data we just loaded:
     │                                 ▐▄     ▄▘                  │ 0.005EUR/kWh
     │                                   ▀▄▄▄▞                    │
     └────────────────────────────────────────────────────────────┘
-                     06:00          12:00           18:00
+        00:00         06:00           12:00          18:00
               ██ day-ahead prices (NL transmission zone)
 
 

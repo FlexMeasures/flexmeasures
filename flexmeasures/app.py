@@ -47,6 +47,7 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.app_utils import (
         init_sentry,
+        trust_proxies,
         provision_default_template_assets_on_startup,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
@@ -77,6 +78,7 @@ def create(  # noqa C901
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
+    trust_proxies(app)
     if (
         app.config.get("FLEXMEASURES_ENV") not in ("development", "documentation")
         and not app.testing
@@ -148,6 +150,9 @@ def create(  # noqa C901
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
         SSLify(app)
+    from flexmeasures.utils.http_headers import register_security_headers
+
+    register_security_headers(app)
 
     # Prepare profiling, if needed
 
@@ -208,8 +213,12 @@ def create(  # noqa C901
 
     app.add_url_rule("/", view_func=root_dispatcher)
     from flexmeasures.data.automations import initialize_automation_handlers
+    from flexmeasures.data.services.automation_failure_hooks import (
+        initialize_automation_failure_hooks,
+    )
 
     initialize_automation_handlers(app)
+    initialize_automation_failure_hooks(app)
     register_plugins(app)
 
     # Register the UI

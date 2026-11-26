@@ -151,3 +151,16 @@ def test_wrap_name(assert_js):
         eq("what does not fit ends in an ellipsis", wrapName("one two three four five", 5, 2), "one\\ntwo…");
         eq("names need not be strings", wrapName(42, 5, 1), "42");
         """)
+
+
+def test_children_of_other_organisations_are_marked(assert_js):
+    assert_js(TREE + """
+        const option = layout([
+            {id: 1, name: "site"},
+            {id: 2, name: "own battery", parent: 1},
+            {id: 3, name: "battery of another organisation", parent: 1, other_organisation: true},
+        ], {currentAssetId: 1});
+        eq("a child of another organisation has a dashed border", box(option, 3).itemStyle.borderType, "dashed");
+        eq("an own child has a solid border", box(option, 2).itemStyle.borderType, "solid");
+        eq("the current asset keeps its own border", box(option, 1).itemStyle.borderType, "solid");
+        """)

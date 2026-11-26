@@ -190,3 +190,41 @@ def test_trigger_report_worker_fails_for_incompatible_units(
     assert status_response.status_code == 422
     assert status_response.json["status"] == "FAILED"
     assert "Unit conversion from EUR to kW" in status_response.json["exc-info"]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_report_worker_rechecks_the_triggering_users_access(
+    app, fresh_db, setup_report_sensors_fresh_db, clean_redis, requesting_user
+):
+    """The worker checks the triggering user's access again, against the sensors the report resolves when it runs.
+
+    Here, an input sensor moves to another account between the trigger and the job.
+    The same check covers a report that resolves other sensors in the worker than at the trigger,
+    such as an AggregatorReporter reading its group's members from a flex-config that changed in between.
+    """
+    sensors = setup_report_sensors_fresh_db
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:trigger_report", id=sensors["asset"].id),
+            json=report_message(
+                sensors["input_1"], sensors["input_2"], sensors["output"]
+            ),
+        )
+    assert response.status_code == 202
+
+    # Before the job runs, the user loses read access to one of its inputs.
+    sensors["input_2"].generic_asset = sensors["foreign_input"].generic_asset
+    fresh_db.session.commit()
+
+    work_on_rq(app.queues["reporting"])
+
+    job = app.queues["reporting"].fetch_job(response.json["job"])
+    assert job.get_status() == JobStatus.FAILED
+    assert (
+        f"cannot read data from sensor {sensors['input_2'].id}"
+        in job.latest_result().exc_string
+    )
+    assert sensors["output"].search_beliefs().empty
+    assert job.meta["trigger"]["user_id"] == requesting_user.id

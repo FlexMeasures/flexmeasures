@@ -92,6 +92,14 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    critical = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "Whether this automation is critical to the organisation."
+            " It changes nothing about how the automation runs or how its failures are retried;"
+            " it decides whether a failed run is handed to the host's critical-automation-failure hooks."
+        },
+    )
     monitored = fields.Bool(
         load_default=True,
         metadata={
@@ -172,6 +180,7 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    critical = fields.Bool()
     monitored = fields.Bool(
         metadata={
             "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
@@ -224,6 +233,11 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     active = ma.auto_field()
+    critical = ma.auto_field(
+        metadata={
+            "description": "Whether a failed run of this automation is handed to the host's critical-automation-failure hooks."
+        }
+    )
     monitored = ma.auto_field(
         metadata={
             "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
