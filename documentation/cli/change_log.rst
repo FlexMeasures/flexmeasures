@@ -10,6 +10,8 @@ since v1.2.0 | December xx, 2026
 * Add ``flexmeasures monitor automations`` to email a digest of the automation runs that failed since the last check: runs whose execution failed, which have been executing for too long (``--stuck-after-minutes``), or whose dispatch failed for good. Each run is reported once, and repeated failures are collapsed per automation. With ``--notify-users``, the admins and consultants of each asset's organisation also receive a digest of the automations they can see.
 * Add ``flexmeasures add automation --unmonitored`` and ``flexmeasures edit automation --monitored/--unmonitored`` to keep an automation's failed runs out of ``flexmeasures monitor automations``, or to report them again. ``flexmeasures show automations`` shows whether each automation is monitored.
 * ``flexmeasures show beliefs`` labels the time axis of its plot in the timezone given with ``--timezone``, or else in that of the first sensor with data, instead of in UTC, so ``--timezone`` no longer warns when it is given without ``--to-file``.
+* ``flexmeasures edit automation`` gets ``--parameters``, ``--data-generator``, ``--config`` and ``--source``, to change what an automation computes, and ``--run-as`` to change the user it runs as; it refuses such an edit when that user could not run the automation, naming ``--run-as`` [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
+* ``flexmeasures show automations`` says which user each automation runs as, and ``flexmeasures jobs run-automation`` names ``--run-as`` when that user may not run it [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
 
 since v1.1.2 | November 23, 2026
 =================================
@@ -24,6 +26,8 @@ since v1.1.0 | November 05, 2026
 =================================
 
 **Automations**
+
+* ``flexmeasures add automation`` takes ``--critical`` to mark an automation as critical to your organisation, and ``flexmeasures edit automation`` takes ``--critical/--not-critical`` to change that afterwards. A failed run of a critical automation is reported to the server's critical-automation-failure hooks; nothing else about the automation changes.
 
 * Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset, with ``--type forecasting``, ``--type scheduling`` or ``--type reporting`` saying which task to automate). Each automation carries its own IANA timezone (``--timezone``), in which its cron expression is interpreted.
 * Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.

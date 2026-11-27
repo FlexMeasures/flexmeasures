@@ -9,6 +9,10 @@ v3.0-37 | December xx, 2026
 """"""""""""""""""""""""""""
 
 - ``GET /api/v3_0/assets/<id>/jobs`` accepts ``queue``, to list only the jobs of one queue: ``forecasting``, ``scheduling`` or ``reporting``. On a paginated response, ``num-records`` still counts all jobs, and ``filtered-records`` counts the jobs of that queue.
+- `PATCH /assets/(id)/automations/(id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_ also takes ``parameters``, ``data-generator``, ``config`` and ``source``, checked as on creation, against the access of both the user making the change and the user the automation runs as; ``run-as-me`` makes the user making the change the one it runs as instead. A refusal for the user it runs as carries ``reason: run-user-lacks-access``.
+- `POST /assets/(id)/automations/(id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_ answers ``403`` with the same ``reason`` and ``refusal`` when the user the automation runs as may not run it.
+- Automation responses include ``runs-as``, the user whose access every run checks (null for an automation set up through the CLI).
+- `GET /assets/(id)/automations/(id) <../api/v3_0.html#get--api-v3_0-assets-id-automations-automation-id>`_ answers anyone who may read the asset, also where the automation involves a sensor they may not read; such a sensor is listed with its ID only, with ``readable`` false.
 
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""
@@ -54,6 +58,8 @@ v3.0-35 | November 11, 2026
 
 - ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` now accept ``monitored``, which says whether ``flexmeasures monitor automations`` reports the automation's failed runs (``true`` by default), and the automation endpoints return it. Only the host's admins and the account-admins of the asset's organisation may create an unmonitored automation or switch monitoring off or on; others get a ``403``.
 - Renamed ``schedule-revision`` to ``revision`` in automation responses and in each run listed under ``run-stats``. The field counts the resets of an automation's recurrence, not anything about schedules; it was released under the old name in v3.0-34 (FlexMeasures v1.1.0), and is read-only, so only clients reading it need to switch.
+- Automations carry a ``critical`` flag, accepted by ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` and reported in automation responses. It says whether a failed run is reported to the server's critical-automation-failure hooks, and changes nothing about how the automation runs or how its failures are retried.
+- A run's entry in ``run-stats`` adds ``critical-failure-notified-at``: when those hooks were told about the run, or null.
 
 v3.0-34 | November 05, 2026
 """"""""""""""""""""""""""""

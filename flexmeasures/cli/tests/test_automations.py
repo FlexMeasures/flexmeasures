@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
 import re
@@ -477,6 +478,121 @@ def test_add_automation_defaults_to_the_assets_timezone(
     assert automation.timezone == "Europe/Amsterdam"
     # The success message reports the timezone that was stored, not the option that was left out.
     assert "in timezone 'Europe/Amsterdam'" in result.output
+
+
+def test_edit_automation_refuses_or_warns_about_and_sets_the_run_user(
+    app, fresh_db, setup_dummy_data_fresh_db, setup_roles_users_fresh_db, tmp_path
+):
+    """The CLI is trusted, so an edit is not checked against anyone's access, but it does check whom the automation runs as.
+
+    An edit of what the automation computes, or of whom it runs as, is refused when that user could not run it, naming `--run-as`;
+    other edits warn.
+    `--run-as` picks the user to run as instead, which the audit log names, and refuses a user who is missing or inactive.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.data.models.user import User
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Forecasts run as someone",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data_fresh_db[0],
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    # A user without access to record data under the asset.
+    supplier_id = setup_roles_users_fresh_db["Test Supplier User"]
+    admin_id = setup_roles_users_fresh_db["Test Admin User"]
+    automation.execution_user_id = supplier_id
+    fresh_db.session.commit()
+
+    refusal = (
+        f"Automation {automation.id} runs as Test Supplier User (user {supplier_id}),"
+        f" who does not have 'create-children' permission on sensor {setup_dummy_data_fresh_db[0]}."
+    )
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--name", "Renamed"]
+    )
+    assert "Successfully updated" in result.output, result.output
+    output = " ".join(result.output.split())
+    assert f"Warning: the runs of this automation will be refused: {refusal}" in output
+    # The CLI names its own way to take over, not those of the API or the edit form.
+    assert (
+        f"`flexmeasures edit automation --id {automation.id} --run-as <user id>`"
+        in output
+    )
+    assert "Run as me" not in output and "run-as-me" not in output
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"train-period": "P60D"}')
+    generator_id = automation.generator_id
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--config", str(config_file)]
+    )
+    assert result.exit_code != 0
+    output = " ".join(result.output.split())
+    assert (
+        f"Automation {automation.id} was not changed, as every run would be refused: {refusal}"
+        " Pass --run-as <user id> in the same command to run it as someone who may."
+    ) in output
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
+    assert automation.generator_id == generator_id
+
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id",
+            str(automation.id),
+            "--config",
+            str(config_file),
+            "--run-as",
+            str(admin_id),
+        ],
+    )
+    assert "Successfully updated" in result.output, result.output
+    assert "Warning" not in result.output
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
+    assert automation.execution_user_id == admin_id
+    assert automation.generator_id != generator_id
+
+    # Handing the runs to a user who could not run it is refused as well.
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--run-as", str(supplier_id)]
+    )
+    assert result.exit_code != 0
+    assert (
+        f"Automation {automation.id} was not changed, as the user named with --run-as could not run it:"
+        in " ".join(result.output.split())
+    )
+    fresh_db.session.expire_all()
+    automation = fresh_db.session.get(Automation, automation.id)
+    assert automation.execution_user_id == admin_id
+    assert fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like(
+                f"%runs as: Test Supplier User (user {supplier_id}) → Test Admin User (user {admin_id})%"
+            )
+        )
+    ).scalar_one_or_none()
+
+    inactive_id = setup_roles_users_fresh_db["Test Dummy User"]
+    fresh_db.session.get(User, inactive_id).active = False
+    fresh_db.session.commit()
+    result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), "--run-as", str(inactive_id)]
+    )
+    assert result.exit_code != 0
+    assert f"User {inactive_id} is missing or inactive" in result.output
+    assert automation.execution_user_id == admin_id
 
 
 def test_add_and_edit_automation_reject_invalid_timezone(
@@ -1428,6 +1544,77 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data_fresh_db, tmp_pat
     assert "Invalid start-offset" in result.output
 
 
+def test_edit_report_automation_config_and_parameters(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A report automation's config and parameters can be edited from the CLI.
+
+    A new config keeps the reporter, moves the automation onto the data source storing that config,
+    and leaves the old data source as it was; the CLI makes no user the one runs execute as.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.data.models.time_series import Sensor
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            asset_id=report_sensor.generic_asset_id,
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    old_source = automation.generator
+    old_config = old_source.attributes["data_generator"]["config"]
+    revision = automation.revision
+
+    new_config = deepcopy(old_config)
+    new_config["transformations"][1]["args"] = ["4h"]
+    config_file = tmp_path / "new_reporter_config.yml"
+    config_file.write_text(yaml.dump(new_config))
+    parameters = dict(automation.parameters)
+    parameters["start-offset"] = "-2D,DB"
+    parameters["end-offset"] = "DB"
+    parameters_file = tmp_path / "new_parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully updated" in result.output, result.output
+    assert automation.generator_id != old_source.id
+    assert automation.generator.model == "PandasReporter"
+    assert automation.generator.attributes["data_generator"]["config"] == new_config
+    assert old_source.attributes["data_generator"]["config"] == old_config
+    assert automation.parameters["start-offset"] == "-2D,DB"
+    assert automation.revision == revision + 1
+    assert automation.execution_user_id is None
+
+    # A config naming the source that stores it, too, is refused.
+    result = runner.invoke(
+        edit_automation,
+        [
+            "--id", str(automation.id),
+            "--config", str(config_file),
+            "--source", str(old_source.id),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "cannot be combined with" in result.output
+
+
 @pytest.mark.parametrize(
     "fixed_timing, consequence",
     [
@@ -1752,6 +1939,94 @@ def test_run_report_automation(
     assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
         "2023-04-10T10:00:00+00:00"
     )
+
+
+@pytest.mark.parametrize("edited", ["after queueing", "before dispatching"])
+def test_report_run_planned_before_an_edit_reports_what_it_was_planned_with(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    edited,
+):
+    """A report run, and its job, report with the data source and the parameters the run was planned with, also when the automation was edited since.
+
+    The edit points the report at another output sensor,
+    so a job held to the edited definition would be refused for recording on the one it was planned with.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.automations import (
+        run_automation,
+        update_automation,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, other_report_sensor_id = (
+        setup_dummy_data_fresh_db
+    )
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    result = app.test_cli_runner().invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    planned_source_id = automation.generator_id
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2023, 4, 10, 10, 0, tzinfo=timezone.utc),
+        revision=automation.revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=dict(automation.parameters),
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    run_id = run.id
+
+    def edit():
+        parameters = deepcopy(dict(automation.parameters))
+        parameters["output"][0]["sensor"] = other_report_sensor_id
+        config = deepcopy(automation.generator.attributes["data_generator"]["config"])
+        config["transformations"][1]["args"] = ["4h"]
+        update_automation(automation, parameters=parameters, config=config)
+        fresh_db.session.commit()
+        assert automation.generator_id != planned_source_id
+
+    if edited == "before dispatching":
+        edit()
+    run_automation(automation, automation_run=run)
+    if edited == "after queueing":
+        edit()
+    work_on_rq(app.queues["reporting"])
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+    assert set(stored_report.sources.map(lambda source: source.id)) == {
+        planned_source_id
+    }
+    other_report_sensor = fresh_db.session.get(Sensor, other_report_sensor_id)
+    assert other_report_sensor.search_beliefs().empty
+    fresh_db.session.expire_all()
+    assert fresh_db.session.get(AutomationRun, run_id).execution_state == "succeeded"
 
 
 def test_report_automation_with_nothing_new_to_report_queues_no_job(
@@ -2634,6 +2909,55 @@ def test_run_one_automation_on_demand(
     assert app.queues["forecasting"].count > n_jobs
 
 
+def test_a_refused_run_points_at_the_cli_and_records_no_hint(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    setup_roles_users_fresh_db,
+    clean_redis,
+    freeze_server_now,
+):
+    """When the user an automation runs as may not run it, the CLI names its own way to take over, while the run records only the refusal."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+    from flexmeasures.data.models.automations import AutomationRun
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    cli_input = {
+        "asset": 1,
+        "name": "Forecasts run as someone without access",
+        "cron": "0 10 * * *",
+        "timezone": "UTC",
+        "sensor": setup_dummy_data_fresh_db[0],
+    }
+    assert runner.invoke(add_automation, to_flags(cli_input)).exit_code == 0
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    supplier_id = setup_roles_users_fresh_db["Test Supplier User"]
+    automation.execution_user_id = supplier_id
+    fresh_db.session.commit()
+    hint = f"Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`."
+
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+    assert result.exit_code != 0
+    output = " ".join(result.output.split())
+    assert (
+        f"runs as Test Supplier User (user {supplier_id}), who does not have" in output
+    )
+    assert output.endswith(hint) or f"{hint} Aborted!" in output, output
+    assert "Run as me" not in output and "run-as-me" not in output
+
+    freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
+    result = runner.invoke(run_automations)
+    assert hint in " ".join(result.output.split()), result.output
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert f"Test Supplier User (user {supplier_id}), who does not have" in (
+        run.last_error_message
+    )
+    assert "--run-as" not in run.last_error_message
+    assert "run-as-me" not in run.last_error_message
+
+
 def test_run_one_automation_runs_inactive_automation(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis
 ):
@@ -2777,7 +3101,18 @@ def automation_row_cell(output: str, name: str, header: str) -> str:
 
     Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
     """
-    headers = ["ID", "Asset", "Name", "Type", "Active", "Monitored", "Cron", "Timezone"]
+    headers = [
+        "ID",
+        "Asset",
+        "Name",
+        "Type",
+        "Active",
+        "Critical",
+        "Monitored",
+        "Cron",
+        "Timezone",
+        "Runs as",
+    ]
     lines = output.splitlines()
     header_line = next(line for line in lines if all(h in line for h in headers))
     starts = [header_line.index(h) for h in headers]
@@ -2823,6 +3158,8 @@ def test_show_automations_lists_all_and_shows_one(
     assert automation_row_cell(result.output, name, "Type") == "forecasting"
     assert automation_row_cell(result.output, name, "Cron") == "0 6 * * *"
     assert automation_row_cell(result.output, name, "Timezone") == "Europe/Amsterdam"
+    # Set up through the CLI, which is trusted, so its runs check nobody's access.
+    assert automation_row_cell(result.output, name, "Runs as") == "nobody (CLI)"
     assert (
         automation_row_cell(result.output, name, "Asset") == "DummyGenericAsset (ID: 1)"
     )
@@ -2919,6 +3256,37 @@ def test_show_automations_includes_inactive_ones(app, setup_dummy_data_fresh_db)
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
     assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_show_automations_says_which_are_critical(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A host that flags automations from the CLI can check from the CLI which of them page."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data_fresh_db[0]
+    runner = app.test_cli_runner()
+    for name, flags in (("Paging forecasts", ["--critical"]), ("Quiet forecasts", [])):
+        result = runner.invoke(
+            add_automation,
+            to_flags({"asset": 1, "name": name, "sensor": sensor_id}) + flags,
+        )
+        assert "Successfully created" in result.output, result.output
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Paging forecasts", "Critical") == "yes"
+    assert automation_row_cell(result.output, "Quiet forecasts", "Critical") == "no"
+
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Paging forecasts")
+    ).one()
+    result = runner.invoke(list_automations, ["--id", str(automation.id)])
+    assert result.exit_code == 0, result.output
+    assert any(
+        line.split() == ["Critical", "yes"] for line in result.output.splitlines()
+    ), result.output
 
 
 def test_add_edit_and_show_an_unmonitored_automation(

@@ -63,6 +63,46 @@ Automations are active by default (use ``--inactive`` to create them in deactiva
 Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), change the timezone, activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
 These changes are recorded in the asset's audit log.
 
+Editing what an automation computes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An automation's parameters, and its data generator and configuration, can be changed afterwards, too:
+with ``--parameters``, ``--data-generator``, ``--config`` and ``--source`` on ``flexmeasures edit automation``,
+with the same fields on `[PATCH] /assets/(id)/automations/(automation-id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_,
+and with the parameters and config fields of the *Edit* form on the asset's *Automations* page.
+They are checked as on creation, including whether you may use the sensors they name.
+
+A new configuration does not change the data source the automation records under.
+It moves the automation to the data source storing that configuration, which is looked up or created as on creation,
+and leaves the old data source as it is:
+other automations may compute under it, and what it recorded was computed with its configuration.
+For example, a forecast automation on data source 120 whose ``train-period`` changes moves to another source, say 121,
+so that forecasts made before and after the change can be told apart.
+Leaving out ``--data-generator`` or ``--config`` keeps the current one,
+and ``--source`` moves the automation to an existing data source instead, under the same rules as on creation.
+A schedule automation accepts new parameters only, as its data source follows from the asset (see `Automating schedules`_).
+
+A new configuration replaces the current one as a whole, so it has to repeat any setting to keep.
+
+Every run of an automation checks the access of the user it runs as, who is its creator at first.
+The *Edit* form says who that is (*Runs as*), and so do the API (``runs-as``) and ``flexmeasures show automations``.
+An edit through the API or the UI leaves that user as it is, so the sensors it names have to pass the access checks of both the editor and that user:
+this way, nobody can point the automation at sensors that only they may use, while its runs are checked against someone else.
+To have the automation run as you from then on, tick *Run as me* in the *Edit* form, or send ``run-as-me`` with the PATCH request;
+the sensors are then checked against your access only, and the switch is written to the asset's audit log.
+Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.
+
+An automation set up through the CLI runs as nobody, as the CLI is trusted, so its runs check nobody's access.
+An edit of it through the API or the UI is checked against the editor's access only, and its runs stay unchecked, unless the editor takes it over.
+An edit through the CLI is not checked against anyone's access either,
+but it warns when the user the automation runs as could not run what it now computes, as every run would then be refused;
+``flexmeasures edit automation --run-as <user ID>`` then picks another user to run it as.
+
+Runs before and after such a change are kept apart by a new revision, while the cursor (see :ref:`automation_cursor`) stays where it was, as which runs are due has not changed.
+A run planned before the change, including one being retried and the jobs it already queued, still computes with the parameters and the data source it was planned with.
+It is checked against the user the automation runs as by the time it runs, though,
+so after a switch with *Run as me*, a run planned before it fails if it involves a sensor that only its old definition named, and that you may not use.
+
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
 
@@ -222,6 +262,68 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
         --cron "0 1 * * *" --timezone Europe/Amsterdam \
         --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
 
+.. _critical_automations:
+
+Critical automations
+--------------------
+
+Some automations matter more to an organisation than others: a day-ahead schedule that a market
+position depends on is not a weekly report. Flag such an automation as critical, and FlexMeasures
+hands its failures to whatever your organisation does about them.
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Day-ahead schedules" --type scheduling \
+        --cron "0 12 * * *" --critical --parameters trigger-message.yml
+
+    flexmeasures edit automation --id 4 --critical
+    flexmeasures edit automation --id 4 --not-critical
+
+The same flag is the ``critical`` field of the automations API, and a *Critical* checkbox in the
+creation and edit forms in the UI, where a critical automation's row carries a ``critical`` badge.
+A copy of a critical automation is critical too.
+
+Being critical changes nothing about how an automation runs: the same jobs are queued on the same
+recurrence, and a failed dispatch is retried exactly as before (see :ref:`automation_runs`).
+It changes only who is told when a run fails.
+
+Hooking into critical failures
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures takes no view on what a critical failure means for your organisation — one pages the
+engineer on duty, another opens a ticket, a third writes to a status page — so it reports the
+failure and leaves the business logic to you.
+
+A hook is a callable taking one
+:class:`~flexmeasures.data.services.automation_failure_hooks.CriticalAutomationFailure`, which
+names the automation, its asset, the run, the stage it failed in and the error it failed on.
+
+Register one from a plugin, next to its ``__automation_types__``:
+
+.. code-block:: python
+
+    def page_the_engineer_on_duty(failure):
+        pager.trigger(severity="critical", summary=failure.summary)
+
+    __automation_failure_hooks__ = [page_the_engineer_on_duty]
+
+Or name it by dotted path in your server settings, if you would rather not write a plugin:
+
+.. code-block:: python
+
+    FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS = ["my_company.ops.page_the_engineer_on_duty"]
+
+The hooks are called when FlexMeasures has stopped trying: when a job of the run failed on a
+worker, which is not retried, or when the run's last dispatch attempt has been spent (see
+:ref:`automation_runs`), so that a dispatch which the next retry would have fixed does not page
+anybody. A run notifies once, however many of its jobs fail, which is recorded on the run itself,
+so a second dispatcher or worker does not page again.
+
+Hooks run inside the dispatcher or worker that recorded the failure, straight after it was
+recorded. Keep them quick, and put anything slow on a queue of your own: a hook that raises is
+logged and skipped, and never fails the run it was told about, which has failed already.
+
+
 .. _running_automations:
 
 Running automations
@@ -284,8 +386,8 @@ A run tracks two things separately: how far its *dispatch* got (``pending``, ``c
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
-Editing an automation's cron string or timezone, or reactivating it, counts up its revision.
-Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
+Editing an automation's cron string, timezone, parameters or data generator config, or reactivating it, counts up its revision.
+Runs from before and after the change therefore stay distinct, even when they fall on the same scheduled UTC time.
 
 .. _monitoring_automations:
 

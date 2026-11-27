@@ -14,7 +14,7 @@ from marshmallow import (
     ValidationError,
 )
 
-from flexmeasures.data import ma
+from flexmeasures.data import db, ma
 from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -92,6 +92,14 @@ class AutomationCreationSchema(Schema):
         },
     )
     active = fields.Bool(load_default=True)
+    critical = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "Whether this automation is critical to the organisation."
+            " It changes nothing about how the automation runs or how its failures are retried;"
+            " it decides whether a failed run is handed to the host's critical-automation-failure hooks."
+        },
+    )
     monitored = fields.Bool(
         load_default=True,
         metadata={
@@ -158,9 +166,9 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone, activation status and/or monitoring.
+    """Request schema for updating an automation.
 
-    The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
+    The parameters, data generator, config and data source are validated separately, as on creation, against the automation's type.
     """
 
     name = fields.Str(validate=validate.Length(min=1, max=80))
@@ -172,12 +180,70 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    critical = fields.Bool()
     monitored = fields.Bool(
         metadata={
             "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again. Only the host's admins and the account-admins of the asset's organisation may change it.",
             "example": True,
         },
     )
+    parameters = fields.Dict(
+        keys=fields.Str(),
+        metadata={
+            "description": "New parameters, replacing the current ones as a whole.",
+        },
+    )
+    generator_class = fields.Str(
+        data_key="data-generator",
+        metadata={
+            "description": "Class of a new data generator. Leaving out the config keeps the current one.",
+            "example": "TrainPredictPipeline",
+        },
+    )
+    config = fields.Dict(
+        keys=fields.Str(),
+        metadata={
+            "description": "New configuration for the data generator, replacing the current one as a whole."
+            " The automation moves to the data source storing it, and the old data source is left as it is.",
+            "example": {},
+        },
+    )
+    source = DataSourceIdField(
+        metadata={
+            "description": "ID of an existing data source to move the automation to, instead of naming a `data-generator` and its `config`.",
+            "example": 6,
+        },
+    )
+    run_as_me = fields.Bool(
+        data_key="run-as-me",
+        metadata={
+            "description": "Have the automation run as you from now on, so that every run checks your access,"
+            " rather than that of the user it runs as now (its creator, at first)."
+            " Without it, a change of what the automation computes has to pass the access checks of both you and that user."
+            " Use this to take over an automation whose runs are refused, for instance because that user's account was deactivated, or they no longer have access to one of its sensors.",
+            "example": True,
+        },
+    )
+
+    @validates_schema
+    def validate_generator_is_named_once(self, data: dict, **kwargs):
+        """A data source already determines the data generator and its config, so the two ways of naming one are exclusive."""
+        if data.get("source") is None:
+            return
+        named_alongside = [
+            data_key
+            for data_key, field_name in (
+                ("data-generator", "generator_class"),
+                ("config", "config"),
+            )
+            if field_name in data
+        ]
+        if named_alongside:
+            raise ValidationError(
+                f"{' and '.join(named_alongside)} cannot be combined with source:"
+                " a data source already stores the data generator and the configuration it runs under.",
+                field_name="source",
+            )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -215,15 +281,30 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T08:00:00+02:00",
         },
     )
-    schedule_revision = ma.auto_field(
-        data_key="revision",
+    revision = ma.auto_field(
         dump_only=True,
         metadata={
-            "description": "Counts the resets of the automation's recurrence (a new cron string or timezone, or reactivation), keeping the durable runs from before and after a reset apart. Called schedule-revision in v1.1.0.",
+            "description": "Counts the edits that changed when the automation runs or what it computes, and its reactivations; it keeps the durable runs from before and after such a change apart.",
             "example": 2,
         },
     )
     active = ma.auto_field()
+    critical = ma.auto_field(
+        metadata={
+            "description": "Whether a failed run of this automation is handed to the host's critical-automation-failure hooks."
+        }
+    )
+    runs_as = fields.Method(
+        serialize="dump_runs_as",
+        data_key="runs-as",
+        dump_only=True,
+        metadata={
+            "description": "The user whose access every run of the automation checks: its creator, unless someone took it over with `run-as-me`."
+            " Null for an automation set up through the CLI, which is trusted, so that its runs check nobody's access."
+            " The name is null if that user no longer exists.",
+            "example": {"id": 2, "name": "toy-user"},
+        },
+    )
     monitored = ma.auto_field(
         metadata={
             "description": "Whether `flexmeasures monitor automations` reports this automation's failed runs. Runs that failed while it was not monitored are reported once it is monitored again.",
@@ -255,6 +336,18 @@ class AutomationSchema(ma.SQLAlchemySchema):
     def dump_cursor(self, automation: Automation) -> str | None:
         """Render the cursor in the automation's own timezone."""
         return self._in_automation_timezone(automation, automation.cursor)
+
+    def dump_runs_as(self, automation: Automation) -> dict | None:
+        """Name the user whom the automation runs as, as nothing else shows it."""
+        from flexmeasures.data.models.user import User
+
+        if automation.execution_user_id is None:
+            return None
+        user = db.session.get(User, automation.execution_user_id)
+        return {
+            "id": automation.execution_user_id,
+            "name": user.username if user is not None else None,
+        }
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):
