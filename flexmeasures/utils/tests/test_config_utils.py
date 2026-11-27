@@ -309,6 +309,38 @@ def test_configure_logging_keeps_loggers_that_already_exist(monkeypatch):
         root.setLevel(root_level)
 
 
+def test_create_app_in_test_does_not_break_caplog(monkeypatch, caplog):
+    """Building a custom app inside a test does not overwrite root logger handlers or break caplog."""
+    import flexmeasures.ui
+    from flexmeasures.app import create as create_app
+
+    monkeypatch.setattr(flexmeasures.ui, "register_at", lambda app: None)
+    custom_app = create_app(env="testing")
+    assert custom_app.testing is True
+
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger().warning("test warning after create_app")
+
+    assert any(
+        record.message == "test warning after create_app" for record in caplog.records
+    )
+
+
+def test_create_app_do_configure_logging_flag(monkeypatch):
+    """create_app respects do_configure_logging."""
+    import flexmeasures.ui
+    from flexmeasures.app import create as create_app
+
+    monkeypatch.setattr(flexmeasures.ui, "register_at", lambda app: None)
+    called = []
+    monkeypatch.setattr(
+        "flexmeasures.utils.config_utils.configure_logging",
+        lambda: called.append(True),
+    )
+    create_app(env="testing", do_configure_logging=False)
+    assert not called
+
+
 def test_flexmeasures_env_from_a_python_cfg_raises_no_dotenv_warning(
     tmp_path, monkeypatch, caplog
 ):
