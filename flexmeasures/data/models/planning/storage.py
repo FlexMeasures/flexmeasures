@@ -90,6 +90,10 @@ def _has_absolute_soc_constraints(flex_model: dict) -> bool:
 #: and in the multi-result list returned by ``StorageScheduler.compute()``.
 SCHEDULING_RESULT_KEY = "scheduling_result"
 
+#: The reaction directions that move a device's power up (consumption-up, production-down) or down (consumption-down, production-up).
+REACTION_DIRECTIONS_UP = {"consumption-up", "production-down"}
+REACTION_DIRECTIONS_DOWN = {"consumption-down", "production-up"}
+
 
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
@@ -3653,6 +3657,28 @@ class StorageScheduler(MetaStorageScheduler):
         return lo_dir, hi_dir
 
     @staticmethod
+    def _cut_to_directions(
+        ranges: list[tuple[float, float]],
+        p: float,
+        directions: set[str],
+        tolerance: float,
+    ) -> list[tuple[float, float]]:
+        """Cut power ranges to the directions a device may move in from its planned power ``p`` (see :meth:`_direction_bounds`).
+
+        Ranges left empty by the cut are dropped; a range holding ``p`` keeps holding it.
+        """
+        lo_dir, hi_dir = StorageScheduler._direction_bounds(p, directions, tolerance)
+        cut_ranges = [
+            (max(range_lo, lo_dir), min(range_hi, hi_dir))
+            for range_lo, range_hi in ranges
+        ]
+        return [
+            (range_lo, range_hi)
+            for range_lo, range_hi in cut_ranges
+            if range_lo <= range_hi + tolerance
+        ]
+
+    @staticmethod
     def _response_band(
         p: float,
         lo: float,
@@ -3670,18 +3696,15 @@ class StorageScheduler(MetaStorageScheduler):
 
         :returns: A sorted list of disjoint (min, max) ranges, one of which contains ``p``.
         """
-        lo_dir, hi_dir = StorageScheduler._direction_bounds(p, directions, tolerance)
-        lo, hi = max(lo, lo_dir), min(hi, hi_dir)
-
         candidate_ranges = [(lo, hi)]
         if modes:
             candidate_ranges = [
                 (max(mode_lo, lo), min(mode_hi, hi)) for mode_lo, mode_hi in modes
             ]
         ranges = sorted(
-            (range_lo, range_hi)
-            for range_lo, range_hi in candidate_ranges
-            if range_lo <= range_hi + tolerance
+            StorageScheduler._cut_to_directions(
+                candidate_ranges, p, directions, tolerance
+            )
         )
         # Make sure one range holds the planned power, widening the nearest one if the plan sits just outside it.
         if not any(
@@ -3875,6 +3898,9 @@ class StorageScheduler(MetaStorageScheduler):
           The kink is within reach when the plan sits on a kink (see :meth:`_intended_connection_power`),
           the device could reach the power that balances the connection at it (regardless of its stock),
           and its band (see below) is more than a single point.
+          The plan is at the kink when its connection power equals the intended power (within the float tolerance),
+          when it misses the kink only because of the device's operation modes (see :meth:`_mode_shaped_miss`), or when a capacity binds;
+          otherwise it is off the kink.
           A capacity kink out of the device's reach falls back to the price kink, where there is one.
           Shares in between are reserved for a later version.
           Reacting devices form a chain in flex-model order, each absorbing what the devices before it could not; the client walks that chain.
@@ -3887,6 +3913,9 @@ class StorageScheduler(MetaStorageScheduler):
         - ``band``: where the device reacts, every range the plan leaves feasible (see :meth:`_device_band_ranges`):
           the device's operation modes cut to its own limits, each narrowed by state-of-charge reachability under hard and soft limits alike,
           and dropped when reachability empties it.
+          Off the kink, the band only keeps the kink's side of the plan (the ranges at or above ``p`` where the connection power is above the intended power, at or below ``p`` where it is below),
+          so the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away;
+          where that leaves a single point, such as at the device's power limit, the device gets react 0.
           Whether and when the device changes mode is the controller's policy;
           a reacting device rounds a value that falls in a hole to the edge on the side of its current mode,
           which at the start of a slot is the plan's range, so the house as forecast returns the plan.
@@ -3931,6 +3960,7 @@ class StorageScheduler(MetaStorageScheduler):
         device_ranges: dict[int, list[list[tuple[float, float]]]] = {}
         device_reach: dict[int, list[list[tuple[float, float]]]] = {}
         can_react: dict[int, bool] = {}
+        device_directions: dict[int, set[str]] = {}
         for d in range(num_flexible):
             device_model = device_models[d] if d < len(device_models) else {}
             # Not yet exposed through the public schema: the flex-model keys `reaction_directions`
@@ -3938,6 +3968,7 @@ class StorageScheduler(MetaStorageScheduler):
             directions = set(
                 device_model.get("reaction_directions") or REACTION_DIRECTIONS
             )
+            device_directions[d] = directions
             reaction_time = device_model.get("reaction_time") or timedelta(0)
             can_react[d] = (
                 bool(device_model.get("react")) and reaction_time <= resolution
@@ -4008,19 +4039,43 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                     np.nan,
                 )
-                if can_react[d] and not np.isnan(intended_power) and room:
-                    reacts[t] = 1.0
-                    bands.append(ranges)
-                    balancing_power = intended_power - uncontrolled_plan[t]
-                    if self._mode_shaped_miss(
-                        ranges,
-                        balancing_power,
-                        float(reacting_plan[commodity][t]),
-                        tolerance,
-                    ):
-                        reference[t] = intended_power - reacting_plan[commodity][t]
-                else:
+                if not (can_react[d] and not np.isnan(intended_power) and room):
                     bands.append([(float(p[t]), float(p[t]))])
+                    continue
+                balancing_power = intended_power - uncontrolled_plan[t]
+                mode_shaped_miss = self._mode_shaped_miss(
+                    ranges,
+                    balancing_power,
+                    float(reacting_plan[commodity][t]),
+                    tolerance,
+                )
+                connection_power = planned_net[commodity][t]
+                at_kink = (
+                    abs(connection_power - intended_power) <= tolerance
+                    or mode_shaped_miss
+                    or not np.isnan(kinks[0][t])
+                )
+                if not at_kink:
+                    # Off the kink, the band only keeps the kink's side of the plan:
+                    # the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away.
+                    kink_side = (
+                        REACTION_DIRECTIONS_UP
+                        if connection_power > intended_power
+                        else REACTION_DIRECTIONS_DOWN
+                    )
+                    ranges = self._cut_to_directions(
+                        ranges,
+                        float(p[t]),
+                        device_directions[d] & kink_side,
+                        tolerance,
+                    )
+                    if not (len(ranges) > 1 or ranges[0][1] - ranges[0][0] > tolerance):
+                        bands.append([(float(p[t]), float(p[t]))])
+                        continue
+                reacts[t] = 1.0
+                bands.append(ranges)
+                if mode_shaped_miss:
+                    reference[t] = intended_power - reacting_plan[commodity][t]
 
             data = pd.DataFrame(
                 {

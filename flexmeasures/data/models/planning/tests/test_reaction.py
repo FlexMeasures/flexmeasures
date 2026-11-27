@@ -612,11 +612,12 @@ def test_retrigger_after_absorbing_restores_the_target(app, db):
 
 
 def test_negative_feed_in_without_a_forecast(app, db):
-    """Without any uncontrolled device the reference is 0.0, and a negative feed-in price makes the charger react
-    even though the plan does not hold the connection at zero.
+    """Without any uncontrolled device the reference is 0.0, and a negative feed-in price puts the price kink at zero.
 
-    Paid to consume, the charger fills its 4.4 kWh in the first slot (4.4 kW, within its 1.4 to 7.4 kW range) and idles in the second,
-    where its range is a point, so it does not react there.
+    Paid to consume, the charger fills its 4.4 kWh in the first slot (4.4 kW, within its 1.4 to 7.4 kW range) and idles in the second.
+    In the first slot the plan imports 4.4 kW, off the kink, so its band keeps only the side at or above the plan;
+    the full stock leaves no room to charge more, so that side is a point and the charger does not react.
+    In the second slot its range is a point, so it does not react there either.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
         db,
@@ -636,13 +637,11 @@ def test_negative_feed_in_without_a_forecast(app, db):
         flex_model=[_charger(battery_power, **{"soc-max": "0.0044 MWh"})],
     )[battery_power.id]["data"]
     np.testing.assert_allclose(data["p"], [0.0044, 0], atol=TOLERANCE, err_msg="plan")
-    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(data["react"], [0, 0], err_msg="react")
     np.testing.assert_allclose(
         data["reference"], [0.0, 0.0], atol=TOLERANCE, err_msg="reference"
     )
-    np.testing.assert_allclose(
-        data["band"].iloc[0], [(0, 0), (0.0014, 0.0044)], atol=TOLERANCE
-    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0044, 0.0044)], atol=TOLERANCE)
     np.testing.assert_allclose(data["band"].iloc[1], [(0, 0)], atol=TOLERANCE)
 
 
@@ -719,7 +718,9 @@ def test_plan_just_below_the_fuse_holds_the_price_kink(app, db):
     that must hold 13 kWh after two hours. Import is cheaper in the first hour, so the charger takes its full 7.4 kW then
     (importing 5.4 kW, 0.35 kW below the fuse) and the remaining 5.6 kW in the second hour.
     Balancing the connection at the fuse would take 7.75 kW, beyond the charger's reach, but balancing it at zero takes 2 kW:
-    the first slot reacts at the price kink, against the forecast, with every range the target leaves feasible.
+    the first slot holds the price kink, against the forecast.
+    Its plan imports 5.4 kW, off the kink and at the charger's limit, so the side of the band at or above the plan is a point and it does not react;
+    were the plan taken to be at the capacity kink, the slot would react with every range the target leaves feasible.
     The second slot's range is pinned by the target, so it does not react.
     """
     site, battery_power, load_sensor, price_fields, end = _build_site(
@@ -750,12 +751,166 @@ def test_plan_just_below_the_fuse_holds_the_price_kink(app, db):
     np.testing.assert_allclose(
         data["p"], [0.0074, 0.0056], atol=TOLERANCE, err_msg="plan"
     )
-    np.testing.assert_allclose(data["react"], [1, 0], err_msg="react")
+    np.testing.assert_allclose(data["react"], [0, 0], err_msg="react")
     np.testing.assert_allclose(
         data["reference"], -0.002, atol=TOLERANCE, err_msg="forecast"
     )
-    np.testing.assert_allclose(data["band"].iloc[0], [(0.0056, 0.0074)], atol=TOLERANCE)
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0074, 0.0074)], atol=TOLERANCE)
     np.testing.assert_allclose(data["band"].iloc[1], [(0.0056, 0.0056)], atol=TOLERANCE)
+
+
+def test_off_the_kink_at_the_power_limit_follows_the_plan(app, db):
+    """A charger at its power limit while importing, with feed-in below import, is off the kink and follows the plan.
+
+    The charger (idle or 1.4 to 7.4 kW) meets 2 kW of surplus sun in each of two hourly slots and must hold 13 kWh after them.
+    Import is cheaper in the first hour, so it charges its full 7.4 kW then, importing 5.4 kW, and the remaining 5.6 kW in the second hour.
+    Absorbing clouds in the first slot would cut charging, to be bought back later at a higher price,
+    and absorbing extra sun would take charging beyond the charger's limit,
+    so the band's side at or above the plan is a point: react 0, and a cloud leaves the setpoint at 7.4 kW.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Reaction site (off the kink at the power limit)",
+        consumption_prices=[49, 50],
+        production_prices=[5, 5],
+        load_kw=[-2, -2],
+        n_hours=2,
+    )
+    data = _compute_reaction(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _charger(
+                battery_power,
+                **{
+                    "soc-targets": [{"datetime": end.isoformat(), "value": "0.013 MWh"}]
+                },
+            )
+        ],
+        flex_context_extra={"relax-soc-constraints": False},
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [0.0074, 0.0056], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [0, 0], err_msg="react")
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.0074, 0.0074)], atol=TOLERANCE)
+
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    cloud = -0.0005  # 1.5 kW less sun than forecast
+    assert _clip_to_band(p - react * (cloud - reference), band, p) == pytest.approx(
+        0.0074, abs=TOLERANCE
+    )
+
+
+def test_off_the_kink_importing_keeps_the_upper_side(app, db):
+    """A charger inside its range while importing, with feed-in below import, absorbs extra sun but follows the plan against clouds.
+
+    The charger (idle or 1.4 to 7.4 kW) meets 2 kW of surplus sun in each of two hourly slots and must hold 6 kWh after them.
+    Import is cheaper in the first hour, so it charges 4 kW then, importing 2 kW, and absorbs just the sun in the second hour.
+    The first slot is off the kink, so its band keeps only the side at or above the plan, [4, 7.4] kW:
+    1 kW of extra sun raises the setpoint to 5 kW, and a 1 kW cloud leaves it at 4 kW.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Reaction site (off the kink, importing)",
+        consumption_prices=[49, 50],
+        production_prices=[5, 5],
+        load_kw=[-2, -2],
+        n_hours=2,
+    )
+    data = _compute_reaction(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _charger(
+                battery_power,
+                **{
+                    "soc-targets": [{"datetime": end.isoformat(), "value": "0.006 MWh"}]
+                },
+            )
+        ],
+        flex_context_extra={"relax-soc-constraints": False},
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [0.004, 0.002], atol=TOLERANCE, err_msg="plan"
+    )
+    assert data["react"].iloc[0] == 1
+    np.testing.assert_allclose(
+        data["reference"].iloc[0], -0.002, atol=TOLERANCE, err_msg="forecast"
+    )
+    np.testing.assert_allclose(data["band"].iloc[0], [(0.004, 0.0074)], atol=TOLERANCE)
+    _assert_bands_are_well_formed(data)
+
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    extra_sun = -0.003
+    assert _clip_to_band(p - react * (extra_sun - reference), band, p) == pytest.approx(
+        0.005, abs=TOLERANCE
+    )
+    cloud = -0.001
+    assert _clip_to_band(p - react * (cloud - reference), band, p) == pytest.approx(
+        0.004, abs=TOLERANCE
+    )
+
+
+def test_off_the_kink_exporting_keeps_the_lower_side(app, db):
+    """A battery discharging while exporting, with feed-in below import, absorbs extra load but follows the plan against extra production.
+
+    The battery starts with 8 kWh. Feed-in pays 90 in the first hour, and a 3 kW load meets an import price of 100 in the second,
+    so the battery discharges 5 kW in the first slot, all exported, and serves the load with the remaining 3 kWh in the second.
+    The first slot is off the kink, so its band keeps only the side at or below the plan, [-8, -5] kW, where the empty battery caps it:
+    1 kW of extra load lowers the setpoint to -6 kW, and 1 kW of extra production leaves it at -5 kW.
+    The second slot holds the connection at zero, so it is at the kink and keeps its full band.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Reaction site (off the kink, exporting)",
+        consumption_prices=[100, 100],
+        production_prices=[90, 5],
+        load_kw=[0, 3],
+        n_hours=2,
+    )
+    data = _compute_reaction(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[
+            _battery_flex_model(battery_power, **{"soc-at-start": "0.008 MWh"})
+        ],
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [-0.005, -0.003], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [1, 1], err_msg="react")
+    np.testing.assert_allclose(data["band"].iloc[0], [(-0.008, -0.005)], atol=TOLERANCE)
+    np.testing.assert_allclose(data["band"].iloc[1], [(-0.003, 0.010)], atol=TOLERANCE)
+    _assert_bands_are_well_formed(data)
+
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    extra_load = 0.001
+    assert _clip_to_band(
+        p - react * (extra_load - reference), band, p
+    ) == pytest.approx(-0.006, abs=TOLERANCE)
+    extra_production = -0.001
+    assert _clip_to_band(
+        p - react * (extra_production - reference), band, p
+    ) == pytest.approx(-0.005, abs=TOLERANCE)
 
 
 def test_band_lists_every_feasible_range_within_its_modes(app, db):
