@@ -539,6 +539,23 @@ def test_clouds_where_sun_was_planned_with_a_target_this_evening(app, db):
         0.0060, abs=TOLERANCE
     )
     assert _clip_to_band(p - react * (-0.0044 - reference), band, p) == p
+    # The third slot imports, off the kink, so a cloud is not absorbed: the setpoint stays at the plan.
+    cloud = -0.0034
+    assert _clip_to_band(p - react * (cloud - reference), band, p) == pytest.approx(
+        0.0050, abs=TOLERANCE
+    )
+
+    # The first slot holds the connection at zero, at the kink, so its band is symmetric:
+    # 1 kW of extra sun raises the setpoint to 5.4 kW, and a 1 kW cloud lowers it to 3.4 kW.
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    assert _clip_to_band(p - react * (-0.0054 - reference), band, p) == pytest.approx(
+        0.0054, abs=TOLERANCE
+    )
+    assert _clip_to_band(p - react * (-0.0034 - reference), band, p) == pytest.approx(
+        0.0034, abs=TOLERANCE
+    )
 
 
 def test_retrigger_after_absorbing_restores_the_target(app, db):
@@ -862,6 +879,10 @@ def test_off_the_kink_importing_keeps_the_upper_side(app, db):
     assert _clip_to_band(p - react * (cloud - reference), band, p) == pytest.approx(
         0.004, abs=TOLERANCE
     )
+    # Not a ratchet: the band is fixed around the plan, so once the extra sun is gone the setpoint is the plan again.
+    assert _clip_to_band(p - react * (reference - reference), band, p) == pytest.approx(
+        0.004, abs=TOLERANCE
+    )
 
 
 def test_off_the_kink_exporting_keeps_the_lower_side(app, db):
@@ -911,6 +932,52 @@ def test_off_the_kink_exporting_keeps_the_lower_side(app, db):
     assert _clip_to_band(
         p - react * (extra_production - reference), band, p
     ) == pytest.approx(-0.005, abs=TOLERANCE)
+    # Not a ratchet: once the extra load is gone, the setpoint is the plan again.
+    assert _clip_to_band(p - react * (reference - reference), band, p) == pytest.approx(
+        -0.005, abs=TOLERANCE
+    )
+
+
+def test_off_the_kink_exporting_at_the_power_limit_follows_the_plan(app, db):
+    """A battery at its discharge limit while exporting, with feed-in below import, is off the kink and follows the plan.
+
+    The mirror of the charger at its limit while importing: the battery starts full (20 kWh) and feed-in pays in both hours,
+    so it discharges its full 10 kW in each, exporting all of it in the first hour and 7 kW next to a 3 kW load in the second.
+    Absorbing extra production would cut discharging, energy that then earns less later,
+    and absorbing extra load would take discharging beyond the battery's limit,
+    so the band's side at or below the plan is a point: react 0, and extra production leaves the setpoint at -10 kW.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Reaction site (off the kink at the discharge limit)",
+        consumption_prices=[100, 100],
+        production_prices=[90, 80],
+        load_kw=[0, 3],
+        n_hours=2,
+    )
+    data = _compute_reaction(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+        flex_model=[_battery_flex_model(battery_power, **{"soc-at-start": "0.02 MWh"})],
+    )[battery_power.id]["data"]
+    np.testing.assert_allclose(
+        data["p"], [-0.010, -0.010], atol=TOLERANCE, err_msg="plan"
+    )
+    np.testing.assert_allclose(data["react"], [0, 0], err_msg="react")
+    np.testing.assert_allclose(data["band"].iloc[0], [(-0.010, -0.010)], atol=TOLERANCE)
+    np.testing.assert_allclose(data["band"].iloc[1], [(-0.010, -0.010)], atol=TOLERANCE)
+
+    p, react, reference, band = (
+        data.iloc[0][key] for key in ("p", "react", "reference", "band")
+    )
+    extra_production = -0.0015
+    assert _clip_to_band(
+        p - react * (reference + extra_production - reference), band, p
+    ) == pytest.approx(-0.010, abs=TOLERANCE)
 
 
 def test_band_lists_every_feasible_range_within_its_modes(app, db):
