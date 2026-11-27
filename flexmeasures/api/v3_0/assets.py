@@ -28,6 +28,7 @@ from flexmeasures.data.services.generic_assets import (
     asset_contains_data,
 )
 from flexmeasures.data.services.sensors import (
+    ASSET_JOB_QUEUES,
     build_asset_jobs_data,
 )
 from flexmeasures.api.common.schemas.scheduling import (
@@ -384,6 +385,14 @@ class AssetJobsQuerySchema(Schema):
         load_default=True,
         metadata={
             "description": "Whether to also list the jobs of the assets below this one, at any depth, as far as you may read them.",
+        },
+    )
+    queue = fields.Str(
+        required=False,
+        load_default=None,
+        validate=validate.OneOf(ASSET_JOB_QUEUES),
+        metadata={
+            "description": "Only list the jobs of this queue: forecasting, scheduling or reporting.",
         },
     )
 
@@ -2366,6 +2375,7 @@ class AssetAPI(FlaskView):
         per_page: int = 10,
         sort_by: str = "enqueued_at",
         sort_dir: str = "desc",
+        queue: str | None = None,
     ):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
@@ -2380,6 +2390,9 @@ class AssetAPI(FlaskView):
             Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
             Only the assets below it which you may read are included.
             Each job names the asset it happened on, in `asset_id` and `asset_name`.
+
+            Pass `queue` to only list the jobs of one queue: `forecasting`, `scheduling` or `reporting`.
+            On a paginated response, `num-records` still counts all jobs, and `filtered-records` counts the jobs of that queue.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -2423,6 +2436,13 @@ class AssetAPI(FlaskView):
               schema:
                 type: string
                 enum: [asc, desc]
+            - in: query
+              name: queue
+              required: false
+              description: Only list the jobs of this queue (default all queues).
+              schema:
+                type: string
+                enum: [forecasting, scheduling, reporting]
           responses:
             200:
               description: PROCESSED
@@ -2466,6 +2486,7 @@ class AssetAPI(FlaskView):
                 per_page=per_page,
                 sort_by=sort_by,
                 sort_dir=sort_dir,
+                queue=queue,
             )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
@@ -2473,16 +2494,18 @@ class AssetAPI(FlaskView):
             if page is None:
                 all_jobs_data = jobs_data
             else:
-                all_jobs_data, total_jobs = jobs_data
+                all_jobs_data, total_jobs, filtered_jobs = jobs_data
 
         response = {
             "jobs": all_jobs_data,
             "redis-connection-err": redis_connection_err,
         }
         if page is not None:
-            response["num-records"] = response["filtered-records"] = (
-                total_jobs if redis_connection_err is None else 0
-            )
+            if redis_connection_err is None:
+                response["num-records"] = total_jobs
+                response["filtered-records"] = filtered_jobs
+            else:
+                response["num-records"] = response["filtered-records"] = 0
         return response, 200
 
     @route("/<id>/reports/trigger", methods=["POST"])

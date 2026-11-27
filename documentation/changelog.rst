@@ -16,6 +16,7 @@ New features
 * An automation's parameters and data generator config can be edited after creation, from the CLI, the API and the UI; a new config moves the automation to the data source storing it, and the user the automation runs as is shown and can be taken over [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]
 * Replay data more smoothly on the asset graph and sensor pages: the ruler now moves continuously at a steady speed, the graphs update as soon as new data becomes known, the replay speed can be set, the ``n`` and ``b`` keys step ahead and back by a step of your choice, and the ``r`` key rewinds [see `PR #2882 <https://www.github.com/FlexMeasures/flexmeasures/pull/2882>`_]
 * ``flexmeasures show beliefs`` labels the time axis of its plot in local time: the timezone given with ``--timezone``, or else that of the first sensor with data, instead of UTC [see `PR #2893 <https://www.github.com/FlexMeasures/flexmeasures/pull/2893>`_]
+* Filter the jobs on an asset's status page by type (forecasts, schedules or reports), from a dropdown on the Jobs tab [see `PR #2879 <https://www.github.com/FlexMeasures/flexmeasures/pull/2879>`_]
 
 Infrastructure / Support
 -------------------------

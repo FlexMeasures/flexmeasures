@@ -2877,3 +2877,73 @@ def test_get_jobs_pagination_sorts_across_pages(
 
     app.queues["scheduling"].empty()
     app.queues["forecasting"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_filtered_by_queue(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Passing a queue lists only that queue's jobs, while num-records still counts all jobs."""
+    existing_asset = add_asset_with_children["child_1"]
+    asset = GenericAsset(
+        name="job filtering asset",
+        account_id=existing_asset.account_id,
+        generic_asset_type_id=existing_asset.generic_asset_type_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="job filtering sensor",
+        generic_asset_id=asset.id,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    forecast_jobs = [app.queues["forecasting"].enqueue(sum, [n]) for n in range(3)]
+    for job in forecast_jobs:
+        app.job_map.add(sensor.id, job.id, "forecasting", "sensor")
+    sensor_schedule_job = app.queues["scheduling"].enqueue(sum, [10])
+    app.job_map.add(sensor.id, sensor_schedule_job.id, "scheduling", "sensor")
+    # A schedule indexed under the asset itself, rather than under one of its sensors.
+    asset_schedule_job = app.queues["scheduling"].enqueue(sum, [11])
+    app.job_map.add(asset.id, asset_schedule_job.id, "scheduling", "asset")
+
+    url = url_for("AssetAPI:get_jobs", id=asset.id)
+
+    forecasts = client.get(url, query_string={"queue": "forecasting"})
+    assert forecasts.status_code == 200
+    assert {job["job_id"] for job in forecasts.json["jobs"]} == {
+        job.id for job in forecast_jobs
+    }, "without a page, only the forecasts are listed"
+
+    first = client.get(
+        url, query_string={"queue": "forecasting", "page": 1, "per-page": 2}
+    )
+    second = client.get(
+        url, query_string={"queue": "forecasting", "page": 2, "per-page": 2}
+    )
+    for response in (first, second):
+        assert response.status_code == 200
+        assert response.json["num-records"] == 5, "all jobs of the asset"
+        assert response.json["filtered-records"] == 3, "only its forecasts"
+    assert [job["job_id"] for job in first.json["jobs"] + second.json["jobs"]] == [
+        job.id for job in reversed(forecast_jobs)
+    ], "the forecasts are paged newest first, without the schedules in between"
+
+    schedules = client.get(url, query_string={"queue": "scheduling", "page": 1})
+    assert {job["job_id"] for job in schedules.json["jobs"]} == {
+        sensor_schedule_job.id,
+        asset_schedule_job.id,
+    }
+    assert schedules.json["filtered-records"] == 2
+
+    reports = client.get(url, query_string={"queue": "reporting", "page": 1})
+    assert reports.json["jobs"] == []
+    assert reports.json["num-records"] == 5
+    assert reports.json["filtered-records"] == 0
+
+    assert client.get(url, query_string={"queue": "unknown"}).status_code == 422
+
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()
