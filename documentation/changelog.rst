@@ -11,6 +11,7 @@ v1.2.0 | December xx, 2026
 
 New features
 -------------
+* The asset listing shows asset types and supports searching and sorting by type
 * Flag an automation as critical, and implement a hook, from a plugin or by dotted path in the new ``FLEXMEASURES_CRITICAL_AUTOMATION_FAILURE_HOOKS`` setting, that acts on its failed runs, such as paging the engineer on duty [see `PR #2856 <https://www.github.com/FlexMeasures/flexmeasures/pull/2856>`_ and `issue #2844 <https://www.github.com/FlexMeasures/flexmeasures/issues/2844>`_]
 * Hosts can be emailed a digest of the automation runs that failed, got stuck or could not be queued, with ``flexmeasures monitor automations``, run from cron; each run is reported once, repeated failures are collapsed per automation, with the new ``FLEXMEASURES_BASE_URL`` setting each automation links to its *Automations* page, hosts can have the admins and consultants of each organisation emailed, too, and admins can switch an automation's monitoring off [see `PR #2671 <https://www.github.com/FlexMeasures/flexmeasures/pull/2671>`_, `PR #2702 <https://www.github.com/FlexMeasures/flexmeasures/pull/2702>`_ and `PR #2703 <https://www.github.com/FlexMeasures/flexmeasures/pull/2703>`_]
 * An automation's parameters and data generator config can be edited after creation, from the CLI, the API and the UI; a new config moves the automation to the data source storing it, and the user the automation runs as is shown and can be taken over [see `PR #2779 <https://www.github.com/FlexMeasures/flexmeasures/pull/2779>`_]

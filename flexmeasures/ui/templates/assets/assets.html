@@ -22,6 +22,7 @@
       `;
 
       this.id = id;
+      this.asset_type = asset_type;
       this.location = "";
       this.url = `/assets/${id}`
       this.status = `
@@ -50,6 +51,7 @@
       columns: [
         {data: "id", title: "ID", orderable: true},
         {data: "name", title: "Name", orderable: true},
+        {data: "asset_type", title: "Type", orderable: true, render: $.fn.dataTable.render.text()},
         {data: "owner", title: "Account", orderable: true},
         {data: "location", title: "Location", orderable: false},
         {data: "num_sensors", title: "Sensors", orderable: false},
