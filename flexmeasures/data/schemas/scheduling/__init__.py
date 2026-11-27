@@ -1387,7 +1387,7 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["boolean"],
     },
     "react": {
-        "default": False,
+        "default": None,
         "description": rst_to_openapi(metadata.REACT.description),
         "types": {
             "backend": "typeOne",

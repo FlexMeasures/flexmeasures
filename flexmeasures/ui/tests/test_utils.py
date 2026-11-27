@@ -213,6 +213,25 @@ def test_ui_flexmodel_schema():
         assert entry["description"], f"UI flex-model entry '{key}' has no description."
 
 
+def test_ui_flexmodel_schema_offers_every_field():
+    """Every flex-model field starts unset in the UI editor, so the editor offers it.
+
+    The editor fills each field with its UI default and offers only the fields that are still unset (``None`` or an empty list),
+    so a field whose UI default is a value, such as ``False``, could never be added.
+    The scheduler's own default (from the DB schema) is unaffected: it applies whenever a stored flex-model leaves the field out.
+    Two fields are not offered: the commodity, which is fixed to electricity,
+    and the coupling coefficient, a plain number for which the editor has no input type yet.
+    """
+    not_offered = {"commodity", "coupling-coefficient"}
+    for key, entry in UI_FLEX_MODEL_SCHEMA.items():
+        if key in not_offered:
+            continue
+        assert entry["default"] is None or entry["default"] == [], (
+            f"UI flex-model entry '{key}' defaults to {entry['default']!r}, "
+            "so the flex-model editor would never offer it."
+        )
+
+
 class NewAsset:
     def __init__(self, db, setup_generic_asset_types, setup_accounts, new_asset_data):
         self.db = db
