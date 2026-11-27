@@ -53,12 +53,13 @@ ALLOWED_TRANSFORMATION_METHODS = frozenset(
         *("count", "nunique", "quantile", "idxmax", "idxmin", "first", "last"),
         *("size", "any", "all", "cumsum", "cumprod", "cummax", "cummin"),
         # resampling, grouping and windows
-        *("resample", "resample_events", "asfreq", "groupby", "rolling"),
+        *("resample", "resample_events", "asfreq", "nearest", "groupby", "rolling"),
         *("expanding", "ewm", "shift", "diff", "pct_change"),
         # selection and reshaping
         *("copy", "head", "tail", "xs", "droplevel", "drop", "drop_duplicates"),
-        *("merge", "join", "combine_first", "align", "reindex", "reset_index"),
-        *("set_index", "sort_index", "sort_values", "rename", "rename_axis"),
+        *("merge", "join", "combine_first", "align", "reindex", "reindex_like"),
+        *("reset_index", "set_index", "sort_index", "sort_values"),
+        *("rename", "rename_axis"),
         *("astype", "tz_convert", "tz_localize", "stack", "unstack", "squeeze"),
         *("to_frame", "convert_index_from"),
         # calling the methods above by name, such as agg(["min", "max"]) (see FUNCTION_NAME_METHODS)
