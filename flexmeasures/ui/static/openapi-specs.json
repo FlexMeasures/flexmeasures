@@ -954,6 +954,33 @@
                       "type": "string",
                       "description": "Unit of the schedule's values."
                     },
+                    "reaction": {
+                      "type": "array",
+                      "description": "Per-slot reaction rules, only present when the device's flex-model set <code>react</code> to true.\nEach object corresponds to one schedule value and describes how the device should react locally to a deviation at the connection.\nThe price kink is the bend in the cost of the connection as a function of its net power, at 0 kW where importing costs the consumption price and exporting earns only the lower production price, or at a capacity that binds; the plan sits there, so a deviation there is best absorbed by the device.\nThe client evaluates <code>setpoint = clip(p - react * (m_uncontrolled - reference), band)</code>, with <code>p</code> the scheduled value and <code>m_uncontrolled = meter - sum of the reacting devices' power</code>;\n<code>m_uncontrolled - reference</code> is the deviation from the balance point.\nAbsorbing a deviation costs the device energy that nothing in the rules makes up for, so a controller following the rules must trigger a new schedule after absorbing, once the state of charge has drifted by a set amount from the plan, and in any case before a target.\nOn a sensor coarser than the scheduling resolution, a slot whose sub-slot rules disagree, or whose value lies outside their band, gets react 0, the mean of the sub-slot references, and the value as its band.\nValues share the schedule's unit and sign convention, and every value is a finite number.\n",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reference": {
+                            "type": "number",
+                            "description": "The uncontrolled power the plan is balanced against. Usually the uncontrolled forecast the plan assumed; where a device's operation modes make the plan miss the price kink, the balance point, being the forecast shifted by the plan's miss (the negative of the planned device power where the plan holds the connection at zero, the capacity minus the planned device power where a capacity binds)."
+                          },
+                          "react": {
+                            "type": "number",
+                            "description": "The share of the deviation from the balance point the device absorbs, from 0 (follow the plan) to 1 (absorb it one to one); 1 where the price kink is within the device's reach and its band is more than a single point. In a slot where the operation modes shape the plan, the deviation is non-zero even for a house exactly as forecast, and rounding the setpoint into the band brings it back to the plan. This version emits 0 or 1, shares in between are reserved for a later version."
+                          },
+                          "band": {
+                            "type": "array",
+                            "description": "The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike.\nWhether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode.\nOff the kink (the plan's connection power is not at the kink, the plan's miss is not shaped by operation modes, and no capacity binds), the band only extends from the plan to the side that absorbs deviations towards the kink,\nso the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away.\nA deviation away from the kink then leaves a residual outside the band, which a controller may treat as a reason to re-plan (an expected band exit, not a failed rule).\nA band of a single point gives react 0, and a device with react 0 gets the single range [p, p].\n",
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -8443,6 +8470,12 @@
             "type": "boolean",
             "default": true,
             "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True).\nIt also signals a preference to discharge later.\nBoolean option only.\n",
+            "example": true
+          },
+          "react": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this device reacts to deviations at the connection between two schedule triggers (defaults to false).\nSetting it to true opts in to the reaction rules: the device's schedule then comes with a per-slot <code>reaction</code>, see <a href=\"/ui/static/documentation/html/search.html?q=reaction_rules\" target=\"_blank\" rel=\"noopener noreferrer\">the docs</a>.\nDevices react in series, in the order of the flex-model.\n",
             "example": true
           },
           "soc-maxima": {

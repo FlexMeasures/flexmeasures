@@ -462,6 +462,13 @@ Declaring operation modes introduces binary decision variables into the optimiza
         {"consumption-range": ["883.7 W", "883.7 W"]},
     ],
 )
+REACT = MetaData(
+    description="""Whether this device reacts to deviations at the connection between two schedule triggers (defaults to false).
+Setting it to true opts in to the reaction rules: the device's schedule then comes with a per-slot ``reaction``, see :ref:`reaction_rules`.
+Devices react in series, in the order of the flex-model.
+""",
+    example=True,
+)
 GROUP = MetaData(
     description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.
 The referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
