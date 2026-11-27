@@ -165,7 +165,9 @@ class PandasReporter(Reporter):
                     1,
                     from_unit=sensor.unit,
                     to_unit=unit,
-                    event_resolution=sensor.event_resolution,
+                    event_resolution=(
+                        bdf.event_resolution if not bdf.empty else sensor.event_resolution
+                    ),
                 )
             if droplevels:
                 # dropping belief_time, source and cumulative_probability columns
