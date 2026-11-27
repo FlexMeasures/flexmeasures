@@ -1,4 +1,6 @@
 from datetime import timedelta
+import math
+
 from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
@@ -1186,3 +1188,90 @@ def test_trigger_schedule_inflexible_conflicts(
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 422
         assert expected_error in str(trigger_schedule_response.json)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_and_get_schedule_with_reaction(
+    app,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """The GET schedule payload gains per-slot "reaction" objects when the flex-model sets ``react``,
+    and is exactly today's payload otherwise.
+
+    The reaction objects describe the rule ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``,
+    in the same unit and sign convention as the schedule values, with the band as a list of [min, max] ranges.
+    """
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    def trigger_and_get_schedule(opt_in: bool) -> dict:
+        message = message_for_trigger_schedule(resolution="PT1H")
+        message["force_new_job_creation"] = True
+        message["flex-context"] = {
+            "consumption-price": {"sensor": price_sensor_id},
+            "production-price": {"sensor": price_sensor_id},
+            "site-power-capacity": "1 TW",  # big enough to avoid infeasibilities
+        }
+        if opt_in:
+            message["flex-model"]["react"] = True
+        with app.test_client() as client:
+            trigger_schedule_response = client.post(
+                url_for("SensorAPI:trigger_schedule", id=sensor.id),
+                json=message,
+            )
+            assert (
+                trigger_schedule_response.status_code == 202
+            ), trigger_schedule_response.json
+            job_id = trigger_schedule_response.json["schedule"]
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+        assert (
+            Job.fetch(
+                job_id, connection=app.queues["scheduling"].connection
+            ).is_finished
+            is True
+        )
+        with app.test_client() as client:
+            get_schedule_response = client.get(
+                url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            )
+        assert get_schedule_response.status_code == 200, get_schedule_response.json
+        return get_schedule_response.json
+
+    # Without the opt-in, the payload is today's payload.
+    schedule_without = trigger_and_get_schedule(opt_in=False)
+    assert "reaction" not in schedule_without
+
+    # With the opt-in, one reaction object accompanies each schedule value, and nothing else changes.
+    schedule = trigger_and_get_schedule(opt_in=True)
+    response_objects = schedule.pop("reaction")
+    assert set(schedule.keys()) == set(schedule_without.keys())
+    assert schedule["values"] == schedule_without["values"]
+    assert len(response_objects) == len(schedule["values"])
+    for value, response_object in zip(schedule["values"], response_objects):
+        assert set(response_object.keys()) == {"reference", "react", "band"}
+        assert response_object["react"] in (0, 1)
+        # Nothing uncontrolled is scheduled alongside the battery, so the reference is 0 (not null).
+        assert response_object["reference"] == 0
+        band = response_object["band"]
+        assert len(band) >= 1
+        for lower, upper in band:
+            # The band is bounded by the device's power capacity, so both sides are finite numbers.
+            assert isinstance(lower, float) and isinstance(upper, float)
+            assert math.isfinite(lower) and math.isfinite(upper)
+            assert lower <= upper
+        # The scheduled value lies within the band, which is just the plan when react is 0.
+        # The band keeps the plan's full precision, whereas the served values are rounded.
+        assert any(lower - 1e-6 <= value <= upper + 1e-6 for lower, upper in band)
+        if response_object["react"] == 0:
+            assert len(band) == 1 and band[0][0] == band[0][1]
+            assert band[0][0] == pytest.approx(value, abs=1e-6)

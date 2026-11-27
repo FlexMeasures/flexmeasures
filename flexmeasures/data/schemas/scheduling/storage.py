@@ -308,6 +308,18 @@ class OperationModeSchema(Schema):
             )
 
 
+#: The ways a device can move its power away from its plan, as signed power moves (positive is consumption):
+#: consumption-up and production-down move the power up, consumption-down and production-up move it down,
+#: each within the half-axis its name refers to.
+#: Read by the scheduler from the internal flex-model key ``reaction_directions``, which is not yet exposed through the public schema.
+REACTION_DIRECTIONS = (
+    "consumption-up",
+    "consumption-down",
+    "production-up",
+    "production-down",
+)
+
+
 class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
@@ -420,6 +432,12 @@ class StorageFlexModelSchema(Schema):
         data_key="prefer-charging-sooner",
         load_default=True,
         metadata=metadata.PREFER_CHARGING_SOONER.to_dict(),
+    )
+
+    react = fields.Bool(
+        data_key="react",
+        load_default=False,
+        metadata=metadata.REACT.to_dict(),
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -846,6 +864,8 @@ class DBStorageFlexModelSchema(Schema):
     prefer_curtailing_later = fields.Bool(
         data_key="prefer-curtailing-later", load_default=True
     )
+
+    react = fields.Bool(data_key="react", load_default=False)
 
     power_capacity = VariableQuantityField(
         to_unit="MW",

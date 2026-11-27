@@ -1386,6 +1386,15 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["boolean"],
     },
+    "react": {
+        "default": False,
+        "description": rst_to_openapi(metadata.REACT.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "Boolean option only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["boolean"],
+    },
     "prefer-curtailing-later": {
         "default": None,
         "description": rst_to_openapi(metadata.PREFER_CURTAILING_LATER.description),

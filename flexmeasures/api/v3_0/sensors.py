@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+import math
 
 import isodate
+import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
 
 from flexmeasures.data.services.sensors import (
@@ -116,6 +119,118 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+def _build_reaction_response(
+    reaction_meta: dict,
+    values: pd.Series,
+    resolution: timedelta,
+    to_unit: str,
+    sign: int,
+    device: str,
+) -> list[dict]:
+    """Serialize the per-slot reaction rules of one device (stored in the job meta) for the schedule response.
+
+    The rules are stored at the scheduling resolution, while the values are served at the sensor's resolution.
+    Per served slot, the rules whose slots overlap it are gathered.
+    Where they all agree (the same react share, the same reference and identical bands) and the served value lies within that band,
+    that rule is served, with any band side within the rounding tolerance of the served value set to that value,
+    so the served value lies in its band exactly (a react-0 band becomes ``[v, v]``, a one-sided band starts at ``v``); otherwise the slot gets react 0, the mean of the gathered references, and the served value as its band,
+    since a mean of sub-slot plans has no single band to move within.
+    A sensor finer than the scheduling resolution gathers one rule per served slot, so only the band check applies.
+    Power values are converted from the stored unit to the unit of the served values, with their sign convention.
+    Every value is a finite number: the scheduler requires a power capacity for each device, so each band side is bounded.
+
+    :param reaction_meta:  Reaction rules of one device, as stored in the job meta.
+    :param values:         The served schedule values, indexed by slot start.
+    :param resolution:     Event resolution of the served schedule values.
+    :param to_unit:        Unit of the served schedule values.
+    :param sign:           Sign multiplier applied to power values (1 or -1).
+    :param device:         Name of the device, for the error raised on a non-finite value.
+    :returns:              One reaction object per served schedule value.
+    :raises ValueError:    When a stored rule value is not finite, or a served slot has no rule, which would be a scheduler bug.
+    """
+    rule_resolution = pd.Timedelta(isodate.parse_duration(reaction_meta["resolution"]))
+    rule_index = pd.date_range(
+        start=pd.Timestamp(reaction_meta["start"]),
+        periods=len(reaction_meta["react"]),
+        freq=rule_resolution,
+    )
+    rules = pd.DataFrame(
+        {
+            "react": reaction_meta["react"],
+            "reference": reaction_meta["reference"],
+            "band": pd.Series(reaction_meta["band"], index=rule_index, dtype=object),
+        },
+        index=rule_index,
+    )
+    from_unit = reaction_meta.get("unit", "MW")
+
+    def convert(power_values: list[float], slot: pd.Timestamp) -> list[float]:
+        """Convert a list of power values to the served unit and sign."""
+        converted = convert_units(
+            pd.Series(power_values, dtype=float),
+            from_unit=from_unit,
+            to_unit=to_unit,
+            event_resolution=resolution,
+        )
+        for value in converted:
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"The reaction rule of {device} holds a non-finite value ({value}) for the slot starting at {slot}."
+                )
+        return [sign * float(value) for value in converted]
+
+    response_objects = []
+    for slot, value in values.items():
+        # The scheduler rounds the stored plan (to 6 decimals in the sensor's unit), while the rules keep full precision,
+        # so the served value may sit a rounding step off a band side that equals the plan; 1e-6 MW covers that step for power units down to kW.
+        band_tolerance = abs(convert([1e-6], slot)[0])
+        slot_start = pd.Timestamp(slot).tz_convert(rules.index.tz)
+        window = rules[
+            (rules.index < slot_start + resolution)
+            & (rules.index + rule_resolution > slot_start)
+        ]
+        if window.empty:
+            raise ValueError(
+                f"The reaction rules of {device} do not cover the slot starting at {slot}."
+            )
+        first = window.iloc[0]
+        agree = (
+            bool((window["react"] == first["react"]).all())
+            and bool(np.allclose(window["reference"], first["reference"]))
+            and all(band == first["band"] for band in window["band"])
+        )
+        if agree:
+            # A production-positive sign convention swaps the sides.
+            band = sorted(sorted(convert([lo, hi], slot)) for lo, hi in first["band"])
+            if any(
+                lo - band_tolerance <= value <= hi + band_tolerance for lo, hi in band
+            ):
+                # Snap a side within the rounding tolerance onto the served value, so the plan lies in its band exactly.
+                band = [
+                    [
+                        float(value) if abs(side - value) <= band_tolerance else side
+                        for side in power_range
+                    ]
+                    for power_range in band
+                ]
+                response_objects.append(
+                    {
+                        "reference": convert([first["reference"]], slot)[0],
+                        "react": float(first["react"]),
+                        "band": band,
+                    }
+                )
+                continue
+        response_objects.append(
+            {
+                "reference": convert([float(window["reference"].mean())], slot)[0],
+                "react": 0.0,
+                "band": [[float(value), float(value)]],
+            }
+        )
+    return response_objects
 
 
 def sensor_search_term_filter(term: str):
@@ -1347,6 +1462,40 @@ class SensorAPI(FlaskView):
                         type: string
                         description: Unit of the schedule's values.
 
+                      reaction:
+                        type: array
+                        description: |
+                          Per-slot reaction rules, only present when the device's flex-model set ``react`` to true.
+                          Each object corresponds to one schedule value and describes how the device should react locally to a deviation at the connection.
+                          The price kink is the bend in the cost of the connection as a function of its net power, at 0 kW where importing costs the consumption price and exporting earns only the lower production price, or at a capacity that binds; the plan sits there, so a deviation there is best absorbed by the device.
+                          The client evaluates ``setpoint = clip(p - react * (m_uncontrolled - reference), band)``, with ``p`` the scheduled value and ``m_uncontrolled = meter - sum of the reacting devices' power``;
+                          ``m_uncontrolled - reference`` is the deviation from the balance point.
+                          Absorbing a deviation costs the device energy that nothing in the rules makes up for, so a controller following the rules must trigger a new schedule after absorbing, once the state of charge has drifted by a set amount from the plan, and in any case before a target.
+                          On a sensor coarser than the scheduling resolution, a slot whose sub-slot rules disagree, or whose value lies outside their band, gets react 0, the mean of the sub-slot references, and the value as its band.
+                          Values share the schedule's unit and sign convention, and every value is a finite number.
+                        items:
+                          type: object
+                          properties:
+                            reference:
+                              type: number
+                              description: The uncontrolled power the plan is balanced against. Usually the uncontrolled forecast the plan assumed; where a device's operation modes make the plan miss the price kink, the balance point, being the forecast shifted by the plan's miss (the negative of the planned device power where the plan holds the connection at zero, the capacity minus the planned device power where a capacity binds).
+                            react:
+                              type: number
+                              description: The share of the deviation from the balance point the device absorbs, from 0 (follow the plan) to 1 (absorb it one to one); 1 where the price kink is within the device's reach and its band is more than a single point. In a slot where the operation modes shape the plan, the deviation is non-zero even for a house exactly as forecast, and rounding the setpoint into the band brings it back to the plan. This version emits 0 or 1, shares in between are reserved for a later version.
+                            band:
+                              type: array
+                              description: |
+                                The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike.
+                                Whether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode.
+                                Off the kink (the plan's connection power is not at the kink, the plan's miss is not shaped by operation modes, and no capacity binds), the band only extends from the plan to the side that absorbs deviations towards the kink,
+                                so the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away.
+                                A deviation away from the kink then leaves a residual outside the band, which a controller may treat as a reason to re-plan (an expected band exit, not a failed rule).
+                                A band of a single point gives react 0, and a device with react 0 gets the single range [p, p].
+                              items:
+                                type: array
+                                items:
+                                  type: number
+
                       status:
                         type: string
                         enum: ["PROCESSED"]
@@ -1533,6 +1682,30 @@ class SensorAPI(FlaskView):
             duration=duration_isoformat(duration),
             unit=unit,
         )
+
+        # Optionally add per-slot reaction rules (opt-in via the flex-model field `react`),
+        # aligned with the served schedule values.
+        reaction_meta = (job.meta or {}).get("reaction_rules", {}).get(sensor.id)
+        if reaction_meta is not None:
+            response_sign = 1
+            if sensor.measures_power:
+                db_consumption_is_positive = sensor.get_attribute(
+                    "consumption_is_positive", False
+                )
+                # Stored rule values are consumption-positive (scheduler convention).
+                if sign_convention == ScheduleSignConvention.PRODUCTION_POSITIVE or (
+                    sign_convention == ScheduleSignConvention.WYSIWYG
+                    and not db_consumption_is_positive
+                ):
+                    response_sign = -1
+            response["reaction"] = _build_reaction_response(
+                reaction_meta,
+                values=consumption_schedule,
+                resolution=resolution,
+                to_unit=unit,
+                sign=response_sign,
+                device=str(sensor),
+            )
 
         d, s = request_processed(scheduler_info_msg)
         response_body = dict(
