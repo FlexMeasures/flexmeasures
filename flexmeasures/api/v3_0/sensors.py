@@ -134,7 +134,8 @@ def _build_reaction_response(
     The rules are stored at the scheduling resolution, while the values are served at the sensor's resolution.
     Per served slot, the rules whose slots overlap it are gathered.
     Where they all agree (the same react share, the same reference and identical bands) and the served value lies within that band,
-    that rule is served; otherwise the slot gets react 0, the mean of the gathered references, and the served value as its band,
+    that rule is served, with any band side within the rounding tolerance of the served value set to that value,
+    so the served value lies in its band exactly (a react-0 band becomes ``[v, v]``, a one-sided band starts at ``v``); otherwise the slot gets react 0, the mean of the gathered references, and the served value as its band,
     since a mean of sub-slot plans has no single band to move within.
     A sensor finer than the scheduling resolution gathers one rule per served slot, so only the band check applies.
     Power values are converted from the stored unit to the unit of the served values, with their sign convention.
@@ -182,7 +183,8 @@ def _build_reaction_response(
 
     response_objects = []
     for slot, value in values.items():
-        # The scheduler rounds the plan to 1e-6 MW (the stored unit), so the served value may sit up to that far outside its own (unrounded) band.
+        # The scheduler rounds the stored plan (to 6 decimals in the sensor's unit), while the rules keep full precision,
+        # so the served value may sit a rounding step off a band side that equals the plan; 1e-6 MW covers that step for power units down to kW.
         band_tolerance = abs(convert([1e-6], slot)[0])
         slot_start = pd.Timestamp(slot).tz_convert(rules.index.tz)
         window = rules[
@@ -205,6 +207,14 @@ def _build_reaction_response(
             if any(
                 lo - band_tolerance <= value <= hi + band_tolerance for lo, hi in band
             ):
+                # Snap a side within the rounding tolerance onto the served value, so the plan lies in its band exactly.
+                band = [
+                    [
+                        float(value) if abs(side - value) <= band_tolerance else side
+                        for side in power_range
+                    ]
+                    for power_range in band
+                ]
                 response_objects.append(
                     {
                         "reference": convert([first["reference"]], slot)[0],

@@ -79,3 +79,35 @@ def test_finer_sensor_gets_each_rule_as_is():
     assert [r["react"] for r in reaction] == [1.0] * 5 + [0.0] * 5
     assert reaction[0] == {"reference": -1.0, "react": 1.0, "band": [[0.0, 2.0]]}
     assert reaction[-1] == {"reference": -2.0, "react": 0.0, "band": [[1.0, 1.0]]}
+
+
+def test_band_sides_at_the_plan_are_snapped_to_the_rounded_value():
+    """The stored plan is rounded while the rules keep full precision; a band side at the plan is served as the rounded value.
+
+    A one-sided band (off the kink) starts exactly at the served value, and a react-0 band is exactly the served value,
+    so the served value lies in its band without any tolerance; a side further away is left alone.
+    """
+    p = 0.004386671371  # MW, the plan at full precision
+    meta = _meta(
+        react=[1, 0],
+        reference=[-0.0035, -0.0035],
+        band=[[[p, 0.0074]], [[p, p]]],
+    )
+    values = pd.Series(  # in kW, rounded to 6 decimals as stored
+        [4.386671] * 10,
+        index=pd.date_range(START, periods=10, freq="1min"),
+    )
+    reaction = _build_reaction_response(
+        meta,
+        values=values,
+        resolution=timedelta(minutes=1),
+        to_unit="kW",
+        sign=1,
+        device="charger",
+    )
+    assert reaction[0]["react"] == 1.0
+    assert reaction[0]["band"] == [[4.386671, pytest.approx(7.4)]]
+    assert reaction[-1]["react"] == 0.0
+    assert reaction[-1]["band"] == [[4.386671, 4.386671]]
+    for r, v in zip(reaction, values):
+        assert any(lo <= v <= hi for lo, hi in r["band"])
