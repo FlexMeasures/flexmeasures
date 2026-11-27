@@ -9,8 +9,8 @@ import click
 import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
-import json
 from marshmallow import ValidationError
+import json
 from flexmeasures.api.common.schemas.users import UserIdField
 from flexmeasures.data.models.user import Account, Plan, User
 from flexmeasures.data.schemas.account import AccountIdField
@@ -45,6 +45,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     abort,
+    assemble_automation_dependencies,
     validate_rate_limit_cli,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
@@ -109,6 +110,28 @@ def fm_edit_data():
     help="Activate or deactivate the automation.",
 )
 @click.option(
+    "--depends-on",
+    "depends_on",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation whose runs each run of this one waits for: its latest run due at or before the run's own time."
+    " Replaces the automations it waited for. Repeat to wait for several automations.",
+)
+@click.option(
+    "--allow-failure-of",
+    "allow_failure_of",
+    multiple=True,
+    type=AutomationIdField(),
+    help="ID of an automation given with --depends-on whose failed (or missed) run should not stop this automation's run."
+    " Repeat for several.",
+)
+@click.option(
+    "--no-dependencies",
+    "no_dependencies",
+    is_flag=True,
+    help="Stop waiting for other automations.",
+)
+@click.option(
     "--parameters",
     "parameters_file",
     required=False,
@@ -165,6 +188,9 @@ def edit_automation(
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    depends_on: tuple[Automation, ...] = (),
+    allow_failure_of: tuple[Automation, ...] = (),
+    no_dependencies: bool = False,
     parameters_file: TextIOBase | None = None,
     generator_class: str | None = None,
     config_file: TextIOBase | None = None,
@@ -181,6 +207,7 @@ def edit_automation(
       flexmeasures edit automation --id 4 --parameters forecast-parameters.yml
       flexmeasures edit automation --id 4 --config forecaster-config.yml
       flexmeasures edit automation --id 4 --run-as 2
+      flexmeasures edit automation --id 4 --depends-on 3
 
     New parameters, a new data generator or config, or another data source are validated as on creation.
     A new configuration moves the automation to the data source storing it,
@@ -193,6 +220,20 @@ def edit_automation(
     """
     from flexmeasures.cli.data_add import _load_yaml_mapping
 
+    if no_dependencies and (depends_on or allow_failure_of):
+        raise click.UsageError(
+            "--no-dependencies cannot be combined with --depends-on or --allow-failure-of."
+        )
+    if allow_failure_of and not depends_on:
+        raise click.UsageError(
+            "--allow-failure-of needs --depends-on, as it replaces all the automations this one waits for."
+        )
+    if no_dependencies:
+        dependencies: list[dict] | None = []
+    elif depends_on:
+        dependencies = assemble_automation_dependencies(depends_on, allow_failure_of)
+    else:
+        dependencies = None
     try:
         changes = update_automation(
             automation,
@@ -212,11 +253,14 @@ def edit_automation(
             source=source,
             origin="CLI",
             run_as_user_id=run_as.id if run_as is not None else None,
+            dependencies=dependencies,
         )
     except ValidationError as e:
         # The messages name the part of the definition at fault, which is not always the parameters.
+        db.session.rollback()
         abort(f"Invalid automation: {e.messages}")
     except (AutomationSensorsUnknown, ValueError) as e:
+        db.session.rollback()
         abort(str(e))
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)

@@ -8,6 +8,14 @@ API change log
 v3.0-37 | December xx, 2026
 """"""""""""""""""""""""""""
 
+**Automations**
+
+- ``POST /api/v3_0/assets/<id>/automations`` and ``PATCH /api/v3_0/assets/<id>/automations/<automation-id>`` accept ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, to have an automation's runs wait for the latest runs of other automations due at or before their own scheduled time, and automation responses report it, each upstream automation the caller may read coming with its ``name``, ``asset`` and ``asset-name``.
+- ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` records the run it starts, as a run on demand, so it shows in the automation's run history.
+- ``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger`` accepts ``with-upstream=true``, to first run the active automations this one waits for, or ``with-downstream=true``, to also run the active automations that wait for this one, in chain order, and ``exclude`` to exclude some of them; the response lists the runs under ``runs`` and the automations that do not run under ``excluded``, each with the reason.
+- Added ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream|downstream``, to see what running an automation along with what is upstream or downstream of it comes down to.
+- Added ``GET /api/v3_0/assets/automations``, to list the automations on public assets (``scope=public``) or every automation the caller may read (``scope=all``), all at once, or one page at a time with ``page`` and ``per-page``.
+- ``GET /api/v3_0/assets/<id>/automations/<automation-id>?include=waited-for-by`` reports ``waited-for-by``, the automations that wait for this one, each with its ``name``, ``asset`` and ``asset-name`` if you may read it.
 - `PATCH /assets/(id)/automations/(id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_ also takes ``parameters``, ``data-generator``, ``config`` and ``source``, checked as on creation, against the access of both the user making the change and the user the automation runs as; ``run-as-me`` makes the user making the change the one it runs as instead. A refusal for the user it runs as carries ``reason: run-user-lacks-access``.
 - `POST /assets/(id)/automations/(id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_ answers ``403`` with the same ``reason`` and ``refusal`` when the user the automation runs as may not run it.
 - Automation responses include ``runs-as``, the user whose access every run checks (null for an automation set up through the CLI).

@@ -47,7 +47,7 @@ from flexmeasures.data.services.automations import (
     dispatch_automation_run,
     floor_to_minute,
     get_dispatchable_automation_runs,
-    run_automation,
+    run_automation_chain,
 )
 from flexmeasures.data.services.data_sources import (
     find_duplicate_sources,
@@ -57,7 +57,10 @@ from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
-from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.flexmeasures_inflection import (
+    join_words_into_a_list,
+    pluralize,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     failed_job_exc_info,
@@ -101,11 +104,32 @@ def run_automations():
 
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
+
+    A run of an automation that depends on other automations waits for their latest runs due at or before its own scheduled time,
+    and queues its jobs as soon as the last of them ended, or is skipped if one of them failed.
+    This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
-    claimed_runs = get_dispatchable_automation_runs(now)
+    report: list[dict] = []
+    claimed_runs = get_dispatchable_automation_runs(now, report=report)
+    # A killed job's run, or an abandoned run on demand, is failed here, which can skip or set off the runs waiting for it, too.
+    for event in report:
+        run = event["run"]
+        failed = run.execution_state in ("failed", "skipped", "canceled")
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id}, scheduled for {run.scheduled_at}, is {run.execution_state if failed else run.dispatch_state}"
+            + {
+                "reconciled": ", as its job ended without saying so",
+                "abandoned": ", as its dispatch was abandoned",
+                "released": ", as the runs it waits for ended",
+            }[event["event"]]
+            + "."
+            + (f" {event['message']}" if event["message"] else ""),
+            **(MsgStyle.WARN if failed else MsgStyle.SUCCESS),
+        )
     if not claimed_runs:
-        click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        if not report:
+            click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
         return
 
     n_run = 0
@@ -115,6 +139,17 @@ def run_automations():
         try:
             returns = dispatch_automation_run(claimed_run)
             n_jobs = returns["n_jobs"]
+            if returns.get("dispatch_state") in ("waiting", "skipped"):
+                click.secho(
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    **(
+                        MsgStyle.WARN
+                        if returns["dispatch_state"] == "skipped"
+                        else MsgStyle.SUCCESS
+                    ),
+                )
+                n_run += 1
+                continue
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
@@ -127,11 +162,7 @@ def run_automations():
         except Exception as e:
             db.session.rollback()
             # The run records the refusal as it is; only this terminal hears how to take the runs over.
-            reason = (
-                f"{e.refusal} Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`."
-                if isinstance(e, RunsRefused)
-                else e
-            )
+            reason = _with_run_as_hint(e) if isinstance(e, RunsRefused) else e
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {reason}",
                 **MsgStyle.ERROR,
@@ -140,6 +171,14 @@ def run_automations():
     if n_failed:
         click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
         raise click.exceptions.Exit(1)
+
+
+def _with_run_as_hint(refused: RunsRefused) -> str:
+    """Add to a refused run how to take the runs over from the CLI, which only a terminal needs to hear."""
+    return (
+        f"{refused.refusal} Run it as someone who may with"
+        f" `flexmeasures edit automation --id {refused.automation_id} --run-as <user id>`."
+    )
 
 
 @fm_jobs.command("run-automation")
@@ -151,7 +190,34 @@ def run_automations():
     required=True,
     help="ID of the automation to run.",
 )
-def run_one_automation(automation: Automation):
+@click.option(
+    "--with-upstream",
+    "with_upstream",
+    is_flag=True,
+    help="First run the active automations upstream of this one, which it waits for, directly or through others, and then this one,"
+    " each once the runs it waits for ended, for instance to bring it up to date with what its results are based on.",
+)
+@click.option(
+    "--with-downstream",
+    "with_downstream",
+    is_flag=True,
+    help="Also run the active automations downstream of this one, which wait for it, directly or through others,"
+    " each once the runs it waits for ended, for instance to re-run a chain after backfilling the data at its start.",
+)
+@click.option(
+    "--exclude",
+    "exclude",
+    type=int,
+    multiple=True,
+    help="With --with-upstream or --with-downstream, the ID of an automation not to run, along with what can only be reached through it."
+    " Use multiple times to exclude several.",
+)
+def run_one_automation(
+    automation: Automation,
+    with_upstream: bool = False,
+    with_downstream: bool = False,
+    exclude: tuple[int, ...] = (),
+):
     """
     Queue the jobs for a single run of one automation, now.
 
@@ -166,14 +232,36 @@ def run_one_automation(automation: Automation):
     This does not affect the automation's recurrence: its cursor stays where it was,
     so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
     Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    A run on demand does not wait for the automations this one depends on, as it is meant to run now.
+
+    With --with-upstream, the automations this one waits for run first, and this one runs once they ended;
+    with --with-downstream, the automations that wait for this one run, too, once it ended.
+    The included automations run in chain order: each waits for the runs asked for along with it,
+    and is skipped if one of those failed, unless its dependency allows for failure:
+
+    \b
+        flexmeasures jobs run-automation --automation 4 --with-upstream
+        flexmeasures jobs run-automation --automation 4 --with-upstream --exclude 2
+        flexmeasures jobs run-automation --automation 4 --with-downstream
     """
+    if with_upstream and with_downstream:
+        raise click.UsageError("Use either --with-upstream or --with-downstream.")
+    if exclude and not (with_upstream or with_downstream):
+        raise click.UsageError(
+            "--exclude goes along with --with-upstream or --with-downstream."
+        )
+    if with_upstream or with_downstream:
+        _run_automation_chain(
+            automation, "upstream" if with_upstream else "downstream", exclude
+        )
+        return
     try:
-        returns = run_automation(automation)
+        # Recorded as a run on demand, so that it shows in the run history and counts for when the automation last succeeded.
+        _, returns, _ = run_automation_chain(automation, None)
     except RunsRefused as e:
         db.session.rollback()
         click.secho(
-            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e.refusal}"
-            f" Run it as someone who may with `flexmeasures edit automation --id {automation.id} --run-as <user id>`.",
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {_with_run_as_hint(e)}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
@@ -208,6 +296,68 @@ def run_one_automation(automation: Automation):
         f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
+
+
+def _run_automation_chain(
+    automation: Automation, include: str, exclude: tuple[int, ...]
+):
+    """Run an automation along with what is upstream or downstream of it, and say what each of them does."""
+    try:
+        runs, returns, excluded = run_automation_chain(automation, include, exclude)
+    except RunsRefused as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs, so the automations waiting for it are skipped: {_with_run_as_hint(e)}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    except (
+        NotImplementedError,
+        ValueError,
+        ValidationError,
+        AutomationSensorsUnknown,
+        Forbidden,
+    ) as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs, so the automations waiting for it are skipped: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    for run in runs:
+        AssetAuditLog.add_record(
+            run.automation.asset,
+            (
+                f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}) and of the automations {include} of it, via CLI."
+                if run.automation_id == automation.id
+                else f"Triggered a run of automation '{run.automation.name}' ({run.automation_id}), {include} of automation {automation.id}, via CLI."
+            ),
+        )
+    db.session.commit()
+    for run in runs:
+        db.session.refresh(run)
+        n_jobs = (
+            f", with {pluralize('job', len(run.job_intents), include_count=True)}"
+            if run.dispatch_state != "waiting"
+            else ""
+        )
+        click.secho(
+            f"Automation {run.automation_id} ('{run.automation.name}') run {run.id} is {run.dispatch_state}{n_jobs}"
+            + (f" ({run.execution_state})" if run.execution_state == "skipped" else "")
+            + ".",
+            **(MsgStyle.WARN if run.execution_state == "skipped" else MsgStyle.SUCCESS),
+        )
+    if returns is not None and returns.get("job_id") is None and returns.get("message"):
+        click.secho(returns["message"], **MsgStyle.WARN)
+    for step, reason in excluded:
+        click.secho(
+            f"Automation {step.id} ('{step.name}') does not run. {reason}",
+            **MsgStyle.WARN,
+        )
+    if len(runs) == 1 and not excluded:
+        click.secho(
+            f"No active automations are {include} of this one.", **MsgStyle.WARN
+        )
 
 
 @fm_jobs.command("stats")

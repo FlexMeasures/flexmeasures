@@ -286,6 +286,14 @@ def test_which_runs_count_as_failed(fresh_db, forecast_automation):
             claim_expires_at=DUE_AT + timedelta(minutes=5),
         ),
         add(9, execution_state="failed", alerted_at=DUE_AT - timedelta(hours=1)),
+        # A run waiting for the runs of other automations is not dispatched yet, and nobody holds a claim on it.
+        add(
+            10,
+            automation_type="scheduling",
+            dispatch_state="waiting",
+            dispatch_completed_at=None,
+            execution_state="skipped",
+        ),
     ]
 
     failed_runs = get_unalerted_failed_automation_runs(timedelta(hours=6), now=DUE_AT)

@@ -8,6 +8,36 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <style>
+  /* A list of tick boxes, as a multiple select needs Ctrl-clicks and cuts long names off.
+     Dragging its corner enlarges it, for a page listing many automations. */
+  .depends-on-picker {
+    height: 9rem;
+    min-height: 5rem;
+    overflow-y: auto;
+    resize: vertical;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+  }
+  .depends-on-option {
+    display: flex;
+    gap: .5rem;
+    margin: 0;
+    padding: .35rem .6rem;
+    cursor: pointer;
+  }
+  .depends-on-option:hover {
+    background-color: var(--bs-tertiary-bg);
+  }
+  .depends-on-option:has(input:checked) {
+    background-color: var(--bs-primary-bg-subtle);
+  }
+  .depends-on-option input {
+    flex-shrink: 0;
+  }
+  .depends-on-option small {
+    display: block;
+    color: var(--bs-secondary-color);
+  }
   /* One Actions menu per row, so the listing carries two controls instead of five. */
   .automation-actions {
     display: inline-block;
@@ -201,6 +231,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   </label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
                 </div>
+                <div class="mb-3">
+                  <label id="automationDependsOnLabel" class="form-label">Waits for
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
+                  </label>
+                  <select class="form-select form-select-sm mb-1 automation-scope" aria-label="Which automations to list"></select>
+                  <div class="depends-on-picker" id="automationDependsOn" role="group" aria-labelledby="automationDependsOnLabel"></div>
+                  <div class="form-text">Choose above which automations to list. Drag the corner of the list to enlarge it.</div>
+                  <div class="form-check mt-1">
+                    <input class="form-check-input" type="checkbox" id="automationAllowFailure">
+                    <label class="form-check-label" for="automationAllowFailure">Run even when a run it waits for failed</label>
+                    <div class="form-text d-none" id="automationAllowFailureMixed"></div>
+                  </div>
+                </div>
                 <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
                 <div class="mb-3 chooses-generator">
                   <label for="automationSourceSearch" class="form-label">Existing data source
@@ -278,6 +322,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         </div>
 
         <!-- EDIT AUTOMATION MODAL -->
+        <div class="modal fade" id="runPlanModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="runPlanTitle"></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="runPlanBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="runPlanConfirm"></button>
+            </div>
+          </div></div>
+        </div>
+
         <div class="modal fade" id="editAutomationModal" tabindex="-1" role="dialog">
           <div class="modal-dialog"><div class="modal-content">
             <div class="modal-header">
@@ -304,6 +362,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                      title="The cron time follows this local clock, including daylight-saving changes. For example, choose Europe/Amsterdam to run at 06:00 Amsterdam time year-round." style="font-size: 16px"></i>
                   </label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
+                </div>
+                <div class="mb-3">
+                  <label id="editAutomationDependsOnLabel" class="form-label">Waits for
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Optional. Automations whose results this one uses. Each run waits for their latest runs due at or before its own time, and queues its jobs once those ended, or is skipped if one of them failed. They may recur on another schedule." style="font-size: 16px"></i>
+                  </label>
+                  <select class="form-select form-select-sm mb-1 automation-scope" aria-label="Which automations to list"></select>
+                  <div class="depends-on-picker" id="editAutomationDependsOn" role="group" aria-labelledby="editAutomationDependsOnLabel"></div>
+                  <div class="form-text">Choose above which automations to list. Drag the corner of the list to enlarge it.</div>
+                  <div class="form-check mt-1">
+                    <input class="form-check-input" type="checkbox" id="editAutomationAllowFailure">
+                    <label class="form-check-label" for="editAutomationAllowFailure">Run even when a run it waits for failed</label>
+                    <div class="form-text d-none" id="editAutomationAllowFailureMixed"></div>
+                  </div>
                 </div>
                 <!-- What an automation computes is loaded when the form opens, as the listing does not carry it. -->
                 <div class="mb-3 d-none" id="editAutomationConfigGroup">
@@ -382,7 +454,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           {% endfor %}
         </div>
 
-        <div class="alert alert-success d-none mt-2" id="automations_msg"></div>
         <div class="alert alert-warning d-none mt-2" id="automations_err"></div>
       </div>
     </div>
@@ -404,6 +475,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanChangeMonitoring = {{ user_can_change_monitoring | tojson }};
   const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
+  // Which automations the Waits for lists and the chains go by, and those fetched for a scope beyond this page.
+  // Named by what they hold; the first two only differ while the automations of the assets below this one are listed.
+  const AUTOMATION_SCOPES = {
+    listed: "This asset and the assets below it",
+    asset: "This asset only",
+    public: "Automations on public assets",
+    all: "Every automation you can see",
+  };
+  let automationScope = "listed";
+  // Whether a chain drawing shows every automation in scope, rather than only those linked to the automation being read.
+  let chainShowsAll = false;
+  const scopedAutomations = new Map();
   // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
   const automationDetailsById = new Map();
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
@@ -444,6 +527,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return type === "display" ? data.display : data.order;
   }
 
+  /* Turn what the API says went wrong into a sentence, as a validation error comes as lists of messages per field.
+     A field is named, unless its messages say enough by themselves. */
+  function readableApiMessage(message) {
+    if (Array.isArray(message)) {
+      return message.map(readableApiMessage).join(" ");
+    }
+    if (message && typeof message === "object") {
+      return Object.entries(message).map(([field, messages]) => (
+        ["json", "query", "depends-on"].includes(field)
+          ? readableApiMessage(messages)
+          : `${field}: ${readableApiMessage(messages)}`
+      )).join(" ");
+    }
+    return String(message);
+  }
+
   // Callers end the message with their own period, so the one a message may already end in is dropped.
   function automationAjaxErrorMessage(xhr) {
     const responseMessage = xhr.responseJSON?.message;
@@ -451,7 +550,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       return responseMessage.replace(/\.+$/, "");
     }
     if (responseMessage) {
-      return JSON.stringify(responseMessage);
+      return readableApiMessage(responseMessage);
     }
     return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
   }
@@ -468,10 +567,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return Object.keys(jobStats || {}).length
       ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
       : "none";
-  }
-
-  function showAutomationsMessage(message) {
-    $("#automations_msg").removeClass("d-none").text(message);
   }
 
   // A data source stores a data generator and the configuration it runs under, and the results computed under it are recorded on it,
@@ -577,8 +672,117 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
      The form is shared with the Copy action, which leaves the previous automation's settings in it,
      so opening it blank has to clear them rather than trust that they were never there. */
+  /* Fill a "Waits for" picker with the automations on this page, leaving out the one being edited, as it cannot wait for itself.
+     An automation it already waits for that is not on this page, such as one on another asset, is kept as an option of its own,
+     so that saving the form does not drop it. */
+  function automationsInScope() {
+    if (automationScope === "asset") {
+      return [...automationsById.values()].filter((automation) => automation.asset === Number(assetId));
+    }
+    return scopedAutomations.get(automationScope) || [...automationsById.values()];
+  }
+
+  // Without the assets below it, what is listed is this asset only, which is then offered once.
+  function automationScopeOptions() {
+    const listsBelow = includeChildAssets && assetHasChildren;
+    return Object.entries(AUTOMATION_SCOPES)
+      .filter(([scope]) => listsBelow || scope !== "asset")
+      .map(([scope, label]) => [scope, !listsBelow && scope === "listed" ? AUTOMATION_SCOPES.asset : label])
+      .map(([scope, label]) => `<option value="${scope}"${scope === automationScope ? " selected" : ""}>${label}</option>`)
+      .join("");
+  }
+
+  function fillDependsOnPicker(selector, excludedId = null, selected = []) {
+    const picker = document.querySelector(selector);
+    const selectedIds = new Set(selected.map((dependency) => dependency.automation));
+    const inScope = automationsInScope().filter((automation) => automation.id !== excludedId);
+    const options = inScope.map((automation) => dependsOnOption(
+      automation.id,
+      `${automation.id}: ${automation.name}`,
+      `${automation["asset-name"]}, ${automation["cron"]}, ${automation.timezone}`,
+      selectedIds.has(automation.id),
+    ));
+    // What it already waits for stays on offer, wherever the list is looking.
+    const shown = new Set(inScope.map((automation) => automation.id));
+    for (const dependency of selected) {
+      if (!shown.has(dependency.automation)) {
+        const known = chainAutomation(dependency.automation);
+        options.push(dependsOnOption(
+          dependency.automation,
+          known ? `${dependency.automation}: ${known.name}` : `${dependency.automation} (not on this page)`,
+          known ? `${known["asset-name"]}, not in this list` : "",
+          true,
+        ));
+      }
+    }
+    if (!options.length) {
+      const empty = document.createElement("p");
+      empty.className = "text-muted small p-2 mb-0";
+      empty.textContent = "No automations to wait for in this list. Choose other automations above.";
+      options.push(empty);
+    }
+    picker.replaceChildren(...options);
+  }
+
+  // The whole row is a label, so a click anywhere on it ticks the box.
+  function dependsOnOption(automationId, name, details, checked) {
+    const option = document.createElement("label");
+    option.className = "depends-on-option";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "form-check-input";
+    box.value = automationId;
+    box.checked = checked;
+    const text = document.createElement("span");
+    text.textContent = name;
+    const detail = document.createElement("small");
+    detail.textContent = details;
+    text.append(detail);
+    option.append(box, text);
+    return option;
+  }
+
+  // Whether to allow for failure, as the checkbox says it, or for each dependency as it was, while the checkbox still says "some of them".
+  function dependsOnValues(selector, allowFailureSelector, previous = []) {
+    const allowFailureBox = document.querySelector(allowFailureSelector);
+    const previouslyAllowed = new Map(previous.map((dependency) => [dependency.automation, dependency["allow-failure"]]));
+    return [...document.querySelectorAll(`${selector} input:checked`)].map((box) => {
+      const automationId = Number(box.value);
+      return {
+        automation: automationId,
+        "allow-failure": allowFailureBox.indeterminate
+          ? Boolean(previouslyAllowed.get(automationId))
+          : allowFailureBox.checked,
+      };
+    });
+  }
+
+  // One checkbox stands for every dependency, so where they differ, it says neither, until it is clicked.
+  function showAllowFailure(allowFailureSelector, dependencies) {
+    const allowFailureBox = document.querySelector(allowFailureSelector);
+    const allowed = dependencies.filter((dependency) => dependency["allow-failure"]).length;
+    allowFailureBox.checked = dependencies.length > 0 && allowed === dependencies.length;
+    allowFailureBox.indeterminate = allowed > 0 && allowed < dependencies.length;
+    // Its mixed state looks much like an unticked box, so a line under it says what it stands for.
+    const explanation = document.querySelector(`${allowFailureSelector}Mixed`);
+    if (explanation) {
+      explanation.textContent = allowFailureBox.indeterminate ? allowFailureMixedText(dependencies) : "";
+      explanation.classList.toggle("d-none", !allowFailureBox.indeterminate);
+    }
+  }
+
+  function allowFailureMixedText(dependencies) {
+    const each = dependencies.map((dependency) => {
+      const upstream = chainAutomation(dependency.automation);
+      return `${upstream ? upstream.name : `Automation ${dependency.automation}`}: ${dependency["allow-failure"] ? "yes" : "no"}`;
+    });
+    return `Differs per automation it waits for (${each.join("; ")}). Ticking or unticking sets all of them.`;
+  }
+
   function resetNewAutomationForm() {
     document.getElementById("newAutomationForm").reset();
+    fillDependsOnPicker("#automationDependsOn");
+    showAllowFailure("#automationAllowFailure", []);
     // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
     clearSelectedSource();
     showGeneratorFields();
@@ -595,6 +799,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
     $("#automationActive").prop("checked", values.active);
+    fillDependsOnPicker("#automationDependsOn", null, values.dependsOn);
+    showAllowFailure("#automationAllowFailure", values.dependsOn);
     $("#automationCritical").prop("checked", values.critical);
     // Someone who may not switch monitoring off gets a monitored automation, also when copying an unmonitored one.
     $("#automationMonitored").prop("checked", userCanChangeMonitoring ? values.monitored : true);
@@ -629,6 +835,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       // Whether failures are worth hearing about is the original's call, and stays so for a variation on it.
       monitored: automation.monitored !== false,
       sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
+      // A copy computes from the same input as its original, so it waits for the same automations.
+      dependsOn: automation["depends-on"] || [],
     };
   }
 
@@ -718,10 +926,27 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button>`;
   }
 
+  // Whether an automation listed here waits for this one, which is when running it along with what is downstream of it does more than running it.
+  function hasListedDependents(automation) {
+    return [...automationsById.values()].some(
+      (other) => (other["depends-on"] || []).some((dependency) => dependency.automation === automation.id)
+    );
+  }
+
   function actionButtons(automation) {
+    const runWithUpstreamItem = (automation["depends-on"] || []).length ? `
+      <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-include="upstream"
+        title="Run the automation chain up to this automation: the automations it waits for, directly or through others, and then this one, to bring it up to date. What waits for it does not run. You get to see what runs first.">Run up to here</button></li>
+    ` : "";
+    const runWithDownstreamItem = hasListedDependents(automation) ? `
+      <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}" data-include="downstream"
+        title="Run the automation chain from this automation: this one, now, and then the active automations that wait for it, directly or through others. Each of them runs once the runs it waits for ended, and is skipped if one of those failed. Their recurrence is not affected. You get to see what runs first.">Run from here</button></li>
+    ` : "";
     const runItem = userCanRunAutomations ? `
       <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}"
         title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button></li>
+      ${runWithUpstreamItem}
+      ${runWithDownstreamItem}
     ` : "";
     const manageItems = userCanManage ? `
       <li><button type="button" class="dropdown-item automation-edit" data-id="${automation.id}">Edit</button></li>
@@ -864,6 +1089,252 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return `/api/v3_0/assets/${encodeURIComponent(owningAssetId)}/automations/${encodeURIComponent(automationId)}${suffix}`;
   }
 
+  // Which automations of a run plan run, in the order they run, as the server says.
+  function runPlanSelection(plan) {
+    return plan.steps.map((step) => step.automation);
+  }
+
+  // The IDs that run, as a line from first to last, with those that can run side by side next to each other.
+  function runPlanStructure(plan) {
+    const steps = new Map(plan.steps.map((step) => [step.automation, step]));
+    const depthOf = (id) => Math.max(0, ...steps.get(id)["waits-for"].filter((upstream) => steps.has(upstream)).map((upstream) => 1 + depthOf(upstream)));
+    const levels = [];
+    for (const id of steps.keys()) {
+      (levels[depthOf(id)] ||= []).push(id);
+    }
+    return levels.map((level) => level.join(", ")).join(" → ");
+  }
+
+  /* The automations to choose between: upstream, those that come together in an automation waiting for several of them,
+     and downstream, those that branch off from an automation several of them wait for.
+     One left out stays among them, so it can be ticked again. */
+  function runPlanBranches(plan) {
+    const branches = new Set(plan.exclude);
+    const ids = new Set(runPlanSelection(plan));
+    for (const step of plan.steps) {
+      // A step also waits for what does not run, of which only what was left out on purpose can be ticked again.
+      const together = (plan.include === "upstream"
+        ? step["waits-for"]
+        : plan.steps.filter((other) => other["waits-for"].includes(step.automation)).map((other) => other.automation)
+      ).filter((id) => ids.has(id) || plan.exclude.has(id));
+      if (together.length > 1) {
+        together.filter((id) => ids.has(id) && id !== plan.automationId).forEach((id) => branches.add(id));
+      }
+    }
+    return branches;
+  }
+
+  function runPlanName(step) {
+    return step.name ? `${step.automation}: ${esc(step.name)}` : `Automation ${step.automation}`;
+  }
+
+  function runPlanHtml(plan) {
+    const branches = runPlanBranches(plan);
+    const mark = (id, running) => branches.has(id)
+      ? `<input type="checkbox" class="form-check-input me-2 run-plan-branch" value="${id}"${running ? " checked" : ""}>`
+      : `<span class="me-2">${running ? "✓" : "✗"}</span>`;
+    const row = (id, running, name, details) => `<li class="list-group-item${running ? "" : " text-muted"}" data-automation-id="${id}">
+        <label class="d-block">${mark(id, running)}${name}<div class="small text-muted">${details.join(" · ")}</div></label>
+      </li>`;
+    const rows = plan.steps.map((step) => row(step.automation, true, runPlanName(step), [
+      ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
+      ...(step.automation === plan.automationId ? ["This automation"] : []),
+      ...(step["waits-for"].length ? [`Waits for ${step["waits-for"].join(", ")}`] : []),
+    ]));
+    const stepNames = new Map(plan.steps.map((step) => [step.automation, step.name || `Automation ${step.automation}`]));
+    const waitedForBy = (step) => {
+      const names = (step["waited-for-by"] || []).map((id) => esc(stepNames.get(id)));
+      return names.length ? [`${names.join(" and ")} ${names.length === 1 ? "waits" : "wait"} for it`] : [];
+    };
+    const excludedRows = plan.excluded.map((step) => row(step.automation, false, runPlanName(step), [
+      ...(step["asset-name"] ? [esc(step["asset-name"])] : []),
+      `Won't run. ${esc(step.reason)}`,
+      ...waitedForBy(step),
+      ...(step["last-succeeded-at"] ? [`Last succeeded ${esc(new Date(step["last-succeeded-at"]).toLocaleString())}`] : []),
+      ...(step["last-succeeded-at"] === null ? ["Never ran successfully"] : []),
+    ]));
+    const warnings = runPlanWarnings(plan).map((warning) => `<p class="text-warning-emphasis mt-2 mb-0">${warning}</p>`);
+    return `<p class="fs-5 mb-2" id="runPlanStructure">${runPlanStructure(plan)}</p>
+      ${branches.size ? `<p class="small text-muted mb-2">Untick a branch to leave it out, along with what can only be reached through it.</p>` : ""}
+      <ul class="list-group">${[...rows, ...excludedRows].join("")}</ul>${warnings.join("")}`;
+  }
+
+  /* A warning for each automation that won't run and has never succeeded, while steps that do run wait for it,
+     as those would compute without its results. It does not keep the plan from running. */
+  function runPlanWarnings(plan) {
+    const names = new Map(plan.steps.map((step) => [step.automation, step.name || `Automation ${step.automation}`]));
+    return plan.excluded
+      .filter((step) => step["last-succeeded-at"] === null && (step["waited-for-by"] || []).length)
+      .map((step) => `${esc(step.name)} has never run successfully, so ${step["waited-for-by"].map((id) => esc(names.get(id))).join(" and ")} will likely fail.`);
+  }
+
+  // A count with the word for what is counted, such as "1 job" or "2 jobs".
+  function countOf(count, word, words = `${word}s`) {
+    return `${count} ${count === 1 ? word : words}`;
+  }
+
+  // What came of asking for a run, in which an automation with nothing to do can still set off the ones waiting for it.
+  function runMessage(automationId, res) {
+    if (res.runs) {
+      const excluded = (res.excluded || []).map((step) => step.automation);
+      return res.message + (excluded.length === 1 ? ` Automation ${excluded[0]} does not run.`
+        : excluded.length ? ` Automations ${excluded.join(", ")} do not run.` : "");
+    }
+    const nJobs = res["n-jobs"];
+    return nJobs === 0 ? `Automation ${automationId} had nothing to queue.`
+      : `${nJobs == null ? "Queued the jobs" : `Queued ${countOf(nJobs, "job")}`} for automation ${automationId}.`;
+  }
+
+  // The query that asks for what a run plan shows.
+  function runPlanQuery(plan) {
+    return [`with-${plan.include}=true`, ...[...plan.exclude].map((id) => `exclude=${id}`)].join("&");
+  }
+
+  // The query that asks the server what a run plan comes down to.
+  function runPlanLookupQuery(plan) {
+    return [`include=${plan.include}`, ...[...plan.exclude].map((id) => `exclude=${id}`)].join("&");
+  }
+
+  function dependsOnText(dependencies) {
+    if (!dependencies || !dependencies.length) {
+      return "No other automations";
+    }
+    return dependencies.map((dependency) => {
+      const upstream = chainAutomation(dependency.automation);
+      const name = upstream ? `${dependency.automation}: ${upstream.name}` : `${dependency.automation}`;
+      return esc(name + (dependency["allow-failure"] ? " (also when it fails)" : ""));
+    }).join("<br>");
+  }
+
+  /* Draw the chain an automation is part of, among the automations listed on this page,
+     with the automations that run first on the left, and an arrow from each automation to the ones that wait for it.
+     An automation waited for that is not listed here is drawn too, without what it waits for in turn.
+     A dashed arrow means the waiting automation runs even when the one it waits for failed. */
+  function chainGraph(automationId) {
+    const automations = new Map(automationsInScope().map((automation) => [automation.id, automation]));
+    // The automation being read belongs to its own chain, even if it falls outside the scope.
+    if (automationsById.has(automationId)) {
+      automations.set(automationId, automationsById.get(automationId));
+    }
+    const upstreamOf = (id) => automations.get(id)?.["depends-on"] || [];
+    const downstreamOf = (id) => [...automations.values()]
+      .filter((other) => upstreamOf(other.id).some((dependency) => dependency.automation === id))
+      .map((other) => other.id);
+    const nodes = new Set(chainShowsAll ? [automationId, ...automations.keys()] : [automationId]);
+    const queue = [...nodes];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const next of [...upstreamOf(id).map((dependency) => dependency.automation), ...downstreamOf(id)]) {
+        if (!nodes.has(next)) {
+          nodes.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    if (nodes.size === 1) {
+      return `<p class="text-muted">No automation listed here waits for this one, or is waited for by it.</p>`;
+    }
+    // An automation's column is the number of automations on the longest path of upstream automations leading to it.
+    const columns = new Map();
+    const columnOf = (id, visiting = new Set()) => {
+      if (columns.has(id)) {
+        return columns.get(id);
+      }
+      // The server refuses cycles; this only keeps a stale listing from looping.
+      if (visiting.has(id)) {
+        return 0;
+      }
+      visiting.add(id);
+      const upstreamColumns = upstreamOf(id).map((dependency) => columnOf(dependency.automation, visiting));
+      const column = upstreamColumns.length ? 1 + Math.max(...upstreamColumns) : 0;
+      columns.set(id, column);
+      return column;
+    };
+    nodes.forEach((id) => columnOf(id));
+    const [boxWidth, boxHeight, gapX, gapY] = [180, 36, 48, 14];
+    const rowsPerColumn = new Map();
+    const positions = new Map();
+    [...nodes].sort((a, b) => a - b).forEach((id) => {
+      const column = columns.get(id);
+      const row = rowsPerColumn.get(column) || 0;
+      rowsPerColumn.set(column, row + 1);
+      positions.set(id, { x: column * (boxWidth + gapX), y: row * (boxHeight + gapY) });
+    });
+    const width = (Math.max(...columns.values()) + 1) * (boxWidth + gapX) - gapX + 2;
+    const height = Math.max(...rowsPerColumn.values()) * (boxHeight + gapY) - gapY + 2;
+    const arrows = [...nodes].flatMap((id) => upstreamOf(id).map((dependency) => {
+      const from = positions.get(dependency.automation);
+      const to = positions.get(id);
+      const curve = `M ${from.x + boxWidth} ${from.y + boxHeight / 2} C ${from.x + boxWidth + gapX / 2} ${from.y + boxHeight / 2}, ${to.x - gapX / 2} ${to.y + boxHeight / 2}, ${to.x} ${to.y + boxHeight / 2}`;
+      return `<g><title>${esc(chainArrowText(id, dependency))}</title>
+        <path class="chain-arrow" d="${curve}"
+          fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#chain-arrowhead)"${dependency["allow-failure"] ? ` stroke-dasharray="5 4"` : ""}/>
+        <path d="${curve}" fill="none" stroke="transparent" stroke-width="12"/>
+      </g>`;
+    }));
+    const boxes = [...nodes].map((id) => {
+      const { x, y } = positions.get(id);
+      const automation = chainAutomation(id);
+      const label = automation ? `${id}: ${automation.name}` : `${id} (not listed here)`;
+      const shown = label.length > 24 ? `${label.slice(0, 23)}…` : label;
+      const current = id === automationId;
+      const box = `<rect x="${x + 1}" y="${y + 1}" width="${boxWidth}" height="${boxHeight}" rx="6"
+          fill="${current ? "var(--bs-primary)" : "var(--bs-body-bg)"}" stroke="var(--bs-primary)" stroke-width="1.5"/>
+        <text x="${x + 1 + boxWidth / 2}" y="${y + 1 + boxHeight / 2}" text-anchor="middle" dominant-baseline="central"
+          font-size="13" fill="${current ? "var(--bs-white)" : "var(--bs-body-color)"}">${esc(shown)}</text>`;
+      // An automation's own asset always lists it, whatever scope that page was left in.
+      const linked = automation && !current;
+      return `<g class="chain-node${current ? " chain-node-current" : ""}" data-automation-id="${id}">
+        <title>${esc(chainNodeText(id))}</title>
+        ${linked ? `<a href="/assets/${automation.asset}/automations?automation=${id}">${box}</a>` : box}
+      </g>`;
+    });
+    return `<div style="overflow-x: auto"><svg class="automation-chain" width="${width + 8}" height="${height}" role="img"
+      aria-label="The automations this one waits for, and those that wait for it">
+      <defs><marker id="chain-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+      ${arrows.join("")}${boxes.join("")}
+    </svg></div>
+    <p class="text-muted small mt-1">An automation runs once those with an arrow to it ended, and is skipped if one of them failed, unless that arrow is dashed. Hover over an automation for more about it, or click it to open it.</p>`;
+  }
+
+  // An automation of a chain, of which one that is not listed here is known by what the automations waiting for it were told.
+  function chainAutomation(id) {
+    const fetched = [...scopedAutomations.values()].flat();
+    return automationsById.get(id) || fetched.find((automation) => automation.id === id)
+      || [...automationsById.values(), ...fetched]
+        .flatMap((automation) => automation["depends-on"] || [])
+        .find((dependency) => dependency.automation === id && dependency.name);
+  }
+
+  // What hovering over an automation in a chain tells about it.
+  function chainNodeText(id) {
+    const automation = chainAutomation(id);
+    if (!automation) {
+      return `${id} (not listed here)`;
+    }
+    const where = `On ${automation["asset-name"]} (asset ${automation.asset})`;
+    if (!automation.type) {
+      return [`${id}: ${automation.name}`, where, "Not listed here"].join("\n");
+    }
+    return [
+      `${id}: ${automation.name}`,
+      automationTypes[automation.type] || automation.type,
+      where,
+      `${automation["recurrence-description"]}, ${automation.timezone}`,
+      automation.active ? "Active" : "Inactive",
+    ].join("\n");
+  }
+
+  // What hovering over an arrow in a chain tells about the automation it points at.
+  function chainArrowText(id, dependency) {
+    const nameOf = (automationId) => chainAutomation(automationId)?.name || `Automation ${automationId}`;
+    const outcome = dependency["allow-failure"] ? "runs even if" : "is skipped if";
+    return `${nameOf(id)} ${outcome} ${nameOf(dependency.automation)} fails`;
+  }
+
+  /* Open the details of the automation a link from a chain points at.
+     Its panel sits in the tab of its type, and cannot open while that tab is hidden. */
   function loadAutomationInfo(automationId) {
     $.ajax({
       url: automationUrl(automationId),
@@ -890,6 +1361,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
               "attempt-count": latestRun["attempt-count"],
               "intended-job-count": latestRun["intended-job-count"],
               "queued-job-count": latestRun["queued-job-count"],
+              // What became of the runs it waits for, in a sentence each.
+              "upstream-runs": (latestRun["upstream-runs"] || []).map((upstream) => upstream.summary || upstream.state),
               "last-error": latestRun["last-error"],
             }
           : null;
@@ -917,6 +1390,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6 title="Each run waits for the latest runs of these automations that are due at or before its own time.">Waits for</h6>
+          <p>${dependsOnText(res["depends-on"])}</p>
+          <h6 title="The automations listed here that this one waits for, and those that wait for it, directly or through others. A dashed arrow means the waiting automation runs even when the one it waits for failed.">Chain</h6>
+          <select class="form-select form-select-sm w-auto mb-1 automation-scope" aria-label="Which automations to draw">${automationScopeOptions()}</select>
+          <div class="form-check mb-2">
+            <label class="form-check-label"><input type="checkbox" class="form-check-input automation-chain-all"${chainShowsAll ? " checked" : ""}> Show all of these automations, not only this chain</label>
+          </div>
+          <div class="automation-chain-holder" data-automation-id="${automationId}">${chainGraph(Number(automationId))}</div>
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs
@@ -1001,14 +1482,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // The types the page keeps a tab and a table for.
   const AUTOMATION_TYPES = Object.keys(automationTypes);
 
-  /* A link can point at one automation (?automation=<id>), as the monitoring digest's links do.
+  /* A link can point at one automation (?automation=<id>), as the monitoring digest's links and the chain drawing do.
      Once the listing is in, its tab and its info panel are opened, which show its latest run, its error and its jobs. */
   let automationToOpen = Number(new URLSearchParams(window.location.search).get("automation")) || null;
 
-  function openLinkedAutomation() {
-    const automation = automationToOpen === null ? undefined : automationsById.get(automationToOpen);
-    automationToOpen = null;  // only on the first load, not on every refresh
+  function openLinkedAutomation(automationId) {
+    const automation = automationsById.get(automationId);
     if (automation === undefined) {
+      showAutomationsError(`Automation ${automationId} is not listed here.`);
       return;
     }
     const tab = document.getElementById(`${automation.type}-tab`);
@@ -1050,12 +1531,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         lastListedAutomations = res.automations;
         renderAutomationsTables({ rebuild });
         markAutomationsRefreshed();
-        openLinkedAutomation();
         // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
         if (res["redis-connection-err"]) {
           showAutomationsError(res["redis-connection-err"]);
         } else {
           clearAutomationsError();
+        }
+        if (automationToOpen !== null) {
+          openLinkedAutomation(automationToOpen);
+          automationToOpen = null;  // only on the first load, not on every refresh
         }
       },
       error: function (xhr) {
@@ -1127,10 +1611,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const response = JSON.parse(xhr.responseText);
       const message = response.message || response;
       // A message is usually a plain string, which JSON.stringify would hand back in quotes.
-      return typeof message === "string" ? message : JSON.stringify(message);
+      return readableApiMessage(message);
     } catch (e) {
       return fallbackMessage;
     }
+  }
+
+  // Deleting an automation does not touch what waits for it, which is what its user should know first.
+  function deleteQuestion(name, waitingAutomations) {
+    const question = `Delete automation '${name}'?`;
+    if (!waitingAutomations?.length) {
+      return question;
+    }
+    const waiting = waitingAutomations.map((waitingAutomation) => (
+      `- ${waitingAutomation.name ? `${waitingAutomation.automation}: ${waitingAutomation.name}` : `Automation ${waitingAutomation.automation}`}`
+    ));
+    return `${question}\n\nThese wait for it, and will run without it from now on:\n${waiting.join("\n")}`;
   }
 
   $(document).ready(function () {
@@ -1159,6 +1655,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#includeChildAssets").on("change", function () {
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
+      if (!includeChildAssets && automationScope === "asset") {
+        automationScope = "listed";
+      }
+      $(".automation-scope").html(automationScopeOptions());
       loadAutomations({ rebuild: true });
     });
 
@@ -1196,6 +1696,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationCron").val(automation["cron"]);
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
+      fillDependsOnPicker("#editAutomationDependsOn", automation.id, automation["depends-on"] || []);
+      showAllowFailure("#editAutomationAllowFailure", automation["depends-on"] || []);
       $("#editAutomationCritical").prop("checked", automation.critical);
       $("#editAutomationMonitored").prop("checked", automation.monitored);
       $("#editAutomationErr").addClass("d-none").text("");
@@ -1288,6 +1790,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         cron: $("#editAutomationCron").val(),
         timezone: $("#editAutomationTimezone").val(),
         active: $("#editAutomationActive").is(":checked"),
+        "depends-on": dependsOnValues(
+          "#editAutomationDependsOn",
+          "#editAutomationAllowFailure",
+          automationsById.get(Number(automationId))?.["depends-on"] || [],
+        ),
         critical: $("#editAutomationCritical").is(":checked"),
         ...(userCanChangeMonitoring ? { monitored: $("#editAutomationMonitored").is(":checked") } : {}),
       };
@@ -1329,12 +1836,70 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(document).on("click", ".automation-delete", function () {
       const automationId = $(this).data("id");
       const name = $(this).data("name");
-      if (!confirm(`Delete automation '${name}'?`)) return;
+      const askAndDelete = (waitingAutomations) => {
+        if (!confirm(deleteQuestion(name, waitingAutomations))) return;
+        $.ajax({
+          url: automationUrl(automationId),
+          method: "DELETE",
+          success: () => location.reload(),
+          error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
+        });
+      };
+      // What waits for it can be on other assets, so the server says.
+      // The details can be out of reach, such as for a sensor one may not read, which is no reason not to be able to delete it.
       $.ajax({
-        url: automationUrl(automationId),
-        method: "DELETE",
-        success: () => location.reload(),
-        error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
+        url: automationUrl(automationId, "?include=waited-for-by"),
+        method: "GET",
+        success: (res) => askAndDelete(res["waited-for-by"]),
+        error: () => askAndDelete(null),
+      });
+    });
+
+    $(".automation-scope").html(automationScopeOptions());
+
+    function refillDependsOnPicker(selector, excludedId) {
+      const ticked = [...document.querySelectorAll(`${selector} input:checked`)]
+        .map((box) => ({ automation: Number(box.value) }));
+      fillDependsOnPicker(selector, excludedId, ticked);
+    }
+
+    function redrawChains() {
+      $(".automation-chain-holder").each(function () {
+        $(this).html(chainGraph(Number(this.dataset.automationId)));
+      });
+    }
+
+    function applyAutomationScope(scope) {
+      automationScope = scope;
+      $(".automation-scope").val(scope);
+      refillDependsOnPicker("#automationDependsOn", null);
+      refillDependsOnPicker("#editAutomationDependsOn", Number($("#editAutomationId").val()) || null);
+      redrawChains();
+    }
+
+    $(document).on("change", ".automation-chain-all", function () {
+      chainShowsAll = this.checked;
+      $(".automation-chain-all").prop("checked", chainShowsAll);
+      redrawChains();
+    });
+
+    $(document).on("change", ".automation-scope", function () {
+      const scope = this.value;
+      if (!["public", "all"].includes(scope) || scopedAutomations.has(scope)) {
+        applyAutomationScope(scope);
+        return;
+      }
+      $.ajax({
+        url: `/api/v3_0/assets/automations?scope=${scope}`,
+        method: "GET",
+        success: function (res) {
+          scopedAutomations.set(scope, res.automations);
+          applyAutomationScope(scope);
+        },
+        error: function (xhr) {
+          $(".automation-scope").val(automationScope);
+          showToast(apiError(xhr, "Could not list these automations."), "error");
+        },
       });
     });
 
@@ -1434,6 +1999,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         critical: $("#automationCritical").is(":checked"),
         ...(userCanChangeMonitoring ? { monitored: $("#automationMonitored").is(":checked") } : {}),
         parameters: parameters,
+        "depends-on": dependsOnValues("#automationDependsOn", "#automationAllowFailure"),
       };
       if (reusesSource) {
         automationData.source = selectedAutomationSource.id;
@@ -1454,24 +2020,77 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
+    // Once ticked or unticked, the box sets all of them alike, so the line about them differing goes.
+    $(document).on("change", "#automationAllowFailure, #editAutomationAllowFailure", function () {
+      $(`#${this.id}Mixed`).addClass("d-none");
+    });
+
+    let runPlan = null;
+
+    function showRunPlan() {
+      const count = runPlanSelection(runPlan).length;
+      $("#runPlanBody").html(runPlanHtml(runPlan));
+      $("#runPlanConfirm").text(`Run ${count} automation${count === 1 ? "" : "s"}`);
+    }
+
+    // What a chain comes down to can reach beyond this page, so the server says, before anything runs.
+    function loadRunPlan(plan, onLoaded) {
+      $.ajax({
+        url: automationUrl(plan.automationId, `/run-plan?${runPlanLookupQuery(plan)}`),
+        method: "GET",
+        success: function (res) {
+          runPlan = { ...plan, steps: res.steps, excluded: res.excluded };
+          showRunPlan();
+          onLoaded?.();
+        },
+        error: function (xhr) {
+          showAutomationsError(`Could not look up what would run: ${automationAjaxErrorMessage(xhr)}.`);
+        },
+      });
+    }
+
+    $(document).on("change", ".run-plan-branch", function () {
+      const id = Number(this.value);
+      const exclude = new Set(runPlan.exclude);
+      if (this.checked) {
+        exclude.delete(id);
+      } else {
+        exclude.add(id);
+      }
+      loadRunPlan({ ...runPlan, exclude });
+    });
+
+    $("#runPlanConfirm").on("click", function () {
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("runPlanModal")).hide();
+      triggerAutomation(runPlan.automationId, `?${runPlanQuery(runPlan)}`, $(this));
+    });
+
     $(document).on("click", ".run-automation", function () {
       const button = $(this);
-      const automationId = button.data("automation-id");
+      const automationId = Number(button.data("automation-id"));
+      const include = button.data("include");
+      if (!include) {
+        triggerAutomation(automationId, "", button);
+        return;
+      }
+      loadRunPlan({ automationId, include, exclude: new Set() }, () => {
+        $("#runPlanTitle").text(include === "upstream" ? "Run up to here" : "Run from here");
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("runPlanModal")).show();
+      });
+    });
+
+    function triggerAutomation(automationId, query, button) {
+      const label = button.text();
       button.prop("disabled", true).text("Queueing ...");
       $.ajax({
-        url: automationUrl(automationId, "/trigger"),
+        url: automationUrl(automationId, `/trigger${query}`),
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
-          const nJobs = res["n-jobs"];
-          const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
-          showAutomationsMessage(
-            `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
-          );
+          showToast(`${runMessage(automationId, res)} Recent jobs are listed on the status page.`, "success", { delay: 8000 });
           loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
         error: function (xhr) {
-          $("#automations_msg").addClass("d-none");
           // The API tells its clients to send run-as-me, while on this page that is the Run as me box in the edit form.
           const response = xhr.responseJSON;
           const reason = xhr.status === 403 && response?.reason === "run-user-lacks-access"
@@ -1480,10 +2099,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           showAutomationsError(`Could not run automation ${automationId}: ${reason}.`);
         },
         complete: function () {
-          button.prop("disabled", false).text("Run now");
+          button.prop("disabled", false).text(label);
         },
       });
-    });
+    }
   });
 </script>
 {% endblock %}

@@ -97,11 +97,13 @@ def _dispatch_failed_for_good(now: datetime):
     """Return the criterion for a run whose dispatch did not finish and will not be attempted again.
 
     No runner may hold a live claim on it, or it is still being dispatched.
+    A run waiting for the runs of other automations has not been dispatched yet, so it has not failed.
     Only a forecast run is dispatched again, until its attempts are used up (see `get_dispatchable_automation_runs`),
     so a run of any other type has failed for good after its first attempt.
     """
     return and_(
         AutomationRun.dispatch_completed_at.is_(None),
+        AutomationRun.dispatch_state != "waiting",
         or_(
             AutomationRun.claim_owner.is_(None),
             AutomationRun.claim_expires_at.is_(None),
