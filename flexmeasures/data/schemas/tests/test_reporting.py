@@ -456,6 +456,14 @@ def test_pandas_reporter_config_refuses_io_and_evaluation(
         {"method": "sum", "kwargs": {"axis": 1}},
         {"method": "where", "args": [True]},
         {"method": "shift", "kwargs": {"periods": -1}},
+        # aligning one input to another, as in a count forward-filled onto a total's index
+        {
+            "method": "reindex_like",
+            "args": ["@sensor_1"],
+            "kwargs": {"method": "ffill"},
+        },
+        # a resampler method, as in resample("1h") followed by nearest()
+        {"method": "nearest"},
         {"method": "get_attribute", "args": ["capacity_in_mw"]},
         # methods called by name, if those are allowed too
         {"method": "agg", "args": ["sum"]},
