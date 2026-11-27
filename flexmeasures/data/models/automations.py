@@ -96,7 +96,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         default=get_initial_cursor,
     )
-    schedule_revision = db.Column(db.Integer, nullable=False, default=1)
+    revision = db.Column(db.Integer, nullable=False, default=1)
     # The first minute the current revision of the recurrence is due in, set on creation and on each reset (see `update_automation`).
     # A time before it was not due by this recurrence, so a run waiting for this automation at that time goes ahead without it.
     revision_started_at = db.Column(
@@ -270,7 +270,7 @@ class AutomationRun(db.Model):
             "automation_run_occurrence_uq",
             "automation_id",
             "scheduled_at",
-            "schedule_revision",
+            "revision",
             unique=True,
             postgresql_where=db.text("trigger = 'schedule'"),
         ),
@@ -304,7 +304,7 @@ class AutomationRun(db.Model):
         onupdate=server_now,
     )
     scheduled_at = db.Column(db.DateTime(timezone=True), nullable=False)
-    schedule_revision = db.Column(db.Integer, nullable=False)
+    revision = db.Column(db.Integer, nullable=False)
     # Whether the run was due by the automation's schedule, or asked for on demand along with a chain of runs (see `run_automation_chain`).
     trigger = db.Column(db.String(16), nullable=False, default="schedule")
     automation_type = db.Column(db.String(80), nullable=False)

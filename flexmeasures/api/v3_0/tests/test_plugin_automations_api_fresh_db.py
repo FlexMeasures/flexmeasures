@@ -56,7 +56,7 @@ def test_create_and_inspect_plugin_automation(
     assert response.json["source"]["id"] == automation.generator_id
     assert response.json["parameters"] == {"value": 7.0}
     assert response.json["output-sensors"] == [
-        {"id": sensors[0].id, "name": sensors[0].name}
+        {"id": sensors[0].id, "name": sensors[0].name, "readable": True}
     ]
 
 

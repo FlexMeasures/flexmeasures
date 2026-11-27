@@ -42,7 +42,7 @@ def upgrade():
     op.create_index(
         "automation_run_occurrence_uq",
         "automation_run",
-        ["automation_id", "scheduled_at", "schedule_revision"],
+        ["automation_id", "scheduled_at", "revision"],
         unique=True,
         postgresql_where=sa.text("trigger = 'schedule'"),
     )
@@ -55,7 +55,7 @@ def downgrade():
     op.create_unique_constraint(
         "automation_run_occurrence_uq",
         "automation_run",
-        ["automation_id", "scheduled_at", "schedule_revision"],
+        ["automation_id", "scheduled_at", "revision"],
     )
     op.drop_constraint(op.f(TRIGGER_CK), "automation_run", type_="check")
     op.drop_column("automation_run", "trigger")

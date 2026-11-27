@@ -174,9 +174,15 @@ def test_get_automation_details(
     ]
     assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
-    sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
+    sensor = {
+        "id": battery.sensors[0].id,
+        "name": battery.sensors[0].name,
+        "readable": True,
+    }
     assert response.json["input-sensors"] == [sensor]
     assert response.json["output-sensors"] == [sensor]
+    # Set up without a user making the request, as through the CLI, so its runs check nobody's access.
+    assert response.json["runs-as"] is None
 
 
 @pytest.mark.parametrize(
@@ -1886,3 +1892,519 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
+
+
+def _post_forecast_automation(client, battery, sensor_id: int, config: dict) -> dict:
+    """Create a forecast automation through the API, returning the response body."""
+    response = client.post(
+        url_for("AssetAPI:post_automation", id=battery.id),
+        json={
+            "name": "Forecasts to edit",
+            "cron": "0 6 * * *",
+            "type": "forecasting",
+            "parameters": {"sensor": sensor_id},
+            "config": config,
+        },
+    )
+    assert response.status_code == 201, response.json
+    return response.json
+
+
+def _patch_automation(client, battery, automation_id: int, payload: dict):
+    return client.patch(
+        url_for(
+            "AssetAPI:patch_automation",
+            id=battery.id,
+            automation_id=automation_id,
+        ),
+        json=payload,
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_parameters_config_and_source(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation's parameters, config and data source can be changed after creation, each validated as on creation.
+
+    A new config moves the automation onto the data source storing it, and leaves the old source as it was,
+    and each change starts a new revision without touching the cursor.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    first_sensor, second_sensor = battery.sensors[0], battery.sensors[1]
+    with app.test_client() as client:
+        created = _post_forecast_automation(
+            client, battery, first_sensor.id, {"missing-threshold": 0.5}
+        )
+    automation = db.session.get(Automation, created["id"])
+    first_source = automation.generator
+    first_config = dict(first_source.attributes["data_generator"]["config"])
+    cursor, revision = automation.cursor, automation.revision
+
+    # New parameters keep the data source.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"parameters": {"sensor": second_sensor.id}}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.parameters == {"sensor": second_sensor.id}
+    assert automation.generator_id == first_source.id
+    assert automation.revision == revision + 1
+    assert automation.cursor == cursor
+    assert automation.execution_user_id == requesting_user.id
+
+    # A new config moves the automation onto another data source, and keeps its forecaster.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": {"missing-threshold": 0.2}}
+        )
+    assert response.status_code == 200, response.json
+    second_source = automation.generator
+    assert second_source.id != first_source.id
+    assert second_source.model == first_source.model
+    assert (
+        second_source.attributes["data_generator"]["config"]["missing-threshold"] == 0.2
+    )
+    assert first_source.attributes["data_generator"]["config"] == first_config
+    assert automation.parameters == {"sensor": second_sensor.id}
+    assert automation.revision == revision + 2
+    assert automation.cursor == cursor
+    audit_events = db.session.scalars(
+        select(AssetAuditLog.event).filter_by(affected_asset_id=battery.id)
+    ).all()
+    assert any(
+        f"data source: {first_source.id} → {second_source.id}" in event
+        for event in audit_events
+    )
+
+    # Naming the earlier data source moves the automation back onto it.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"source": first_source.id}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.generator_id == first_source.id
+
+    # Sending what the automation already has changes nothing, so no new revision either.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client,
+            battery,
+            automation.id,
+            {"parameters": {"sensor": second_sensor.id}, "source": first_source.id},
+        )
+    assert response.status_code == 200, response.json
+    assert automation.revision == revision + 3
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "payload, field",
+    [
+        ({"source": "FIRST_SOURCE", "config": {}}, "source"),
+        ({"parameters": {"sensor": "SENSOR", "start": "2026-01-01T00:00+01:00"}}, None),
+        ({"parameters": {"sensor": -1}}, "parameters"),
+        ({"config": {"missing-threshold": "lots"}}, "config"),
+        ({"data-generator": "NoSuchForecaster"}, None),
+    ],
+)
+def test_patch_automation_with_invalid_definition(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    payload,
+    field,
+):
+    """An invalid edit is refused as an invalid creation is, and leaves the automation as it was."""
+    battery = add_battery_assets["Test battery"]
+    sensor = battery.sensors[0]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, sensor.id, {})
+    automation = db.session.get(Automation, created["id"])
+    generator_id, revision = automation.generator_id, automation.revision
+    payload = json.loads(
+        json.dumps(payload)
+        .replace('"FIRST_SOURCE"', str(generator_id))
+        .replace('"SENSOR"', str(sensor.id))
+    )
+    with app.test_client() as client:
+        response = _patch_automation(client, battery, automation.id, payload)
+    assert response.status_code == 422, response.json
+    if field is not None:
+        assert field in json.dumps(response.json["message"])
+    db.session.expire_all()
+    automation = db.session.get(Automation, created["id"])
+    assert automation.parameters == {"sensor": sensor.id}
+    assert automation.generator_id == generator_id
+    assert automation.revision == revision
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_onto_inaccessible_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+):
+    """New parameters are checked against the editing user's access to the sensors they name, as on creation."""
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="wind power",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.commit()
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+        response = _patch_automation(
+            client,
+            battery,
+            created["id"],
+            {"parameters": {"sensor": someone_elses_sensor.id}},
+        )
+    assert response.status_code == 403, response.json
+    # The edit adds the sensor, which the refusal says.
+    assert response.json["message"] == (
+        f"You cannot change this automation, because it would then read data from sensor {someone_elses_sensor.id},"
+        " which you cannot read data from yourself."
+    )
+    db.session.expire_all()
+    automation = db.session.get(Automation, created["id"])
+    assert automation.parameters == {"sensor": battery.sensors[0].id}
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_schedule_automation_source(
+    app,
+    db,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+):
+    """A schedule automation's data source follows from its asset, so an edit cannot name one."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Schedules to edit",
+                "cron": "0 12 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+        assert response.status_code == 201, response.json
+        response = _patch_automation(
+            client,
+            battery,
+            response.json["id"],
+            {"source": add_automations[0].generator_id},
+        )
+    assert response.status_code == 422, response.json
+    assert "schedule automation cannot name a source" in json.dumps(
+        response.json["message"]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_keeps_the_run_user(
+    app,
+    db,
+    add_battery_assets,
+    setup_roles_users,
+    requesting_user,
+):
+    """An edit leaves the user whom the automation runs as alone, where that user may use the sensors of the edited definition, too."""
+    battery = add_battery_assets["Test battery"]
+    creator_id = setup_roles_users["Test Prosumer User"]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = creator_id
+    db.session.commit()
+
+    for payload in (
+        {"name": "Renamed forecasts"},
+        {"parameters": {"sensor": battery.sensors[1].id}},
+    ):
+        with app.test_client() as client:
+            response = _patch_automation(client, battery, automation.id, payload)
+        assert response.status_code == 200, response.json
+        assert automation.execution_user_id == creator_id
+        assert response.json["runs-as"] == {
+            "id": creator_id,
+            "name": "Test Prosumer User",
+        }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("run_user", ["Test Dummy User", None])
+@pytest.mark.parametrize("edit_along", [True, False])
+def test_patch_automation_refused_for_the_run_user_unless_taken_over(
+    app,
+    db,
+    add_battery_assets,
+    setup_roles_users,
+    requesting_user,
+    run_user,
+    edit_along,
+):
+    """An edit which the user whom the automation runs as could not run is refused, naming both users,
+    until the editor takes the runs over with run-as-me, which the asset's audit log records.
+
+    The run user is either someone without access to the asset's sensors, or a user who no longer exists (None).
+    Taking over works together with an edit, and on its own.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    run_user_id = setup_roles_users[run_user] if run_user else 987654
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = run_user_id
+    db.session.commit()
+    new_parameters = {"sensor": battery.sensors[1].id}
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"parameters": new_parameters}
+        )
+    assert response.status_code == 403, response.json
+    message = response.json["message"]
+    assert message.endswith(
+        f" Send run-as-me to have it run as you, Test Prosumer User 2 (user {requesting_user.id}), instead."
+    )
+    # A client with its own way to take over recognises the refusal, and can say it without the API's hint.
+    assert response.json["reason"] == "run-user-lacks-access"
+    assert message.startswith(response.json["refusal"])
+    assert "run-as-me" not in response.json["refusal"]
+    if run_user:
+        assert response.json["refusal"] == (
+            f"You cannot change this automation, because it would then read data from sensor {battery.sensors[1].id},"
+            f" which {run_user} (user {run_user_id}), whom it runs as, cannot read data from."
+        )
+    else:
+        assert f"user {run_user_id}, who is missing or inactive" in message
+    db.session.expire_all()
+    automation = db.session.get(Automation, created["id"])
+    assert automation.parameters == {"sensor": battery.sensors[0].id}
+    assert automation.execution_user_id == run_user_id
+
+    takeover = {"run-as-me": True}
+    if edit_along:
+        takeover["parameters"] = new_parameters
+    with app.test_client() as client:
+        response = _patch_automation(client, battery, automation.id, takeover)
+    assert response.status_code == 200, response.json
+    assert automation.execution_user_id == requesting_user.id
+    audit_events = db.session.scalars(
+        select(AssetAuditLog.event).filter_by(affected_asset_id=battery.id)
+    ).all()
+    previous_run_user = (
+        f"{run_user} (user {run_user_id})" if run_user else f"user {run_user_id}"
+    )
+    assert any(
+        f"runs as: {previous_run_user} → Test Prosumer User 2 (user {requesting_user.id})"
+        in event
+        for event in audit_events
+    )
+
+    # The editor now runs the automation, so their own access is all an edit needs.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"parameters": new_parameters}
+        )
+    assert response.status_code == 200, response.json
+    assert automation.parameters == new_parameters
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_automation_refused_for_annotations_the_run_user_cannot_read(
+    app,
+    db,
+    add_battery_assets,
+    setup_accounts,
+    setup_roles_users,
+    requesting_user,
+):
+    """Runs check the annotations a forecaster reads against the user the automation runs as, so an edit adding ones that user cannot read is refused."""
+    battery = add_battery_assets["Test battery"]
+    run_user_id = setup_roles_users["Test Prosumer User"]
+    supplier_id = setup_accounts["Supplier"].id
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = run_user_id
+    db.session.commit()
+    new_config = {"annotation-regressors": [{"account": supplier_id}]}
+
+    # The admin making the edit may read the Supplier's annotations, but the user the automation runs as may not.
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": new_config}
+        )
+    assert response.status_code == 403, response.json
+    assert response.json["reason"] == "run-user-lacks-access"
+    assert response.json["refusal"] == (
+        f"You cannot change this automation, because it would then read the annotations of account {supplier_id},"
+        f" which Test Prosumer User (user {run_user_id}), whom it runs as, cannot read."
+    )
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"config": new_config, "run-as-me": True}
+        )
+    assert response.status_code == 200, response.json
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("query", [{}, {"with-downstream": "true"}])
+def test_trigger_automation_refused_for_the_run_user(
+    app,
+    db,
+    add_battery_assets,
+    setup_roles_users,
+    requesting_user,
+    query,
+):
+    """A run on demand that the user the automation runs as may not run is refused with the edit's reason, so the UI can word the takeover its own way.
+
+    That goes for running it on its own and along with what waits for it, as both start a chain of runs on demand.
+    The run records nothing of how to take over, as the API, the CLI and the edit form each say that in their own way.
+    """
+    from flexmeasures.data.models.automations import AutomationRun
+
+    battery = add_battery_assets["Test battery"]
+    run_user_id = setup_roles_users["Test Dummy User"]
+    with app.test_client() as client:
+        created = _post_forecast_automation(client, battery, battery.sensors[0].id, {})
+    automation = db.session.get(Automation, created["id"])
+    automation.execution_user_id = run_user_id
+    db.session.commit()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+                **query,
+            )
+        )
+    assert response.status_code == 403, response.json
+    assert response.json["reason"] == "run-user-lacks-access"
+    refusal = response.json["refusal"]
+    assert refusal.startswith(
+        f"Automation {automation.id} runs as Test Dummy User (user {run_user_id}), who does not have"
+    )
+    assert "run-as-me" not in refusal and "Run as me" not in refusal
+    assert response.json["message"] == (
+        f"{refusal} Send run-as-me in a PATCH of this automation to have it run as you instead."
+    )
+    run = db.session.scalars(
+        select(AutomationRun).where(AutomationRun.automation_id == automation.id)
+    ).one()
+    assert run.trigger == "on-demand"
+    assert run.dispatch_state == "failed"
+    assert refusal in run.last_error_message
+    assert "run-as-me" not in run.last_error_message
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_patch_automation_keeping_an_inaccessible_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    setup_roles_users,
+    requesting_user,
+):
+    """An edit is checked against every sensor its definition involves, including one it keeps, such as a regressor in the stored config.
+
+    Editing only the parameters of an automation whose config names a sensor the editor cannot read is refused,
+    leaving the automation running as its creator, and so is taking over its runs.
+    """
+    from flexmeasures.data.services.automations import create_automation
+
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="wind speed",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.flush()
+    # Set up through the CLI, which is trusted, by someone who may read the regressor.
+    automation, _ = create_automation(
+        battery,
+        name="Forecasts with someone else's regressor",
+        cronstr="0 6 * * *",
+        automation_type="forecasting",
+        parameters={"sensor": battery.sensors[0].id},
+        config={"past-regressors": [someone_elses_sensor.id]},
+        origin="CLI",
+    )
+    creator_id = setup_roles_users["Test Prosumer User"]
+    automation.execution_user_id = creator_id
+    db.session.commit()
+    generator_id = automation.generator_id
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client,
+            battery,
+            automation.id,
+            {"parameters": {"sensor": battery.sensors[1].id}},
+        )
+    assert response.status_code == 403, response.json
+    # The sensor is in the stored config already, so the refusal does not say the edit adds it.
+    assert response.json["message"] == (
+        f"You cannot change this automation, because it reads data from sensor {someone_elses_sensor.id} (already in its definition),"
+        " which you cannot read data from yourself."
+    )
+    db.session.expire_all()
+    automation = db.session.get(Automation, automation.id)
+    assert automation.parameters == {"sensor": battery.sensors[0].id}
+    assert automation.generator_id == generator_id
+    assert automation.execution_user_id == creator_id
+
+    with app.test_client() as client:
+        response = _patch_automation(
+            client, battery, automation.id, {"run-as-me": True}
+        )
+    assert response.status_code == 403, response.json
+    assert f"sensor {someone_elses_sensor.id}" in response.json["message"]
+    db.session.expire_all()
+    automation = db.session.get(Automation, automation.id)
+    assert automation.execution_user_id == creator_id

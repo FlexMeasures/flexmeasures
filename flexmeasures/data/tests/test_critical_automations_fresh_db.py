@@ -63,7 +63,7 @@ def failed_run(db, automation: Automation, execution_state: str = "running"):
     run = AutomationRun(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        schedule_revision=automation.schedule_revision,
+        revision=automation.revision,
         automation_type=automation.type,
         dispatch_state="queued",
         execution_state=execution_state,
@@ -119,14 +119,14 @@ def test_updating_criticality_does_not_disturb_the_recurrence(
 ):
     """Criticality says who is told about a failure, not which runs are due."""
     cursor_before = forecast_automation.cursor
-    revision_before = forecast_automation.schedule_revision
+    revision_before = forecast_automation.revision
 
     changes = update_automation(forecast_automation, critical=True, origin="test")
 
     assert changes == ["flagged as critical"]
     assert forecast_automation.critical is True
     assert forecast_automation.cursor == cursor_before
-    assert forecast_automation.schedule_revision == revision_before
+    assert forecast_automation.revision == revision_before
 
 
 def test_a_failed_job_pages_for_a_critical_automation(

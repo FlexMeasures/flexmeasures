@@ -5,8 +5,10 @@ so that a run waiting for the automation can tell a time from before a reset of 
 at which it was not due, from a time it was due at but moved past.
 
 An automation still on its first revision started in the minute it was created.
-For one whose recurrence was reset since, the start is not recorded anywhere,
+For one on a later revision, the start is not recorded anywhere,
 so it is taken to be its first scheduled run of the current revision, or else the minute after its cursor, which a reset puts just before the start.
+A new definition also starts a revision, without resetting the recurrence;
+for such an automation, this start may come later than the actual one, so a run waiting for it at a time in between goes ahead without it.
 
 Revision ID: d5b8f3a1c962
 Revises: c3d9f6a2e481
@@ -32,13 +34,13 @@ def upgrade():
     op.execute("""
         UPDATE automation
         SET revision_started_at = CASE
-            WHEN schedule_revision = 1 THEN date_trunc('minute', created_at)
+            WHEN revision = 1 THEN date_trunc('minute', created_at)
             ELSE COALESCE(
                 (
                     SELECT min(automation_run.scheduled_at)
                     FROM automation_run
                     WHERE automation_run.automation_id = automation.id
-                        AND automation_run.schedule_revision = automation.schedule_revision
+                        AND automation_run.revision = automation.revision
                         AND automation_run.trigger = 'schedule'
                 ),
                 cursor + interval '1 minute'

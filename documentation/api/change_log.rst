@@ -16,6 +16,10 @@ v3.0-37 | December xx, 2026
 - Added ``GET /api/v3_0/assets/<id>/automations/<automation-id>/run-plan?include=upstream|downstream``, to see what running an automation along with what is upstream or downstream of it comes down to.
 - Added ``GET /api/v3_0/assets/automations``, to list the automations on public assets (``scope=public``) or every automation the caller may read (``scope=all``), all at once, or one page at a time with ``page`` and ``per-page``.
 - ``GET /api/v3_0/assets/<id>/automations/<automation-id>?include=waited-for-by`` reports ``waited-for-by``, the automations that wait for this one, each with its ``name``, ``asset`` and ``asset-name`` if you may read it.
+- `PATCH /assets/(id)/automations/(id) <../api/v3_0.html#patch--api-v3_0-assets-id-automations-automation-id>`_ also takes ``parameters``, ``data-generator``, ``config`` and ``source``, checked as on creation, against the access of both the user making the change and the user the automation runs as; ``run-as-me`` makes the user making the change the one it runs as instead. A refusal for the user it runs as carries ``reason: run-user-lacks-access``.
+- `POST /assets/(id)/automations/(id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_ answers ``403`` with the same ``reason`` and ``refusal`` when the user the automation runs as may not run it.
+- Automation responses include ``runs-as``, the user whose access every run checks (null for an automation set up through the CLI).
+- `GET /assets/(id)/automations/(id) <../api/v3_0.html#get--api-v3_0-assets-id-automations-automation-id>`_ answers anyone who may read the asset, also where the automation involves a sensor they may not read; such a sensor is listed with its ID only, with ``readable`` false.
 
 v3.0-36 | November 23, 2026
 """"""""""""""""""""""""""""

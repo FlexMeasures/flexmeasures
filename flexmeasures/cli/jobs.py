@@ -40,6 +40,7 @@ from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
 from werkzeug.exceptions import Forbidden
 
+from flexmeasures.data.automations import RunsRefused
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     AutomationRunClaimLost,
@@ -160,14 +161,24 @@ def run_automations():
             click.secho(str(e), **MsgStyle.WARN)
         except Exception as e:
             db.session.rollback()
+            # The run records the refusal as it is; only this terminal hears how to take the runs over.
+            reason = _with_run_as_hint(e) if isinstance(e, RunsRefused) else e
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {e}",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {reason}",
                 **MsgStyle.ERROR,
             )
             n_failed += 1
     if n_failed:
         click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
         raise click.exceptions.Exit(1)
+
+
+def _with_run_as_hint(refused: RunsRefused) -> str:
+    """Add to a refused run how to take the runs over from the CLI, which only a terminal needs to hear."""
+    return (
+        f"{refused.refusal} Run it as someone who may with"
+        f" `flexmeasures edit automation --id {refused.automation_id} --run-as <user id>`."
+    )
 
 
 @fm_jobs.command("run-automation")
@@ -247,6 +258,13 @@ def run_one_automation(
     try:
         # Recorded as a run on demand, so that it shows in the run history and counts for when the automation last succeeded.
         _, returns, _ = run_automation_chain(automation, None)
+    except RunsRefused as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {_with_run_as_hint(e)}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     except (
         NotImplementedError,
         ValueError,
@@ -286,6 +304,13 @@ def _run_automation_chain(
     """Run an automation along with what is upstream or downstream of it, and say what each of them does."""
     try:
         runs, returns, excluded = run_automation_chain(automation, include, exclude)
+    except RunsRefused as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs, so the automations waiting for it are skipped: {_with_run_as_hint(e)}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     except (
         NotImplementedError,
         ValueError,
