@@ -529,6 +529,10 @@ Devices react in series, in the order of the flex-model, each absorbing what the
 The react share is ``1`` in the slots where the price kink is within the device's reach: the production price is below the consumption price or at or below zero, or the site capacity binds,
 and the device could reach the power that balances the connection at that kink; it is ``0`` elsewhere, and wherever the band is a single point, with a band of just the scheduled value.
 The band only reflects the device's own limits (its power capacity, operation modes and the state of charge it must still reach).
+A reacting slot is off the kink when the plan's connection power is not at the kink, the plan's miss is not shaped by operation modes, and no capacity binds.
+Off the kink, the band only extends from the plan to the side that absorbs deviations towards the kink,
+so the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away.
+A deviation away from the kink then leaves a residual outside the band, which a controller may treat as a reason to re-plan: an expected band exit, not a failed rule.
 
 The rules are computed at the scheduling resolution.
 A sensor with a coarser resolution keeps a slot's rule only where the rules of all its sub-slots agree (the same react share, the same reference and identical bands) and the served value lies within that band;

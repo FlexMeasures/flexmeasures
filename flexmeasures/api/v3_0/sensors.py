@@ -1474,7 +1474,13 @@ class SensorAPI(FlaskView):
                               description: The share of the deviation from the balance point the device absorbs, from 0 (follow the plan) to 1 (absorb it one to one); 1 where the price kink is within the device's reach and its band is more than a single point. In a slot where the operation modes shape the plan, the deviation is non-zero even for a house exactly as forecast, and rounding the setpoint into the band brings it back to the plan. This version emits 0 or 1, shares in between are reserved for a later version.
                             band:
                               type: array
-                              description: The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike. Whether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode. A band of a single point gives react 0, and a device with react 0 gets the single range [p, p].
+                              description: |
+                                The power ranges the device may move within during this slot, as [min, max] pairs, being every range the plan leaves feasible, narrowed by the device's state-of-charge limits, hard and soft alike.
+                                Whether and when the device changes mode is the controller's policy; a reacting device rounds a value in a hole between two ranges to the edge on the side of its current mode.
+                                Off the kink (the plan's connection power is not at the kink, the plan's miss is not shaped by operation modes, and no capacity binds), the band only extends from the plan to the side that absorbs deviations towards the kink,
+                                so the device absorbs deviations that would push the connection across the kink, and follows the plan against deviations that push it further away.
+                                A deviation away from the kink then leaves a residual outside the band, which a controller may treat as a reason to re-plan (an expected band exit, not a failed rule).
+                                A band of a single point gives react 0, and a device with react 0 gets the single range [p, p].
                               items:
                                 type: array
                                 items:
