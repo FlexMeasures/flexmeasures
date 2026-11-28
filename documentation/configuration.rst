@@ -1094,6 +1094,33 @@ Default:
         "ingestion": timedelta(minutes=1),
     }
 
+.. _automation_dblogs_ttl:
+
+FLEXMEASURES_AUTOMATION_DBLOGS_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long to keep the records of automation runs (with their attempts and jobs) in the database, per automation type.
+Once an hour, ``flexmeasures jobs run-automations`` deletes the runs that were scheduled longer ago, so that these tables stop growing.
+It keeps the latest run of each automation, any run that is still being dispatched,
+and any failed or stuck run of a monitored automation that ``flexmeasures monitor automations`` has not reported yet.
+A run that never finished is deleted once it is older than this, as by then nothing will finish it.
+
+The setting maps automation types to how long their runs are kept. Types it does not name (such as automation types added by plugins) get the ``"default"`` time-to-live.
+``None`` keeps the runs of a type forever, and without a ``"default"``, the runs of types the setting does not name are kept forever, too.
+A single ``timedelta`` is also accepted, and then holds for all types, and ``None`` switches pruning off.
+
+Default:
+
+.. code-block:: python
+
+    {
+        "default": timedelta(days=60),
+        "scheduling": timedelta(days=90),
+        "forecasting": timedelta(days=60),
+        "reporting": timedelta(days=60),
+        "ingestion": timedelta(days=14),
+    }
+
 FLEXMEASURES_AUTHENTICATION_FAILURE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

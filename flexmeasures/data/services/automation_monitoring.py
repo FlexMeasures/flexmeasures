@@ -116,6 +116,24 @@ def _dispatch_failed_for_good(now: datetime):
     )
 
 
+def unalerted_failure_criterion(stuck_after: timedelta, now: datetime):
+    """Return the criterion for a run that failed and was not reported yet, whether or not its automation is monitored.
+
+    A run failed when its execution failed, when its execution has been running for longer than ``stuck_after``,
+    or when its dispatch failed and will not be attempted again.
+    Pruning old runs (see `flexmeasures.data.services.automation_pruning`) uses it too, so that no failure is deleted before the monitor reported it.
+    """
+    execution_failed = AutomationRun.execution_state == "failed"
+    stuck = and_(
+        AutomationRun.execution_state == "running",
+        AutomationRun.execution_started_at <= now - stuck_after,
+    )
+    return and_(
+        AutomationRun.alerted_at.is_(None),
+        or_(execution_failed, stuck, _dispatch_failed_for_good(now)),
+    )
+
+
 def get_unalerted_failed_automation_runs(
     stuck_after: timedelta,
     now: datetime | None = None,
@@ -133,18 +151,12 @@ def get_unalerted_failed_automation_runs(
     if now is None:
         now = server_now()
     now = now.astimezone(timezone.utc)
-    execution_failed = AutomationRun.execution_state == "failed"
-    stuck = and_(
-        AutomationRun.execution_state == "running",
-        AutomationRun.execution_started_at <= now - stuck_after,
-    )
     runs = db.session.scalars(
         select(AutomationRun)
         .join(AutomationRun.automation)
         .where(
             Automation.monitored.is_(True),
-            AutomationRun.alerted_at.is_(None),
-            or_(execution_failed, stuck, _dispatch_failed_for_good(now)),
+            unalerted_failure_criterion(stuck_after, now),
         )
         .options(
             selectinload(AutomationRun.automation)

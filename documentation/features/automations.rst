@@ -354,6 +354,9 @@ Runs and retries
 ----------------
 
 Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
+These records expire, too, though much later: once an hour, the runner deletes the runs that are older than their automation type's time-to-live (by default 14 days for ingestion, 90 days for scheduling and 60 days for other types).
+It always keeps the latest run of each automation, and a failure that monitoring has not reported yet.
+See :ref:`automation_dblogs_ttl`.
 The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and revision, so two runners started in the same minute cannot both execute it.
 A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
 
